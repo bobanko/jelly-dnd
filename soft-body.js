@@ -138,7 +138,7 @@
    players.forEach((p,i)=>{
     p.spawn??={x:p.x,z:p.z};p.state??='alive';p.y??=0;p.vy??=0;p.deaths??=0;p.respawnFlash=Math.max(0,(p.respawnFlash||0)-dt);
     const b=lattices[i],input=inputs[i]||{x:0,z:0},magnitude=p.launchTimer>0?0:Math.hypot(input.x,input.z);
-    const belt=supports[i]>=0?{x:0,z:0}:world.conveyorVelocity(p,Math.min(...b.positions.map(n=>n[1]))-.035),onBelt=Math.hypot(belt.x,belt.z)>.001;
+    const belt=supports[i]>=0?{x:0,z:0}:world.conveyorVelocity(p,b.rigid?Math.min(...b.positions.map(n=>n[1]))-.035:p.y||0),onBelt=Math.hypot(belt.x,belt.z)>.001;
     b.surfaceVelocity=belt;b.driven=magnitude>0||onBelt;
     if(p.state==='dead'){
      p.respawnTimer-=dt;const spawn=p.respawnTimer<=0&&world.respawnPosition(p,players);

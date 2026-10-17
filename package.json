@@ -4,11 +4,14 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "check": "node --check game.js && node --check physics.js && node --check soft-body.js && node --check level-features.js && node --check combat.js && node --check webgpu-renderer.js && node --check game-effects.js && node --check levels.js && node --check editor-model.js && node --check editor.js",
-    "test": "node --test game.test.js physics.test.js soft-body.test.js level-features.test.js combat.test.js game-effects.test.js stacking.test.js camera.test.js levels.test.js",
+    "check": "node --check game.js && node --check physics.js && node --check soft-body.js && node --check level-features.js && node --check combat.js && node --check webgpu-renderer.js && node --check game-effects.js && node --check levels.js && node --check editor-model.js && node --check editor-space.js && node --check editor.js",
+    "test": "node --test game.test.js physics.test.js soft-body.test.js level-features.test.js combat.test.js game-effects.test.js stacking.test.js camera.test.js levels.test.js conveyor.test.js editor-space.test.js",
     "test:browser": "node browser-tests.cjs",
     "test:combat:browser": "node browser-combat.cjs",
     "test:editor:browser": "node browser-editor.cjs",
+    "test:editor:3d": "node browser-editor-3d.cjs",
+    "test:parties:browser": "node browser-parties.cjs",
+    "test:conveyor:browser": "node browser-conveyor.cjs",
     "test:dice": "node browser-dice.cjs",
     "profile:browser": "node browser-smoke.cjs",
     "profile:compare": "node browser-performance.cjs"

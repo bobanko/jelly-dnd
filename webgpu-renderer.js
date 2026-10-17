@@ -189,7 +189,8 @@
  const runePaths=[
    [[[0,.26],[0,-.26]],[[0,.02],[-.18,-.17]],[[0,.02],[.18,-.17]]],
    [[[0,-.25],[.2,0],[0,.25],[-.2,0],[0,-.25]],[[-.2,0],[.2,0]]],
-   [[[.17,-.25],[-.12,-.04],[.12,.04],[-.17,.25]]]
+   [[[.17,-.25],[-.12,-.04],[.12,.04],[-.17,.25]]],
+   [[[0,-.25],[.2,0],[0,.25],[-.2,0],[0,-.25]]]
  ];
  const runeGlyphShader=`
  fn runeSegment(p:vec2f,a:vec2f,b:vec2f)->f32{let ab=b-a;return length(p-a-ab*clamp(dot(p-a,ab)/dot(ab,ab),0.,1.));}
@@ -210,7 +211,7 @@
   }
  }
  function colliderLines(boxes){
-  const data=[],colors={floor:[.12,.65,1],wall:[.8,.88,.95],lift:[1,.65,.04],bridge:[1,.7,.2],spikes:[1,.1,.12],portal:[.85,.2,1]};
+  const data=[],colors={floor:[.12,.65,1],wall:[.8,.88,.95],lift:[1,.65,.04],bridge:[1,.7,.2],conveyor:[.7,.9,.3],spikes:[1,.1,.12],portal:[.85,.2,1]};
   for(const b of boxes){const c=colors[b.kind]||colors.wall,points=[];for(let y=0;y<2;y++)for(let z=0;z<2;z++)for(let x=0;x<2;x++)points.push([b.x+(x?1:-1)*(b.halfX??b.half),y?b.maxY:b.minY,b.z+(z?1:-1)*(b.halfZ??b.half)]);
    for(let i=0;i<8;i++)for(const bit of [1,2,4])if(!(i&bit))data.push(...points[i],...c,...points[i|bit],...c);
   }return new Float32Array(data);
@@ -231,7 +232,7 @@
  const shared=`
  struct Portal { position:vec4f, color:vec4f };
  struct Goal { position:vec4f, color:vec4f };
- struct Scene { vp:mat4x4f, lightVP:mat4x4f, eye:vec4f, light:vec4f, body0:vec4f, body1:vec4f, body2:vec4f, options:vec4f, portals:array<Portal,4>, goals:array<Goal,3>, torches:array<vec4f,8> };
+ struct Scene { vp:mat4x4f, lightVP:mat4x4f, eye:vec4f, light:vec4f, body0:vec4f, body1:vec4f, body2:vec4f, options:vec4f, portals:array<Portal,4>, goals:array<Goal,4>, torches:array<vec4f,8>, body3:vec4f, bodySlots:vec4f };
  @group(0) @binding(0) var<uniform> scene:Scene;
  struct Out { @builtin(position) clip:vec4f, @location(0) world:vec3f, @location(1) normal:vec3f, @location(2) color:vec3f, @location(3) material:f32, @location(4) local:vec3f };
  struct Vertex { position:vec4f, normal:vec4f, info:vec4f };
@@ -245,8 +246,8 @@
  }
  @vertex fn softVS(@builtin(vertex_index) id:u32,@builtin(instance_index) instance:u32)->Out{
   let v=vertices[id+instance*1350u];var o:Out;o.clip=scene.vp*v.position;o.world=v.position.xyz;o.normal=v.normal.xyz;
-  let colors=array<vec3f,3>(vec3f(.045,.72,.095),vec3f(.025,.15,.95),vec3f(.95,.055,.025));
-  o.color=colors[instance];o.material=2.+f32(instance);o.local=v.info.xyz;return o;
+  let colors=array<vec3f,4>(vec3f(.045,.72,.095),vec3f(.025,.15,.95),vec3f(.95,.055,.025),vec3f(.58,.045,.92));
+  o.color=colors[u32(v.info.w)];o.material=2.+v.info.w;o.local=v.info.xyz;return o;
  }
  @vertex fn portalHaloVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
   let portal=scene.portals[instance];var o:Out;o.world=portal.position.xyz+vec3f(p.x*.78,.033,p.z*.78);o.clip=scene.vp*vec4f(o.world,1.);
@@ -323,6 +324,13 @@
   }
   if(o.material>10.5&&o.material<11.5){color*=textureSampleGrad(oakTexture,materialSampler,uv,dx,dy).rgb*3.;}
   if(o.material>13.5&&o.material<14.5){let stone=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;let wear=clamp(dot(stone,vec3f(.25,.6,.15))*3.5,.3,1.35);color*=wear;}
+  if(o.material>15.5&&o.material<16.5){
+   let axes=array<vec2f,4>(vec2f(0,1),vec2f(1,0),vec2f(0,-1),vec2f(-1,0));let axis=axes[min(u32(round(o.local.x)),3u)];
+   let across=dot(o.world.xz-round(o.world.xz),vec2f(axis.y,-axis.x));let track=dot(o.world.xz,axis)-scene.options.z*o.local.z;
+   let groove=1.-smoothstep(.02,.055,abs(fract(track*5.)-.5));
+   let chevron=(1.-smoothstep(.035,.065,abs(fract((track+abs(across)*.7)*2.)-.5)))*(1.-smoothstep(.2,.24,abs(across)));
+   color=mix(vec3f(.18,.23,.18),vec3f(.035,.05,.04),groove)+chevron*vec3f(.55,.38,.12);
+  }
   var light=vec3f(.15,.19,.22)+vec3f(.94,.83,.63)*max(0.,dot(n,l))*shadow(o.world,n)*.95+vec3f(.12,.19,.28)*max(0.,dot(n,normalize(vec3f(-.6,.4,-.6))));
   for(var i=0;i<8;i++){
    if(scene.torches[i].w<.5){continue;}
@@ -331,14 +339,14 @@
    light+=vec3f(3.5,1.22,.18)*attenuation*max(.12,dot(n,normalize(delta)))*flicker;
   }
   // Soft, coloured transmission shadows; wider and lighter when a cube lifts off.
-  let bodies=array<vec4f,3>(scene.body0,scene.body1,scene.body2);
-  let tints=array<vec3f,3>(vec3f(.09,.85,.18),vec3f(.035,.17,1.),vec3f(1.,.08,.035));
-  for(var i=0;i<3;i++){
+  let bodies=array<vec4f,4>(scene.body0,scene.body1,scene.body2,scene.body3);
+  let tints=array<vec3f,4>(vec3f(.09,.85,.18),vec3f(.035,.17,1.),vec3f(1.,.08,.035),vec3f(.65,.08,1.));
+  for(var i=0;i<4;i++){
    let body=bodies[i];let delta=o.world.xz-body.xz;
    let height=max(0.,body.y-.42-(body.w-1.));let radius=.28+height*.18;
    let amount=exp(-dot(delta,delta)/(radius*radius))*.36/(1.+height*2.);
    if(body.w>0.&&o.world.y<body.y-.2){
-    let tint=tints[i];
+    let tint=tints[u32(scene.bodySlots[i])];
     light*=mix(vec3f(1.),tint*.6+vec3f(.2),amount);
     light+=tint*exp(-dot(delta,delta)/.34)*.22/(1.+height*3.);
    }
@@ -395,6 +403,7 @@
   var refractedUV=mix(uv,exitUV,.55);refractedUV=clamp(refractedUV,vec2f(.002),vec2f(.998));
   let pigment=o.color;var absorption=select(vec3f(2.1,.13,1.95),vec3f(2.9,1.7,.12),o.material>2.5);
   if(o.material>3.5){absorption=vec3f(.13,2.35,2.8);}
+  if(o.material>4.5){absorption=vec3f(.75,2.8,.13);}
   let transmission=exp(-absorption*thick*1.35);
   let background=textureSampleLevel(behind,linearSampler,refractedUV,0.).rgb;
   var color=background*transmission+pigment*(1.-transmission)*.55;
@@ -419,7 +428,7 @@
  @group(0) @binding(2) var<storage,read> binds:array<Bind>;
  @group(0) @binding(3) var<storage,read_write> output:array<Vertex>;
  @compute @workgroup_size(64) fn deform(@builtin(global_invocation_id) id:vec3u){
-  if(id.x>=4050u){return;}let instance=id.x/1350u;let bind=binds[id.x%1350u];
+  if(id.x>=5400u){return;}let instance=id.x/1350u;if(nodes[instance*64u].w<0.){return;}let bind=binds[id.x%1350u];
   let grid=clamp((bind.param.xyz+vec3f(.38))/.76*3.,vec3f(0.),vec3f(2.99999));let cell=vec3u(floor(grid));let f=fract(grid);
   var displacement=vec3f(0);var dx=vec3f(0);var dy=vec3f(0);var dz=vec3f(0);
   for(var z=0u;z<2u;z++){for(var y=0u;y<2u;y++){for(var x=0u;x<2u;x++){
@@ -431,7 +440,7 @@
   // Cofactor(F) transforms normals correctly under non-rigid deformation.
   let a=vec3f(1,0,0)+dx;let b=vec3f(0,1,0)+dy;let c=vec3f(0,0,1)+dz;
   let cofactor=mat3x3f(cross(b,c),cross(c,a),cross(a,b));
-  output[id.x].position=vec4f(bind.rest.xyz+displacement,1.);output[id.x].normal=vec4f(normalize(cofactor*bind.normal.xyz),0.);output[id.x].info=vec4f(bind.param.xyz,f32(instance));
+  output[id.x].position=vec4f(bind.rest.xyz+displacement,1.);output[id.x].normal=vec4f(normalize(cofactor*bind.normal.xyz),0.);output[id.x].info=vec4f(bind.param.xyz,nodes[instance*64u].w);
  }
  `;
  const post=`
@@ -444,7 +453,7 @@
  const latticeShader=`
  struct Portal { position:vec4f, color:vec4f };
  struct Goal { position:vec4f, color:vec4f };
- struct Scene { vp:mat4x4f, lightVP:mat4x4f, eye:vec4f, light:vec4f, body0:vec4f, body1:vec4f, body2:vec4f, options:vec4f, portals:array<Portal,4>, goals:array<Goal,3>, torches:array<vec4f,8> };
+ struct Scene { vp:mat4x4f, lightVP:mat4x4f, eye:vec4f, light:vec4f, body0:vec4f, body1:vec4f, body2:vec4f, options:vec4f, portals:array<Portal,4>, goals:array<Goal,4>, torches:array<vec4f,8>, body3:vec4f, bodySlots:vec4f };
  @group(0) @binding(0) var<uniform> scene:Scene;
  @group(0) @binding(1) var<storage,read> nodes:array<vec4f>;
  @group(0) @binding(2) var<storage,read> edges:array<u32>;
@@ -469,12 +478,12 @@
    this.context=this.canvas.getContext('webgpu');this.format=navigator.gpu.getPreferredCanvasFormat();this.context.configure({device:d,format:this.format,alphaMode:'opaque'});
    const module=async(label,code)=>{const m=d.createShaderModule({label,code});const info=await m.getCompilationInfo();const errors=info.messages.filter(x=>x.type==='error');if(errors.length)throw Error(label+': '+errors.map(e=>e.message).join('\n'));return m;};
    const main=await module('Dungeon and candy',shared+skin),deform=await module('Cofactor deformation',compute),finish=await module('Khronos PBR Neutral',post),lattice=await module('XPBD lattice overlay',latticeShader),collider=await module('Level collision overlay',colliderShader);
-   this.uniform=this.buffer(new Float32Array(144),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+   this.uniform=this.buffer(new Float32Array(160),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
    const bindings=surfaceBindings(this.soft);this.bindingCount=bindings.count;
    this.bindBuffer=this.buffer(bindings.vertices,GPUBufferUsage.STORAGE);this.indexBuffer=this.buffer(bindings.indices,GPUBufferUsage.INDEX);this.indexCount=bindings.indices.length;
-   this.nodes=this.buffer(new Float32Array(192*4),GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST);
+   this.nodes=this.buffer(new Float32Array(256*4),GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST);
    this.restNodes=this.buffer(new Float32Array(this.soft.rest.flatMap(p=>[...p,0])),GPUBufferUsage.STORAGE);
-   this.deformed=d.createBuffer({size:4050*48,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.VERTEX});
+   this.deformed=d.createBuffer({size:5400*48,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.VERTEX});
    this.compute=d.createComputePipeline({layout:'auto',compute:{module:deform,entryPoint:'deform'}});
    this.computeGroup=d.createBindGroup({layout:this.compute.getBindGroupLayout(0),entries:[this.nodes,this.restNodes,this.bindBuffer,this.deformed].map((buffer,binding)=>({binding,resource:{buffer}}))});
    this.sceneLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},{binding:1,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},{binding:2,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'depth'}},{binding:3,visibility:GPUShaderStage.FRAGMENT,sampler:{type:'comparison'}},{binding:4,visibility:GPUShaderStage.FRAGMENT,texture:{}},{binding:5,visibility:GPUShaderStage.FRAGMENT,texture:{}},{binding:6,visibility:GPUShaderStage.FRAGMENT,sampler:{}}]});
@@ -538,7 +547,7 @@
    this.hdr=create('rgba16float',1,GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_SRC);
    this.background=create('rgba16float',1,GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST);
    this.msaa=create('rgba16float',4);this.depth=create('depth32float',4);this.exitDepth=create('depth32float');
-   this.exits=Array.from({length:3},()=>create('rgba16float',1,GPUTextureUsage.TEXTURE_BINDING));
+   this.exits=Array.from({length:4},()=>create('rgba16float',1,GPUTextureUsage.TEXTURE_BINDING));
    this.skinGroups=this.exits.map(t=>d.createBindGroup({layout:this.skinLayout,entries:[{binding:0,resource:this.background.createView()},{binding:1,resource:t.createView()},{binding:2,resource:this.sampler}]}));
    this.postGroup=d.createBindGroup({layout:this.post.getBindGroupLayout(0),entries:[{binding:0,resource:this.hdr.createView()},{binding:1,resource:this.sampler}]});
   }
@@ -585,7 +594,7 @@
      for(const end of [-1,1])sphere(mesh,origin.map((v,k)=>v+axis[k]*end*.135),[.025,.025,.025],bone,1);
     }
     append('jelly',i,mesh);
-    for(let j=0;j<5;j++){const mesh=[],phase=j*2.4+i;const position=[Math.sin(phase)*.22,-.26+j*.097,Math.cos(phase)*.2];sphere(mesh,position,[.015,.015,.015],[[.55,.72,.23],[.25,.62,.7],[.9,.3,.12]][i],1);append('bubble',i,mesh,{bubble:j});}
+    for(let j=0;j<5;j++){const mesh=[],phase=j*2.4+i;const position=[Math.sin(phase)*.22,-.26+j*.097,Math.cos(phase)*.2];sphere(mesh,position,[.015,.015,.015],[[.55,.72,.23],[.25,.62,.7],[.9,.3,.12],[.7,.3,.9]][players[i].slot??i],1);append('bubble',i,mesh,{bubble:j});}
    }
    for(let i=0;i<(level.crates||[]).length;i++)append('crate',i,crateGeometry());
    const shield=shieldGeometry(),heldShield=shield.slice();
@@ -675,16 +684,16 @@
     cursor+=source.length;
    }
    const dynamicCount=cursor/12;this.device.queue.writeBuffer(this.propBuffer,0,data.buffer,0,cursor*4);
-   const decorationKey=[level.goals.length,level.plates.length,level.world.spikes.length,level.world.portals.length].join(',');
+   const decorationKey=[level.goals.length,level.plates.length,level.world.spikes.length,level.world.portals.length,level.world.conveyors.length].join(',');
    if(this.decorationKey!==decorationKey){const mesh=[];
    level.goals.forEach((g,i)=>{
     if(!g)return;
-    const y=g.y??level.world.heightAt(g.x,g.z)??0,color=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025]][i],base=mesh.length;
+    const y=g.y??level.world.heightAt(g.x,g.z)??0,color=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025],[.68,.12,1.]][g.slot??i],base=mesh.length;
     box(mesh,[g.x,y+.023,g.z],[.86,.045,.86],[.065,.08,.095],.025,10);
     for(let n=base;n<mesh.length;n+=12)mesh[n+10]=i;
     const trim=mesh.length;
     for(let k=0;k<4;k++){const x=k<2?g.x+(k?1:-1)*.39:g.x,z=k>=2?g.z+(k===2?1:-1)*.39:g.z;box(mesh,[x,y+.05,z],k<2?[.026,.012,.8]:[.8,.012,.026],color,.005,10);}
-    goalRune(mesh,[g.x,y+.053,g.z],i,color);
+    goalRune(mesh,[g.x,y+.053,g.z],g.slot??i,color);
     for(let n=trim;n<mesh.length;n+=12){mesh[n+10]=i;mesh[n+11]=1;}
    });
    level.plates.forEach(p=>{
@@ -708,6 +717,17 @@
      pressureSurface(mesh,center,[[.059,.025],[.076,.025],[.079,.032],[.072,.044],[.06,.044],[.057,.033],[.057,.025]],[.13,.125,.11],12,0,16);
      pressureSurface(mesh,[center[0],y+.026,center[2]],[[0,0],[.057,0],[.057,.002],[0,.002]],[.008,.01,.012],13,0,16);
     }
+   }
+   for(const belt of level.world.conveyors){
+    const from=mesh.length,y=level.world.heightAt(belt.x,belt.z)??0,dx=belt.dx||0,dz=belt.dz??1,code=dx>0?1:dx<0?3:dz<0?2:0;
+    box(mesh,[0,.005,0],[.78,.018,1],[.18,.23,.18],.004,16,2);
+    for(let k=from;k<mesh.length;k+=12){mesh[k+10]=code;mesh[k+11]=belt.speed??.85;}
+    for(const side of [-1,1]){
+     box(mesh,[side*.435,.019,0],[.065,.045,1],[.22,.25,.23],.01,12,2);
+     for(const z of [-.31,.31])box(mesh,[side*.435,.046,z],[.026,.012,.027],[.5,.43,.29],.004,12,1);
+     if(!level.world.conveyorJoined(belt,side))box(mesh,[0,.012,side*.46],[.8,.055,.075],[.24,.26,.23],.018,12,2);
+    }
+    for(let k=from;k<mesh.length;k+=12)for(const offset of [0,3]){const x=mesh[k+offset],py=mesh[k+offset+1],z=mesh[k+offset+2];mesh[k+offset]=(offset?0:belt.x)+dz*x+dx*z;mesh[k+offset+1]=(offset?0:y)+py;mesh[k+offset+2]=(offset?0:belt.z)-dx*x+dz*z;}
    }
    level.world.portals.forEach((portal,i)=>{const y=portal.y??level.world.heightAt(portal.x,portal.z)??0,color=portal.color==='violet'?[.7,.045,1.]:[1.,.34,.025];box(mesh,[portal.x,y+.012,portal.z],[.75,.024,.75],[.08,.075,.095],.05);const rim=mesh.length;portalRing(mesh,portal.x,y+.053,portal.z,color);for(let n=rim;n<mesh.length;n+=12){mesh[n+9]=8;mesh[n+10]=i;mesh[n+11]=0;}const from=mesh.length;sphere(mesh,[portal.x,y+.04,portal.z],[.267,.012,.267],color,5);for(let n=from;n<mesh.length;n+=12){mesh[n+10]=i;mesh[n+11]=0;}});
    const decorations=new Float32Array(mesh);
@@ -752,39 +772,39 @@
    if(this.runeCount){pass.setPipeline(this.runePipeline);pass.setVertexBuffer(0,this.portalHaloBuffer);pass.setVertexBuffer(1,this.runeBuffer);pass.draw(6,this.runeCount);}
    const count=Math.min(4,level.world.portals.length);
    if(count){pass.setPipeline(this.portalHaloPipeline);pass.setVertexBuffer(0,this.portalHaloBuffer);pass.draw(6,count);pass.setPipeline(this.portalRingPipeline);pass.setVertexBuffer(0,this.portalRingBuffer);pass.draw(this.portalRingCount,count*3);}
-   if(level.goals.length){pass.setVertexBuffer(0,this.portalHaloBuffer);pass.setPipeline(this.goalGlowPipeline);pass.draw(6,Math.min(3,level.goals.length));if(this.goalWinGlow>.001){pass.setPipeline(this.goalBeamPipeline);pass.draw(6,Math.min(3,level.goals.length));}}
+   if(level.goals.length){pass.setVertexBuffer(0,this.portalHaloBuffer);pass.setPipeline(this.goalGlowPipeline);pass.draw(6,Math.min(4,level.goals.length));if(this.goalWinGlow>.001){pass.setPipeline(this.goalBeamPipeline);pass.draw(6,Math.min(4,level.goals.length));}}
   }
   render(level,players,camera,angle,time,scale,dt=1/60){
    if(!this.ready)return;this.resize();const d=this.device,w=this.canvas.width,h=this.canvas.height;
    const rect=this.canvas.getBoundingClientRect(),frame=this.cameraState=cameraFrame(camera,angle,rect.width,rect.height,scale),{vp,view,eye}=frame;
    const extent=level.definition?.size??12,lightVP=viewMatrix([(extent-1)*.5,0,(extent-1)*.5],normalize([-.45,1.,.35]),Math.max(18,extent+4),Math.max(18,extent+4));
-   const uniforms=new Float32Array(144);uniforms.set(vp);uniforms.set(lightVP,16);uniforms.set([...eye,frame.perspective?1:0],32);uniforms.set([-2,12,9,1],36);
-   level.world.obstacles.filter(o=>o.half<.4).slice(0,8).forEach((o,i)=>uniforms.set([o.x,(o.minY||0)+.85,o.z,1],112+i*4));
-   players.forEach((p,i)=>uniforms.set([p.x,(p.y||0)+.42,p.z,p.state==='dead'?0:1+(level.world.heightAt(p.x,p.z)||0)],40+i*4));uniforms.set([w,h,time,this.mesh?1:0],52);
+   const uniforms=new Float32Array(160);uniforms.set(vp);uniforms.set(lightVP,16);uniforms.set([...eye,frame.perspective?1:0],32);uniforms.set([-2,12,9,1],36);
+   level.world.obstacles.filter(o=>o.half<.4).slice(0,8).forEach((o,i)=>uniforms.set([o.x,(o.minY||0)+.85,o.z,1],120+i*4));
+   players.forEach((p,i)=>uniforms.set([p.x,(p.y||0)+.42,p.z,p.state==='dead'?0:1+(level.world.heightAt(p.x,p.z)||0)],i===3?152:40+i*4));uniforms.set([w,h,time,this.mesh?1:0],52);
    level.world.portals.slice(0,4).forEach((p,i)=>{const charge=level.world.portalInactive(p,players)?-1:level.world.portalCharge(p,players);uniforms.set([p.x,p.y??level.world.heightAt(p.x,p.z)??0,p.z,charge],56+i*8);uniforms.set([...(p.color==='violet'?[.7,.045,1.]:[1.,.34,.025]),i*.23],60+i*8);});
    this.goalGlowStrength??=[];this.goalWinGlow??=0;
    const fade=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*8),celebrate=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*4);
    this.goalWinGlow+=((level.won?1:0)-this.goalWinGlow)*celebrate;
-   level.goals.slice(0,3).forEach((g,i)=>{if(!g)return;const target=level.world.goalCharge(g,players[i]);this.goalGlowStrength[i]=(this.goalGlowStrength[i]||0)+(target-(this.goalGlowStrength[i]||0))*fade;uniforms.set([g.x,g.y??level.world.heightAt(g.x,g.z)??0,g.z,this.goalGlowStrength[i]],88+i*8);uniforms.set([...[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025]][i],this.goalWinGlow],92+i*8);});d.queue.writeBuffer(this.uniform,0,uniforms);
-   const nodes=new Float32Array(192*4);players.forEach((p,i)=>level.soft.get(p).positions.forEach((q,j)=>nodes.set([q[0],p.state==='dead'?-100:q[1],q[2],1],(i*64+j)*4)));d.queue.writeBuffer(this.nodes,0,nodes);
+   level.goals.slice(0,4).forEach((g,i)=>{if(!g)return;const target=level.world.goalCharge(g,players.find((p,j)=>(p.slot??j)===(g.slot??i)));this.goalGlowStrength[i]=(this.goalGlowStrength[i]||0)+(target-(this.goalGlowStrength[i]||0))*fade;uniforms.set([g.x,g.y??level.world.heightAt(g.x,g.z)??0,g.z,this.goalGlowStrength[i]],88+i*8);uniforms.set([...[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025],[.68,.12,1.]][g.slot??i],this.goalWinGlow],92+i*8);});players.forEach((p,i)=>uniforms[156+i]=p.slot??i);d.queue.writeBuffer(this.uniform,0,uniforms);
+   const nodes=new Float32Array(256*4);for(let i=0;i<4;i++)nodes[i*256+3]=-1;players.forEach((p,i)=>level.soft.get(p).positions.forEach((q,j)=>nodes.set([q[0],p.state==='dead'?-100:q[1],q[2],p.slot??i],(i*64+j)*4)));d.queue.writeBuffer(this.nodes,0,nodes);
    if(this.bridgeKey===undefined){this.buildScene(level);this.bridgeKey='static';}
    const bridgeCount=this.bridges(level),propCount=this.props(level,players,angle,time,dt),effectCount=this.effects(level.effects,view);
    this.updateRunes(level.effects);const encoder=d.createCommandEncoder();
-   const computePass=encoder.beginComputePass();computePass.setPipeline(this.compute);computePass.setBindGroup(0,this.computeGroup);computePass.dispatchWorkgroups(Math.ceil(4050/64));computePass.end();
+   const computePass=encoder.beginComputePass();computePass.setPipeline(this.compute);computePass.setBindGroup(0,this.computeGroup);computePass.dispatchWorkgroups(Math.ceil(players.length*1350/64));computePass.end();
    const shadowPass=encoder.beginRenderPass({colorAttachments:[],depthStencilAttachment:{view:this.shadowTexture.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
    shadowPass.setPipeline(this.shadow);shadowPass.setBindGroup(0,this.shadowGroup);shadowPass.setVertexBuffer(0,this.staticBuffer);shadowPass.draw(this.staticCount);if(bridgeCount){shadowPass.setVertexBuffer(0,this.bridgeBuffer);shadowPass.draw(bridgeCount);}shadowPass.end();
    const opaque=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),clearValue:{r:.012,g:.017,b:.022,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
    opaque.setPipeline(this.opaque);opaque.setBindGroup(0,this.sceneGroup);opaque.setBindGroup(1,this.skinGroups[0]);opaque.setVertexBuffer(0,this.staticBuffer);opaque.draw(this.staticCount);if(bridgeCount){opaque.setVertexBuffer(0,this.bridgeBuffer);opaque.draw(bridgeCount);}opaque.setVertexBuffer(0,this.propBuffer);opaque.draw(propCount);opaque.setVertexBuffer(0,this.decorationBuffer);opaque.draw(this.decorationCount);opaque.end();
-   const order=[0,1,2].filter(i=>players[i].state!=='dead').sort((a,b)=>dot([players[a].x,players[a].y||0,players[a].z],view)-dot([players[b].x,players[b].y||0,players[b].z],view));
+   const order=players.map((_,i)=>i).filter(i=>players[i].state!=='dead').sort((a,b)=>dot([players[a].x,players[a].y||0,players[a].z],view)-dot([players[b].x,players[b].y||0,players[b].z],view));
    for(const i of order){
     const backPass=encoder.beginRenderPass({colorAttachments:[{view:this.exits[i].createView(),clearValue:{r:0,g:0,b:0,a:0},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.exitDepth.createView(),depthClearValue:0,depthLoadOp:'clear',depthStoreOp:'store'}});
-    backPass.setPipeline(this.back);backPass.setBindGroup(0,this.sceneGroup);backPass.setBindGroup(1,this.skinGroups[(i+1)%3]);backPass.setIndexBuffer(this.indexBuffer,'uint32');backPass.drawIndexed(this.indexCount,1,0,0,i);backPass.end();
+    backPass.setPipeline(this.back);backPass.setBindGroup(0,this.sceneGroup);backPass.setBindGroup(1,this.skinGroups[(i+1)%4]);backPass.setIndexBuffer(this.indexBuffer,'uint32');backPass.drawIndexed(this.indexCount,1,0,0,i);backPass.end();
     encoder.copyTextureToTexture({texture:this.hdr},{texture:this.background},[w,h]);
     const skin=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});
     skin.setPipeline(this.skin);skin.setBindGroup(0,this.sceneGroup);skin.setBindGroup(1,this.skinGroups[i]);skin.setIndexBuffer(this.indexBuffer,'uint32');skin.drawIndexed(this.indexCount,1,0,0,i);if(i===order[order.length-1])this.drawEffects(skin,level,effectCount);skin.end();
    }
    if(!order.length&&(effectCount||level.world.portals.length||level.goals.length)){const effects=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});this.drawEffects(effects,level,effectCount);effects.end();}
-   if(this.mesh){const lattice=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),loadOp:'load',storeOp:'store'}]});lattice.setPipeline(this.latticePipeline);lattice.setBindGroup(0,this.latticeGroup);lattice.draw(this.edgeCount,3);lattice.end();}
+   if(this.mesh){const lattice=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),loadOp:'load',storeOp:'store'}]});lattice.setPipeline(this.latticePipeline);lattice.setBindGroup(0,this.latticeGroup);lattice.draw(this.edgeCount,players.length);lattice.end();}
    if(this.colliders){const lines=colliderLines(level.world.debugBoxes());if(lines.byteLength>this.colliderBuffer.size){this.colliderBuffer.destroy();this.colliderBuffer=d.createBuffer({size:Math.ceil(lines.byteLength/65536)*65536,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}d.queue.writeBuffer(this.colliderBuffer,0,lines);const debug=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),loadOp:'load',storeOp:'store'}]});debug.setPipeline(this.colliderPipeline);debug.setBindGroup(0,this.colliderGroup);debug.setVertexBuffer(0,this.colliderBuffer);debug.draw(lines.length/6);debug.end();}
    const finish=encoder.beginRenderPass({colorAttachments:[{view:this.context.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});finish.setPipeline(this.post);finish.setBindGroup(0,this.postGroup);finish.draw(3);finish.end();
    d.queue.submit([encoder.finish()]);this.frames++;

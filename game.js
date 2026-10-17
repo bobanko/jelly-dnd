@@ -3,7 +3,7 @@ const canvas=document.querySelector('#scene');
 const reducedMotion=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
 let W,H,DPR,scale,angle=0,targetAngle=0,last=0,time=0,moves=0,history=[],won=false,audioOn=false,audio;
-const N=12, colors=['#9ddd56','#477bff','#ef5346'],names=['Мох','Иней','Уголёк'];
+const N=12, colors=JellyLevels.characters.map(p=>p.color),names=JellyLevels.characters.map(p=>p.name);
 let zoom=1,fpsTime=0,fpsFrames=0;
 let mapError=null,definition;
 try{const search=globalThis.location?.search||'';definition=JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.defaultLevel());}
@@ -15,9 +15,12 @@ const cameraPitches={ortho:30,perspective:55};
 const effects=new JellyEffects.System({reducedMotion});
 const level={...runtime,effects,won:false,reducedMotion};
 document.querySelector('.intro h1').textContent=definition.name;
+document.querySelectorAll('.member').forEach((member,slot)=>member.hidden=!players.some(p=>p.slot===slot));
+document.querySelectorAll('.camera-player').forEach((key,slot)=>key.hidden=!players.some(p=>p.slot===slot));
 if(globalThis.location?.search?.includes('level=editor')){document.querySelector('#editor-link').textContent='← В редактор';document.querySelector('.chapter').textContent='ТЕСТ УРОВНЯ';}
 const heldKeys=new Set();
-const movementKeys={KeyW:[0,0,-1],KeyS:[0,0,1],KeyA:[0,-1,0],KeyD:[0,1,0],ArrowUp:[1,0,-1],ArrowDown:[1,0,1],ArrowLeft:[1,-1,0],ArrowRight:[1,1,0],KeyI:[2,0,-1],KeyK:[2,0,1],KeyJ:[2,-1,0],KeyL:[2,1,0]};
+const slotKeys={KeyW:[0,0,-1],KeyS:[0,0,1],KeyA:[0,-1,0],KeyD:[0,1,0],ArrowUp:[1,0,-1],ArrowDown:[1,0,1],ArrowLeft:[1,-1,0],ArrowRight:[1,1,0],KeyI:[2,0,-1],KeyK:[2,0,1],KeyJ:[2,-1,0],KeyL:[2,1,0],KeyT:[3,0,-1],KeyG:[3,0,1],KeyF:[3,-1,0],KeyH:[3,1,0]};
+const movementKeys=Object.fromEntries(Object.entries(slotKeys).map(([key,[slot,x,z]])=>[key,[players.findIndex(p=>p.slot===slot),x,z]]).filter(([,value])=>value[0]>=0));
 let accumulator=0;
 function resize(){W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio,2);scale=Math.min(W/16,H/12)*zoom;}
 addEventListener('resize',resize);resize();
@@ -37,9 +40,9 @@ function woodHit(broken=false){
 function updateUI(){
  document.querySelector('#moves').textContent=String(moves).padStart(2,'0');document.querySelector('#win').hidden=!won;
  const lost=players.findIndex(p=>!JellyPhysics.alive(p)),moving=world.lifts.some(l=>Math.abs(l.target-l.height)>.01&&players.some(p=>Math.abs(p.x-l.x)<.4&&Math.abs(p.z-l.z)<.4));
- document.querySelector('#status').textContent=won?'Все руны пробуждены':lost>=0?`${names[lost]} ${players[lost].state==='falling'?'падает…':players[lost].deathReason==='spikes'?'погиб на шипах. Возрождение…':'возрождается…'}`:players.some(p=>p.portalBlocked)?'Выход портала занят':moving?'Лифт поднимается':players.some(p=>p.portalFlash>0)?'Магический переход':active(0)||active(1)?'Магический мост поднят':'Святилище ждёт вас';
+ document.querySelector('#status').textContent=won?'Все руны пробуждены':lost>=0?`${names[players[lost].slot]} ${players[lost].state==='falling'?'падает…':players[lost].deathReason==='spikes'?'погиб на шипах. Возрождение…':'возрождается…'}`:players.some(p=>p.portalBlocked)?'Выход портала занят':moving?'Лифт поднимается':players.some(p=>p.portalFlash>0)?'Магический переход':active(0)||active(1)?'Магический мост поднят':'Святилище ждёт вас';
 }
-function focusPlayer(i){followedPlayer=i;document.querySelectorAll('.member').forEach((member,j)=>{member.classList.toggle('following',i===j);member.setAttribute('aria-current',i===j?'true':'false');});}
+function focusPlayer(i){if(!players[i])return;followedPlayer=i;document.querySelectorAll('.member').forEach((member,slot)=>{const current=players[i].slot===slot;member.classList.toggle('following',current);member.setAttribute('aria-current',current?'true':'false');});}
 function clearGoalVisuals(){level.won=false;sceneRenderer.goalGlowStrength=[];sceneRenderer.goalWinGlow=0;}
 function reset(){
  players.forEach((p,i)=>Object.assign(p,start[i],{spawn:{...start[i]},state:'alive',y:start[i].y||0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:start[i].x,rz:start[i].z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,shield:null,shieldHP:0,sword:null,facingX:0,facingZ:1,launchTimer:0,bashCooldown:0,attackTime:0,attackCooldown:0}));
@@ -87,7 +90,7 @@ function simulate(dt){
   accumulator-=JellyPhysics.STEP;
  }
  players.forEach(p=>{p.rx=p.x;p.rz=p.z;p.bounce=Math.max(p.impact,Math.min(.24,Math.hypot(p.vx,p.vz)*.07));});
- won=players.every((p,i)=>world.goalActive(goals[i],p)&&Math.hypot(p.vx,p.vz)<.25);
+ won=players.length>0&&players.every(p=>world.goalActive(goals.find(g=>g.slot===p.slot),p)&&Math.hypot(p.vx,p.vz)<.25);
  if(won){players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);}
  updateUI();
 }
@@ -103,7 +106,7 @@ addEventListener('keydown',e=>{
   if(!heldKeys.size){history.push(snapshot());moves++;if(history.length>256)history.shift();}
   heldKeys.add(k);
  }else if(!e.repeat){
-  if(/^Digit[1-3]$/.test(k)){e.preventDefault();focusPlayer(Number(k.slice(-1))-1);}
+  if(/^Digit[1-4]$/.test(k)){e.preventDefault();focusPlayer(players.findIndex(p=>p.slot===Number(k.slice(-1))-1));}
   else if(k==='KeyQ')targetAngle-=Math.PI/2;
   else if(k==='KeyE')targetAngle+=Math.PI/2;
   else if(k==='KeyR')reset();

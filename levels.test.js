@@ -25,7 +25,7 @@ test('schema rejects malformed coordinates, unsafe quantities, duplicate ids and
 });
 
 test('draft validation finds missing spawns, unpaired portals, unsafe markers and broken bridge links',()=>{
- assert.equal(L.issues(L.blank()).length,6);
+ assert.equal(L.issues(L.blank()).length,1);
  const map=L.read(L.defaultLevel());map.portals.pop();map.plates.pop();map.spawns[0]={x:5,z:5};map.goals[1]={...map.goals[2]};
  const errors=L.issues(map);assert.ok(errors.some(e=>e.includes('ровно два')));assert.ok(errors.some(e=>e.includes('не привязан')));assert.ok(errors.some(e=>e.includes('постоянной площадке')));assert.ok(errors.some(e=>e.includes('Финиши должны')));
  assert.throws(()=>L.forGame({getItem:()=>JSON.stringify(map)},'?level=editor'));
@@ -42,7 +42,7 @@ test('one painted gesture undoes as one operation; redo and invalid changes pres
 
 test('editor places the full arsenal, preserves floor height and relinks buttons by stable id',()=>{
  const m=new Model(L.blank());
- const catalog=['floor','wall','torch','spawn-0','spawn-1','spawn-2','goal-0','goal-1','goal-2','plate','bridge','lift','spikes','portal-violet','portal-amber','crate','archer','shield','sword'];
+ const catalog=['floor','wall','torch','spawn-0','spawn-1','spawn-2','spawn-3','goal-0','goal-1','goal-2','goal-3','plate','bridge','lift','spikes','portal-violet','portal-amber','crate','archer','shield','sword'];
  catalog.forEach((tool,i)=>m.change(()=>m.paint(tool,i%8,Math.floor(i/8),{height:1})));
  assert.equal(m.map.archers.length,1);assert.equal(m.map.pickups.length,2);assert.equal(m.map.walls.length,2);assert.ok(m.map.spawns.every(Boolean));
  const plate=m.map.plates[0],bridge=m.map.bridges[0];assert.equal(bridge.plate,plate.id);assert.equal(bridge.y,1);
@@ -75,4 +75,21 @@ test('torch placement limits and moving a torch to a raised platform preserve it
  m.change(()=>m.paint('floor',9,2,{height:2}));m.move('walls',0,9,2);
  assert.equal(m.map.walls[0].base,2);const runtime=L.instantiate(m.map,Physics,Soft);assert.equal(runtime.world.obstacles[0].minY,2);
  const imported=L.copy(m.map);imported.walls.push({x:10,z:1,half:.17,base:0,height:.56});assert.throws(()=>L.read(imported));
+});
+
+test('any one to four colours form a valid party, and only their matching markers are required',()=>{
+ for(const slots of [[0],[1],[2],[3],[0,1],[1,3],[0,1,2],[0,1,2,3]]){
+  const m=new Model(L.blank());for(const slot of slots){m.change(()=>m.paint('spawn-'+slot,slot*2+1,2));m.change(()=>m.paint('goal-'+slot,slot*2+1,4));}
+  assert.deepEqual(L.issues(m.map),[]);const r=L.instantiate(m.map,Physics,Soft);
+  assert.deepEqual(r.players.map(p=>p.slot),slots);assert.equal(r.bodies.length,slots.length);assert.equal(r.goals.length,slots.length);
+  r.world.step(r.bodies,[]);assert.ok(r.players.every(p=>p.state==='alive'));
+  const original=L.copy(m.map);m.remove('spawns',slots[0]);assert.equal(L.issues(m.map).length,slots.length===1?1:0);m.undo();assert.deepEqual(m.map,original);
+  m.remove('goals',slots[0]);assert.ok(L.issues(m.map).some(e=>e.includes('Финиш')));
+ }
+ const old=L.defaultLevel();old.spawns.pop();old.goals.pop();const migrated=L.read(old);
+ assert.equal(migrated.spawns.length,4);assert.equal(migrated.spawns[3],null);assert.deepEqual(L.issues(migrated),[]);
+ const short=L.blank();short.tiles=[{x:1,z:1,height:0},{x:2,z:1,height:0}];short.spawns=[{x:1,z:1}];short.goals=[{x:2,z:1}];assert.deepEqual(L.issues(L.read(short)),[]);
+ short.spawns=Array(5).fill(null);assert.throws(()=>L.read(short));
+ assert.equal(L.instantiate(L.blank(),Physics,Soft).players.length,0,'empty editor previews have no hidden respawning bodies');
+ const reduced=L.defaultLevel();reduced.spawns[1]=reduced.spawns[2]=null;assert.deepEqual(L.issues(reduced),[],'unused finish tiles do not require absent characters');
 });

@@ -72,12 +72,12 @@
    active(i,bodies){const plate=this.plates[i];if(!plate)return false;const height=plate.y??this.heightAt(plate.x,plate.z)??0;return bodies.some(p=>alive(p)&&Math.abs((p.y||0)-height)<.15&&near(p,plate,.42));},
    collisionBoxes(){
     if(this._collisionCache)return this._collisionCache;
-    const boxes=[];
+    const boxes=[],conveyorCells=new Set(this.conveyors.map(p=>`${p.x},${p.z}`));
     for(const key of this.floor){const [x,z]=key.split(',').map(Number),bridge=this.bridges.findIndex(b=>b.x===x&&b.z===z);
      if(bridge>=0){const bounds=this.bridgeBounds(bridge);if(bounds)boxes.push(bounds);continue;}
      const height=this.heightAt(x,z);if(height===null)continue;
      const lift=this.lifts.find(l=>l.x===x&&l.z===z);
-     boxes.push({x,z,half:.5,minY:lift?height-.16:-.72,maxY:height,kind:lift?'lift':'floor'});
+     boxes.push({x,z,half:.5,minY:lift?height-.16:-.72,maxY:height,kind:lift?'lift':conveyorCells.has(key)?'conveyor':'floor'});
     }
     for(const o of this.obstacles)boxes.push({...o,minY:o.minY??(o.half>.4?-.4:0),maxY:o.height??(o.half>.4?1.4:.56),kind:'wall'});
     for(const a of this.archers)if(a.state!=='dead'){const y=a.y??this.heightAt(a.x,a.z)??0;boxes.push({x:a.x,z:a.z,half:.25,minY:y,maxY:y+1.2,kind:'archer'});}

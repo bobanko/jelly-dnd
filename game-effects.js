@@ -1,8 +1,8 @@
 // Short-lived visual particles. They never become gameplay colliders.
 (function(root){
  'use strict';
- const palettes=[[.12,.9,.16],[.025,.17,1.],[1.,.065,.035]];
- const runeColors=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025]],RUNE_LIMIT=32;
+ const palettes=[[.12,.9,.16],[.025,.17,1.],[1.,.065,.035],[.65,.1,1.]];
+ const runeColors=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025],[.68,.12,1.]],RUNE_LIMIT=32;
  class System{
   constructor({reducedMotion=false}={}){this.reducedMotion=reducedMotion;this.particles=[];this.rings=[];this.runes=[];this.bones=[];this.runeTimers=[];this.runeActive=[];this.seed=1;}
   random(){this.seed=(Math.imul(this.seed,1664525)+1013904223)>>>0;return this.seed/4294967296;}
@@ -30,7 +30,7 @@
     const life=Math.min(this.reducedMotion ? .3 : .68,player.respawnTimer||.68);
     for(let i=0;i<count;i++){
      const q=body.positions[Math.floor(random()*body.positions.length)],a=random()*Math.PI*2,speed=.6+random()*1.8;
-     this.particles.push({kind:'jelly',position:[...q],velocity:[Math.cos(a)*speed,1+random()*2.2,Math.sin(a)*speed],size:.075+random()*.075,phase:random()*6.28,color:palettes[event.player],age:0,life});
+     this.particles.push({kind:'jelly',position:[...q],velocity:[Math.cos(a)*speed,1+random()*2.2,Math.sin(a)*speed],size:.075+random()*.075,phase:random()*6.28,color:palettes[player.slot??event.player],age:0,life});
     }
    }else if(event.type==='archerDeath'){
     this.skeletonBurst(event);
@@ -98,12 +98,12 @@
    }
    for(const rune of this.runes){rune.age+=dt;for(let k=0;k<3;k++)rune.position[k]+=rune.velocity[k]*dt;}
    this.runes=this.runes.filter(r=>r.age<r.life);
-   if(!this.reducedMotion)goals.slice(0,3).forEach((goal,i)=>{
-    const charge=world.goalCharge(goal,players[i]);
+   if(!this.reducedMotion)goals.slice(0,4).forEach((goal,i)=>{
+    const slot=goal?.slot??i,charge=world.goalCharge(goal,players.find((p,j)=>(p.slot??j)===slot));
     if(charge<=.1){this.runeActive[i]=false;this.runeTimers[i]=0;return;}
-    if(!this.runeActive[i]){this.runeActive[i]=true;this.runeTimers[i]=0;this.emitRune(goal,i,world);}
+    if(!this.runeActive[i]){this.runeActive[i]=true;this.runeTimers[i]=0;this.emitRune(goal,slot,world);}
     this.runeTimers[i]+=dt*charge;
-    while(this.runeTimers[i]>=.25){this.runeTimers[i]-=.25;this.emitRune(goal,i,world);}
+    while(this.runeTimers[i]>=.25){this.runeTimers[i]-=.25;this.emitRune(goal,slot,world);}
    });
   }
  }

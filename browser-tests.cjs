@@ -108,9 +108,10 @@ const fs=require('node:fs');
   await page.waitForFunction(()=>players[0].state==='alive'&&players[0].deaths===1,null,{timeout:5000});
   assert.equal(await page.evaluate(()=>players[1].deaths),0);
   assert.equal(await page.evaluate(()=>effects.particles.length),0);
+  // Isolate the trap crossing from the demo belt immediately south of it.
   // Cross while the first trap is fully hidden, then observe its warning and rise.
   await page.evaluate(()=>{
-   reset();world.featureTime=2.35;Object.assign(players[0],{x:3,z:9.9,rx:3,rz:9.9});soft.reset();camera.x=3;camera.z=9;zoom=1.6;resize();
+   reset();world.conveyors=[];world.featureTime=2.35;Object.assign(players[0],{x:3,z:9.9,rx:3,rz:9.9});soft.reset();camera.x=3;camera.z=9;zoom=1.6;resize();
   });
   await page.waitForTimeout(70);assert.equal(await page.evaluate(()=>world.spikeState(world.spikes[0]).extension),0);
   await page.screenshot({path:'artifacts/spikes-hidden.png'});
@@ -184,7 +185,7 @@ const fs=require('node:fs');
   await page.waitForFunction(()=>crates[0].state==='alive'&&Math.abs(crates[0].y)<.1,null,{timeout:8000});
   await page.screenshot({path:'artifacts/crate-pushed-down.png'});
   await page.keyboard.press('KeyZ');assert.ok(await page.evaluate(before=>Math.abs(crates[0].x-before.x)<.03&&Math.abs(crates[0].z-before.z)<.03&&crates[0].y>.9,crateBefore));
-  await page.keyboard.press('KeyR');assert.equal(await page.locator('.member').count(),3);
+  await page.keyboard.press('KeyR');assert.equal(await page.locator('.member:visible').count(),3);
   // Bridges extend from the bank, support a crossing passenger, then slide back.
   await page.evaluate(()=>{
    reset();Object.assign(players[0],{x:2,z:5,rx:2,rz:5});Object.assign(players[1],{x:8,z:5.1,rx:8,rz:5.1});soft.reset();focusPlayer(1);camera.x=8;camera.z=4.5;zoom=1.7;resize();
@@ -225,7 +226,8 @@ const fs=require('node:fs');
   await page.evaluate(()=>{soft.translate(players[0],1,0,0,true);});
   await page.waitForFunction(()=>sceneRenderer.goalGlowStrength[0]<.01);
   await page.waitForFunction(()=>effects.runes.length===0);
-  await page.evaluate(()=>{reset();Object.assign(players[0],{...goals[1],rx:goals[1].x,rz:goals[1].z});soft.reset();});
+  // Move only coordinates: copying the goal's colour slot would change identity.
+  await page.evaluate(()=>{reset();Object.assign(players[0],{x:goals[1].x,z:goals[1].z,rx:goals[1].x,rz:goals[1].z});soft.reset();});
   await page.waitForTimeout(350);
   assert.ok(await page.evaluate(()=>sceneRenderer.goalGlowStrength.every(s=>s===0)),'a different-colour player must not light the rune');
   assert.equal(await page.evaluate(()=>effects.runes.length),0);

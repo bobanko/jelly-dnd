@@ -12,6 +12,33 @@ function game(options={}){
  const codeFor=key=>({arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'}[key]||(/^\d$/.test(key)?'Digit'+key:'Key'+key.toUpperCase()));
  return {run:s=>vm.runInContext(s,sandbox),key:(key,code=codeFor(key),options={})=>listeners.keydown({key,code,preventDefault:noop,...options}),up:(key,code=codeFor(key))=>listeners.keyup({key,code,preventDefault:noop}),blur:()=>listeners.blur()};
 }
+
+function partyMap(slots){
+ const map=require('./levels').blank();map.size=8;for(let x=0;x<8;x++)for(let z=0;z<8;z++)map.tiles.push({x,z,height:0});
+ slots.forEach((slot,i)=>{map.spawns[slot]={x:1+i*2,z:4};map.goals[slot]={x:1+i*2,z:1};});return map;
+}
+test('solo and duo levels keep colour-specific controls, camera keys, undo/reset and victory',()=>{
+ for(const slots of [[0],[1],[2],[3],[1,3]]){
+  const g=game({map:partyMap(slots)});assert.equal(g.run('players.length'),slots.length);
+  const slot=slots[slots.length-1],key=['KeyW','ArrowUp','KeyI','KeyT'][slot];g.key('layout independent',key);g.run('simulate(.05)');g.up('',key);
+  assert.ok(g.run(`players[${slots.length-1}].z<4`));assert.equal(g.run('followedPlayer'),slots.length-1);
+  g.key('z');assert.equal(g.run(`players[${slots.length-1}].z`),4);g.key(String(slot+1));assert.equal(g.run('followedPlayer'),slots.length-1);
+  g.key('r');assert.equal(g.run('players.length'),slots.length);assert.ok(g.run('players.every(p=>p.state==="alive")'));
+  g.run('players.forEach(p=>{const g=goals.find(g=>g.slot===p.slot);Object.assign(p,g,{rx:g.x,rz:g.z});});soft.reset();simulate(.05)');assert.equal(g.run('won'),true);
+ }
+ const solo=game({map:partyMap([1])});for(const key of ['KeyW','KeyI','KeyT','Digit1','Digit3','Digit4'])solo.key('',key);assert.equal(solo.run('moves'),0);assert.equal(solo.run('followedPlayer'),0);
+ const withUnused=partyMap([1]);withUnused.goals[0]={x:5,z:1};const extra=game({map:withUnused});extra.run('Object.assign(players[0],goals.find(g=>g.slot===1));soft.reset();simulate(.05)');assert.equal(extra.run('won'),true,'unused colours do not block victory');
+ const wrong=game({map:withUnused});wrong.run('players[0].x=5;players[0].z=1;soft.reset();simulate(.05);effects.step(.1,world,goals,players)');assert.equal(wrong.run('won'),false);assert.equal(wrong.run('effects.runes.length'),0,'another colour cannot activate an unused rune');
+});
+test('fourth purple jelly uses physical TFGH, participates in victory, and respawns normally',()=>{
+ for(const [code,axis,sign] of [['KeyT','z',-1],['KeyF','x',-1],['KeyG','z',1],['KeyH','x',1]]){
+  const g=game({map:partyMap([0,1,2,3])}),before=g.run('players[3].'+axis);g.key('русская раскладка',code);g.run('simulate(.05)');g.up('',code);
+  assert.ok((g.run('players[3].'+axis)-before)*sign>0);assert.equal(g.run('followedPlayer'),3);g.key('4');assert.equal(g.run('followedPlayer'),3);
+ }
+ const g=game({map:partyMap([0,1,2,3])});g.run('players.slice(0,3).forEach((p,i)=>Object.assign(p,goals[i]));soft.reset();simulate(.05)');assert.equal(g.run('won'),false);
+ g.run('Object.assign(players[3],goals[3]);soft.reset();simulate(.05)');assert.equal(g.run('won'),true);
+ g.run('reset();players[3].state="dead";players[3].respawnTimer=.01;simulate(.05)');assert.equal(g.run('players[3].state'),'alive');assert.equal(g.run('players.length'),4);
+});
 test('physical WASD works on Russian layout and releases after a layout change',()=>{
  for(const [key,code,axis,sign] of [['ц','KeyW','z',-1],['ф','KeyA','x',-1],['ы','KeyS','z',1],['в','KeyD','x',1]]){
   const g=game(),before=g.run('players[0].'+axis);
