@@ -42,6 +42,7 @@
   for(const p of map.blocks||[])add(p,'blocks',.5,p.y-1,p.y);
   for(const p of map.tiles)add(p,'tiles',.5,-.72,p.height);
   for(const p of map.walls)add(p,'walls',p.half,p.base,p.base+p.height);
+  for(const p of map.drones||[]){const y=p.y??heights.get(`${p.x},${p.z}`)??Levels.surfaceY(map,p.x,p.z)??0;add({...p,y},'drones',.31,y+p.hover-.55,y+p.hover+.55);}
   for(const [index,p] of (map.torches||[]).entries()){
    const f=Levels.torchFrame(p),center=f.origin.map((v,k)=>v+f.n[k]*.18),half=f.n.map((n,k)=>Math.abs(n)*.18+Math.abs(f.u[k])*.14+(k===1?.48:0));
    result.push({...p,key:'torches',index,min:center.map((v,k)=>v-half[k]),max:center.map((v,k)=>v+half[k])});

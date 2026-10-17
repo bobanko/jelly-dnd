@@ -43,12 +43,25 @@
     const t=Math.max(0,Math.min(1,(Math.hypot(player.x-goal.x,player.z-goal.z)-.32)/.4));
     return 1-t*t*(3-2*t);
    },
-   portalInactive(portal,players){
+   portalDestination(portal){
+    const chain=this.portals.filter(p=>p.color===portal.color),index=chain.indexOf(portal);
+    return index<0||chain.length<2?null:chain[(index+1)%chain.length];
+   },
+   portalLocked(portal,players){
     const height=portal.y??this.heightAt(portal.x,portal.z)??0;
     return players.some(p=>alive(p)&&p.kind!=='crate'&&p.portalLock===portal.color&&Math.abs((p.y||0)-height)<.2&&near(p,portal,.78));
    },
-   portalCharge(portal,players){
-    if(this.portalInactive(portal,players))return 0;
+   portalExitBlocked(portal,bodies,traveller=null){
+    const height=portal.y??this.heightAt(portal.x,portal.z);if(height===null)return true;
+    if(bodies.some(p=>p!==traveller&&p.state!=='dead'&&near(p,portal,.8)&&Math.abs((p.y||0)-height)<.7))return true;
+    return this.collisionBoxes().some(b=>this.blockSolid(traveller,b)&&b.maxY>height+.03&&b.minY<height+.84&&Math.abs(b.x-portal.x)<(b.halfX??b.half)+.36&&Math.abs(b.z-portal.z)<(b.halfZ??b.half)+.36);
+   },
+   portalInactive(portal,bodies,traveller=null){
+    const destination=this.portalDestination(portal);
+    return this.portalLocked(portal,bodies)||!destination||this.portalLocked(destination,bodies)||this.portalExitBlocked(destination,bodies,traveller)||this.portalExitBlocked(portal,bodies.filter(p=>p.kind==='crate'),traveller);
+   },
+   portalCharge(portal,players,available){
+    if(available===false||available===undefined&&this.portalInactive(portal,players))return 0;
     const height=portal.y??this.heightAt(portal.x,portal.z)??0;
     let charge=0;
     for(const p of players){
@@ -133,7 +146,7 @@
      if(Math.abs(bridge.progress-target)<.001&&Math.abs(bridge.velocity)<.015){bridge.progress=target;bridge.velocity=0;}
     }
     players.forEach(p=>{p.portalCooldown=Math.max(0,(p.portalCooldown||0)-dt);p.portalFlash=Math.max(0,(p.portalFlash||0)-dt);p.portalBlocked=false;
-     if(p.portalLock&&p.portalCooldown===0&&!this.portals.some(portal=>portal.color===p.portalLock&&near(p,portal,.78)))p.portalLock=null;
+     if(p.portalLock&&p.portalCooldown===0&&!this.portals.some(portal=>portal.color===p.portalLock&&near(p,portal,.78)&&Math.abs((p.y||0)-(portal.y??this.heightAt(portal.x,portal.z)??0))<.2))p.portalLock=null;
     });
     for(const lift of this.lifts){
      const riders=players.filter(p=>alive(p)&&near(p,lift,.36)&&Math.abs((p.y||0)-lift.height)<.18);
@@ -152,10 +165,9 @@
      if(spike){p.state='dead';p.deaths=(p.deaths||0)+1;p.deathReason='spikes';p.respawnTimer=.7;p.vx=p.vy=p.vz=0;soft.get(p).velocities.forEach(v=>v.fill(0));events.push({type:'death',reason:'spikes',player:i});return;}
      const source=this.portals.find(portal=>portal.color!==p.portalLock&&near(p,portal,.28)&&Math.abs((p.y||0)-(portal.y??this.heightAt(portal.x,portal.z)??0))<.18);
      if(!source)return;
-     if(this.portalInactive(source,players)){p.portalBlocked=true;return;}
-     const destination=this.portals.find(portal=>portal!==source&&portal.color===source.color);if(!destination)return;
+     if(this.portalInactive(source,players,p)){p.portalBlocked=true;return;}
+     const destination=this.portalDestination(source);
      const fromHeight=source.y??this.heightAt(source.x,source.z)??0,toHeight=destination.y??this.heightAt(destination.x,destination.z)??0;
-     if(players.some(other=>other!==p&&alive(other)&&near(other,destination,.8)&&Math.abs((other.y||0)-toHeight)<.7)){p.portalBlocked=true;return;}
      soft.translate(p,destination.x-p.x,toHeight-fromHeight,destination.z-p.z,true);
      p.portalLock=source.color;p.portalCooldown=.65;p.portalFlash=.55;
      events.push({type:'portal',player:i,color:source.color,source:[source.x,fromHeight,source.z],destination:[destination.x,toHeight,destination.z]});

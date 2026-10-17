@@ -12,13 +12,13 @@ const groups=[
  ['Персонажи',L.characters.map((p,i)=>['spawn-'+i,'▣',p.name,p.color])],
  ['Финиши',L.characters.map((p,i)=>['goal-'+i,p.glyph,p.name,p.color])],
  ['Механизмы',[['plate','⊙','Кнопка'],['bridge','≋','Мост'],['lift','↥','Лифт'],['conveyor','»','Конвейер','#d8bb72'],['spikes','♜','Шипы'],['portal-violet','◎','Портал','#c98cff'],['portal-amber','◎','Портал','#edb65b']]],
- ['Объекты',[['crate','⊠','Ящик'],['archer','☠','Лучник'],['shield','◈','Щит'],['sword','⚔','Меч']]]
+ ['Объекты',[['crate','⊠','Ящик'],['archer','☠','Лучник'],['drone','◈','Кристаллический дрон','#c98cff'],['shield','◈','Щит'],['sword','⚔','Меч']]]
 ];
 const tools=Object.fromEntries(groups.flatMap(g=>g[1]).map(([id,glyph,label,color])=>[id,{glyph,label,color}]));
 Object.assign(tools,{select:{glyph:'↖',label:'Выбор'},erase:{glyph:'⌫',label:'Ластик'},pan:{glyph:'✥',label:'Перемещение вида'},orbit:{glyph:'⟳',label:'Вращение камеры'}});
 const names=L.characters.map(p=>p.name),colors=L.characters.map(p=>p.color);
 const cubeTool=value=>value==='floor'||/^color-[0-3]$/.test(value);
-const labels={blocks:'Каменный куб',tiles:'Камень',walls:'Стена',torches:'Настенный факел',spawns:'Спавн',goals:'Финиш',plates:'Кнопка',bridges:'Мост',lifts:'Лифт',conveyors:'Конвейер',spikes:'Шипы',portals:'Портал',crates:'Ящик',archers:'Скелет-лучник',pickups:'Предмет'};
+const labels={blocks:'Каменный куб',tiles:'Камень',walls:'Стена',torches:'Настенный факел',drones:'Кристаллический дрон',spawns:'Спавн',goals:'Финиш',plates:'Кнопка',bridges:'Мост',lifts:'Лифт',conveyors:'Конвейер',spikes:'Шипы',portals:'Портал',crates:'Ящик',archers:'Скелет-лучник',pickups:'Предмет'};
 let tool='floor',selected=null,hover=null,moveObject=null,gesture=null,space=false,view3d=false,expandedIssues=false,toastTimer,gridFrame;
 let gridView={zoom:1,x:0,y:0},previewZoom=1,previewAngle=0,previewDirty=true,previewRuntime=null,previewRenderer=null,previewPromise=null,previewLast=0,previewFrame=0;
 let pickBounds=null,lastPointer=null,previewFitHeight=0;
@@ -67,7 +67,7 @@ $('brush-height').replaceChildren(...Array.from({length:15},(_,i)=>{const option
 const coordinateRoot=element('section',undefined,'coordinate-placement');coordinateRoot.append(element('div','КУБ ПО КООРДИНАТАМ','panel-heading'));
 for(const axis of ['x','y','z']){const row=element('label',axis.toUpperCase()),input=element('input');input.type='number';input.id='coordinate-'+axis;input.setAttribute('aria-label','Координата '+axis.toUpperCase());input.min=axis==='y'?-2:0;input.max=axis==='y'?12:model.map.size-1;input.step=1;input.value=0;row.append(input);coordinateRoot.append(row);}
 const placeCoordinate=element('button','Поставить куб');placeCoordinate.id='place-coordinate';placeCoordinate.onclick=()=>{const p={x:Number($('coordinate-x').value),y:Number($('coordinate-y').value),z:Number($('coordinate-z').value)};if(!inside(p)||!Number.isInteger(p.x)||!Number.isInteger(p.z)||!Number.isInteger(p.y)||p.y< -2||p.y>12){toast('Проверьте целые координаты X / Y / Z.');return;}edit(()=>paintCell(p,cubeTool(tool)?tool:'floor'));};coordinateRoot.append(placeCoordinate);document.querySelector('.inspector').prepend(coordinateRoot);
-function cellObjects(x,z,y){const result=[];for(const key of ['blocks','tiles','walls','torches','spawns','goals','plates','bridges','lifts','conveyors','spikes','portals','crates','archers','pickups'])model.map[key].forEach((p,index)=>{if(p&&p.x===x&&p.z===z&&(y===undefined||Math.abs((p.y??p.base??p.height??L.surfaceY(model.map,x,z)??0)-y)<.01))result.push({key,index,p});});return result;}
+function cellObjects(x,z,y){const result=[];for(const key of ['blocks','tiles','walls','torches','drones','spawns','goals','plates','bridges','lifts','conveyors','spikes','portals','crates','archers','pickups'])model.map[key].forEach((p,index)=>{if(p&&p.x===x&&p.z===z&&(y===undefined||Math.abs((p.y??p.base??p.height??L.surfaceY(model.map,x,z)??0)-y)<.01))result.push({key,index,p});});return result;}
 function field(card,label,value,options,onChange){
  const row=element('label',label),control=element(options?.values?'select':'input');
  if(options?.values)for(const [v,name] of options.values){const option=element('option',name);option.value=v;control.append(option);}
@@ -99,6 +99,12 @@ function renderProperties(){
    field(card,'Крепление факела',p.face,{values:torchFaces},v=>set('face',v));
    for(const axis of ['x','y','z'])field(card,'Факел · '+axis.toUpperCase(),p[axis],{min:axis==='y'?-2:0,max:axis==='y'?12:model.map.size-1},value=>{const q={...p,[axis]:value};try{if(model.move(key,index,q.x,q.z,q.y)){selected={x:q.x,y:q.y,z:q.z};changed();}}catch(error){toast(error.message);renderPanels();}});
   }
+  if(key==='drones'){
+   field(card,'Цвет луча',p.color,{values:L.characters.map((c,i)=>[String(i),c.name])},v=>set('color',Number(v)));
+   field(card,'Цель дрона',p.target,{values:[['-1','Ближайшая желейка'],...L.characters.map((c,i)=>[String(i),c.name])]},v=>set('target',Number(v)));
+   field(card,'Высота полёта',p.hover,{min:.6,max:6,step:.1},v=>set('hover',v));
+   for(const axis of ['x','y','z'])field(card,'Дрон · '+axis.toUpperCase(),p[axis],{min:axis==='y'?-2:0,max:axis==='y'?12:model.map.size-1},value=>{const q={...p,[axis]:value};try{if(model.move(key,index,q.x,q.z,q.y)){selected={x:q.x,y:q.y,z:q.z};changed();}}catch(error){toast(error.message);renderPanels();}});
+  }
   if(key==='plates'){field(card,'Цвет',p.color,{values:[['red','Красный'],['blue','Синий'],['amber','Золотой'],['dark','Каменный']]},v=>set('color',v));card.append(element('p',`Канал ${index+1} · мостов: ${model.map.bridges.filter(b=>b.plate===p.id).length}`,'empty-state'));}
   if(key==='bridges')field(card,'Кнопка',p.plate,{values:[['','Не выбрана'],...model.map.plates.map((b,i)=>[b.id,`К${i+1} · ${b.x}, ${b.z}`])]},v=>set('plate',v));
   if(key==='lifts'){field(card,'Нижний уровень',p.base,{min:-2,max:12},v=>edit(map=>{map.lifts[index].base=v;map.lifts[index].y=v;model.cube(p.x,v,p.z);}));field(card,'Верхний уровень',p.top,{min:-2,max:12},v=>set('top',v));}
@@ -108,7 +114,12 @@ function renderProperties(){
    field(card,'Y крепления',p.y??L.surfaceY(model.map,p.x,p.z)??0,{min:-2,max:12},v=>{try{if(model.move('spikes',index,p.x,p.z,v)){selected={x:p.x,y:v,z:p.z};changed();}}catch(error){toast(error.message);renderPanels();}});
    field(card,'Задержка, сек',p.offset,{min:0,max:5.8,step:.1},v=>set('offset',v));
   }
-  if(key==='portals')field(card,'Пара',p.color,{values:[['violet','Фиолетовая'],['amber','Янтарная']]},v=>set('color',v));
+  if(key==='portals'){
+   field(card,'Цвет портала',p.color,{values:[['violet','Фиолетовый'],['amber','Янтарный']]},v=>set('color',v));
+   const chain=model.map.portals.filter(q=>q.color===p.color),order=chain.indexOf(p)+1;
+   field(card,'Порядок в цепочке',order,{min:1,max:chain.length},v=>{try{if(model.orderPortal(index,v)){changed();document.querySelector('#properties [data-object^="portals-"] input')?.focus({preventScroll:true});}}catch(error){toast(error.message);renderPanels();}});
+   card.append(element('p',chain.length>1?`Переход ${order} → ${order%chain.length+1}`:'Добавьте ещё портал этого цвета.','empty-state'));
+  }
   if(key==='conveyors'){
    field(card,'Направление ленты',`${p.dx},${p.dz}`,{values:[['0,-1','↑ Север'],['1,0','→ Восток'],['0,1','↓ Юг'],['-1,0','← Запад']]},v=>{beltDirection.value=v;edit(map=>{[map.conveyors[index].dx,map.conveyors[index].dz]=v.split(',').map(Number);});});
    field(card,'Скорость ленты, кл/с',p.speed,{min:.2,max:2.5,step:.1},v=>{beltSpeed.value=v;set('speed',v);});
@@ -174,7 +185,7 @@ function drawGrid(){
  if($('connections').checked){
   ctx.lineWidth=1;ctx.setLineDash([4,5]);
   for(const b of model.map.bridges){const p=model.map.plates.find(p=>p.id===b.plate);if(!p)continue;ctx.strokeStyle='#c2d99988';ctx.beginPath();ctx.moveTo(...center(p));ctx.lineTo(...center(b));ctx.stroke();}
-  for(const color of ['violet','amber']){const pair=model.map.portals.filter(p=>p.color===color);if(pair.length===2){ctx.strokeStyle=color==='violet'?'#bd7bea55':'#ecc06555';ctx.beginPath();ctx.moveTo(...center(pair[0]));ctx.lineTo(...center(pair[1]));ctx.stroke();}}
+  for(const color of ['violet','amber']){const chain=model.map.portals.filter(p=>p.color===color);if(chain.length<2)continue;ctx.strokeStyle=color==='violet'?'#bd7bea88':'#ecc06588';chain.forEach((p,i)=>{const a=center(p),b=center(chain[(i+1)%chain.length]);ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();const angle=Math.atan2(b[1]-a[1],b[0]-a[0]),tip=a.map((v,k)=>v+(b[k]-v)*.65);ctx.setLineDash([]);ctx.beginPath();for(const side of [-1,1]){ctx.moveTo(...tip);ctx.lineTo(tip[0]-Math.cos(angle+side*.5)*7,tip[1]-Math.sin(angle+side*.5)*7);}ctx.stroke();ctx.setLineDash([4,5]);});}
   if(selected){const a=model.at('archers',selected.x,selected.z);if(a){ctx.strokeStyle='#efaa7088';ctx.beginPath();ctx.moveTo(...center(a));const end={x:a.x+a.dx*model.map.size,z:a.z+a.dz*model.map.size};ctx.lineTo(...center({x:Math.max(0,Math.min(model.map.size-1,end.x)),z:Math.max(0,Math.min(model.map.size-1,end.z))}));ctx.stroke();}}
   ctx.setLineDash([]);
  }
@@ -186,7 +197,8 @@ function drawGrid(){
  for(const p of model.map.lifts)glyph(p,'↥','#e5ca8f',.68);
  for(const p of model.map.spikes.filter(onLayer))glyph(p,({north:'↑',east:'→',south:'↓',west:'←'})[p.face]||'▴▴',p.color===undefined?'#c5cbd2':colors[p.color],.4);
  for(const p of model.map.torches.filter(onLayer)){const n=L.wallFaces[p.face];glyph({...p,x:p.x+n[0]*.36,z:p.z+n[2]*.36},'♨','#e9b85d',.4);}
- for(const p of model.map.portals)glyph(p,'◎',p.color==='violet'?'#ca8bfd':'#e9ba60',.74);
+ for(const p of model.map.drones.filter(onLayer))glyph(p,'◈',colors[p.color],.65);
+ for(const p of model.map.portals){const chain=model.map.portals.filter(q=>q.color===p.color),n=chain.indexOf(p);glyph(p,'◎',p.color==='violet'?'#ca8bfd':'#e9ba60',.74);glyph({...p,z:p.z+.32},`${n+1}→${chain.length>1?(n+1)%chain.length+1:'—'}`,'#dddacb',.18);}
  for(const p of model.map.crates)glyph(p,'⊠','#d3a56e',.7);
  for(const p of model.map.pickups)glyph(p,p.kind==='shield'?'◈':'⚔',p.kind==='shield'?'#dbb17b':'#d2dde3',.63);
  for(const p of model.map.archers.filter(onLayer)){glyph(p,'☠','#ded9b8',.59);const [x,y]=center(p);ctx.fillStyle='#dbad79';ctx.font=`${Math.max(8,cell*.24)}px Arial`;ctx.fillText(p.dx>0?'→':p.dx<0?'←':p.dz<0?'↑':'↓',x+p.dx*cell*.32,y+p.dz*cell*.32);}
@@ -243,14 +255,18 @@ function drawSpatialOverlay(){
  const layer=Number($('brush-height').value),floor=(x,z)=>previewRuntime?.world.heightAt(x,z)??layer,occupiedLayer=new Set(model.map.blocks.filter(b=>b.y===layer).map(b=>`${b.x},${b.z}`));
  if(spatialGrid.checked){ctx.lineWidth=.7;for(let z=0;z<model.map.size;z++)for(let x=0;x<model.map.size;x++)if(!occupiedLayer.has(`${x},${z}`))square({x,z},layer,'#a7c9b124');}
  if($('connections').checked){
-  ctx.lineWidth=1;const line=(a,b,color)=>{const ps=[a,b].map(p=>project([p.x,(p.y??floor(p.x,p.z))+.15,p.z]));if(ps.some(p=>!p.visible))return;ctx.beginPath();ctx.moveTo(ps[0].x,ps[0].y);ctx.lineTo(ps[1].x,ps[1].y);ctx.strokeStyle=color;ctx.setLineDash([4,5]);ctx.stroke();};
+  ctx.lineWidth=1;const line=(a,b,color,arrow=false)=>{const ps=[a,b].map(p=>project([p.x,(p.y??floor(p.x,p.z))+.15,p.z]));if(ps.some(p=>!p.visible))return;ctx.beginPath();ctx.moveTo(ps[0].x,ps[0].y);ctx.lineTo(ps[1].x,ps[1].y);ctx.strokeStyle=color;ctx.setLineDash([4,5]);ctx.stroke();if(arrow){const angle=Math.atan2(ps[1].y-ps[0].y,ps[1].x-ps[0].x),x=ps[0].x+(ps[1].x-ps[0].x)*.65,y=ps[0].y+(ps[1].y-ps[0].y)*.65;ctx.setLineDash([]);ctx.beginPath();for(const side of [-1,1]){ctx.moveTo(x,y);ctx.lineTo(x-Math.cos(angle+side*.5)*8,y-Math.sin(angle+side*.5)*8);}ctx.stroke();}};
   for(const b of model.map.bridges){const p=model.map.plates.find(p=>p.id===b.plate);if(p)line(p,b,'#d4e9a88a');}
-  for(const color of ['violet','amber']){const ps=model.map.portals.filter(p=>p.color===color);if(ps.length===2)line(ps[0],ps[1],color==='violet'?'#cb95ff88':'#edb65b88');}
+  for(const color of ['violet','amber']){const chain=model.map.portals.filter(p=>p.color===color);chain.forEach((p,i)=>{if(chain.length>1)line(p,chain[(i+1)%chain.length],color==='violet'?'#cb95ff88':'#edb65b88',true);const q=project([p.x,(p.y??floor(p.x,p.z))+.2,p.z]);if(q.visible){ctx.fillStyle=color==='violet'?'#dab7ff':'#ffe1a0';ctx.font='12px Arial';ctx.fillText(`${i+1}→${chain.length>1?(i+1)%chain.length+1:'—'}`,q.x+8,q.y+14);}});}
  }
  ctx.lineWidth=2;
  if(selected)square(selected,(selected.y??floor(selected.x,selected.z))+.04,'#e2edb4','#d6eea714');
  if(gesture?.pan||gesture?.orbit||!inside(hover)||['pan','orbit'].includes(tool))return;
  const active=gesture?.tool||tool,isErase=active==='erase',color=isErase?'#f2a78b':tools[active]?.color||'#ceecaa',fill=isErase?'#ef8c732b':color+'24';
+ if(active==='drone'||moveObject?.key==='drones'){
+  const d=moveObject?model.map.drones[moveObject.index]:{hover:1.8,color:3},y=(hover.y??layer)+d.hover,x=hover.x,z=hover.z;
+  path([[x,y-.55,z],[x-.22,y,z],[x,y+.55,z],[x+.22,y,z]],colors[d.color],fill,true);path([[x,y,z-.22],[x,y+.55,z],[x,y,z+.22],[x,y-.55,z]],colors[d.color],null,true);return;
+ }
  if(active==='torch'||moveObject?.key==='torches'){
   const torch=moveObject?{...model.map.torches[moveObject.index],...hover}:{...hover,face:hover.face||(torchFace.value==='auto'?'south':torchFace.value)},f=L.torchFrame({...torch,y:torch.y??layer});
   const local=(u,y,n)=>f.origin.map((p,k)=>p+f.u[k]*u+(k===1?y:0)+f.n[k]*n);
@@ -269,6 +285,7 @@ function drawSpatialOverlay(){
 function rebuildPreview(){
  previewRuntime=L.instantiate(model.map,JellyPhysics,JellySoftBody);previewRuntime.effects=new JellyEffects.System({reducedMotion:true});previewRuntime.won=false;previewRuntime.reducedMotion=true;
  previewRuntime.world.featureTime=1;previewRuntime.bridges.forEach(b=>b.progress=1);
+ previewRuntime.world.droneBeams=previewRuntime.world.traceDrones(previewRuntime.bodies,previewRuntime.soft);
  previewRenderer.bridgeKey=undefined;previewRenderer.decorationKey=undefined;previewRenderer.propGeometryKey=undefined;previewRenderer.goalGlowStrength=[];previewRenderer.goalWinGlow=0;previewDirty=false;
 }
 function previewTick(t){

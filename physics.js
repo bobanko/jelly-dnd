@@ -5,7 +5,7 @@
  const alive=p=>!p.state||p.state==='alive';
  const overlaps=(a,b,half=SIZE)=>Math.abs(a.x-b.x)<half&&Math.abs(a.z-b.z)<half;
  class World{
-  constructor(floor,bridges,plates,obstacles=[]){this.floor=floor;this.bridges=bridges;this.plates=plates;this.obstacles=obstacles;this.held=new Set();this.heights=new Map();this.lifts=[];this.spikes=[];this.portals=[];this.conveyors=[];this.archers=[];this.arrows=[];this.pickups=[];}
+  constructor(floor,bridges,plates,obstacles=[]){this.floor=floor;this.bridges=bridges;this.plates=plates;this.obstacles=obstacles;this.held=new Set();this.heights=new Map();this.lifts=[];this.spikes=[];this.portals=[];this.conveyors=[];this.archers=[];this.arrows=[];this.pickups=[];this.drones=[];this.droneBeams=[];}
   active(i,bodies){return bodies.some(p=>alive(p)&&Math.abs(p.y||0)<.15&&Math.abs(p.x-this.plates[i].x)<.42&&Math.abs(p.z-this.plates[i].z)<.42);}
   refresh(bodies){for(let i=0;i<this.bridges.length;i++){const b=this.bridges[i];if(this.active(b.plate,bodies))this.held.add(i);else if(!bodies.some(p=>alive(p)&&Math.abs((p.y||0)-(b.y||0))<.2&&overlaps(p,b,.5+HALF+.001)))this.held.delete(i);}}
   solid(x,z){if(!this.floor.has(`${x},${z}`))return true;const i=this.bridges.findIndex(b=>b.x===x&&b.z===z);return i>=0&&!this.held.has(i);}

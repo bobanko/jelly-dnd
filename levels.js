@@ -4,15 +4,15 @@
  const DRAFT_KEY='jelly-dnd.editor.v1',PLAY_KEY='jelly-dnd.play.v1';
  const copy=value=>JSON.parse(JSON.stringify(value));
  const characters=[{name:'Мох',color:'#9ddd56',glyph:'ᛉ',keys:'W A S D'},{name:'Иней',color:'#477bff',glyph:'ᛟ',keys:'↑ ← ↓ →'},{name:'Уголёк',color:'#ef5346',glyph:'ᛋ',keys:'I J K L'},{name:'Аметист',color:'#bb70ef',glyph:'ᛜ',keys:'T F G H'}];
- const limits={blocks:4096,tiles:256,walls:256,torches:8,plates:16,bridges:16,lifts:16,spikes:32,portals:4,conveyors:256,crates:4,archers:4,pickups:8};
+ const limits={blocks:4096,tiles:256,walls:256,torches:8,drones:8,plates:16,bridges:16,lifts:16,spikes:32,portals:64,conveyors:256,crates:4,archers:4,pickups:8};
  const wallFaces={north:[0,0,-1],east:[1,0,0],south:[0,0,1],west:[-1,0,0]};
  function torchFrame(p){const n=wallFaces[p.face]||wallFaces.south,origin=[p.x+n[0]*.49,p.y-.5,p.z+n[2]*.49];return {origin,n,u:[n[2],0,-n[0]],light:origin.map((v,k)=>v+n[k]*.25+(k===1?.32:0))};}
- function blank(){return {version:1,name:'Новое подземелье',size:16,blocks:[],tiles:[],walls:[],torches:[],spawns:[null,null,null,null],goals:[null,null,null,null],plates:[],bridges:[],lifts:[],spikes:[],portals:[],conveyors:[],crates:[],archers:[],pickups:[]};}
+ function blank(){return {version:1,name:'Новое подземелье',size:16,blocks:[],tiles:[],walls:[],torches:[],drones:[],spawns:[null,null,null,null],goals:[null,null,null,null],plates:[],bridges:[],lifts:[],spikes:[],portals:[],conveyors:[],crates:[],archers:[],pickups:[]};}
  function surfaceY(map,x,z,ceiling=Infinity){const ys=[...map.tiles.filter(p=>p.x===x&&p.z===z).map(p=>p.height),...(map.blocks||[]).filter(p=>p.x===x&&p.z===z).map(p=>p.y)].filter(y=>y<=ceiling+.001);return ys.length?Math.max(...ys):null;}
  function voxelize(input){
   const map=read(input),occupied=new Set(map.blocks.map(p=>`${p.x},${p.y},${p.z}`));
   const add=(x,y,z)=>{const key=`${x},${y},${z}`;if(!occupied.has(key)){occupied.add(key);map.blocks.push({x,y,z});}};
-  for(const key of ['spawns','goals','plates','bridges','spikes','portals','conveyors','crates','archers','pickups'])for(const p of map[key])if(p)p.y??=surfaceY(map,p.x,p.z)??0;
+  for(const key of ['spawns','goals','plates','bridges','spikes','portals','conveyors','crates','archers','pickups','drones'])for(const p of map[key])if(p)p.y??=surfaceY(map,p.x,p.z)??0;
   for(const p of map.lifts)p.y=p.base;
   for(const p of map.tiles)for(let y=0;y<=Math.ceil(p.height);y++)add(p.x,y,p.z);
   for(const p of map.walls)if(p.half>=.4)for(let y=Math.max(-2,Math.floor(p.base)+1);y<=Math.ceil(p.base+p.height);y++)add(p.x,y,p.z);
@@ -36,6 +36,7 @@
   map.crates=[{x:7,z:9}];map.archers=[{x:10,z:5,dx:0,dz:1,interval:2.4,firstShot:1.6}];
   map.pickups=[{id:'oak-shield',kind:'shield',x:8,z:8},{id:'iron-sword',kind:'sword',x:8,z:7}];
   map.conveyors=[1,2,3].map(x=>({x,z:10,dx:1,dz:0,speed:.85}));
+  map.drones=[{x:2,y:0,z:6,hover:1.8,color:0,target:0}];
   return map;
  }
  function read(input){
@@ -82,6 +83,7 @@
   });
   list('portals',p=>{if(!['violet','amber'].includes(p.color))fail('Неизвестный цвет портала.');return {color:p.color};});
   list('crates',()=>({}));
+  list('drones',p=>{const color=p.color??3,target=p.target??-1;if(!Number.isInteger(color)||color<0||color>3)fail('Неизвестный цвет луча дрона.');if(!Number.isInteger(target)||target< -1||target>3)fail('Неизвестная цель дрона.');return {color,target,hover:number(p.hover,1.8,.6,6)};});
   list('conveyors',p=>{const dx=number(p.dx,0,-1,1),dz=number(p.dz,1,-1,1);if(Math.abs(dx)+Math.abs(dz)!==1||!Number.isInteger(dx)||!Number.isInteger(dz))fail('Конвейер должен двигаться вдоль сетки.');return {dx,dz,speed:number(p.speed,.85,.2,2.5)};});
   list('archers',p=>{const dx=number(p.dx,0,-1,1),dz=number(p.dz,1,-1,1);if(Math.abs(dx)+Math.abs(dz)!==1||!Number.isInteger(dx)||!Number.isInteger(dz))fail('Лучник должен смотреть вдоль сетки.');return {dx,dz,interval:number(p.interval,2.4,.6,10),firstShot:number(p.firstShot,1.6,.1,10)};});
   list('pickups',(p,i)=>{if(!['shield','sword'].includes(p.kind))fail('Неизвестный предмет.');return {id:id(p.id,`item-${i+1}`),kind:p.kind};});
@@ -103,7 +105,7 @@
   });
   if(map.spawns.filter(Boolean).some((p,i,a)=>a.some((q,j)=>j!==i&&at([q],p))))result.push('Спавны персонажей должны находиться в разных клетках.');
   if(map.goals.filter(Boolean).some((p,i,a)=>a.some((q,j)=>j!==i&&at([q],p))))result.push('Финиши должны находиться в разных клетках.');
-  for(const color of ['violet','amber']){const count=map.portals.filter(p=>p.color===color).length;if(count!==0&&count!==2)result.push(`${color==='violet'?'Фиолетовые':'Янтарные'} порталы: нужно ровно два.`);}
+  for(const color of ['violet','amber']){const count=map.portals.filter(p=>p.color===color).length;if(count===1)result.push(`${color==='violet'?'Фиолетовые':'Янтарные'} порталы: нужно минимум два.`);}
   for(const b of map.bridges)if(!map.plates.some(p=>p.id===b.plate))result.push(`Мост ${b.x}, ${b.z} не привязан к кнопке.`);
   for(const l of map.lifts)if(l.top<=l.base)result.push(`Верх лифта ${l.x}, ${l.z} должен быть выше основания.`);
   const features=['plates','lifts','spikes','portals','conveyors','crates','archers','pickups'];
@@ -116,12 +118,17 @@
   for(const p of map.lifts)if(features.some(key=>key!=='lifts'&&at(key==='spikes'?map[key].filter(s=>!s.face):map[key],p)))result.push(`Лифт ${p.x}, ${p.z} перекрыт другим объектом.`);
   for(const p of map.conveyors)if(['plates','spikes','portals'].some(key=>at(key==='spikes'?map[key].filter(s=>!s.face):map[key],p)))result.push(`Конвейер ${p.x}, ${p.z} перекрыт другим механизмом.`);
   for(const p of map.torches||[])if(!map.blocks.some(b=>b.x===p.x&&b.z===p.z&&b.y===p.y&&b.color===undefined)&&!map.walls.some(w=>w.x===p.x&&w.z===p.z&&p.y-.5>=w.base&&p.y-.5<=w.base+w.height))result.push(`Факелу ${p.x}, ${p.y}, ${p.z} нужен каменный блок крепления.`);
+  for(const p of map.drones||[]){
+   if(p.target>=0&&!map.spawns[p.target])result.push(`Дрон ${p.x}, ${p.z}: выбранная цель не участвует в уровне.`);
+   const y=(p.y??surfaceY(map,p.x,p.z)??0)+p.hover;
+   if(map.blocks.some(b=>b.x===p.x&&b.z===p.z&&b.y>y-.55&&b.y-1<y+.55)||map.walls.some(w=>w.x===p.x&&w.z===p.z&&w.base<y+.55&&w.base+w.height>y-.55))result.push(`Дрон ${p.x}, ${p.z} находится внутри камня.`);
+  }
   return [...new Set(result)];
  }
  function instantiate(map,Physics,Soft){
   const floor=new Set(map.tiles.map(p=>`${p.x},${p.z}`)),plates=copy(map.plates),bridges=map.bridges.map(p=>({...p,plate:plates.findIndex(q=>q.id===p.plate)}));
   const world=new Physics.World(floor,bridges,plates,map.walls.map(p=>({x:p.x,z:p.z,half:p.half,minY:p.base,height:p.base+p.height})));
-  world.torches=copy(map.torches||[]);world.blocks=copy(map.blocks||[]);world.blockColumns=new Map();for(const b of world.blocks){const key=`${b.x},${b.z}`;if(!world.blockColumns.has(key))world.blockColumns.set(key,[]);world.blockColumns.get(key).push(b.y);}
+  world.torches=copy(map.torches||[]);world.drones=copy(map.drones||[]);world.blocks=copy(map.blocks||[]);world.blockColumns=new Map();for(const b of world.blocks){const key=`${b.x},${b.z}`;if(!world.blockColumns.has(key))world.blockColumns.set(key,[]);world.blockColumns.get(key).push(b.y);}
   world.blockColors=new Map(world.blocks.filter(b=>b.color!==undefined).map(b=>[`${b.x},${b.y},${b.z}`,b.color]));
   for(const p of map.tiles)if(p.height)world.heights.set(`${p.x},${p.z}`,p.height);
   world.lifts=map.lifts.map(p=>({...p,height:p.base,target:p.base}));world.spikes=copy(map.spikes);world.portals=copy(map.portals);world.conveyors=copy(map.conveyors);world.archers=copy(map.archers);world.pickups=map.pickups.map(p=>({...p,holder:null,durability:3,destroyed:false}));

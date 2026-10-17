@@ -142,7 +142,7 @@ const fs=require('node:fs');
   await page.screenshot({path:'artifacts/teleport-effect.png'});
   await page.waitForTimeout(1000);assert.ok(await page.evaluate(()=>players[0].x>5.5&&players[0].y>.8&&players[0].state==='alive'));
   assert.equal(await page.evaluate(()=>effects.rings.length+effects.particles.length),0);
-  assert.ok(await page.evaluate(()=>world.portalInactive(world.portals[1],players)&&!world.portalInactive(world.portals[0],players)&&world.portalCharge(world.portals[1],players)===0));
+  assert.ok(await page.evaluate(()=>world.portalInactive(world.portals[1],players)&&world.portalInactive(world.portals[0],players)&&world.portalCharge(world.portals[1],players)===0));
   await page.screenshot({path:'artifacts/paired-portals.png'});
   await page.screenshot({path:'artifacts/portal-inactive-arrival.png'});
   await page.evaluate(()=>soft.translate(players[0],0,0,-.7,true));

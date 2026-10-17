@@ -27,7 +27,7 @@ test('schema rejects malformed coordinates, unsafe quantities, duplicate ids and
 test('draft validation finds missing spawns, unpaired portals, unsafe markers and broken bridge links',()=>{
  assert.equal(L.issues(L.blank()).length,1);
  const map=L.read(L.defaultLevel());map.portals.pop();map.plates.pop();map.spawns[0]={x:5,z:5};map.goals[1]={...map.goals[2]};
- const errors=L.issues(map);assert.ok(errors.some(e=>e.includes('ровно два')));assert.ok(errors.some(e=>e.includes('не привязан')));assert.ok(errors.some(e=>e.includes('постоянной площадке')));assert.ok(errors.some(e=>e.includes('Финиши должны')));
+ const errors=L.issues(map);assert.ok(errors.some(e=>e.includes('минимум два')));assert.ok(errors.some(e=>e.includes('не привязан')));assert.ok(errors.some(e=>e.includes('постоянной площадке')));assert.ok(errors.some(e=>e.includes('Финиши должны')));
  assert.throws(()=>L.forGame({getItem:()=>JSON.stringify(map)},'?level=editor'));
  assert.throws(()=>L.forGame({getItem:()=>null},'?level=editor'));
  assert.deepEqual(L.issues(L.forGame({getItem:()=>'{bad'},'')),[],'default game never reads the draft');
@@ -58,7 +58,7 @@ test('eraser, resize, entity move and map replacement are reversible and enforce
  m.resize(8);assert.equal(m.map.spawns[1],null);assert.ok(m.map.tiles.every(p=>p.x<8&&p.z<8));m.undo();assert.deepEqual(m.map,initial);
  m.move('pickups',0,12,12);assert.equal(m.map.pickups[0].x,12);m.undo();assert.deepEqual(m.map,initial);
  m.load(L.blank());assert.equal(m.map.tiles.length,0);m.undo();assert.deepEqual(m.map,initial);
- assert.throws(()=>m.change(()=>m.paint('portal-violet',12,12)));assert.deepEqual(m.map,initial);
+ m.change(()=>m.paint('portal-violet',12,12));assert.equal(m.map.portals.filter(p=>p.color==='violet').length,3);m.undo();assert.deepEqual(m.map,initial);
 });
 
 test('raised spawns, ground crates, elevated bridges and lifts use the same heights as the editor',()=>{

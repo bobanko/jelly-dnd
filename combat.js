@@ -27,9 +27,38 @@
  function install(World){Object.assign(World.prototype,{
   combatSnapshot(){return {archers:this.archers.map(a=>({cooldown:a.cooldown??a.firstShot??1.6,shotFlash:a.shotFlash||0,state:a.state||'alive',respawnTimer:a.respawnTimer||0})),arrows:this.arrows.map(a=>({...a})),pickups:this.pickups.map(p=>({holder:p.holder??null,durability:p.durability??3,destroyed:!!p.destroyed}))};},
   restoreCombat(state){
+   this.droneBeams=[];
    this.archers.forEach((a,i)=>Object.assign(a,state?.archers?.[i]||{cooldown:a.firstShot??1.6,shotFlash:0,state:'alive',respawnTimer:0}));
    this.arrows=(state?.arrows||[]).map(a=>({...a}));
    this.pickups.forEach((p,i)=>Object.assign(p,state?.pickups?.[i]||{holder:null,durability:3,destroyed:false}));
+  },
+  droneOrigin(d){return [d.x,(d.y??this.heightAt(d.x,d.z)??0)+(d.hover??1.8),d.z];},
+  traceDrones(bodies,soft){
+   if(!this.drones?.length)return [];
+   const targets=bodies.flatMap((p,i)=>p.state==='dead'?[]:[{p,i,box:bodyBox(p,soft)}]);
+   const bounds=this.collisionBoxes().map(o=>({min:[o.x-(o.halfX??o.half),o.minY,o.z-(o.halfZ??o.half)],max:[o.x+(o.halfX??o.half),o.maxY,o.z+(o.halfZ??o.half)]})),beams=[];
+   for(const [index,d] of this.drones.entries()){
+    const from=this.droneOrigin(d),eligible=targets.filter(t=>t.p.kind!=='crate'&&(d.target===undefined||d.target===-1||(t.p.slot??t.i)===d.target));
+    eligible.sort((a,b)=>Math.hypot(a.p.x-from[0],(a.p.y||0)+.42-from[1],a.p.z-from[2])-Math.hypot(b.p.x-from[0],(b.p.y||0)+.42-from[1],b.p.z-from[2]));
+    const target=eligible[0];if(!target)continue;
+    const aim=[target.p.x,(target.p.y||0)+.42,target.p.z],delta=aim.map((v,k)=>v-from[k]),length=Math.hypot(...delta);if(length<.001)continue;
+    const end=from.map((v,k)=>v+delta[k]/length*Math.min(32,length+.5));let nearest=1,hit=-1;
+    for(const box of bounds){const t=segmentBox(from,end,box);if(t!==null&&t<nearest){nearest=t;hit=-1;}}
+    for(const t of targets){const distance=segmentBox(from,end,t.box);if(distance!==null&&distance<nearest){nearest=distance;hit=t.i;}}
+    beams.push({drone:index,from,to:from.map((v,k)=>v+(end[k]-v)*nearest),color:d.color??3,hit,target:target.p.slot??target.i});
+   }
+   return beams;
+  },
+  afterDrones(bodies,soft){
+   const events=[];this.droneBeams=this.traceDrones(bodies,soft);
+   for(const beam of this.droneBeams){
+    const p=bodies[beam.hit];if(!p||p.kind==='crate'||p.state==='dead'||p.slot===beam.color)continue;
+    Object.assign(p,{state:'dead',deaths:(p.deaths||0)+1,deathReason:'beam',respawnTimer:.7,vx:0,vy:0,vz:0,shield:null,shieldHP:0,sword:null,launchTimer:0});
+    if(soft)soft.get(p).velocities.forEach(v=>v.fill(0));
+    for(const item of this.pickups)if(item.holder===beam.hit)item.holder=null;
+    events.push({type:'death',reason:'beam',player:beam.hit,beam});
+   }
+   return events;
   },
   beforeCombat(bodies,inputs,dt){
    bodies.forEach((p,i)=>{
@@ -98,6 +127,7 @@
     if(this.arrows.length<12){this.arrows.push({x:a.x+dir.x*.48,y:height+.5,z:a.z+dir.z*.48,dx:dir.x,dz:dir.z,speed:a.speed??5.5,life:4});events.push({type:'archerShot',position:[a.x,height+.5,a.z]});}
     a.cooldown+=a.interval??2.4;a.shotFlash=.2;
    }
+   events.push(...this.afterDrones(bodies,soft));
    if(!this.arrows.length)return events;
    const bounds=this.collisionBoxes().map(o=>({min:[o.x-(o.halfX??o.half),o.minY,o.z-(o.halfZ??o.half)],max:[o.x+(o.halfX??o.half),o.maxY,o.z+(o.halfZ??o.half)]}));
    const targets=bodies.map((p,i)=>p.state!=='dead'?{p,i,box:bodyBox(p,soft)}:null).filter(Boolean);

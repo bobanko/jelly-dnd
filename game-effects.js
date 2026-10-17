@@ -4,9 +4,9 @@
  const palettes=[[.12,.9,.16],[.025,.17,1.],[1.,.065,.035],[.65,.1,1.]];
  const runeColors=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025],[.68,.12,1.]],RUNE_LIMIT=32;
  class System{
-  constructor({reducedMotion=false}={}){this.reducedMotion=reducedMotion;this.particles=[];this.rings=[];this.runes=[];this.bones=[];this.runeTimers=[];this.runeActive=[];this.seed=1;}
+  constructor({reducedMotion=false}={}){this.reducedMotion=reducedMotion;this.particles=[];this.rings=[];this.runes=[];this.bones=[];this.lasers=[];this.runeTimers=[];this.runeActive=[];this.seed=1;}
   random(){this.seed=(Math.imul(this.seed,1664525)+1013904223)>>>0;return this.seed/4294967296;}
-  clear(){this.particles.length=0;this.rings.length=0;this.runes.length=0;this.bones.length=0;this.runeTimers=[];this.runeActive=[];}
+  clear(){this.particles.length=0;this.rings.length=0;this.runes.length=0;this.bones.length=0;this.lasers.length=0;this.runeTimers=[];this.runeActive=[];}
   skeletonBurst(event){
    this.bones=this.bones.filter(p=>p.archer!==event.archer);
    const parts=[[0,1.04,0,.14],[0,.43,0,.09],[-.14,.04,.09,.07],[.14,.04,.09,.07]];
@@ -26,6 +26,7 @@
   burst(event,players,soft){
    const random=()=>this.random();
    if(event.type==='death'){
+    if(event.beam){this.lasers.push({...event.beam,age:0,life:.18});this.lasers=this.lasers.slice(-8);}
     const player=players[event.player],body=soft.get(player),count=this.reducedMotion?6:22;
     const life=Math.min(this.reducedMotion ? .3 : .68,player.respawnTimer||.68);
     for(let i=0;i<count;i++){
@@ -60,6 +61,7 @@
   step(dt,world,goals=[],players=[]){
    // Cap long background-tab gaps for stable presentation.
    dt=Math.min(Math.max(0,dt),.1);
+   for(const ray of this.lasers)ray.age+=dt;this.lasers=this.lasers.filter(ray=>ray.age<ray.life);
    for(const p of this.particles){
     p.age+=dt;
     const previousY=p.position[1];

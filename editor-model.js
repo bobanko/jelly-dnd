@@ -18,6 +18,11 @@
    if(tool==='erase'){this.erase(x,z,y);return;}
    if(tool==='floor'||tool==='cube'||tool==='wall'||/^color-[0-3]$/.test(tool)){const p=this.cube(x,y,z);if(tool.startsWith('color-'))p.color=Number(tool.slice(-1));else delete p.color;return;}
    if(/^(spawn|goal)-[0-3]$/.test(tool)){this.cube(x,y,z);this.map[tool.startsWith('spawn')?'spawns':'goals'][Number(tool.slice(-1))]={x,y,z};return;}
+   if(tool==='drone'){
+    const p=this.at('drones',x,z,y);if(p)return;
+    if(this.map.drones.length>=L.limits.drones)throw new Error('На карте уже восемь дронов.');
+    this.map.drones.push({x,y,z,color:3,target:-1,hover:1.8});return;
+   }
    if(tool==='torch'){
     const face=options.face||'south';if(!Object.hasOwn(L.wallFaces,face))throw new Error('Факел крепится к боковой грани.');
     if(this.map.torches.some(p=>p.x===x&&p.y===y&&p.z===z&&p.face===face))return;
@@ -39,7 +44,7 @@
     this.map.spikes.push({x,y,z,offset:existing?.offset||0,...(face==='top'?{}:{face}),...(color===undefined?{}:{color})});return;
    }
    const existing=this.at(key,x,z,y);if(!existing&&this.map[key].length>=L.limits[key])throw new Error('Достигнут лимит объектов.');
-   if(key==='portals'&&!existing&&this.map.portals.filter(p=>p.color===tool.slice(7)).length>=2)throw new Error('Для этого цвета уже есть два портала.');
+   if(key==='portals'&&existing?.color===tool.slice(7))return;
    this.cube(x,y,z);const groups=surface.includes(key)?surface:props.includes(key)?props:['walls',...surface,...props];
    for(const other of groups)this.map[other]=this.map[other].filter(p=>p.x!==x||p.z!==z||p.y!==y);
    if(key!=='walls')this.map.walls=this.map.walls.filter(p=>p.x!==x||p.z!==z||p.y!==y);
@@ -58,7 +63,7 @@
   erase(x,z,y){const hit=p=>p&&p.x===x&&p.z===z&&(y===undefined||(p.y??p.height??0)===y);for(const key of Object.keys(L.limits))this.map[key]=this.map[key].filter(p=>!hit(p));for(const key of ['spawns','goals'])this.map[key]=this.map[key].map(p=>hit(p)?null:p);}
   paint(tool,x,z,options={}){
    if(x<0||z<0||x>=this.map.size||z>=this.map.size||tool==='select')return;
-   if(tool==='torch'){this.paintVoxel(tool,x,options.y??options.height??0,z,options);return;}
+   if(tool==='torch'||tool==='drone'){this.paintVoxel(tool,x,options.y??options.height??0,z,options);return;}
    if(options.voxel||tool==='cube'||/^color-[0-3]$/.test(tool)){this.paintVoxel(tool,x,options.y??options.height??0,z,options);return;}
    const height=options.height??0;
    if(tool==='erase'){this.erase(x,z);return;}
@@ -72,7 +77,6 @@
    const key={wall:'walls',plate:'plates',bridge:'bridges',lift:'lifts',spikes:'spikes','portal-violet':'portals','portal-amber':'portals',conveyor:'conveyors',crate:'crates',archer:'archers',shield:'pickups',sword:'pickups'}[tool];
    if(!key)return;
    if(!this.at(key,x,z)&&this.map[key].length>=L.limits[key])throw new Error(`Достигнут лимит объектов (${L.limits[key]}).`);
-   if(key==='portals'&&!this.at(key,x,z)&&this.map.portals.filter(p=>p.color===tool.slice(7)).length>=2)throw new Error('Для этого цвета уже есть два портала.');
    const existing=this.at(key,x,z);
    if(existing&&key==='conveyors'){Object.assign(existing,{dx:options.dx??existing.dx,dz:options.dz??existing.dz,speed:options.speed??existing.speed});return;}
    if(existing&&((key==='pickups'&&existing.kind===tool)||(key==='portals'&&existing.color===tool.slice(7))||!['pickups','portals','walls'].includes(key)))return;
@@ -93,7 +97,12 @@
    this.map[key].push(p);
   }
   remove(key,index){return this.change(map=>{if(key==='spawns'||key==='goals')map[key][index]=null;else map[key].splice(index,1);});}
-  move(key,index,x,z,height=0){return this.change(map=>{const p=map[key][index],voxel=key==='blocks'||p.y!==undefined;if(this.map[key].some((q,j)=>j!==index&&q&&q.x===x&&q.z===z&&(!voxel||q.y===height)&&(!['spikes','torches'].includes(key)||(q.face||'top')===(p.face||'top'))))throw new Error('В этой клетке уже есть такой объект.');if(voxel){if(key==='blocks'){if(!Number.isInteger(height))throw new Error('Y должен быть целым.');}else this.cube(x,height,z);const delta=height-(p.y||0);Object.assign(p,{x,y:height,z});if(key==='walls')p.base+=delta;if(key==='lifts'){p.base=height;p.top=Math.min(12,p.top+delta);}return;}const previousHeight=this.at('tiles',p.x,p.z)?.height||0,floor=this.ensureFloor(x,z,height);Object.assign(p,{x,z});if(key==='walls')p.base+=floor.height-previousHeight;if(key==='bridges')p.y=floor.height;if(key==='lifts'){p.base=floor.height;p.top=Math.min(3,p.base+1);}});}
+  orderPortal(index,order){return this.change(map=>{
+   const portal=map.portals[index],indices=map.portals.flatMap((p,i)=>p.color===portal.color?[i]:[]);
+   if(!Number.isInteger(order)||order<1||order>indices.length)throw new Error('Проверьте номер портала в цепочке.');
+   const chain=indices.map(i=>map.portals[i]);chain.splice(chain.indexOf(portal),1);chain.splice(order-1,0,portal);indices.forEach((i,n)=>map.portals[i]=chain[n]);
+  });}
+  move(key,index,x,z,height=0){return this.change(map=>{const p=map[key][index],voxel=key==='blocks'||p.y!==undefined;if(this.map[key].some((q,j)=>j!==index&&q&&q.x===x&&q.z===z&&(!voxel||q.y===height)&&(!['spikes','torches'].includes(key)||(q.face||'top')===(p.face||'top'))))throw new Error('В этой клетке уже есть такой объект.');if(voxel){if(key==='blocks'){if(!Number.isInteger(height))throw new Error('Y должен быть целым.');}else if(key!=='drones')this.cube(x,height,z);const delta=height-(p.y||0);Object.assign(p,{x,y:height,z});if(key==='walls')p.base+=delta;if(key==='lifts'){p.base=height;p.top=Math.min(12,p.top+delta);}return;}const previousHeight=this.at('tiles',p.x,p.z)?.height||0,floor=this.ensureFloor(x,z,height);Object.assign(p,{x,z});if(key==='walls')p.base+=floor.height-previousHeight;if(key==='bridges')p.y=floor.height;if(key==='lifts'){p.base=floor.height;p.top=Math.min(3,p.base+1);}});}
   resize(size){return this.change(map=>{map.size=size;for(const key of Object.keys(L.limits))map[key]=map[key].filter(p=>p.x<size&&p.z<size);for(const key of ['spawns','goals'])map[key]=map[key].map(p=>p&&(p.x>=size||p.z>=size)?null:p);});}
  }
  const api={Model,surface,props};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyEditorModel=api;

@@ -96,19 +96,19 @@ test('matching floor portals preserve deformation, transfer height and do not bo
 });
 
 test('portal brightness grows smoothly as the jelly footprint covers the portal',()=>{
- const g=scene(),portal={x:3,z:3,color:'violet'};
+ const g=scene(),portal={x:3,z:3,color:'violet'};g.world.portals.push(portal,{x:8,z:8,color:'violet'});
  const charges=[.9,.65,.5,.38,0].map(offset=>g.world.portalCharge(portal,[{x:3+offset,z:3,y:0,state:'alive'}]));
  assert.equal(charges[0],0);assert.equal(charges.at(-1),1);
  for(let i=1;i<4;i++)assert.ok(charges[i]>charges[i-1]);
  assert.equal(g.world.portalCharge(portal,[{x:3,z:3,y:0,state:'alive',portalLock:'violet'}]),0,'arrival lock suppresses portal charging');
 });
 
-test('only the exit overlapped by an arriving living jelly is inactive',()=>{
+test('arrival locks remain local to the overlapped portal and respect height and life state',()=>{
  const g=scene(),portal={x:3,z:3,color:'violet'},p={x:3,z:3,y:0,state:'alive',portalLock:'violet'};
- assert.equal(g.world.portalInactive(portal,[p]),true);
- assert.equal(g.world.portalInactive(portal,[{...p,x:3.7}]),true,'part of the jelly still overlaps the portal slab');
- for(const override of [{x:3.8},{y:1},{state:'dead'},{state:'falling'},{kind:'crate'},{portalLock:null},{portalLock:'amber'}])assert.equal(g.world.portalInactive(portal,[{...p,...override}]),false);
- assert.equal(g.world.portalInactive({...portal,x:7},[p]),false,'the distant same-colour portal remains active');
+ assert.equal(g.world.portalLocked(portal,[p]),true);
+ assert.equal(g.world.portalLocked(portal,[{...p,x:3.7}]),true,'part of the jelly still overlaps the portal slab');
+ for(const override of [{x:3.8},{y:1},{state:'dead'},{state:'falling'},{kind:'crate'},{portalLock:null},{portalLock:'amber'}])assert.equal(g.world.portalLocked(portal,[{...p,...override}]),false);
+ assert.equal(g.world.portalLocked({...portal,x:7},[p]),false,'the distant same-colour portal remains active');
 });
 
 test('another jelly waits until the arrival fully clears an inactive portal',()=>{
@@ -121,10 +121,10 @@ test('another jelly waits until the arrival fully clears an inactive portal',()=
 });
 
 test('portal charge ignores dead cubes, crates and cubes on a different floor',()=>{
- const g=scene(),portal={x:6,z:6,color:'amber'};g.world.heights.set('6,6',1);
+ const g=scene(),portal={x:6,z:6,color:'amber'};g.world.portals.push(portal,{x:8,z:8,color:'amber'});g.world.heights.set('6,6',1);
  const bodies=[{x:6,z:6,y:1,state:'dead'},{x:6,z:6,y:0,state:'alive'},{x:6,z:6,y:1.8,state:'alive'},{x:6,z:6,y:1,state:'alive',kind:'crate'}];
  assert.equal(g.world.portalCharge(portal,bodies),0);
- bodies.push({x:6,z:6,y:1,state:'alive'});assert.equal(g.world.portalCharge(portal,bodies),1);
+ bodies.pop();bodies.push({x:6,z:6,y:1,state:'alive'});assert.equal(g.world.portalCharge(portal,bodies),1);
 });
 test('an occupied portal exit waits rather than overlapping bodies',()=>{
  const g=scene([[2,2,0],[6,6,1]]);g.world.heights.set('6,6',1);g.world.portals.push({x:2,z:2,color:'violet'},{x:6,z:6,color:'violet'});
