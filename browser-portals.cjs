@@ -8,11 +8,11 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   await page.goto('http://localhost:3000/editor.html');await page.waitForFunction(()=>view3d&&previewRenderer?.ready&&previewRenderer.frames>3);
   const click=async(x,y,z)=>{const p=await page.evaluate(p=>{const r=$('viewport').getBoundingClientRect(),s=JellyGPU.projectPoint(screenFrame(),...p,r.width,r.height);return {x:r.left+s.x,y:r.top+s.y};},[x,y,z]);await page.mouse.click(p.x,p.y);};
   await page.locator('[data-tool=portal-violet]').click();for(const [x,z] of [[1,3],[3,3],[5,3],[5,5],[1,5]])await click(x,0,z);
-  assert.equal(await page.evaluate(()=>model.map.portals.length),5);const original=await page.evaluate(()=>JSON.stringify(model.map.portals));
+  assert.equal(await page.evaluate(()=>model.map.portals.length),5);const original=await page.evaluate(()=>model.map.portals);
   const order=page.locator('#properties').getByLabel('Порядок в цепочке',{exact:true});await order.fill('1');await order.press('Tab');assert.ok(await page.evaluate(()=>model.map.portals[0].x===1&&model.map.portals[0].z===5));
   await order.focus();await order.press('ArrowUp');assert.equal(await order.inputValue(),'2');await order.press('ArrowDown');assert.equal(await order.inputValue(),'1');
   // Put the last portal back at the end, then repaint it without changing its order.
-  await order.fill('5');await order.press('Tab');await click(1,0,5);assert.equal(await page.evaluate(()=>JSON.stringify(model.map.portals)),original);
+  await order.fill('5');await order.press('Tab');await click(1,0,5);assert.deepEqual(await page.evaluate(()=>model.map.portals),original);
   await page.locator('[data-tool=portal-amber]').click();for(const x of [2,4,6])await click(x,0,1);
   assert.equal(await page.evaluate(()=>model.map.portals.length),8);assert.deepEqual(await page.evaluate(()=>L.issues(model.map)),[]);
   await page.locator('[data-tool=select]').click();await page.waitForFunction(()=>!previewDirty&&previewRuntime.world.portals.length===8);await page.screenshot({path:'artifacts/portal-chain-editor.png'});

@@ -29,8 +29,7 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   const r=await page.locator('#viewport').boundingBox();await page.mouse.move(r.x+r.width/2,r.y+r.height/2);await page.mouse.down({button:'right'});await page.mouse.move(r.x+r.width/2+90,r.y+r.height/2+20);await page.mouse.up({button:'right'});
   await page.waitForFunction(()=>Math.abs(previewAngle-previewTargetAngle)<.0001&&Math.abs(previewCamera.pitch-previewTargetPitch)<.0001);
   assert.equal(await page.evaluate(()=>JSON.stringify(model.map)),original,'camera controls leave level untouched');
-  await page.locator('#view-grid').click();await page.locator('#viewport').focus();const grid=await page.evaluate(()=>({...gridView}));await hold('ArrowDown');assert.ok(await page.evaluate(y=>gridView.y<y-20,grid.y),'arrows pan 2D');
-  const gridX=await page.evaluate(()=>gridView.x);await hold('KeyA');assert.ok(await page.evaluate(x=>gridView.x>x+20,gridX),'WASD pans 2D');
+  assert.equal(await page.locator('#view-grid, #view-3d, #grid').count(),0);assert.ok(await page.locator('#preview').isVisible());
   // Use real property edits so every key press rebuilds the inspector.
   await page.evaluate(()=>{const m=L.blank();m.blocks=[{x:2,y:0,z:2}];m.conveyors=[{x:2,y:0,z:2,dx:1,dz:0,speed:.85}];m.spikes=[{x:3,y:0,z:3,offset:1.2}];replaceMap(m);selected={x:2,y:0,z:2};renderPanels();});
   const y=page.getByLabel('Y',{exact:true});await y.focus();await page.keyboard.press('ArrowUp');await page.keyboard.press('ArrowUp');assert.equal(await y.inputValue(),'2');assert.ok(await y.evaluate(e=>e===document.activeElement));
@@ -40,11 +39,11 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   const speed=page.getByLabel('\u0421\u043a\u043e\u0440\u043e\u0441\u0442\u044c \u043b\u0435\u043d\u0442\u044b, \u043a\u043b/\u0441',{exact:true});
   await speed.focus();await page.keyboard.press('ArrowUp');assert.equal(await speed.inputValue(),'0.95');await page.keyboard.press('ArrowUp');assert.equal(await speed.inputValue(),'1.05');await page.keyboard.press('ArrowDown');assert.equal(await speed.inputValue(),'0.95');assert.ok(await speed.evaluate(e=>e===document.activeElement));
   for(let i=0;i<24;i++)await page.keyboard.press('ArrowDown');assert.equal(await speed.inputValue(),'0.2');assert.ok(await speed.evaluate(e=>e===document.activeElement),'focus retained at minimum');
-  const cameraState=await page.evaluate(()=>JSON.stringify([previewCamera,gridView,previewTargetAngle,tool]));await page.keyboard.press('KeyW');await page.keyboard.press('KeyM');await page.keyboard.press('KeyQ');await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>JSON.stringify([previewCamera,gridView,previewTargetAngle,tool])),cameraState,'camera shortcuts ignored in a field');
+  const cameraState=await page.evaluate(()=>JSON.stringify([previewCamera,previewTargetAngle,tool]));await page.keyboard.press('KeyW');await page.keyboard.press('KeyM');await page.keyboard.press('KeyQ');await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>JSON.stringify([previewCamera,previewTargetAngle,tool])),cameraState,'camera shortcuts ignored in a field');
   await page.evaluate(()=>{selected={x:3,y:0,z:3};renderPanels();});
   const delay=page.getByLabel('\u0417\u0430\u0434\u0435\u0440\u0436\u043a\u0430, \u0441\u0435\u043a',{exact:true});await delay.focus();await page.keyboard.press('ArrowUp');assert.equal(await delay.inputValue(),'1.3');await page.keyboard.press('ArrowDown');assert.equal(await delay.inputValue(),'1.2');assert.ok(await delay.evaluate(e=>e===document.activeElement));
   const coord=page.locator('#coordinate-y');await coord.fill('4');await coord.press('ArrowDown');assert.equal(await coord.inputValue(),'3');assert.ok(await coord.evaluate(e=>e===document.activeElement));
   assert.deepEqual(await page.evaluate(()=>previewRenderer.errors),[]);assert.deepEqual(errors,[]);
-  console.log('PASS: M pan mode, language-independent WASD/arrows in 2D/3D/perspective, key release/blur, smooth orbit/quarter turns, unchanged map, integer/fractional steps, repeated inspector edits retain focus, limits and input shortcut isolation.');
+  console.log('PASS: 3D-only editor, M pan mode, language-independent WASD/arrows in isometric/perspective views, key release/blur, smooth orbit/quarter turns, unchanged map, integer/fractional steps, repeated inspector edits retain focus, limits and input shortcut isolation.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
