@@ -61,7 +61,7 @@ test('spikes show harmless tips for a warning beat before the next full rise',()
  g.world.featureTime=4.575;assert.ok(Math.abs(g.world.spikeState(trap).extension-.15)<1e-10);
  for(const time of [4.66,5,5.49]){g.world.featureTime=time;const state=g.world.spikeState(trap);assert.equal(state.stage,'peeking');assert.equal(state.extension,.3);assert.equal(state.warning,true);assert.equal(state.dangerous,false);assert.equal(g.world.debugBoxes().some(b=>b.kind==='spikes'),false);}
  g.world.featureTime=5.65;const state=g.world.spikeState(trap),box=g.world.debugBoxes().find(b=>b.kind==='spikes');
- assert.ok(Math.abs(state.extension-.65)<1e-10);assert.ok(state.dangerous);assert.ok(Math.abs(box.maxY-(.03+.18*state.extension))<1e-10);
+ assert.ok(Math.abs(state.extension-.65)<1e-10);assert.ok(state.dangerous);assert.ok(Math.abs(box.maxY-(.015+.24*state.extension))<1e-10);
  g.world.featureTime=5.8;assert.equal(g.world.spikeState(trap).extension,1);
 });
 

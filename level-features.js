@@ -12,7 +12,7 @@
   const f=spikeFrame(spike,height),length=.24*extension,boxes=[];
   for(const u of [-.21,.21])for(const v of [-.21,.21]){
    const center=f.origin.map((p,k)=>p+f.u[k]*u+f.v[k]*v+f.n[k]*(.015+length*.5));
-   const half=f.n.map((n,k)=>Math.abs(n)*length*.5+(Math.abs(f.u[k])+Math.abs(f.v[k]))*.075);
+   const half=f.n.map((n,k)=>Math.abs(n)*length*.5+(Math.abs(f.u[k])+Math.abs(f.v[k]))*.075*extension);
    boxes.push({x:center[0],z:center[2],halfX:half[0],halfZ:half[2],minY:center[1]-half[1],maxY:center[1]+half[1],kind:'spikes',...(spike.color===undefined?{}:{color:spike.color})});
   }return boxes;
  }
@@ -73,7 +73,10 @@
    spikeBoxes(spike,extension=1){return spikeBoxes(spike,spike.y??this.heightAt(spike.x,spike.z)??0,extension);},
    spikeTouches(player,spike,extension=1){
     if(spike.color!==undefined&&player.kind!=='crate'&&player.slot===spike.color)return false;
-    return this.spikeBoxes(spike,extension).some(b=>Math.abs(player.x-b.x)<.38+b.halfX&&Math.abs(player.z-b.z)<.38+b.halfZ&&(player.y||0)<b.maxY&&(player.y||0)+.84>b.minY);
+    if(Math.abs(player.x-spike.x)>1.2||Math.abs(player.z-spike.z)>1.2)return false;
+    const f=this.spikeFrame(spike),d=[player.x-f.origin[0],(player.y||0)+.42-f.origin[1],player.z-f.origin[2]],project=axis=>d.reduce((sum,v,k)=>sum+v*axis[k],0),radius=axis=>Math.abs(axis[1])*.42+(Math.abs(axis[0])+Math.abs(axis[2]))*.38;
+    const n=project(f.n),half=radius(f.n),width=.075*extension;
+    return n+half>.015&&n-half<.015+.24*extension&&Math.abs(Math.abs(project(f.u))-.21)<radius(f.u)+width&&Math.abs(Math.abs(project(f.v))-.21)<radius(f.v)+width;
    },
    bridgeBounds(i){
     const bridge=this.bridges[i],progress=bridge.progress??(this.soft?0:this.held.has(i)?1:0);

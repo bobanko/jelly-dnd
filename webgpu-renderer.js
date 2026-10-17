@@ -744,7 +744,7 @@
    // Reuse immutable local meshes and one upload array. No per-frame tessellation
    // or large JS number arrays for rigid decorations.
    for(const piece of this.propPieces){
-    const i=piece.index,source=piece.data;let x=0,y=0,z=0,rotate=false,matrix=null,stringPull=0,swing=0,spikeScale=1;
+    const i=piece.index,source=piece.data;let x=0,y=0,z=0,rotate=false,matrix=null,stringPull=0,swing=0;
     if(piece.kind==='jelly'||piece.kind==='bubble'){
      const p=players[i];if(p.state==='dead')continue;
      const core=level.soft.get(p).core;x=core[0];y=core[1];z=core[2];rotate=piece.kind==='jelly';
@@ -774,11 +774,10 @@
      const lift=level.world.lifts[i];x=lift.x;y=lift.height;z=lift.z;
     }else{
      const trap=level.world.spikes[i],state=level.world.spikeState(trap);if(state.extension<=0)continue;
-     const f=level.world.spikeFrame(trap);[x,y,z]=f.origin.map((p,k)=>p+f.n[k]*.015);spikeScale=state.extension;
+     const f=level.world.spikeFrame(trap);[x,y,z]=f.origin.map((p,k)=>p+f.n[k]*(.015-.24*(1-state.extension)));
      matrix=[0,1,2].flatMap(k=>[f.u[k],f.n[k],f.v[k]]);
     }
     data.set(source,cursor);
-    if(piece.kind==='spikes')for(let n=0;n<source.length;n+=12){data[cursor+n+1]*=spikeScale;data[cursor+n+4]/=spikeScale;}
     if(swing){const c=Math.cos(swing),s=Math.sin(swing);for(let n=0;n<source.length;n+=12)for(const offset of [0,3]){const k=cursor+n+offset,a=data[k],b=data[k+1]+(offset?0:.13);data[k]=a*c-b*s;data[k+1]=a*s+b*c-(offset?0:.13);}}
     if(matrix){for(let n=0;n<source.length;n+=12){const k=cursor+n,px=data[k],py=data[k+1],localZ=data[k+2]-stringPull*Math.max(0,1-Math.abs(py-.57)/.38),nx=data[k+3],ny=data[k+4],nz=data[k+5];for(let axis=0;axis<3;axis++){const a=axis*3;data[k+axis]=(axis===0?x:axis===1?y:z)+matrix[a]*px+matrix[a+1]*py+matrix[a+2]*localZ;data[k+3+axis]=matrix[a]*nx+matrix[a+1]*ny+matrix[a+2]*nz;}}}
     else if(rotate){for(let n=0;n<source.length;n+=12){const k=cursor+n;data[k]=x+rx*source[n]+fx*source[n+2];data[k+1]=y+source[n+1];data[k+2]=z+rz*source[n]+fz*source[n+2];data[k+3]=rx*source[n+3]+fx*source[n+5];data[k+5]=rz*source[n+3]+fz*source[n+5];}}
