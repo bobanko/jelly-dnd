@@ -43,7 +43,7 @@
     if(p.state==='falling'){
      const previousY=p.y;
      p.vy-=GRAVITY*dt;p.y+=p.vy*dt;p.x+=p.vx*dt;p.z+=p.vz*dt;if(!p.launchTimer){p.vx*=Math.exp(-dt*.8);p.vz*=Math.exp(-dt*.8);}
-     const surface=this.heightAt(p.x,p.z,previousY+.1);if((p.launchTimer||this.blocks?.length)&&surface!==null&&p.vy<0&&previousY>=surface-.1&&p.y<=surface){p.y=surface;p.vy=0;p.state='alive';p.launchTimer=0;events.push({type:'land',player:i});return;}
+     const surface=this.heightAt(p.x,p.z,previousY+.1,p);if((p.launchTimer||this.blocks?.length)&&surface!==null&&p.vy<0&&previousY>=surface-.1&&p.y<=surface){p.y=surface;p.vy=0;p.state='alive';p.launchTimer=0;events.push({type:'land',player:i});return;}
      if(p.y<DEATH_HEIGHT){p.state='dead';p.deaths++;p.respawnTimer=RESPAWN_DELAY;p.vx=p.vz=0;events.push({type:'death',player:i});}
      return;
     }

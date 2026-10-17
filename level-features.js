@@ -62,11 +62,12 @@
     // Slide out of the northern bank, revealing only the supported part of the gap.
     return {x:bridge.x,z:bridge.z-.5+progress*.5,half:.5,halfX:.5,halfZ:progress*.5,minY:(bridge.y||0)-.26,maxY:bridge.y||0,kind:'bridge'};
    },
-   heightAt(x,z,ceiling=Infinity){
+   blockSolid(body,block){return block.color===undefined||!body||body.kind==='crate'||body.slot!==block.color;},
+   heightAt(x,z,ceiling=Infinity,body=null){
     if(this.blocks?.length){
      const tx=Math.floor(x+.5),tz=Math.floor(z+.5),surfaces=[];
      const ys=this.blockColumns?(this.blockColumns.get(`${tx},${tz}`)||[]):this.blocks.filter(b=>b.x===tx&&b.z===tz).map(b=>b.y);
-     for(const y of ys)if(!this.bridges.some(b=>b.x===tx&&b.z===tz&&Math.abs((b.y||0)-y)<.01)&&!this.lifts.some(l=>l.x===tx&&l.z===tz&&Math.abs(l.base-y)<.01))surfaces.push(y);
+     for(const y of ys){if(body&&body.kind!=='crate'&&Number.isInteger(body.slot)&&this.blockColors?.size&&this.blockColors.get(`${tx},${y},${tz}`)===body.slot)continue;if(!this.bridges.some(b=>b.x===tx&&b.z===tz&&Math.abs((b.y||0)-y)<.01)&&!this.lifts.some(l=>l.x===tx&&l.z===tz&&Math.abs(l.base-y)<.01))surfaces.push(y);}
      for(let i=0;i<this.bridges.length;i++){const b=this.bridges[i];if(b.x!==tx||b.z!==tz)continue;const bounds=this.bridgeBounds(i);if(bounds&&Math.abs(x-bounds.x)<=bounds.halfX&&Math.abs(z-bounds.z)<=bounds.halfZ+1e-8)surfaces.push(bounds.maxY);}
      for(const l of this.lifts)if(l.x===tx&&l.z===tz)surfaces.push(l.height);
      const legacyY=this.heights.get(`${tx},${tz}`)||0;if(this.floor.has(`${tx},${tz}`)&&!this.bridges.some(b=>b.x===tx&&b.z===tz&&Math.abs((b.y||0)-legacyY)<.01)&&!this.lifts.some(l=>l.x===tx&&l.z===tz&&Math.abs(l.base-legacyY)<.01))surfaces.push(legacyY);
@@ -77,13 +78,13 @@
     x=tileX;z=tileZ;if(this.solid(x,z))return null;
     const lift=this.lifts.find(l=>l.x===x&&l.z===z);return lift?lift.height:(this.heights.get(`${x},${z}`)||0);
    },
-   supported(p){const height=this.heightAt(p.x,p.z,(p.y||0)+.2);return height!==null&&(this.blocks?.length?Math.abs((p.y||0)-height)<.23:(p.y||0)>=height-.2);},
-   obstaclesNear(p){return this.blocks?.length?this.collisionBoxes().filter(b=>b.maxY>(p.y||0)+.05&&b.minY<(p.y||0)+.84):this.obstacles;},
+   supported(p){const height=this.heightAt(p.x,p.z,(p.y||0)+.2,p);return height!==null&&(this.blocks?.length?Math.abs((p.y||0)-height)<.23:(p.y||0)>=height-.2);},
+   obstaclesNear(p){return this.blocks?.length?this.collisionBoxes().filter(b=>this.blockSolid(p,b)&&b.maxY>(p.y||0)+.05&&b.minY<(p.y||0)+.84):this.obstacles;},
    active(i,bodies){const plate=this.plates[i];if(!plate)return false;const height=plate.y??this.heightAt(plate.x,plate.z)??0;return bodies.some(p=>alive(p)&&Math.abs((p.y||0)-height)<.15&&near(p,plate,.42));},
    collisionBoxes(){
     if(this._collisionCache)return this._collisionCache;
     const boxes=[],conveyorCells=new Set(this.conveyors.map(p=>`${p.x},${p.z}`));
-    this._blockBoxes??=(this.blocks||[]).filter(b=>!this.bridges.some(p=>p.x===b.x&&p.z===b.z&&Math.abs((p.y||0)-b.y)<.01)&&!this.lifts.some(p=>p.x===b.x&&p.z===b.z&&Math.abs(p.base-b.y)<.01)).map(b=>({x:b.x,z:b.z,half:.5,minY:b.y-1,maxY:b.y,kind:'block'}));boxes.push(...this._blockBoxes);
+    this._blockBoxes??=(this.blocks||[]).filter(b=>!this.bridges.some(p=>p.x===b.x&&p.z===b.z&&Math.abs((p.y||0)-b.y)<.01)&&!this.lifts.some(p=>p.x===b.x&&p.z===b.z&&Math.abs(p.base-b.y)<.01)).map(b=>({x:b.x,z:b.z,half:.5,minY:b.y-1,maxY:b.y,kind:'block',...(b.color===undefined?{}:{color:b.color})}));boxes.push(...this._blockBoxes);
     if(this.blocks?.length){for(let i=0;i<this.bridges.length;i++){const p=this.bridges[i],b=this.bridgeBounds(i),key=`${p.x},${p.z}`;if(b&&(!this.floor.has(key)||Math.abs((this.heights.get(key)||0)-(p.y||0))>.01))boxes.push(b);}for(const l of this.lifts){const key=`${l.x},${l.z}`;if(!this.floor.has(key)||Math.abs((this.heights.get(key)||0)-l.base)>.01)boxes.push({x:l.x,z:l.z,half:.5,minY:l.height-.16,maxY:l.height,kind:'lift'});}}
     for(const key of this.floor){const [x,z]=key.split(',').map(Number),legacyY=this.heights.get(key)||0,bridge=this.bridges.findIndex(b=>b.x===x&&b.z===z&&(!this.blocks?.length||Math.abs((b.y||0)-legacyY)<.01));
      if(bridge>=0){const bounds=this.bridgeBounds(bridge);if(bounds)boxes.push(bounds);continue;}
@@ -142,9 +143,9 @@
    respawnPosition(p,bodies){
     const candidates=[{...p.spawn}];
     for(let radius=1;radius<=2;radius++)for(let x=-radius;x<=radius;x++)for(let z=-radius;z<=radius;z++)if(Math.max(Math.abs(x),Math.abs(z))===radius)candidates.push({x:p.spawn.x+x,z:p.spawn.z+z});
-    for(const c of candidates){const height=this.heightAt(c.x,c.z,this.blocks?.length?(p.spawn.y??0)+.2:Infinity);if(height===null)continue;c.y=height;
+    for(const c of candidates){const height=this.heightAt(c.x,c.z,this.blocks?.length?(p.spawn.y??0)+.2:Infinity,p);if(height===null)continue;c.y=height;
      if(this.spikes.some(s=>near(c,s,.7))||this.portals.some(portal=>near(c,portal,.5)))continue;
-     if(this.collisionBoxes().some(o=>(o.kind==='wall'||o.kind==='archer'||o.kind==='block')&&height+.03<o.maxY&&height+.84>o.minY&&near(c,o,.36+o.half+.015)))continue;
+     if(this.collisionBoxes().some(o=>this.blockSolid(p,o)&&(o.kind==='wall'||o.kind==='archer'||o.kind==='block')&&height+.03<o.maxY&&height+.84>o.minY&&near(c,o,.36+o.half+.015)))continue;
      if(bodies.some(b=>b!==p&&alive(b)&&near(c,b,.74)&&Math.abs((b.y||0)-height)<.75))continue;
      return c;
     }

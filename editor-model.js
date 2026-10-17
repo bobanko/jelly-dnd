@@ -16,7 +16,7 @@
   paintVoxel(tool,x,y,z,options={}){
    if(tool==='select')return;
    if(tool==='erase'){this.erase(x,z,y);return;}
-   if(tool==='floor'||tool==='cube'||tool==='wall'){this.cube(x,y,z);return;}
+   if(tool==='floor'||tool==='cube'||tool==='wall'||/^color-[0-3]$/.test(tool)){const p=this.cube(x,y,z);if(tool.startsWith('color-'))p.color=Number(tool.slice(-1));else delete p.color;return;}
    if(/^(spawn|goal)-[0-3]$/.test(tool)){this.cube(x,y,z);this.map[tool.startsWith('spawn')?'spawns':'goals'][Number(tool.slice(-1))]={x,y,z};return;}
    const key={torch:'walls',plate:'plates',bridge:'bridges',lift:'lifts',spikes:'spikes',conveyor:'conveyors','portal-violet':'portals','portal-amber':'portals',crate:'crates',archer:'archers',shield:'pickups',sword:'pickups'}[tool];if(!key)return;
    const existing=this.at(key,x,z,y);if(!existing&&this.map[key].length>=L.limits[key])throw new Error('Достигнут лимит объектов.');
@@ -40,7 +40,7 @@
   erase(x,z,y){const hit=p=>p&&p.x===x&&p.z===z&&(y===undefined||(p.y??p.height??0)===y);for(const key of Object.keys(L.limits))this.map[key]=this.map[key].filter(p=>!hit(p));for(const key of ['spawns','goals'])this.map[key]=this.map[key].map(p=>hit(p)?null:p);}
   paint(tool,x,z,options={}){
    if(x<0||z<0||x>=this.map.size||z>=this.map.size||tool==='select')return;
-   if(options.voxel||tool==='cube'){this.paintVoxel(tool,x,options.y??options.height??0,z,options);return;}
+   if(options.voxel||tool==='cube'||/^color-[0-3]$/.test(tool)){this.paintVoxel(tool,x,options.y??options.height??0,z,options);return;}
    const height=options.height??0;
    if(tool==='erase'){this.erase(x,z);return;}
    if(tool==='floor'){

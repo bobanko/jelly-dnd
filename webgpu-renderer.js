@@ -36,7 +36,7 @@
     const p=[0,0,0];p[axis]=h[axis]*sign;p[u]=(i/steps*2-1)*h[u];p[v]=(j/steps*2-1)*h[v];
     const core=p.map((x,k)=>Math.max(-h[k]+radius,Math.min(h[k]-radius,x))),d=p.map((x,k)=>x-core[k]),n=normalize(d);
     const position=core.map((x,k)=>x+n[k]*radius+center[k]);let uv=[0,0];
-    if(material<.5){
+    if(material<.5||material===17){
      const tile=Math.abs(Math.round(center[0]*73+center[1]*41+center[2]*137)+axis*5+(sign>0?3:0))%16;
      const a=(tile%2?j:i)/steps,b=(tile%2?i:j)/steps;uv=[(tile%4+.02+a*.96)/4,(Math.floor(tile/4)+.02+b*.96)/4];
     }else if(material===11){
@@ -110,6 +110,47 @@
   for(let i=0;i<12;i++){const a=i*Math.PI/6;sphere(mesh,[Math.cos(a)*.259,Math.sin(a)*.318,.069],[.013,.013,.012],[.55,.51,.38],12);}
   sphere(mesh,[0,0,.065],[.085,.085,.025],iron,12);sphere(mesh,[0,0,.093],[.047,.047,.045],[.46,.46,.39],12);
   return mesh;
+ }
+ function gearGeometry(mesh,x,y,radius,teeth=12){
+  const from=mesh.length,bronze=[.37,.235,.105],edge=[.59,.39,.17];
+  pressureSurface(mesh,[x,0,-y],[[radius*.48,0],[radius*.88,0],[radius*.94,.025],[radius*.94,.08],[radius*.85,.105],[radius*.48,.105],[radius*.48,0]],bronze,12,0,teeth*2);
+  for(let k=from;k<mesh.length;k+=12){const py=mesh[k+1],nz=mesh[k+5];mesh[k+1]=-mesh[k+2];mesh[k+2]=py;mesh[k+5]=mesh[k+4];mesh[k+4]=-nz;}
+  for(let i=0;i<teeth;i++){
+   const angle=i*Math.PI*2/teeth,c=Math.cos(angle),s=Math.sin(angle),start=mesh.length;
+   box(mesh,[0,0,.056],[radius*.24,radius*.23,.085],edge,.012,12,2);
+   for(let k=start;k<mesh.length;k+=12)for(const off of [0,3]){const a=mesh[k+off],b=mesh[k+off+1];mesh[k+off]=a*c-b*s+(off?0:x+c*radius);mesh[k+off+1]=a*s+b*c+(off?0:y+s*radius);}
+  }
+  for(let i=0;i<4;i++){const a=i*Math.PI/2;rod(mesh,[x,y,.045],[x+Math.cos(a)*radius*.6,y+Math.sin(a)*radius*.6,.045],radius*.15,bronze,12);}
+  sphere(mesh,[x,y,.075],[radius*.22,radius*.22,.075],edge,12);
+  box(mesh,[x,y,.14],[radius*.16,radius*.16,.045],[.105,.12,.12],.008,12,2);
+ }
+ function wallRelief(mesh,center,nx,nz,banner){
+  const from=mesh.length,bronze=[.43,.28,.12],iron=[.08,.105,.11];
+  if(banner){
+   rod(mesh,[-.36,.58,.06],[.36,.58,.06],.045,bronze,12);
+   box(mesh,[0,.04,.025],[.58,1.02,.024],[.24,.048,.032],.012,18,2);
+   for(const side of [-1,1])box(mesh,[side*.265,.04,.044],[.018,1.,.007],[.51,.30,.10],.003,12,1);
+   sphere(mesh,[0,.15,.051],[.115,.13,.016],[.63,.39,.15],15);
+   for(const side of [-1,1])sphere(mesh,[side*.046,.17,.07],[.029,.036,.008],[.14,.035,.022],15);
+   for(const side of [-1,1])rod(mesh,[-.13,-.1+side*.075,.05],[.13,-.1-side*.075,.05],.024,[.63,.39,.15],15);
+   for(const t of [-1,0,1])box(mesh,[t*.034,.026,.054],[.023,.045,.01],[.63,.39,.15],.003,15,1);
+  }else{
+   box(mesh,[0,0,.003],[1.02,.72,.06],iron,.025,12,2);
+   gearGeometry(mesh,-.18,.07,.34,12);gearGeometry(mesh,.37,-.21,.21,10);
+   rod(mesh,[-.53,-.27,.01],[.55,-.27,.01],.074,bronze,12);
+   for(const x of [-.46,.46])for(const y of [-.28,.28])sphere(mesh,[x,y,.055],[.032,.032,.025],bronze,12);
+  }
+  for(let k=from;k<mesh.length;k+=12)for(const off of [0,3]){const x=mesh[k+off],y=mesh[k+off+1],z=mesh[k+off+2];mesh[k+off]=(off?0:center[0])+nz*x+nx*z;mesh[k+off+1]=(off?0:center[1])+y;mesh[k+off+2]=(off?0:center[2])-nx*x+nz*z;}
+ }
+ function dungeonReliefs(mesh,world){
+  const candidates=[],seen=new Set(),walls=world.collisionBoxes().filter(b=>b.kind==='block'&&b.color===undefined&&b.maxY>=1||b.kind==='wall'&&b.half>=.4);
+  for(const wall of walls)for(const [nx,nz] of [[0,1],[1,0],[0,-1],[-1,0]]){
+   const x=wall.x+nx,z=wall.z+nz,y=world.heightAt(x,z,wall.maxY-.9),height=wall.maxY-(wall.minY??0);
+   if(y===null||height<.9||wall.maxY-y<1.2||world.collisionBoxes().some(b=>Math.abs(b.x-x)<.1&&Math.abs(b.z-z)<.1&&b.minY<y+.9&&b.maxY>y+.1))continue;
+   const key=`${wall.x},${wall.z}`;if(seen.has(key))continue;seen.add(key);candidates.push({x:wall.x,z:wall.z,y:y+.8,nx,nz});
+  }
+  candidates.sort((a,b)=>(a.x*17+a.z*31)%23-(b.x*17+b.z*31)%23);const chosen=[];
+  for(const p of candidates){if(chosen.some(q=>Math.hypot(q.x-p.x,q.z-p.z)<3.5))continue;wallRelief(mesh,[p.x+p.nx*.511,p.y,p.z+p.nz*.511],p.nx,p.nz,chosen.length%2===1);chosen.push(p);if(chosen.length===4)break;}
  }
  function arrowGeometry(){
   const mesh=[];rod(mesh,[0,0,-.34],[0,0,.08],.017,[.46,.31,.12],11);
@@ -198,16 +239,24 @@
  ${runePaths.map((paths,index)=>`if(glyph==${index}u){${paths.flatMap(path=>path.slice(1).map((b,j)=>`distance=min(distance,runeSegment(p,vec2f(${path[j].join(',')}),vec2f(${b.join(',')})));`)).join('')}}`).join('')}
  return distance;}
  `;
- function goalRune(mesh,center,index,color){
+ function goalRune(mesh,center,index,color,material=10){
   const paths=runePaths[index];
   for(const path of paths)for(let j=0;j<path.length-1;j++){
    const a=path[j],b=path[j+1],dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),s=dx/length,c=dz/length,from=mesh.length;
-   box(mesh,[0,0,0],[.034,.007,length+.018],color,.003,10,2);
+   box(mesh,[0,0,0],[.034,.007,length+.018],color,.003,material,2);
    for(let k=from;k<mesh.length;k+=12){
     const x=mesh[k],z=mesh[k+2],nx=mesh[k+3],nz=mesh[k+5];
     mesh[k]=center[0]+(a[0]+b[0])*.5+x*c+z*s;mesh[k+1]+=center[1];mesh[k+2]=center[2]+(a[1]+b[1])*.5-x*s+z*c;
     mesh[k+3]=nx*c+nz*s;mesh[k+5]=-nx*s+nz*c;
    }
+  }
+ }
+ function colorBlockRunes(mesh,block,color){
+  // The allowed hero's finish glyph, readable on every cube face.
+  for(let axis=0;axis<3;axis++)for(const sign of [-1,1]){
+   const from=mesh.length,u=axis===0?[0,0,1]:[1,0,0],n=[0,0,0];n[axis]=sign;const v=cross(u,n);
+   goalRune(mesh,[0,0,0],block.color,color,4);
+   for(let k=from;k<mesh.length;k+=12)for(const offset of [0,3]){const x=mesh[k+offset],y=mesh[k+offset+1],z=mesh[k+offset+2];for(let j=0;j<3;j++)mesh[k+offset+j]=u[j]*x+n[j]*y+v[j]*z+(offset===0?[block.x,block.y-.5,block.z][j]+n[j]*(axis===1?.504:.489):0);}
   }
  }
  function colliderLines(boxes){
@@ -319,10 +368,22 @@
   let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);let h=normalize(v+l);
   var color=o.color;
   let uv=o.local.xz;let dx=dpdx(uv);let dy=dpdy(uv);
-  if(o.material<.5){
-   color*=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb*3.8;
+  if(o.material<.5||(o.material>16.5&&o.material<17.5)){
+   let texel=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;
+   let value=dot(texel,vec3f(.25,.6,.15));
+   let wear=clamp(value*3.6,.38,1.22);
+   color*=mix(vec3f(wear),texel*3.6,.2);
+   let tile=fract(uv*4.);let edge=min(min(tile.x,tile.y),min(1.-tile.x,1.-tile.y));
+   color*=mix(.58,1.,smoothstep(.023,.055,edge));
+   if(o.material<.5&&abs(n.y)<.72){
+    let row=floor(o.world.y*2.);let along=select(o.world.x,o.world.z,abs(n.x)>.7);
+    let seam=min(abs(fract(o.world.y*2.)-.5),abs(fract(along+row*.5+.5)-.5));
+    color*=mix(.38,1.,smoothstep(.009,.035,seam));
+   }
   }
+  if(o.material>17.5&&o.material<18.5){color*=.86+.14*sin(o.world.y*97.)*sin(o.world.x*113.+o.world.z*113.);}
   if(o.material>10.5&&o.material<11.5){color*=textureSampleGrad(oakTexture,materialSampler,uv,dx,dy).rgb*3.;}
+  if(o.material>11.5&&o.material<12.5){let age=.5+.5*sin(o.world.x*11.+sin(o.world.y*7.))*sin(o.world.z*13.+o.world.y*5.);color=mix(color,vec3f(.065,.125,.095),smoothstep(.67,.95,age)*.32);}
   if(o.material>13.5&&o.material<14.5){let stone=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;let wear=clamp(dot(stone,vec3f(.25,.6,.15))*3.5,.3,1.35);color*=wear;}
   if(o.material>15.5&&o.material<16.5){
    let axes=array<vec2f,4>(vec2f(0,1),vec2f(1,0),vec2f(0,-1),vec2f(-1,0));let axis=axes[min(u32(round(o.local.x)),3u)];
@@ -331,12 +392,12 @@
    let chevron=(1.-smoothstep(.035,.065,abs(fract((track+abs(across)*.7)*2.)-.5)))*(1.-smoothstep(.2,.24,abs(across)));
    color=mix(vec3f(.18,.23,.18),vec3f(.035,.05,.04),groove)+chevron*vec3f(.55,.38,.12);
   }
-  var light=vec3f(.15,.19,.22)+vec3f(.94,.83,.63)*max(0.,dot(n,l))*shadow(o.world,n)*.95+vec3f(.12,.19,.28)*max(0.,dot(n,normalize(vec3f(-.6,.4,-.6))));
+  var light=vec3f(.105,.13,.18)+vec3f(1.04,.85,.59)*max(0.,dot(n,l))*shadow(o.world,n)+vec3f(.105,.16,.255)*max(0.,dot(n,normalize(vec3f(-.6,.4,-.6))));
   for(var i=0;i<8;i++){
    if(scene.torches[i].w<.5){continue;}
    let delta=scene.torches[i].xyz-o.world;let distance=length(delta);let attenuation=pow(1.-smoothstep(.1,3.4,distance),2.);
    let flicker=1.+sin(scene.options.z*8.+f32(i)*2.)*.035;
-   light+=vec3f(3.5,1.22,.18)*attenuation*max(.12,dot(n,normalize(delta)))*flicker;
+   light+=vec3f(4.1,1.5,.22)*attenuation*max(.12,dot(n,normalize(delta)))*flicker;
   }
   // Soft, coloured transmission shadows; wider and lighter when a cube lifts off.
   let bodies=array<vec4f,4>(scene.body0,scene.body1,scene.body2,scene.body3);
@@ -352,9 +413,10 @@
    }
   }
   var result=color*light;
+  if(o.material>16.5&&o.material<17.5){result+=color*.22;}
   if(o.material>.5&&o.material<1.5){result+=vec3f(.28)*pow(max(0.,dot(n,h)),55.);}
   if(o.material>3.5&&o.material<4.5){result=color*(1.4+sin(scene.options.z*4.)*.08);}
-  if(o.material>11.5&&o.material<12.5){result+=vec3f(.42,.4,.34)*pow(max(0.,dot(n,h)),65.);}
+  if(o.material>11.5&&o.material<12.5){result+=vec3f(.56,.4,.21)*pow(max(0.,dot(n,h)),45.);}
   if(o.material>13.5&&o.material<14.5){result+=color*.12+vec3f(.18)*pow(max(0.,dot(n,h)),80.);}
   if(o.material>4.5&&o.material<5.5){let portal=scene.portals[u32(o.local.x)];let inactive=portal.position.w<0.;let charge=max(0.,portal.position.w);let delta=o.world.xz-portal.position.xz;let radius=length(delta);let swirl=.5+.5*sin(atan2(delta.y,delta.x)*3.-radius*35.+scene.options.z*select(3.,0.,inactive));let tint=select(color,vec3f(.14,.15,.16),inactive);result=(tint*(.55+swirl*select(1.8,.35,inactive))+vec3f(.06)*exp(-radius*12.))*select(.55+charge*1.9,.5,inactive);}
   if(o.material>7.5&&o.material<8.5){let portal=scene.portals[u32(o.local.x)];result=select(color*(.65+max(0.,portal.position.w)*2.8),vec3f(.075,.08,.085),portal.position.w<0.);}
@@ -413,9 +475,10 @@
   color=mix(color,vec3f(.72,.68,.42)*(.76+.24*max(0.,dot(n,normalize(scene.light.xyz-o.world))))+pigment*.07,frontInlay*.83);
   let f=.025+.975*pow(1.-max(0.,dot(n,-ray)),5.);
   color=mix(color,environment(reflect(ray,n)),min(.85,f*.78+.025));
-  color+=pigment*pow(1.-max(0.,dot(n,-ray)),3.)*.18;
+  color+=pigment*pow(1.-max(0.,dot(n,-ray)),3.)*.34;
   let l=normalize(scene.light.xyz-o.world);let h=normalize(l-ray);
-  color+=vec3f(2.,1.9,1.6)*pow(max(0.,dot(n,h)),170.);
+  color+=vec3f(2.6,2.3,1.8)*pow(max(0.,dot(n,h)),150.);
+  color+=pigment*.07;
   color+=pigment*.28*pow(max(0.,dot(-n,l)),2.)*exp(-thick*2.);
   return vec4f(color,1.);
  }
@@ -448,7 +511,7 @@
  @group(0) @binding(1) var linearSampler:sampler;
  @vertex fn postVS(@builtin(vertex_index) i:u32)->@builtin(position) vec4f{let p=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3));return vec4f(p[i],0,1);}
  fn tone(input:vec3f)->vec3f{var c=max(input,vec3f(0));let x=min(c.r,min(c.g,c.b));c-=vec3f(select(.04,x-6.25*x*x,x<.08));let peak=max(c.r,max(c.g,c.b));if(peak<.76){return c;}let newPeak=1.-.0576/(peak+.24-.76);c*=newPeak/peak;return mix(c,vec3f(newPeak),1.-1./(.15*(peak-newPeak)+1.));}
- @fragment fn postFS(@builtin(position) p:vec4f)->@location(0) vec4f{let uv=p.xy/vec2f(textureDimensions(image));var c=tone(textureSampleLevel(image,linearSampler,uv,0.).rgb);c=pow(max(c,vec3f(0)),vec3f(1./2.2));let noise=fract(sin(dot(p.xy,vec2f(12.9898,78.233)))*43758.5453)-.5;return vec4f(c+noise/255.,1);}
+ @fragment fn postFS(@builtin(position) p:vec4f)->@location(0) vec4f{let uv=p.xy/vec2f(textureDimensions(image));var hdr=textureSampleLevel(image,linearSampler,uv,0.).rgb;let vignette=1.-.12*smoothstep(.25,.76,length(uv-vec2f(.5)));hdr*=vignette;var c=tone(hdr);c=pow(max(c,vec3f(0)),vec3f(1./2.2));let noise=fract(sin(dot(p.xy,vec2f(12.9898,78.233)))*43758.5453)-.5;return vec4f(c+noise/255.,1);}
  `;
  const latticeShader=`
  struct Portal { position:vec4f, color:vec4f };
@@ -553,14 +616,16 @@
   }
   buildScene(level){
    const mesh=[],blocks=(level.world.blocks||[]).filter(b=>!level.bridges.some(p=>p.x===b.x&&p.z===b.z&&p.y===b.y)&&!level.world.lifts.some(p=>p.x===b.x&&p.z===b.z&&p.base===b.y)),occupied=new Set(blocks.map(b=>[b.x,b.y,b.z].join(',')));
-   for(const b of blocks){if(level.bridges.some(p=>p.x===b.x&&p.z===b.z&&p.y===b.y)||level.world.lifts.some(p=>p.x===b.x&&p.z===b.z&&p.base===b.y))continue;if([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].every(d=>occupied.has([b.x+d[0],b.y+d[1],b.z+d[2]].join(','))))continue;const n=((b.x*73+b.y*31+b.z*137)%19+19)%19/19;box(mesh,[b.x,b.y-.5,b.z],[.97,1,.97],[.235+n*.04,.205+n*.035,.165+n*.03],.035,0,2);}
+   const blockTints=[[.15,.46,.04],[.045,.16,.62],[.58,.055,.035],[.34,.06,.54]],runeTints=[[.45,1.,.08],[.13,.38,1.],[1.,.12,.055],[.73,.22,1.]];
+   for(const b of blocks){if([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].every(d=>occupied.has([b.x+d[0],b.y+d[1],b.z+d[2]].join(','))))continue;const n=((b.x*73+b.y*31+b.z*137)%19+19)%19/19,color=b.color===undefined?(b.y>0?[.135+n*.028,.15+n*.028,.18+n*.032]:[.265+n*.04,.225+n*.035,.18+n*.03]):blockTints[b.color];box(mesh,[b.x,b.y-.5,b.z],[.97,1,.97],color,.045,b.color===undefined?0:17,2);if(b.color!==undefined)colorBlockRunes(mesh,b,runeTints[b.color]);}
    for(const key of level.floor){const [x,z]=key.split(',').map(Number);if(level.bridges.some(b=>b.x===x&&b.z===z))continue;const height=0;
-    const noise=((x*73+z*137)%19)/19,color=[.235+noise*.04,.205+noise*.035,.165+noise*.03];
+    const noise=((x*73+z*137)%19)/19,color=[.265+noise*.04,.225+noise*.035,.18+noise*.03];
     if(level.world.lifts.some(l=>l.x===x&&l.z===z)){
      const base=level.world.lifts.find(l=>l.x===x&&l.z===z).base||0;box(mesh,[x,base-.52,z],[.99,.25,.99],[.12,.14,.12],.025);
     }else{box(mesh,[x,height-.36,z],[.97,.72,.97],color,.045);const upper=level.world.heights.get(key)||0;for(let y=0;y<upper;y++){const span=Math.min(1,upper-y);box(mesh,[x,y+span*.5,z],[.97,span,.97],color,.045);}}
    }
-   for(const o of level.world.collisionBoxes().filter(o=>o.kind==='wall'))box(mesh,[o.x,(o.minY+o.maxY)*.5,o.z],[o.half*2-.03,o.maxY-o.minY,o.half*2-.03],o.half>.4?[.145,.18,.17]:[.18,.19,.145],.035);
+   for(const o of level.world.collisionBoxes().filter(o=>o.kind==='wall'))box(mesh,[o.x,(o.minY+o.maxY)*.5,o.z],[o.half*2-.03,o.maxY-o.minY,o.half*2-.03],o.half>.4?[.12,.145,.18]:[.105,.12,.115],.045);
+   dungeonReliefs(mesh,level.world);
    const data=new Float32Array(mesh);if(data.byteLength>this.staticBuffer.size){this.staticBuffer.destroy();this.staticBuffer=this.device.createBuffer({size:Math.ceil(data.byteLength/65536)*65536,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}
    this.staticCount=mesh.length/12;this.device.queue.writeBuffer(this.staticBuffer,0,data);
   }
@@ -570,10 +635,11 @@
     const from=mesh.length;
     const bounds=level.world.bridgeBounds(i);if(!bounds)return;
     const length=bounds.halfZ*2,x=bounds.x,z=bounds.z,anchor=bridge.z-.5,front=anchor+length;
-    box(mesh,[x,-.13,z],[.97,.26,length],[.21,.24,.22],.018,1);
-    for(const side of [-1,1])box(mesh,[x+side*.42,.006,z],[.035,.012,length],[.51,.34,.12],.006,1);
-    box(mesh,[x,.008,front-.012],[.95,.016,Math.min(.025,length)],[.85,.49,.09],.006,4);
-    for(const offset of [.2,.45,.7,.95]){const position=front-offset;if(position>anchor+.02)box(mesh,[x,.003,position],[.8,.008,.018],[.08,.11,.1],.003,1);}
+    box(mesh,[x,-.13,z],[.97,.26,length],[.14,.10,.065],.018,11,2);
+    for(let n=0;n<4;n++)box(mesh,[x+(n-1.5)*.195,.004,z],[.184,.026,length],[.42+n*.017,.245+n*.013,.105+n*.009],.008,11,2);
+    for(const side of [-1,1])box(mesh,[x+side*.42,.012,z],[.085,.04,length],[.29,.215,.13],.009,12,2);
+    box(mesh,[x,.012,front-.024],[.95,.035,Math.min(.07,length)],[.42,.30,.145],.009,12,2);
+    for(const side of [-1,1])for(const offset of [.13,.55,.9]){const position=front-offset;if(position>anchor+.02)box(mesh,[x+side*.42,.04,position],[.032,.018,.032],[.62,.46,.25],.004,12,1);}
     if(bridge.y)for(let k=from;k<mesh.length;k+=12)mesh[k+1]+=bridge.y;
    });
    if(mesh.length){const data=new Float32Array(mesh);if(data.byteLength>this.bridgeBuffer.size){this.bridgeBuffer.destroy();this.bridgeBuffer=this.device.createBuffer({size:Math.ceil(data.byteLength/65536)*65536,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}this.device.queue.writeBuffer(this.bridgeBuffer,0,data);}return mesh.length/12;
@@ -622,10 +688,12 @@
    }
    for(let i=0;i<level.world.lifts.length;i++){
     const mesh=[],lift={x:0,z:0,height:0};
-    box(mesh,[lift.x,lift.height-.08,lift.z],[.95,.16,.95],[.22,.24,.18],.035,1);
-    for(const dx of [-.38,.38])box(mesh,[lift.x+dx,lift.height+.009,lift.z],[.035,.018,.78],[.7,.48,.12],.008,4);
-    for(const dz of [-.38,.38])box(mesh,[lift.x,lift.height+.009,lift.z+dz],[.78,.018,.035],[.7,.48,.12],.008,4);
-    box(mesh,[lift.x,lift.height+.013,lift.z],[.06,.025,.38],[.9,.65,.17],.008,4);
+    box(mesh,[0,-.08,0],[.95,.16,.95],[.12,.105,.08],.025,12,2);
+    for(let n=0;n<4;n++)box(mesh,[(n-1.5)*.21,.004,0],[.2,.024,.83],[.43+n*.02,.27+n*.012,.12+n*.008],.008,11,2);
+    for(const dx of [-.4,.4])box(mesh,[dx,.017,0],[.085,.04,.93],[.40,.285,.13],.01,12,2);
+    for(const dz of [-.4,.4])box(mesh,[0,.017,dz],[.93,.04,.085],[.40,.285,.13],.01,12,2);
+    for(const dx of [-.4,.4])for(const dz of [-.4,.4])sphere(mesh,[dx,.044,dz],[.026,.014,.026],[.65,.49,.26],12);
+    for(const sign of [-1,1]){rod(mesh,[-.12,-.15,sign*.471],[.12,-.15,sign*.471],.035,[.5,.35,.16],12);}
     append('lift',i,mesh);
    }
    for(let i=0;i<level.world.spikes.length;i++){
@@ -703,7 +771,15 @@
     pressureSurface(mesh,[p.x,y,p.z],[[.293,.043],[.342,.043],[.346,.054],[.334,.078],[.304,.078],[.293,.064],[.293,.043]],[.09,.095,.093],12);
     pressureSurface(mesh,[p.x,y+.044,p.z],[[0,0],[.294,0],[.294,.012],[0,.012]],[.027,.03,.029],13);
    });
-   for(const o of level.world.obstacles.filter(o=>o.half<.4))sphere(mesh,[o.x,(o.minY||0)+.7,o.z],[.055,.13,.055],[2.,.65,.065],4);
+   for(const o of level.world.obstacles.filter(o=>o.half<.4)){
+    const y=o.minY||0,iron=[.085,.1,.105],bronze=[.4,.255,.10];
+    box(mesh,[o.x,y+.33,o.z],[.085,.36,.085],[.22,.115,.035],.01,11,2);
+    for(const sign of [-1,1])box(mesh,[o.x,y+.33+sign*.12,o.z],[.13,.045,.13],bronze,.008,12,2);
+    pressureSurface(mesh,[o.x,y+.47,o.z],[[0,0],[.055,0],[.11,.12],[.11,.145],[.08,.145],[.04,.06],[0,.06]],iron,12,0,12);
+    sphere(mesh,[o.x,y+.655,o.z],[.07,.13,.07],[2.8,.48,.025],4);
+    sphere(mesh,[o.x-.015,y+.76,o.z],[.035,.105,.038],[2.5,.65,.035],4);
+    sphere(mesh,[o.x,y+.62,o.z+.025],[.041,.085,.04],[4.,1.85,.18],4);
+   }
    for(const trap of level.world.spikes){
     const y=trap.y??level.world.heightAt(trap.x,trap.z)??0;
     box(mesh,[trap.x,y-.025,trap.z],[.92,.06,.92],[.085,.08,.075],.018,0,2);
@@ -781,7 +857,7 @@
    const extent=level.definition?.size??12,lightVP=viewMatrix([(extent-1)*.5,0,(extent-1)*.5],normalize([-.45,1.,.35]),Math.max(18,extent+4),Math.max(18,extent+4));
    const uniforms=new Float32Array(160);uniforms.set(vp);uniforms.set(lightVP,16);uniforms.set([...eye,frame.perspective?1:0],32);uniforms.set([-2,12,9,1],36);
    level.world.obstacles.filter(o=>o.half<.4).slice(0,8).forEach((o,i)=>uniforms.set([o.x,(o.minY||0)+.85,o.z,1],120+i*4));
-   players.forEach((p,i)=>uniforms.set([p.x,(p.y||0)+.42,p.z,p.state==='dead'?0:4+(level.world.heightAt(p.x,p.z,(p.y||0)+.2)||0)],i===3?152:40+i*4));uniforms.set([w,h,time,this.mesh?1:0],52);
+   players.forEach((p,i)=>uniforms.set([p.x,(p.y||0)+.42,p.z,p.state==='dead'?0:4+(level.world.heightAt(p.x,p.z,(p.y||0)+.2,p)||0)],i===3?152:40+i*4));uniforms.set([w,h,time,this.mesh?1:0],52);
    level.world.portals.slice(0,4).forEach((p,i)=>{const charge=level.world.portalInactive(p,players)?-1:level.world.portalCharge(p,players);uniforms.set([p.x,p.y??level.world.heightAt(p.x,p.z)??0,p.z,charge],56+i*8);uniforms.set([...(p.color==='violet'?[.7,.045,1.]:[1.,.34,.025]),i*.23],60+i*8);});
    this.goalGlowStrength??=[];this.goalWinGlow??=0;
    const fade=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*8),celebrate=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*4);
@@ -794,7 +870,7 @@
    const computePass=encoder.beginComputePass();computePass.setPipeline(this.compute);computePass.setBindGroup(0,this.computeGroup);computePass.dispatchWorkgroups(Math.ceil(players.length*1350/64));computePass.end();
    const shadowPass=encoder.beginRenderPass({colorAttachments:[],depthStencilAttachment:{view:this.shadowTexture.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
    shadowPass.setPipeline(this.shadow);shadowPass.setBindGroup(0,this.shadowGroup);shadowPass.setVertexBuffer(0,this.staticBuffer);shadowPass.draw(this.staticCount);if(bridgeCount){shadowPass.setVertexBuffer(0,this.bridgeBuffer);shadowPass.draw(bridgeCount);}shadowPass.end();
-   const opaque=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),clearValue:{r:.012,g:.017,b:.022,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
+   const opaque=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),clearValue:{r:.009,g:.011,b:.014,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
    opaque.setPipeline(this.opaque);opaque.setBindGroup(0,this.sceneGroup);opaque.setBindGroup(1,this.skinGroups[0]);opaque.setVertexBuffer(0,this.staticBuffer);opaque.draw(this.staticCount);if(bridgeCount){opaque.setVertexBuffer(0,this.bridgeBuffer);opaque.draw(bridgeCount);}opaque.setVertexBuffer(0,this.propBuffer);opaque.draw(propCount);opaque.setVertexBuffer(0,this.decorationBuffer);opaque.draw(this.decorationCount);opaque.end();
    const order=players.map((_,i)=>i).filter(i=>players[i].state!=='dead').sort((a,b)=>dot([players[a].x,players[a].y||0,players[a].z],view)-dot([players[b].x,players[b].y||0,players[b].z],view));
    for(const i of order){

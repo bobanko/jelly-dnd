@@ -80,7 +80,7 @@
    if(p.state==='dead')return;
    for(let i=0;i<NODE_COUNT;i++){
     const node=b.positions[i];
-    const height=world.heightAt(node[0],node[2],(p.y||0)+.2),old=b.old[i];
+    const height=world.heightAt(node[0],node[2],(p.y||0)+.2,p),old=b.old[i];
     if(height!==null&&height<=(p.y||0)+.2&&node[1]<height+.035&&(old[1]>height-.14||p.state==='alive'&&Math.abs((p.y||0)-height)<.18)){
      const penetration=height+.035-node[1];node[1]=height+.035;
      const dx=node[0]-old[0]-(b.surfaceVelocity?.x||0)*(this.contactStep||0),dz=node[2]-old[2]-(b.surfaceVelocity?.z||0)*(this.contactStep||0),slip=Math.hypot(dx,dz);
@@ -146,7 +146,7 @@
      return;
     }
     if(Math.hypot(p.x-b.center[0],p.z-b.center[2])>.25||Math.abs((p.y||0)+.42-b.center[1])>.5)b.reset(p);
-    b.collisionBoxes=world.collisionBoxes().filter(o=>Math.abs(o.x-p.x)<o.half+1&&Math.abs(o.z-p.z)<o.half+1);
+    b.collisionBoxes=world.collisionBoxes().filter(o=>world.blockSolid(p,o)&&Math.abs(o.x-p.x)<o.half+1&&Math.abs(o.z-p.z)<o.half+1);
     b.disturbance=Math.max(0,(b.disturbance||0)-dt);
     const neighbour=players.some((other,j)=>j!==i&&other.state!=='dead'&&!lattices[j].sleeping&&(Math.hypot(other.vx,other.vy||0,other.vz)>.05||lattices[j].disturbance>0||Math.hypot(inputs[j]?.x||0,inputs[j]?.z||0)>0)&&Math.hypot(p.x-other.x,p.z-other.z)<1.25);
     if(magnitude||onBelt||neighbour||p.state==='falling'||!world.supported(p)){b.sleeping=false;b.calm=0;}
@@ -196,7 +196,7 @@
     Object.assign(p,{x:center[0],z:center[2],y:center[1]-.42,vx:vcom[0],vz:vcom[2],vy:vcom[1]});
     for(let k=0;k<3;k++){b.coreVelocity[k]+=((center[k]-b.core[k])*64-8*b.coreVelocity[k])*dt;b.core[k]+=b.coreVelocity[k]*dt;b.core[k]=Math.max(center[k]-.12,Math.min(center[k]+.12,b.core[k]));}
     const driving=b.driven;
-    const ground=world.heightAt(p.x,p.z,p.y+.2);
+    const ground=world.heightAt(p.x,p.z,p.y+.2,p);
     const grounded=b.rigid?crateGrounded:ground!==null&&Math.abs(p.y-ground)<.15&&p.vy<.7;
     if(p.state==='falling'&&(b.support||grounded)){p.state='alive';p.launchTimer=0;events.push({type:'land',player:i});}
     if(p.state==='alive'&&!b.support&&(b.rigid?!crateGrounded:ground===null||p.y<ground-.2||p.y>ground+.23)){p.state='falling';events.push({type:'fall',player:i});}

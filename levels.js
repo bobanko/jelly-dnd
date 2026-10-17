@@ -49,7 +49,7 @@
    const items=data[key]??[];if(!Array.isArray(items)||items.length>max)fail(`Слишком много объектов: ${key}.`);
    const cells=new Set();map[key]=items.map((p,i)=>{const q=point(p),cell=`${q.x},${q.y??''},${q.z}`;if(cells.has(cell))fail(`Два объекта одного типа в одной клетке: ${key}.`);cells.add(cell);return {...q,...convert(p,i)};});
   };
-  list('blocks',p=>{if(!Number.isInteger(p.y))fail('Координата Y куба должна быть целой.');return {y:p.y};});
+  list('blocks',p=>{if(!Number.isInteger(p.y))fail('Координата Y куба должна быть целой.');if(p.color!==undefined&&(!Number.isInteger(p.color)||p.color<0||p.color>3))fail('Цвет куба должен соответствовать одному из четырёх персонажей.');return {y:p.y,...(p.color===undefined?{}:{color:p.color})};});
   list('tiles',p=>({height:number(p.height,0,0,3)}));
   list('walls',p=>({half:number(p.half,.5,.1,.5),base:number(p.base,0,-2,12),height:number(p.height,1.4,.1,6)}));
   if(map.walls.filter(p=>p.half<.4).length>8)fail('На карте может быть не более восьми факелов.');
@@ -75,9 +75,10 @@
    const label=`${key==='spawns'?'Спавн':'Финиш'}: ${names[i]}`;
    if(!p){if(key==='goals'&&map.spawns[i])result.push(`${label} не установлен.`);return;}
    if(!tile(p)||at(map.bridges,p)||at(map.lifts,p))result.push(`${label} должен стоять на постоянной площадке.`);
+   if(map.blocks?.some(b=>b.x===p.x&&b.z===p.z&&b.y===height(p)&&b.color===i)&&!map.tiles.some(t=>t.x===p.x&&t.z===p.z&&t.height===height(p)))result.push(`${label}: куб провалится сквозь площадку своего цвета.`);
    if(at(map.walls,p)||at(map.spikes,p)||at(map.portals,p)||at(map.archers,p)||key==='spawns'&&at(map.crates,p))result.push(`${label} перекрыт другим объектом.`);
    if(key==='goals'&&at(map.conveyors,p))result.push(`${label} не должен находиться на конвейере.`);
-   if(map.blocks?.some(b=>b.x===p.x&&b.z===p.z&&b.y>height(p)&&b.y-1<height(p)+.86))result.push(`${label}: недостаточно места над кубом.`);
+   if(map.blocks?.some(b=>b.color!==i&&b.x===p.x&&b.z===p.z&&b.y>height(p)&&b.y-1<height(p)+.86))result.push(`${label}: недостаточно места над кубом.`);
   });
   if(map.spawns.filter(Boolean).some((p,i,a)=>a.some((q,j)=>j!==i&&at([q],p))))result.push('Спавны персонажей должны находиться в разных клетках.');
   if(map.goals.filter(Boolean).some((p,i,a)=>a.some((q,j)=>j!==i&&at([q],p))))result.push('Финиши должны находиться в разных клетках.');
@@ -98,6 +99,7 @@
   const floor=new Set(map.tiles.map(p=>`${p.x},${p.z}`)),plates=copy(map.plates),bridges=map.bridges.map(p=>({...p,plate:plates.findIndex(q=>q.id===p.plate)}));
   const world=new Physics.World(floor,bridges,plates,map.walls.map(p=>({x:p.x,z:p.z,half:p.half,minY:p.base,height:p.base+p.height})));
   world.blocks=copy(map.blocks||[]);world.blockColumns=new Map();for(const b of world.blocks){const key=`${b.x},${b.z}`;if(!world.blockColumns.has(key))world.blockColumns.set(key,[]);world.blockColumns.get(key).push(b.y);}
+  world.blockColors=new Map(world.blocks.filter(b=>b.color!==undefined).map(b=>[`${b.x},${b.y},${b.z}`,b.color]));
   for(const p of map.tiles)if(p.height)world.heights.set(`${p.x},${p.z}`,p.height);
   world.lifts=map.lifts.map(p=>({...p,height:p.base,target:p.base}));world.spikes=copy(map.spikes);world.portals=copy(map.portals);world.conveyors=copy(map.conveyors);world.archers=copy(map.archers);world.pickups=map.pickups.map(p=>({...p,holder:null,durability:3,destroyed:false}));
   const soft=new Soft.System();world.soft=soft;
