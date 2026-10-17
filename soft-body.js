@@ -80,7 +80,7 @@
    if(p.state==='dead')return;
    for(let i=0;i<NODE_COUNT;i++){
     const node=b.positions[i];
-    const height=world.heightAt(node[0],node[2]),old=b.old[i];
+    const height=world.heightAt(node[0],node[2],(p.y||0)+.2),old=b.old[i];
     if(height!==null&&height<=(p.y||0)+.2&&node[1]<height+.035&&(old[1]>height-.14||p.state==='alive'&&Math.abs((p.y||0)-height)<.18)){
      const penetration=height+.035-node[1];node[1]=height+.035;
      const dx=node[0]-old[0]-(b.surfaceVelocity?.x||0)*(this.contactStep||0),dz=node[2]-old[2]-(b.surfaceVelocity?.z||0)*(this.contactStep||0),slip=Math.hypot(dx,dz);
@@ -88,7 +88,7 @@
      const friction=!b.driven&&slip<penetration*.65?1:Math.min(1,penetration*(b.driven?.12:.38)/(slip||1));
      node[0]-=dx*friction;node[2]-=dz*friction;
     }
-    for(const o of b.collisionBoxes||[]){if(node[1]>o.maxY-.005||node[1]<o.minY)continue;const dx=node[0]-o.x,dz=node[2]-o.z,ex=(o.halfX??o.half)+.015-Math.abs(dx),ez=(o.halfZ??o.half)+.015-Math.abs(dz);if(ex>0&&ez>0){if(ex<ez)node[0]+=Math.sign(dx||1)*ex;else node[2]+=Math.sign(dz||1)*ez;}}
+    for(const o of b.collisionBoxes||[]){if(node[1]>o.maxY-.005||node[1]<o.minY)continue;const dx=node[0]-o.x,dz=node[2]-o.z,ex=(o.halfX??o.half)+.015-Math.abs(dx),ez=(o.halfZ??o.half)+.015-Math.abs(dz);if(ex>0&&ez>0){if(o.kind==='block'&&old[1]<=o.minY+.04){node[1]=o.minY-.015;continue;}if(ex<ez)node[0]+=Math.sign(dx||1)*ex;else node[2]+=Math.sign(dz||1)*ez;}}
    }
   }
   stackContact(pa,pb,a,b){
@@ -187,7 +187,7 @@
     // Remove only internal wobble, leaving translation and rigid angular motion intact.
     let inertia=new Array(9).fill(0),angular=[0,0,0];
     b.positions.forEach((node,n)=>{const r=sub(node,center),v=sub(b.velocities[n],vcom),r2=dot(r,r);angular=add(angular,cross(r,v));for(let j=0;j<3;j++)for(let k=0;k<3;k++)inertia[j*3+k]+=(j===k?r2:0)-r[j]*r[k];});
-    const crateGrounded=b.rigid&&b.positions.some(node=>{const height=world.heightAt(node[0],node[2]);return height!==null&&Math.abs(node[1]-height-.035)<.025;});
+    const crateGrounded=b.rigid&&b.positions.some(node=>{const height=world.heightAt(node[0],node[2],node[1]+.06);return height!==null&&Math.abs(node[1]-height-.035)<.025;});
     let omega=mv(inverse(inertia),angular);
     if(b.rigid)omega=mul(omega,Math.exp(-dt*(crateGrounded?2.5:.12)));
     else if(p.state==='alive')omega=mul(omega,Math.exp(-dt*12));
@@ -196,7 +196,7 @@
     Object.assign(p,{x:center[0],z:center[2],y:center[1]-.42,vx:vcom[0],vz:vcom[2],vy:vcom[1]});
     for(let k=0;k<3;k++){b.coreVelocity[k]+=((center[k]-b.core[k])*64-8*b.coreVelocity[k])*dt;b.core[k]+=b.coreVelocity[k]*dt;b.core[k]=Math.max(center[k]-.12,Math.min(center[k]+.12,b.core[k]));}
     const driving=b.driven;
-    const ground=world.heightAt(p.x,p.z);
+    const ground=world.heightAt(p.x,p.z,p.y+.2);
     const grounded=b.rigid?crateGrounded:ground!==null&&Math.abs(p.y-ground)<.15&&p.vy<.7;
     if(p.state==='falling'&&(b.support||grounded)){p.state='alive';p.launchTimer=0;events.push({type:'land',player:i});}
     if(p.state==='alive'&&!b.support&&(b.rigid?!crateGrounded:ground===null||p.y<ground-.2||p.y>ground+.23)){p.state='falling';events.push({type:'fall',player:i});}

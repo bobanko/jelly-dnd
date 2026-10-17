@@ -66,7 +66,7 @@
     if(p.kind==='jelly'||p.kind==='wood')p.velocity[1]-=7*dt;
     for(let k=0;k<3;k++)p.position[k]+=p.velocity[k]*dt;
     if(p.kind==='jelly'||p.kind==='wood'){
-     const floor=world.heightAt(p.position[0],p.position[2]);
+     const floor=world.heightAt(p.position[0],p.position[2],previousY);
      if(floor!==null&&previousY>=floor-.01&&p.position[1]<floor+p.size*.45&&p.velocity[1]<0){p.position[1]=floor+p.size*.45;p.velocity[1]*=-.22;p.velocity[0]*=.65;p.velocity[2]*=.65;}
     }
    }
@@ -93,7 +93,7 @@
      for(let k=0;k<3;k++)for(const edge of [lo[k],hi[k]])if(Math.abs(p.position[k]-edge)<distance){distance=Math.abs(p.position[k]-edge);axis=k;side=edge;}
      p.position[axis]=side;p.velocity[axis]*=-.2;
     }
-    const floor=world.heightAt(p.position[0],p.position[2]);
+    const floor=world.heightAt(p.position[0],p.position[2],previous);
     if(floor!==null&&previous>=floor&&p.position[1]<floor+p.size*.5){p.position[1]=floor+p.size*.5;p.velocity[1]*=-.12;p.velocity[0]*=.65;p.velocity[2]*=.65;}
    }
    for(const rune of this.runes){rune.age+=dt;for(let k=0;k<3;k++)rune.position[k]+=rune.velocity[k]*dt;}

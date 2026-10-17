@@ -9,6 +9,7 @@ test('editor rays invert game projection at arbitrary rotations, pitches and pla
   assert.ok(hit&&Math.hypot(...hit.position.map((v,k)=>v-p[k]))<.0001);
  }
  assert.equal(S.inverse(new Float32Array(16)),null);assert.equal(S.plane({origin:[0,0,0],direction:[1,0,0]},1),null);
+ for(const mode of ['ortho','perspective']){const f=S.frame({x:4,z:4,targetY:11.5,mode,pitch:50,fov:45},.6,1100,800,60),hit=S.plane(rayAt(f,[3,12,5]),12);assert.ok(Math.abs(hit.position[0]-3)<.0001&&Math.abs(hit.position[2]-5)<.0001);const centre=GPU.projectPoint(f,4,11.5,4,1100,800);assert.ok(Math.abs(centre.y-800*.56)<.001);}
 });
 test('picking selects visible wall sides and upper props before the hidden floor',()=>{
  const map=L.blank();map.tiles=[{x:4,z:4,height:2},{x:4,z:3,height:0}];map.walls=[{x:4,z:4,base:2,height:1.4,half:.5}];

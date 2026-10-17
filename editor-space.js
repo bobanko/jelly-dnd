@@ -36,18 +36,19 @@
  }
  function boxes(map){
   const result=[],heights=new Map(map.tiles.map(p=>[`${p.x},${p.z}`,p.height]));
-  const add=(p,key,half,lo,hi)=>result.push({x:p.x,z:p.z,key,min:[p.x-half,lo,p.z-half],max:[p.x+half,hi,p.z+half]});
+  const add=(p,key,half,lo,hi)=>result.push({x:p.x,y:p.y??(key==='tiles'?p.height:lo),z:p.z,key,min:[p.x-half,lo,p.z-half],max:[p.x+half,hi,p.z+half]});
+  for(const p of map.blocks||[])add(p,'blocks',.5,p.y-1,p.y);
   for(const p of map.tiles)add(p,'tiles',.5,-.72,p.height);
   for(const p of map.walls)add(p,'walls',p.half,p.base,p.base+p.height);
-  for(const key of ['spawns','crates','archers'])for(const p of map[key])if(p){const y=heights.get(`${p.x},${p.z}`)||0;add(p,key,key==='archers'?.26:.4,y,y+(key==='archers'?1.2:.84));}
-  for(const key of ['goals','plates','bridges','lifts','spikes','portals','conveyors','pickups'])for(const p of map[key])if(p){const y=heights.get(`${p.x},${p.z}`)||0;add(p,key,key==='pickups'?.28:.46,y,y+(key==='spikes'?.36:key==='pickups'?.35:.12));}
+  for(const key of ['spawns','crates','archers'])for(const p of map[key])if(p){const y=p.y??heights.get(`${p.x},${p.z}`)??0;add({...p,y},key,key==='archers'?.26:.4,y,y+(key==='archers'?1.2:.84));}
+  for(const key of ['goals','plates','bridges','lifts','spikes','portals','conveyors','pickups'])for(const p of map[key])if(p){const y=p.y??p.base??heights.get(`${p.x},${p.z}`)??0;add({...p,y},key,key==='pickups'?.28:.46,y,y+(key==='spikes'?.36:key==='pickups'?.35:.12));}
   return result;
  }
  function pick(ray,bounds,size,height=0,lockedHeight=null){
   if(!ray)return null;
   if(lockedHeight!==null){const hit=plane(ray,lockedHeight);return hit?{x:Math.round(hit.position[0]),z:Math.round(hit.position[2]),height:lockedHeight,key:null,hit}:null;}
   let nearest=null;
-  for(const box of bounds){const hit=boxHit(ray,box);if(hit&&(!nearest||hit.distance<nearest.hit.distance))nearest={x:box.x,z:box.z,height:box.max[1],key:box.key,hit};}
+  for(const box of bounds){const hit=boxHit(ray,box);if(hit&&(!nearest||hit.distance<nearest.hit.distance))nearest={x:box.x,y:box.y,z:box.z,height:box.max[1],key:box.key,hit};}
   if(nearest)return nearest;
   const hit=plane(ray,height);if(!hit)return null;
   const x=Math.round(hit.position[0]),z=Math.round(hit.position[2]);

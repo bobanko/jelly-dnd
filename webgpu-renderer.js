@@ -9,8 +9,8 @@
  }
  function cameraFrame(camera,angle,width,height,scale){
   const perspective=camera.mode==='perspective',pitch=(camera.pitch??30)*Math.PI/180,azimuth=angle+Math.PI/4;
-  const view=[Math.sin(azimuth)*Math.cos(pitch),Math.sin(pitch),Math.cos(azimuth)*Math.cos(pitch)],target=[camera.x,0,camera.z];
-  const referenceDistance=Math.max(5,height/scale/(2*Math.tan(Math.PI/8))),focusDepth=view[1]*(camera.focusHeight??.42);
+  const view=[Math.sin(azimuth)*Math.cos(pitch),Math.sin(pitch),Math.cos(azimuth)*Math.cos(pitch)],target=[camera.x,camera.targetY??0,camera.z];
+  const referenceDistance=Math.max(5,height/scale/(2*Math.tan(Math.PI/8))),focusDepth=view[1]*((camera.focusHeight??.42)-(camera.targetY??0));
   // Compensate focal length at the followed jelly's centre: FOV changes
   // perspective strength while keeping that character's apparent size stable.
   const distance=perspective?focusDepth+(referenceDistance-focusDepth)*Math.tan(Math.PI/8)/Math.tan((camera.fov??45)*Math.PI/360):20;
@@ -211,7 +211,7 @@
   }
  }
  function colliderLines(boxes){
-  const data=[],colors={floor:[.12,.65,1],wall:[.8,.88,.95],lift:[1,.65,.04],bridge:[1,.7,.2],conveyor:[.7,.9,.3],spikes:[1,.1,.12],portal:[.85,.2,1]};
+  const data=[],colors={floor:[.12,.65,1],block:[.22,.75,1],wall:[.8,.88,.95],lift:[1,.65,.04],bridge:[1,.7,.2],conveyor:[.7,.9,.3],spikes:[1,.1,.12],portal:[.85,.2,1]};
   for(const b of boxes){const c=colors[b.kind]||colors.wall,points=[];for(let y=0;y<2;y++)for(let z=0;z<2;z++)for(let x=0;x<2;x++)points.push([b.x+(x?1:-1)*(b.halfX??b.half),y?b.maxY:b.minY,b.z+(z?1:-1)*(b.halfZ??b.half)]);
    for(let i=0;i<8;i++)for(const bit of [1,2,4])if(!(i&bit))data.push(...points[i],...c,...points[i|bit],...c);
   }return new Float32Array(data);
@@ -343,7 +343,7 @@
   let tints=array<vec3f,4>(vec3f(.09,.85,.18),vec3f(.035,.17,1.),vec3f(1.,.08,.035),vec3f(.65,.08,1.));
   for(var i=0;i<4;i++){
    let body=bodies[i];let delta=o.world.xz-body.xz;
-   let height=max(0.,body.y-.42-(body.w-1.));let radius=.28+height*.18;
+   let height=max(0.,body.y-.42-(body.w-4.));let radius=.28+height*.18;
    let amount=exp(-dot(delta,delta)/(radius*radius))*.36/(1.+height*2.);
    if(body.w>0.&&o.world.y<body.y-.2){
     let tint=tints[u32(scene.bodySlots[i])];
@@ -552,7 +552,8 @@
    this.postGroup=d.createBindGroup({layout:this.post.getBindGroupLayout(0),entries:[{binding:0,resource:this.hdr.createView()},{binding:1,resource:this.sampler}]});
   }
   buildScene(level){
-   const mesh=[];
+   const mesh=[],blocks=(level.world.blocks||[]).filter(b=>!level.bridges.some(p=>p.x===b.x&&p.z===b.z&&p.y===b.y)&&!level.world.lifts.some(p=>p.x===b.x&&p.z===b.z&&p.base===b.y)),occupied=new Set(blocks.map(b=>[b.x,b.y,b.z].join(',')));
+   for(const b of blocks){if(level.bridges.some(p=>p.x===b.x&&p.z===b.z&&p.y===b.y)||level.world.lifts.some(p=>p.x===b.x&&p.z===b.z&&p.base===b.y))continue;if([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].every(d=>occupied.has([b.x+d[0],b.y+d[1],b.z+d[2]].join(','))))continue;const n=((b.x*73+b.y*31+b.z*137)%19+19)%19/19;box(mesh,[b.x,b.y-.5,b.z],[.97,1,.97],[.235+n*.04,.205+n*.035,.165+n*.03],.035,0,2);}
    for(const key of level.floor){const [x,z]=key.split(',').map(Number);if(level.bridges.some(b=>b.x===x&&b.z===z))continue;const height=0;
     const noise=((x*73+z*137)%19)/19,color=[.235+noise*.04,.205+noise*.035,.165+noise*.03];
     if(level.world.lifts.some(l=>l.x===x&&l.z===z)){
@@ -719,7 +720,7 @@
     }
    }
    for(const belt of level.world.conveyors){
-    const from=mesh.length,y=level.world.heightAt(belt.x,belt.z)??0,dx=belt.dx||0,dz=belt.dz??1,code=dx>0?1:dx<0?3:dz<0?2:0;
+    const from=mesh.length,y=belt.y??level.world.heightAt(belt.x,belt.z)??0,dx=belt.dx||0,dz=belt.dz??1,code=dx>0?1:dx<0?3:dz<0?2:0;
     box(mesh,[0,.005,0],[.78,.018,1],[.18,.23,.18],.004,16,2);
     for(let k=from;k<mesh.length;k+=12){mesh[k+10]=code;mesh[k+11]=belt.speed??.85;}
     for(const side of [-1,1]){
@@ -780,7 +781,7 @@
    const extent=level.definition?.size??12,lightVP=viewMatrix([(extent-1)*.5,0,(extent-1)*.5],normalize([-.45,1.,.35]),Math.max(18,extent+4),Math.max(18,extent+4));
    const uniforms=new Float32Array(160);uniforms.set(vp);uniforms.set(lightVP,16);uniforms.set([...eye,frame.perspective?1:0],32);uniforms.set([-2,12,9,1],36);
    level.world.obstacles.filter(o=>o.half<.4).slice(0,8).forEach((o,i)=>uniforms.set([o.x,(o.minY||0)+.85,o.z,1],120+i*4));
-   players.forEach((p,i)=>uniforms.set([p.x,(p.y||0)+.42,p.z,p.state==='dead'?0:1+(level.world.heightAt(p.x,p.z)||0)],i===3?152:40+i*4));uniforms.set([w,h,time,this.mesh?1:0],52);
+   players.forEach((p,i)=>uniforms.set([p.x,(p.y||0)+.42,p.z,p.state==='dead'?0:4+(level.world.heightAt(p.x,p.z,(p.y||0)+.2)||0)],i===3?152:40+i*4));uniforms.set([w,h,time,this.mesh?1:0],52);
    level.world.portals.slice(0,4).forEach((p,i)=>{const charge=level.world.portalInactive(p,players)?-1:level.world.portalCharge(p,players);uniforms.set([p.x,p.y??level.world.heightAt(p.x,p.z)??0,p.z,charge],56+i*8);uniforms.set([...(p.color==='violet'?[.7,.045,1.]:[1.,.34,.025]),i*.23],60+i*8);});
    this.goalGlowStrength??=[];this.goalWinGlow??=0;
    const fade=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*8),celebrate=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*4);

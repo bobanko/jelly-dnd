@@ -4,8 +4,18 @@
  const DRAFT_KEY='jelly-dnd.editor.v1',PLAY_KEY='jelly-dnd.play.v1';
  const copy=value=>JSON.parse(JSON.stringify(value));
  const characters=[{name:'Мох',color:'#9ddd56',glyph:'ᛉ',keys:'W A S D'},{name:'Иней',color:'#477bff',glyph:'ᛟ',keys:'↑ ← ↓ →'},{name:'Уголёк',color:'#ef5346',glyph:'ᛋ',keys:'I J K L'},{name:'Аметист',color:'#bb70ef',glyph:'ᛜ',keys:'T F G H'}];
- const limits={tiles:256,walls:256,plates:16,bridges:16,lifts:16,spikes:32,portals:4,conveyors:256,crates:4,archers:4,pickups:8};
- function blank(){return {version:1,name:'Новое подземелье',size:16,tiles:[],walls:[],spawns:[null,null,null,null],goals:[null,null,null,null],plates:[],bridges:[],lifts:[],spikes:[],portals:[],conveyors:[],crates:[],archers:[],pickups:[]};}
+ const limits={blocks:4096,tiles:256,walls:256,plates:16,bridges:16,lifts:16,spikes:32,portals:4,conveyors:256,crates:4,archers:4,pickups:8};
+ function blank(){return {version:1,name:'Новое подземелье',size:16,blocks:[],tiles:[],walls:[],spawns:[null,null,null,null],goals:[null,null,null,null],plates:[],bridges:[],lifts:[],spikes:[],portals:[],conveyors:[],crates:[],archers:[],pickups:[]};}
+ function surfaceY(map,x,z,ceiling=Infinity){const ys=[...map.tiles.filter(p=>p.x===x&&p.z===z).map(p=>p.height),...(map.blocks||[]).filter(p=>p.x===x&&p.z===z).map(p=>p.y)].filter(y=>y<=ceiling+.001);return ys.length?Math.max(...ys):null;}
+ function voxelize(input){
+  const map=read(input),occupied=new Set(map.blocks.map(p=>`${p.x},${p.y},${p.z}`));
+  const add=(x,y,z)=>{const key=`${x},${y},${z}`;if(!occupied.has(key)){occupied.add(key);map.blocks.push({x,y,z});}};
+  for(const key of ['spawns','goals','plates','bridges','spikes','portals','conveyors','crates','archers','pickups'])for(const p of map[key])if(p)p.y??=surfaceY(map,p.x,p.z)??0;
+  for(const p of map.lifts)p.y=p.base;
+  for(const p of map.tiles)for(let y=0;y<=Math.ceil(p.height);y++)add(p.x,y,p.z);
+  for(const p of map.walls)if(p.half>=.4)for(let y=Math.max(-2,Math.floor(p.base)+1);y<=Math.ceil(p.base+p.height);y++)add(p.x,y,p.z);
+  map.tiles=[];map.walls=map.walls.filter(p=>p.half<.4).map(p=>({...p,y:p.base}));return read(map);
+ }
  function defaultLevel(){
   const map=blank();map.name='Затонувшее святилище';
   for(let z=1;z<=10;z++)for(let x=1;x<=10;x++)if(z>=5||(z<=3&&x>=2&&x<=9)||(z===4&&(x===3||x===8)))map.tiles.push({x,z,height:0});
@@ -34,19 +44,20 @@
   const map=blank();map.size=data.size;map.name=typeof data.name==='string'?data.name.trim().slice(0,80)||'Без названия':'Без названия';
   const number=(value,fallback,min,max)=>{if(value===undefined)return fallback;if(typeof value!=='number'||!Number.isFinite(value)||value<min||value>max)fail('Недопустимое числовое свойство объекта.');return value;};
   const id=(value,fallback)=>{if(value===undefined)return fallback;if(typeof value!=='string'||!value.trim()||value.length>64)fail('Неверный идентификатор объекта.');return value;};
-  const point=p=>{if(!p||!Number.isInteger(p.x)||!Number.isInteger(p.z)||p.x<0||p.z<0||p.x>=map.size||p.z>=map.size)fail('Объект находится за границами карты.');return {x:p.x,z:p.z};};
+  const point=p=>{if(!p||!Number.isInteger(p.x)||!Number.isInteger(p.z)||p.x<0||p.z<0||p.x>=map.size||p.z>=map.size)fail('Объект находится за границами карты.');return {x:p.x,z:p.z,...(p.y===undefined?{}:{y:number(p.y,0,-2,12)})};};
   const list=(key,convert,max=limits[key])=>{
    const items=data[key]??[];if(!Array.isArray(items)||items.length>max)fail(`Слишком много объектов: ${key}.`);
-   const cells=new Set();map[key]=items.map((p,i)=>{const q=point(p),cell=`${q.x},${q.z}`;if(cells.has(cell))fail(`Два объекта одного типа в одной клетке: ${key}.`);cells.add(cell);return {...q,...convert(p,i)};});
+   const cells=new Set();map[key]=items.map((p,i)=>{const q=point(p),cell=`${q.x},${q.y??''},${q.z}`;if(cells.has(cell))fail(`Два объекта одного типа в одной клетке: ${key}.`);cells.add(cell);return {...q,...convert(p,i)};});
   };
+  list('blocks',p=>{if(!Number.isInteger(p.y))fail('Координата Y куба должна быть целой.');return {y:p.y};});
   list('tiles',p=>({height:number(p.height,0,0,3)}));
-  list('walls',p=>({half:number(p.half,.5,.1,.5),base:number(p.base,0,-.4,3),height:number(p.height,1.4,.1,6)}));
+  list('walls',p=>({half:number(p.half,.5,.1,.5),base:number(p.base,0,-2,12),height:number(p.height,1.4,.1,6)}));
   if(map.walls.filter(p=>p.half<.4).length>8)fail('На карте может быть не более восьми факелов.');
   for(const key of ['spawns','goals']){if(!Array.isArray(data[key])||data[key].length<1||data[key].length>4)fail('Допустимо от одного до четырёх слотов персонажей.');map[key]=Array.from({length:4},(_,i)=>data[key][i]==null?null:point(data[key][i]));}
   list('plates',(p,i)=>({id:id(p.id,`plate-${i+1}`),color:['red','blue','amber','dark'].includes(p.color)?p.color:'red'}));
   if(new Set(map.plates.map(p=>p.id)).size!==map.plates.length)fail('Идентификаторы кнопок должны быть уникальными.');
-  list('bridges',p=>({plate:typeof p.plate==='string'?p.plate:'',y:number(p.y,0,0,3)}));
-  list('lifts',p=>({base:number(p.base,0,0,3),top:number(p.top,1,0,3)}));
+  list('bridges',p=>({plate:typeof p.plate==='string'?p.plate:'',y:number(p.y,0,-2,12)}));
+  list('lifts',p=>({base:number(p.base,0,-2,12),top:number(p.top,1,-2,12)}));
   list('spikes',p=>({offset:number(p.offset,0,0,5.8)}));
   list('portals',p=>{if(!['violet','amber'].includes(p.color))fail('Неизвестный цвет портала.');return {color:p.color};});
   list('crates',()=>({}));
@@ -57,7 +68,7 @@
   return map;
  }
  function issues(map){
-  const result=[],tile=p=>map.tiles.find(t=>t.x===p.x&&t.z===p.z),at=(a,p)=>a.some(q=>q&&q.x===p.x&&q.z===p.z);
+  const result=[],height=p=>p.y??surfaceY(map,p.x,p.z),tile=p=>height(p)!==null&&(map.tiles.some(t=>t.x===p.x&&t.z===p.z&&Math.abs(t.height-height(p))<.01)||map.blocks?.some(t=>t.x===p.x&&t.z===p.z&&t.y===height(p))),at=(a,p)=>a.some(q=>q&&q.x===p.x&&q.z===p.z&&Math.abs((q.y??surfaceY(map,q.x,q.z)??0)-(height(p)??0))<.1);
   const names=characters.map(p=>p.name);
   if(!map.spawns.some(Boolean))result.push('Добавьте хотя бы одного персонажа.');
   for(const key of ['spawns','goals'])map[key].forEach((p,i)=>{
@@ -66,9 +77,10 @@
    if(!tile(p)||at(map.bridges,p)||at(map.lifts,p))result.push(`${label} должен стоять на постоянной площадке.`);
    if(at(map.walls,p)||at(map.spikes,p)||at(map.portals,p)||at(map.archers,p)||key==='spawns'&&at(map.crates,p))result.push(`${label} перекрыт другим объектом.`);
    if(key==='goals'&&at(map.conveyors,p))result.push(`${label} не должен находиться на конвейере.`);
+   if(map.blocks?.some(b=>b.x===p.x&&b.z===p.z&&b.y>height(p)&&b.y-1<height(p)+.86))result.push(`${label}: недостаточно места над кубом.`);
   });
-  if(map.spawns.filter(Boolean).some((p,i,a)=>a.some((q,j)=>j!==i&&q.x===p.x&&q.z===p.z)))result.push('Спавны персонажей должны находиться в разных клетках.');
-  if(map.goals.filter(Boolean).some((p,i,a)=>a.some((q,j)=>j!==i&&q.x===p.x&&q.z===p.z)))result.push('Финиши должны находиться в разных клетках.');
+  if(map.spawns.filter(Boolean).some((p,i,a)=>a.some((q,j)=>j!==i&&at([q],p))))result.push('Спавны персонажей должны находиться в разных клетках.');
+  if(map.goals.filter(Boolean).some((p,i,a)=>a.some((q,j)=>j!==i&&at([q],p))))result.push('Финиши должны находиться в разных клетках.');
   for(const color of ['violet','amber']){const count=map.portals.filter(p=>p.color===color).length;if(count!==0&&count!==2)result.push(`${color==='violet'?'Фиолетовые':'Янтарные'} порталы: нужно ровно два.`);}
   for(const b of map.bridges)if(!map.plates.some(p=>p.id===b.plate))result.push(`Мост ${b.x}, ${b.z} не привязан к кнопке.`);
   for(const l of map.lifts)if(l.top<=l.base)result.push(`Верх лифта ${l.x}, ${l.z} должен быть выше основания.`);
@@ -85,12 +97,13 @@
  function instantiate(map,Physics,Soft){
   const floor=new Set(map.tiles.map(p=>`${p.x},${p.z}`)),plates=copy(map.plates),bridges=map.bridges.map(p=>({...p,plate:plates.findIndex(q=>q.id===p.plate)}));
   const world=new Physics.World(floor,bridges,plates,map.walls.map(p=>({x:p.x,z:p.z,half:p.half,minY:p.base,height:p.base+p.height})));
+  world.blocks=copy(map.blocks||[]);world.blockColumns=new Map();for(const b of world.blocks){const key=`${b.x},${b.z}`;if(!world.blockColumns.has(key))world.blockColumns.set(key,[]);world.blockColumns.get(key).push(b.y);}
   for(const p of map.tiles)if(p.height)world.heights.set(`${p.x},${p.z}`,p.height);
   world.lifts=map.lifts.map(p=>({...p,height:p.base,target:p.base}));world.spikes=copy(map.spikes);world.portals=copy(map.portals);world.conveyors=copy(map.conveyors);world.archers=copy(map.archers);world.pickups=map.pickups.map(p=>({...p,holder:null,durability:3,destroyed:false}));
   const soft=new Soft.System();world.soft=soft;
-  const slots=map.spawns.flatMap((p,slot)=>p?[slot]:[]),start=slots.map(slot=>({...map.spawns[slot],y:world.heightAt(map.spawns[slot].x,map.spawns[slot].z)??0}));
+  const slots=map.spawns.flatMap((p,slot)=>p?[slot]:[]),start=slots.map(slot=>({...map.spawns[slot],y:map.spawns[slot].y??world.heightAt(map.spawns[slot].x,map.spawns[slot].z)??0}));
   const players=start.map((p,i)=>({...p,slot:slots[i],spawn:{...p},state:'alive',vy:0,vx:0,vz:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:p.x,rz:p.z,bounce:0,impact:0,squish:0,squishVelocity:0,portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null,shield:null,shieldHP:0,sword:null,facingX:0,facingZ:1,launchTimer:0,bashCooldown:0,attackTime:0,attackCooldown:0}));
-  const crates=map.crates.map(p=>{const y=world.heightAt(p.x,p.z)??0;return {...p,y,spawn:{...p,y},kind:'crate',state:'alive',vx:0,vy:0,vz:0,deaths:0};});
+  const crates=map.crates.map(p=>{const y=p.y??world.heightAt(p.x,p.z)??0;return {...p,y,spawn:{...p,y},kind:'crate',state:'alive',vx:0,vy:0,vz:0,deaths:0};});
   return {definition:map,floor,world,soft,start,players,crates,bodies:[...players,...crates],plates,bridges,goals:map.goals.flatMap((p,slot)=>p?[{...p,slot}]:[])};
  }
  function forGame(storage,search=''){
@@ -98,6 +111,6 @@
   const saved=storage?.getItem(PLAY_KEY);if(!saved)throw new Error('Тестовый уровень не найден. Откройте редактор и нажмите «Играть».');
   const map=read(saved),errors=issues(map);if(errors.length)throw new Error(errors.join('\n'));return map;
  }
- const api={DRAFT_KEY,PLAY_KEY,characters,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame};
+ const api={DRAFT_KEY,PLAY_KEY,characters,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyLevels=api;
 })(globalThis);

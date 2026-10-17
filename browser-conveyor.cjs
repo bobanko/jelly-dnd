@@ -20,7 +20,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   await page.getByLabel('Направление ленты',{exact:true}).selectOption('1,0');
   const speed=page.getByLabel('Скорость ленты, кл/с',{exact:true});await speed.fill('1.25');await speed.press('Tab');
   assert.equal(await page.evaluate(()=>model.at('conveyors',12,12).speed),1.25);
-  const data=await page.evaluate(()=>JSON.stringify(model.map));await page.reload();await page.waitForFunction(()=>model.map.conveyors.length===7);assert.equal(await page.evaluate(()=>JSON.stringify(model.map)),data);
+  const data=await page.evaluate(()=>model.map);await page.reload();await page.waitForFunction(()=>model.map.conveyors.length===7);assert.deepEqual(await page.evaluate(()=>model.map),data);
   await page.locator('#view-3d').click();await page.waitForFunction(()=>previewRenderer?.ready&&previewRuntime);
   await page.evaluate(()=>{previewCamera.x=12.5;previewCamera.z=12;previewZoom=2.5;});
   await page.waitForTimeout(250);await page.screenshot({path:'artifacts/conveyor-editor-3d.png'});
