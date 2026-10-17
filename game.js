@@ -15,12 +15,18 @@ const cameraPitches={ortho:30,perspective:55};
 const effects=new JellyEffects.System({reducedMotion});
 const level={...runtime,effects,won:false,reducedMotion};
 document.querySelector('.intro h1').textContent=definition.name;
-document.querySelectorAll('.member').forEach((member,slot)=>member.hidden=!players.some(p=>p.slot===slot));
 document.querySelectorAll('.camera-player').forEach((key,slot)=>key.hidden=!players.some(p=>p.slot===slot));
 if(globalThis.location?.search?.includes('level=editor')){document.querySelector('#editor-link').textContent='← В редактор';document.querySelector('.chapter').textContent='ТЕСТ УРОВНЯ';}
 const heldKeys=new Set();
-const slotKeys={KeyW:[0,0,-1],KeyS:[0,0,1],KeyA:[0,-1,0],KeyD:[0,1,0],ArrowUp:[1,0,-1],ArrowDown:[1,0,1],ArrowLeft:[1,-1,0],ArrowRight:[1,1,0],KeyI:[2,0,-1],KeyK:[2,0,1],KeyJ:[2,-1,0],KeyL:[2,1,0],KeyT:[3,0,-1],KeyG:[3,0,1],KeyF:[3,-1,0],KeyH:[3,1,0]};
-const movementKeys=Object.fromEntries(Object.entries(slotKeys).map(([key,[slot,x,z]])=>[key,[players.findIndex(p=>p.slot===slot),x,z]]).filter(([,value])=>value[0]>=0));
+const keySets={KeyW:[0,0,-1],KeyS:[0,0,1],KeyA:[0,-1,0],KeyD:[0,1,0],ArrowUp:[1,0,-1],ArrowDown:[1,0,1],ArrowLeft:[1,-1,0],ArrowRight:[1,1,0],KeyI:[2,0,-1],KeyK:[2,0,1],KeyJ:[2,-1,0],KeyL:[2,1,0],KeyT:[3,0,-1],KeyG:[3,0,1],KeyF:[3,-1,0],KeyH:[3,1,0]};
+// Assign controls by the active roster's order, independently of character colour.
+const controlOwners=players.length===1?[0,0,0,0]:players.length===2?[0,1,1,0]:[0,1,2,3].map(i=>i<players.length?i:-1);
+const controlLabels=['WASD','↑←↓→','IJKL','TFGH'];
+const movementKeys=Object.fromEntries(Object.entries(keySets).map(([key,[set,x,z]])=>[key,[controlOwners[set],x,z]]).filter(([,value])=>value[0]>=0));
+document.querySelectorAll('.member').forEach((member,slot)=>{
+ const i=players.findIndex(p=>p.slot===slot);member.hidden=i<0;
+ if(i>=0)member.querySelector('kbd').textContent=controlLabels.filter((_,set)=>controlOwners[set]===i).join(' / ');
+});
 let accumulator=0;
 function resize(){W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio,2);scale=Math.min(W/16,H/12)*zoom;}
 addEventListener('resize',resize);resize();

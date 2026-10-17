@@ -11,6 +11,7 @@
     "test:combat:browser": "node browser-combat.cjs",
     "test:editor:browser": "node browser-editor.cjs",
     "test:editor:3d": "node browser-editor-3d.cjs",
+    "test:editor:input": "node browser-editor-input.cjs",
     "test:parties:browser": "node browser-parties.cjs",
     "test:voxels:browser": "node browser-voxels.cjs",
     "test:conveyor:browser": "node browser-conveyor.cjs",

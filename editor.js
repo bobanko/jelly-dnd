@@ -21,6 +21,9 @@ let tool='floor',selected=null,hover=null,moveObject=null,gesture=null,space=fal
 let gridView={zoom:1,x:0,y:0},previewZoom=1,previewAngle=0,previewDirty=true,previewRuntime=null,previewRenderer=null,previewPromise=null,previewLast=0,previewFrame=0;
 let pickBounds=null,lastPointer=null,previewFitHeight=0;
 const previewCamera={x:(model.map.size-1)/2,z:(model.map.size-1)/2,mode:'ortho',pitch:50,fov:45};
+let previewTargetAngle=previewAngle,previewTargetPitch=previewCamera.pitch,cameraLast=0;
+const panKeys=new Set(),panCodes=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight']);
+const editingField=target=>target?.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"])');
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const atlas=new Image();atlas.onload=()=>invalidate();atlas.src='assets/materials/dungeon-stone-atlas.png';
 function element(tag,text,className){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;}
@@ -30,7 +33,7 @@ function changed(){previewDirty=true;pickBounds=null;save();renderPanels();inval
 function edit(fn){try{if(model.change(fn))changed();else renderPanels();}catch(error){toast(error.message);renderPanels();}}
 function selectTool(value){finishGesture();tool=value;moveObject=null;for(const button of document.querySelectorAll('[data-tool]'))button.setAttribute('aria-pressed',String(button.dataset.tool===tool));$('active-tool').textContent=tools[tool]?.label||'Переместить';$('conveyor-brush').hidden=tool!=='conveyor';refreshHover();invalidate();}
 for(const [name,items] of groups){const group=element('section',undefined,'tool-group');group.append(element('h2',name.toUpperCase()));const grid=element('div',undefined,'tool-grid');for(const [id,glyph,label,color] of items){const button=element('button',undefined,'tool');button.dataset.tool=id;button.title=label;button.style.setProperty('--tool-color',color||'#a7bba4');button.append(element('span',glyph,'glyph'),element('span',label));grid.append(button);}group.append(grid);$('palette').append(group);}
-const panButton=element('button','✥');panButton.dataset.tool='pan';panButton.title='Перемещение вида';panButton.setAttribute('aria-label','Перемещение вида');document.querySelector('.basic-tools').append(panButton);
+const panButton=element('button','✥');panButton.dataset.tool='pan';panButton.title='Перемещение вида (M)';panButton.setAttribute('aria-label','Перемещение вида');document.querySelector('.basic-tools').append(panButton);
 const orbitButton=element('button','⟳');orbitButton.dataset.tool='orbit';orbitButton.title='Вращение камеры · правая кнопка мыши';orbitButton.setAttribute('aria-label','Вращение камеры');document.querySelector('.basic-tools').append(orbitButton);
 document.querySelectorAll('[data-tool]').forEach(button=>button.onclick=()=>selectTool(button.dataset.tool));
 const colliderLabel=element('label','Коллайдеры'),colliderToggle=element('input');colliderToggle.type='checkbox';colliderToggle.id='preview-colliders';colliderLabel.prepend(colliderToggle);document.querySelector('.camera-buttons').append(colliderLabel);
@@ -47,7 +50,7 @@ document.querySelector('.viewport-toolbar').insertBefore(zoomButtons,$('fit'));
 const conveyorBrush=element('div',undefined,'conveyor-brush');conveyorBrush.id='conveyor-brush';conveyorBrush.hidden=true;
 const directionLabel=element('label','Лента '),beltDirection=element('select');beltDirection.id='belt-direction';beltDirection.setAttribute('aria-label','Направление конвейера');
 for(const [value,text] of [['0,1','↓ Юг'],['0,-1','↑ Север'],['1,0','→ Восток'],['-1,0','← Запад']]){const option=element('option',text);option.value=value;beltDirection.append(option);}directionLabel.append(beltDirection);
-const speedLabel=element('label','кл/с '),beltSpeed=element('input');beltSpeed.id='belt-speed';beltSpeed.type='number';beltSpeed.min='.2';beltSpeed.max='2.5';beltSpeed.step='.05';beltSpeed.value='.85';beltSpeed.setAttribute('aria-label','Скорость конвейера');speedLabel.append(beltSpeed);conveyorBrush.append(directionLabel,speedLabel);document.querySelector('.viewport-toolbar').append(conveyorBrush);
+const speedLabel=element('label','кл/с '),beltSpeed=element('input');beltSpeed.id='belt-speed';beltSpeed.type='number';beltSpeed.min='.2';beltSpeed.max='2.5';beltSpeed.step='.1';beltSpeed.value='.85';beltSpeed.setAttribute('aria-label','Скорость конвейера');speedLabel.append(beltSpeed);conveyorBrush.append(directionLabel,speedLabel);document.querySelector('.viewport-toolbar').append(conveyorBrush);
 const placementMode=element('select');placementMode.id='placement-mode';placementMode.setAttribute('aria-label','Способ размещения');for(const [value,text] of [['face','По грани'],['layer','На слое Y']]){const option=element('option',text);option.value=value;placementMode.append(option);}document.querySelector('.height-control').after(placementMode);
 $('brush-height').replaceChildren(...Array.from({length:15},(_,i)=>{const option=element('option',`Y ${i-2}`);option.value=i-2;return option;}));$('brush-height').value='0';
 const coordinateRoot=element('section',undefined,'coordinate-placement');coordinateRoot.append(element('div','КУБ ПО КООРДИНАТАМ','panel-heading'));
@@ -58,7 +61,13 @@ function field(card,label,value,options,onChange){
  const row=element('label',label),control=element(options?.values?'select':'input');
  if(options?.values)for(const [v,name] of options.values){const option=element('option',name);option.value=v;control.append(option);}
  else{control.type='number';control.min=options?.min??0;control.max=options?.max??3;control.step=options?.step??1;}
- control.value=value;control.setAttribute('aria-label',label);control.onchange=()=>onChange(options?.values?control.value:Number(control.value));row.append(control);card.append(row);return control;
+ control.id=`property-${card.dataset.object}-${card.querySelectorAll('input,select').length}`;
+ control.value=value;control.setAttribute('aria-label',label);control.onchange=()=>{
+  const focused=document.activeElement===control;
+  onChange(options?.values?control.value:Number(control.value));
+  // Property edits rebuild the inspector. Keep repeated key presses on the new input.
+  if(focused)$(control.id)?.focus({preventScroll:true});
+ };row.append(control);card.append(row);return control;
 }
 function renderProperties(){
  const root=$('properties');root.replaceChildren();$('selected-coords').textContent=selected?`${selected.x} / ${selected.y??0} / ${selected.z}`:'—';
@@ -68,6 +77,7 @@ function renderProperties(){
  if(!items.length){root.append(element('p','Пустота','empty-state'));return;}
  for(const {key,index,p} of items){
   const card=element('div',undefined,'object-card'),head=element('div',undefined,'object-head');
+  card.dataset.object=`${key}-${index}`;
   let label=labels[key];if(key==='spawns'||key==='goals')label+=` · ${names[index]}`;if(key==='pickups')label=p.kind==='shield'?'Деревянный щит':'Железный меч';if(key==='walls'&&p.half<.4)label='Факел';
   head.append(element('span',key==='goals'?L.characters[index].glyph:key==='spawns'?'▣':key==='archers'?'☠':key==='pickups'?(p.kind==='shield'?'◈':'⚔'):'◇','marker'),element('span',label));card.append(head);
   const set=(property,value)=>edit(map=>{map[key][index][property]=value;});
@@ -82,7 +92,7 @@ function renderProperties(){
   if(key==='portals')field(card,'Пара',p.color,{values:[['violet','Фиолетовая'],['amber','Янтарная']]},v=>set('color',v));
   if(key==='conveyors'){
    field(card,'Направление ленты',`${p.dx},${p.dz}`,{values:[['0,-1','↑ Север'],['1,0','→ Восток'],['0,1','↓ Юг'],['-1,0','← Запад']]},v=>{beltDirection.value=v;edit(map=>{[map.conveyors[index].dx,map.conveyors[index].dz]=v.split(',').map(Number);});});
-   field(card,'Скорость ленты, кл/с',p.speed,{min:.2,max:2.5,step:.05},v=>{beltSpeed.value=v;set('speed',v);});
+   field(card,'Скорость ленты, кл/с',p.speed,{min:.2,max:2.5,step:.1},v=>{beltSpeed.value=v;set('speed',v);});
   }
   if(key==='archers'){
    field(card,'Направление',`${p.dx},${p.dz}`,{values:[['0,-1','↑ Север'],['1,0','→ Восток'],['0,1','↓ Юг'],['-1,0','← Запад']]},v=>edit(map=>{[map.archers[index].dx,map.archers[index].dz]=v.split(',').map(Number);}));
@@ -182,9 +192,9 @@ $('viewport').addEventListener('pointerdown',event=>{
 });
 $('viewport').addEventListener('pointermove',event=>{
  lastPointer=event;
- if(gesture?.orbit){previewAngle-=(event.clientX-gesture.x)*.008;previewCamera.pitch=Math.max(20,Math.min(85,previewCamera.pitch+(event.clientY-gesture.y)*.25));gesture.x=event.clientX;gesture.y=event.clientY;return;}
+ if(gesture?.orbit){previewTargetAngle-=(event.clientX-gesture.x)*.008;previewTargetPitch=Math.max(20,Math.min(85,previewTargetPitch+(event.clientY-gesture.y)*.25));gesture.x=event.clientX;gesture.y=event.clientY;return;}
  if(gesture?.pan){const dx=event.clientX-gesture.x,dy=event.clientY-gesture.y;gesture.x=event.clientX;gesture.y=event.clientY;
-  if(view3d){const a=S.plane(screenRay({clientX:event.clientX-dx,clientY:event.clientY-dy}),previewCamera.targetY||0),b=S.plane(screenRay(event),previewCamera.targetY||0);if(a&&b){previewCamera.x+=a.position[0]-b.position[0];previewCamera.z+=a.position[2]-b.position[2];}}else{gridView.x+=dx;gridView.y+=dy;}invalidate();return;
+  panView(dx,dy,event.clientX,event.clientY);invalidate();return;
  }
  refreshHover();
  if(gesture&&!gesture.rectangle&&inside(hover)){const a=gesture.last,b=hover,steps=Math.max(Math.abs(a.x-b.x),Math.abs(a.z-b.z));for(let i=1;i<=steps;i++)paintCell({x:Math.round(a.x+(b.x-a.x)*i/steps),z:Math.round(a.z+(b.z-a.z)*i/steps)},gesture.tool);gesture.last=hover;}
@@ -229,8 +239,32 @@ function previewTick(t){
  previewFrame=0;if(!view3d||!previewRenderer?.ready)return;const dt=Math.min(.05,(t-previewLast)/1000||.016);previewLast=t;
  if(previewDirty)rebuildPreview();previewRenderer.colliders=$('preview-colliders').checked;previewRenderer.render(previewRuntime,previewRuntime.players,previewCamera,previewAngle,reducedMotion?0:t/1000,previewScale(),dt);drawSpatialOverlay();previewFrame=requestAnimationFrame(previewTick);
 }
+function panView(dx,dy,clientX,clientY){
+ if(view3d){
+  const r=$('viewport').getBoundingClientRect();clientX??=r.left+r.width/2;clientY??=r.top+r.height/2;
+  const a=S.plane(screenRay({clientX:clientX-dx,clientY:clientY-dy}),previewCamera.targetY||0),b=S.plane(screenRay({clientX,clientY}),previewCamera.targetY||0);
+  if(a&&b){previewCamera.x+=a.position[0]-b.position[0];previewCamera.z+=a.position[2]-b.position[2];}
+ }else{gridView.x+=dx;gridView.y+=dy;}
+}
+function cameraTick(t){
+ const dt=Math.min(.05,(t-cameraLast)/1000||.016);cameraLast=t;
+ const angleDelta=previewTargetAngle-previewAngle,pitchDelta=previewTargetPitch-previewCamera.pitch;
+ let moved=false;
+ if(Math.abs(angleDelta)>1e-6||Math.abs(pitchDelta)>1e-6){
+  const blend=reducedMotion?1:1-Math.exp(-dt*11);
+  previewAngle=Math.abs(angleDelta)<.0001?previewTargetAngle:previewAngle+angleDelta*blend;
+  previewCamera.pitch=Math.abs(pitchDelta)<.0001?previewTargetPitch:previewCamera.pitch+pitchDelta*blend;moved=true;
+ }
+ if(panKeys.size&&!editingField(document.activeElement)&&(!gesture||gesture.pan||gesture.orbit)){
+  const x=Number(panKeys.has('KeyD')||panKeys.has('ArrowRight'))-Number(panKeys.has('KeyA')||panKeys.has('ArrowLeft'));
+  const y=Number(panKeys.has('KeyS')||panKeys.has('ArrowDown'))-Number(panKeys.has('KeyW')||panKeys.has('ArrowUp'));
+  const length=Math.hypot(x,y);if(length){panView(-x/length*320*dt,-y/length*320*dt);moved=true;}
+ }
+ if(moved){refreshHover();invalidate();}
+ requestAnimationFrame(cameraTick);
+}
 async function setView(value){
- finishGesture();view3d=value;document.body.classList.toggle('preview-mode',value);document.querySelector('.camera-buttons').hidden=!value;orbitButton.hidden=!value;$('grid').hidden=value;$('preview').hidden=!value;$('spatial-overlay').hidden=!value;$('view-grid').setAttribute('aria-pressed',String(!value));$('view-3d').setAttribute('aria-pressed',String(value));$('view-caption').textContent=value?'3D-РЕДАКТОР':'ВИД СВЕРХУ';$('mouse-hints').textContent=value?'ЛКМ — кисть · Shift+ЛКМ — стереть · ПКМ — вращать · СКМ / Space — сдвиг':'ЛКМ — кисть · ПКМ — стереть · Space — сдвиг · F — вписать';refreshHover();
+ finishGesture();view3d=value;document.body.classList.toggle('preview-mode',value);document.querySelector('.camera-buttons').hidden=!value;orbitButton.hidden=!value;$('grid').hidden=value;$('preview').hidden=!value;$('spatial-overlay').hidden=!value;$('view-grid').setAttribute('aria-pressed',String(!value));$('view-3d').setAttribute('aria-pressed',String(value));$('view-caption').textContent=value?'3D-РЕДАКТОР':'ВИД СВЕРХУ';$('mouse-hints').textContent=value?'ЛКМ — кисть · Shift+ЛКМ — стереть · ПКМ / Q E — вращать · M / Space — сдвиг · WASD / ↑↓←→ — вид':'ЛКМ — кисть · ПКМ — стереть · M / Space — сдвиг · WASD / ↑↓←→ — вид · F — вписать';refreshHover();
  if(!value){if(tool==='orbit')selectTool('select');$('gpu-message').hidden=true;invalidate();return;}
  $('gpu-message').hidden=false;$('gpu-message').textContent='Загружаем 3D…';
  try{
@@ -238,7 +272,7 @@ async function setView(value){
   await previewPromise;if(!view3d)return;$('gpu-message').hidden=true;if(!previewFrame)previewFrame=requestAnimationFrame(previewTick);
  }catch(error){if(!view3d)return;setView(false);toast('3D недоступно: '+error.message+'. Открыт редактор с видом сверху.');}
 }
-function turnCamera(delta){previewAngle+=delta;refreshHover();}
+function turnCamera(delta){previewTargetAngle+=delta;}
 $('view-grid').onclick=()=>setView(false);$('view-3d').onclick=()=>setView(true);$('fit').onclick=fit;$('rotate-left').onclick=()=>turnCamera(-Math.PI/2);$('rotate-right').onclick=()=>turnCamera(Math.PI/2);
 $('connections').onchange=invalidate;$('brush-height').onchange=()=>{refreshHover();invalidate();};
 $('undo').onclick=()=>{finishGesture();if(model.undo()){moveObject=null;selected=null;changed();}};$('redo').onclick=()=>{if(model.redo()){selected=null;changed();}};
@@ -261,18 +295,28 @@ $('play').onclick=()=>{
 };
 addEventListener('keydown',event=>{
  if((event.ctrlKey||event.metaKey)&&event.code==='KeyS'){event.preventDefault();if(event.target.closest('input,select,textarea'))event.target.blur();save();return;}
- if(event.target.closest('input,select,textarea'))return;
+ if(event.target.matches('input[type="number"]')&&['ArrowUp','ArrowDown'].includes(event.code)&&!event.ctrlKey&&!event.metaKey&&!event.altKey){
+  event.preventDefault();const input=event.target,step=Number.isInteger(Number(input.step||1))?1:.1;
+  const value=Math.round(((Number(input.value)||0)+(event.code==='ArrowUp'?step:-step))*1e10)/1e10;
+  const next=Math.max(input.min===''?-Infinity:Number(input.min),Math.min(input.max===''?Infinity:Number(input.max),value));
+  if(next!==Number(input.value)||input.value===''){input.value=next;input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}return;
+ }
+ if(editingField(event.target))return;
  if((event.ctrlKey||event.metaKey)&&event.code==='KeyZ'){event.preventDefault();(event.shiftKey?$('redo'):$('undo')).click();return;}
  if((event.ctrlKey||event.metaKey)&&event.code==='KeyY'){event.preventDefault();$('redo').click();return;}
  if(event.ctrlKey||event.metaKey||event.altKey)return;
+ if(panCodes.has(event.code)){event.preventDefault();panKeys.add(event.code);return;}
  if(event.code==='Space'&&event.target.closest('button,a'))return;
  if(event.code==='Space'){event.preventDefault();space=true;}
  if(event.code==='Escape'){moveObject=null;selectTool('select');}
  if(event.code==='KeyF'){event.preventDefault();fit();}
- if(event.code==='KeyV')selectTool('select');if(event.code==='KeyB')selectTool('floor');if(event.code==='KeyX')selectTool('erase');
- if(view3d&&event.code==='KeyQ')turnCamera(-Math.PI/2);if(view3d&&event.code==='KeyE')turnCamera(Math.PI/2);
+ if(event.code==='KeyV')selectTool('select');if(event.code==='KeyB')selectTool('floor');if(event.code==='KeyX')selectTool('erase');if(event.code==='KeyM')selectTool('pan');
+ if(view3d&&!event.repeat&&event.code==='KeyQ')turnCamera(-Math.PI/2);if(view3d&&!event.repeat&&event.code==='KeyE')turnCamera(Math.PI/2);
  if(event.code==='Delete'&&selected){edit(()=>model.erase(selected.x,selected.z,selected.y));}
 });
-addEventListener('keyup',event=>{if(event.code==='Space')space=false;});addEventListener('blur',()=>{space=false;finishGesture();});
+addEventListener('keyup',event=>{panKeys.delete(event.code);if(event.code==='Space')space=false;});
+addEventListener('focusin',event=>{if(editingField(event.target)){panKeys.clear();space=false;}});
+function releaseCameraKeys(){panKeys.clear();space=false;finishGesture();}
+addEventListener('blur',releaseCameraKeys);document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseCameraKeys();});
 new ResizeObserver(()=>{refreshHover();invalidate();}).observe($('viewport'));
-selectTool('select');renderPanels();fit();setView(true);if(startupError){$('save-status').textContent='Черновик не открыт';toast(startupError);}
+selectTool('select');renderPanels();fit();requestAnimationFrame(cameraTick);setView(true);if(startupError){$('save-status').textContent='Черновик не открыт';toast(startupError);}

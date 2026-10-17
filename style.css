@@ -21,6 +21,7 @@ header{border-color:#c69c571c;background:linear-gradient(#111214e6,transparent)}
 button,kbd{border-color:#b5996733;border-radius:4px;color:#c8bca6}button:hover{background:#b8934b19;color:#f4e9d3}
 aside,.jelly-settings{border-color:#bc995d29;border-radius:5px;background:#151718dc;box-shadow:0 8px 30px #0002}
 .member.following{background:#d4b16b0b;box-shadow:inset 2px 0 #c8a66b}.member kbd{color:#c3b79e}
+.member kbd{white-space:normal;text-align:right;line-height:1.6}
 .jelly-settings summary,.camera-settings legend{color:#d7c5a3}.camera-settings select{color:#d7c5a3;background:#202122;border-color:#bc995d36}
 footer{border-color:#bc995d22;color:#a89e88}.moves b{color:#e0d1b7}.editor-link{color:#c9b68d}.editor-link:hover{color:#f0dec0;background:#bb904316}
 @media(max-width:600px){.intro h1{font-size:18px}}

@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 function game(options={}){
  const noop=()=>{},ctx=new Proxy({createRadialGradient:()=>({addColorStop:noop})},{get:(o,k)=>o[k]??noop});
- const element=()=>({addEventListener:noop,getContext:()=>ctx,classList:{toggle:noop},setAttribute:noop});
+ const element=()=>({addEventListener:noop,getContext:()=>ctx,classList:{toggle:noop},setAttribute:noop,querySelector:()=>element()});
  const elements={},listeners={};
  const sandbox={innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellyLevels:require('./levels.js'),JellyEffects:require('./game-effects.js'),JellyPhysics:require('./physics.js'),JellySoftBody:require('./soft-body.js'),JellyGPU:{...require('./webgpu-renderer.js'),Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
  if(options.map){sandbox.location={search:'?level=editor'};sandbox.localStorage={getItem:()=>JSON.stringify(options.map)};}
@@ -17,18 +17,42 @@ function partyMap(slots){
  const map=require('./levels').blank();map.size=8;for(let x=0;x<8;x++)for(let z=0;z<8;z++)map.tiles.push({x,z,height:0});
  slots.forEach((slot,i)=>{map.spawns[slot]={x:1+i*2,z:4};map.goals[slot]={x:1+i*2,z:1};});return map;
 }
-test('solo and duo levels keep colour-specific controls, camera keys, undo/reset and victory',()=>{
+test('solo and duo levels assign controls by active order, keeping camera keys, undo/reset and victory',()=>{
  for(const slots of [[0],[1],[2],[3],[1,3]]){
   const g=game({map:partyMap(slots)});assert.equal(g.run('players.length'),slots.length);
-  const slot=slots[slots.length-1],key=['KeyW','ArrowUp','KeyI','KeyT'][slot];g.key('layout independent',key);g.run('simulate(.05)');g.up('',key);
+  const slot=slots[slots.length-1],key=slots.length===1?'KeyW':'ArrowUp';g.key('layout independent',key);g.run('simulate(.05)');g.up('',key);
   assert.ok(g.run(`players[${slots.length-1}].z<4`));assert.equal(g.run('followedPlayer'),slots.length-1);
   g.key('z');assert.equal(g.run(`players[${slots.length-1}].z`),4);g.key(String(slot+1));assert.equal(g.run('followedPlayer'),slots.length-1);
   g.key('r');assert.equal(g.run('players.length'),slots.length);assert.ok(g.run('players.every(p=>p.state==="alive")'));
   g.run('players.forEach(p=>{const g=goals.find(g=>g.slot===p.slot);Object.assign(p,g,{rx:g.x,rz:g.z});});soft.reset();simulate(.05)');assert.equal(g.run('won'),true);
  }
- const solo=game({map:partyMap([1])});for(const key of ['KeyW','KeyI','KeyT','Digit1','Digit3','Digit4'])solo.key('',key);assert.equal(solo.run('moves'),0);assert.equal(solo.run('followedPlayer'),0);
+ const solo=game({map:partyMap([1])});for(const key of ['Digit1','Digit3','Digit4'])solo.key('',key);assert.equal(solo.run('moves'),0);assert.equal(solo.run('followedPlayer'),0);
  const withUnused=partyMap([1]);withUnused.goals[0]={x:5,z:1};const extra=game({map:withUnused});extra.run('Object.assign(players[0],goals.find(g=>g.slot===1));soft.reset();simulate(.05)');assert.equal(extra.run('won'),true,'unused colours do not block victory');
  const wrong=game({map:withUnused});wrong.run('players[0].x=5;players[0].z=1;soft.reset();simulate(.05);effects.step(.1,world,goals,players)');assert.equal(wrong.run('won'),false);assert.equal(wrong.run('effects.runes.length'),0,'another colour cannot activate an unused rune');
+});
+test('every control set works for every solo colour, using physical positions in all directions',()=>{
+ const sets=[['KeyW','KeyA','KeyS','KeyD'],['ArrowUp','ArrowLeft','ArrowDown','ArrowRight'],['KeyI','KeyJ','KeyK','KeyL'],['KeyT','KeyF','KeyG','KeyH']];
+ for(const slot of [0,1,2,3])for(const keys of sets)for(const [direction,[axis,sign]] of [['z',-1],['x',-1],['z',1],['x',1]].entries()){
+  const g=game({map:partyMap([slot])}),before=g.run(`players[0].${axis}`),code=keys[direction];
+  g.key('любая раскладка',code);g.run('simulate(.05)');g.up('changed layout',code);
+  assert.ok((g.run(`players[0].${axis}`)-before)*sign>0,`${slot}: ${code}`);assert.equal(g.run('heldKeys.size'),0);assert.equal(g.run('followedPlayer'),0);
+ }
+});
+test('two players split all four sets as WASD/TFGH and arrows/IJKL, irrespective of colours',()=>{
+ for(const slots of [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]])for(const [key,owner] of [['KeyW',0],['KeyT',0],['ArrowUp',1],['KeyI',1]]){
+  const g=game({map:partyMap(slots)});g.key('layout independent',key);g.run('simulate(.05)');
+  assert.equal(g.run('followedPlayer'),owner);assert.ok(g.run(`players[${owner}].z<4`));assert.equal(g.run(`players[${1-owner}].z`),4);
+ }
+ const g=game({map:partyMap([1,3])});g.key('', 'KeyW');g.key('', 'KeyT');g.key('', 'ArrowUp');g.key('', 'KeyI');
+ assert.equal(g.run('heldKeys.size'),4);g.run('simulate(.05)');assert.ok(g.run('players.every(p=>p.z<4)'));
+ g.run('players[0].state="dead";players[0].respawnTimer=10;simulate(.05)');g.key('', 'KeyZ');assert.equal(g.run('heldKeys.size'),0);
+});
+test('three and four players receive primary control sets in roster order',()=>{
+ for(const slots of [[0,1,2],[0,1,3],[0,2,3],[1,2,3],[0,1,2,3]]){
+  const g=game({map:partyMap(slots)});
+  for(let i=0;i<slots.length;i++){const key=['KeyW','ArrowUp','KeyI','KeyT'][i];g.key('',key);assert.equal(g.run('followedPlayer'),i);g.up('',key);}
+  if(slots.length===3){g.key('', 'KeyT');assert.equal(g.run('heldKeys.size'),0);}
+ }
 });
 test('fourth purple jelly uses physical TFGH, participates in victory, and respawns normally',()=>{
  for(const [code,axis,sign] of [['KeyT','z',-1],['KeyF','x',-1],['KeyG','z',1],['KeyH','x',1]]){

@@ -17,9 +17,13 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
    assert.deepEqual(await page.evaluate(()=>previewRuntime.players.map(p=>p.slot)),slots);assert.deepEqual(await page.evaluate(()=>previewRenderer.errors),[]);
    await page.locator('#play').click();await page.waitForURL('**/?level=editor');await page.waitForFunction(()=>sceneRenderer.ready);
    assert.equal(await page.locator('.member:visible').count(),slots.length);assert.deepEqual(await page.evaluate(()=>players.map(p=>p.slot)),slots);
+   const labels=slots.length===1?['WASD / ↑←↓→ / IJKL / TFGH']:slots.length===2?['WASD / TFGH','↑←↓→ / IJKL']:['WASD','↑←↓→','IJKL','TFGH'];
+   assert.deepEqual(await page.locator('.member:visible kbd').allTextContents(),labels);
+   assert.deepEqual(await page.evaluate(()=>['KeyW','ArrowUp','KeyI','KeyT'].map(k=>movementKeys[k]?.[0]??-1)),slots.length===1?[0,0,0,0]:slots.length===2?[0,1,1,0]:[0,1,2,3]);
+   await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>{const panel=document.querySelector('aside').getBoundingClientRect();return [...document.querySelectorAll('.member:not([hidden]) kbd')].every(k=>{const r=k.getBoundingClientRect();return r.left>=panel.left&&r.right<=panel.right;})}),'all assigned controls fit the mobile HUD');await page.setViewportSize({width:1600,height:1000});
    assert.equal(await page.evaluate(()=>bodies.length),slots.length);assert.equal(await page.evaluate(()=>mapError),null);
    await page.keyboard.press('Digit4');assert.equal(await page.evaluate(()=>players[followedPlayer].slot),3);
-   const before=await page.evaluate(()=>players.find(p=>p.slot===3).x);await page.keyboard.down('KeyH');await page.waitForFunction(x=>players.find(p=>p.slot===3).x>x+.06,before);await page.keyboard.up('KeyH');
+   const before=await page.evaluate(()=>players.find(p=>p.slot===3).x),moveKey=slots.length===1?'KeyD':slots.length===2?'KeyL':'KeyH';await page.keyboard.down(moveKey);await page.waitForFunction(x=>players.find(p=>p.slot===3).x>x+.06,before);await page.keyboard.up(moveKey);
    await page.keyboard.press('KeyZ');assert.ok(await page.evaluate(x=>Math.abs(players.find(p=>p.slot===3).x-x)<.04,before));
    await page.locator('.jelly-settings summary').click();await page.locator('#mesh').check();await page.waitForTimeout(70);await page.locator('#mesh').uncheck();await page.locator('.jelly-settings summary').click();
    if(slots.length===4){await page.evaluate(()=>{camera.x=3.5;camera.z=4;zoom=1.5;resize();});await page.screenshot({path:'artifacts/four-jellies.png'});}
