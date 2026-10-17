@@ -20,6 +20,14 @@ test('goal activation requires a living jelly centred on the same floor',()=>{
  assert.equal(g.world.goalActive(goal,{...p,y:1}),true);
 });
 
+test('finish tile charge increases with approach and ignores unsupported or dead bodies',()=>{
+ const {world}=scene(),goal={x:2,z:2},p={x:2,z:2,y:0,state:'alive'};
+ const charges=[.8,.65,.5,.32,0].map(offset=>world.goalCharge(goal,{...p,x:2+offset}));
+ assert.equal(charges[0],0);assert.equal(charges.at(-1),1);
+ assert.ok(charges[1]>0&&charges[1]<charges[2]&&charges[2]<charges[3]);
+ for(const override of [{y:.8},{state:'falling'},{state:'dead'},{kind:'crate'}])assert.equal(world.goalCharge(goal,{...p,...override}),0);
+});
+
 test('lift carries the whole lattice up one unit, permits an upper exit and returns empty',()=>{
  const g=scene();g.world.lifts.push({x:2,z:2,base:0,top:1,height:0,target:0});g.world.heights.set('3,2',1);
  g.step([],230);assert.equal(g.world.lifts[0].height,1);assert.ok(Math.abs(g.players[0].y-1)<.08);assert.equal(g.players[0].state,'alive');

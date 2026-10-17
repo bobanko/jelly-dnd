@@ -1,10 +1,10 @@
 # Jelly & Bones
 
-A dungeon puzzle with three translucent jelly creatures and a movable wooden crate. Version 0.2 replaces the projected Canvas/WebGL scene with a real orthographic WebGPU scene and tetrahedral soft-body physics. The visual and physical requirements in jelly-dice.md are adapted to the existing game without dice rolling, dice scoring or table-demo mechanics.
+A dungeon puzzle with three translucent jelly creatures and a movable wooden crate. Version 0.2 replaces the projected Canvas/WebGL scene with a real 3D WebGPU scene and tetrahedral soft-body physics. The visual and physical requirements in jelly-dice.md are adapted to the existing game without dice rolling, dice scoring or table-demo mechanics.
 
 ## Run
 
-Run npm start (or node server.js), then open http://localhost:3000 in Chrome or Edge with WebGPU enabled. No runtime packages, CDNs, external fonts or image assets are needed. Serve over localhost or HTTPS; opening a local HTML file is not the supported launch path.
+Run npm start (or node server.js), then open http://localhost:3000 in Chrome or Edge with WebGPU enabled. No runtime packages, CDNs or external fonts are needed. Stone and oak textures are bundled in assets/materials/; their generation prompts and mapping details are documented there. Serve over localhost or HTTPS; opening a local HTML file is not the supported launch path.
 
 If the browser has no WebGPU adapter, an explanation appears instead of a blank scene. A lost GPU device also shows the fallback card. There is no silent return to the old 2D renderer.
 
@@ -12,7 +12,8 @@ If the browser has no WebGPU adapter, an explanation appears instead of a blank 
 
 - Hold WASD for Moss, arrow keys for Frost, and I/J/K/L for the red Ember (I forward, J left, K back, L right). Movement is continuous, diagonals are supported, and all three characters can be controlled simultaneously.
 - All shortcuts use physical KeyboardEvent.code positions, including on Russian keyboards.
-- Q/E rotates the orthographic camera by 90 degrees. 1/2/3 changes the followed character. The wheel zooms.
+- Q/E rotates either camera by 90 degrees. 1/2/3 changes the followed character. The wheel zooms.
+- Open Settings to switch between perspective (default: 55° downward angle, 45° vertical FOV) and orthographic isometry (30°). Pitch adjusts from 25° to 80°; FOV from 25° to 85°, enabled for perspective. Each mode remembers its own pitch during the session. Restarting the puzzle keeps camera settings. Perspective refraction uses per-pixel viewing rays; picking and rendering share the same projection matrix.
 - Z undoes a movement gesture or poke, including the complete deformed lattice, falling and death. R restarts.
 - Click a cube to poke its actual physical surface. Open the jelly controls to change softness, wobble damping or inspect the tetrahedral lattice.
 - In the same panel, the separate level-collider checkbox displays floor/wall boxes, moving lift bounds, spike triggers and portal triggers. This is independent of the creature lattice overlay.
@@ -56,18 +57,19 @@ The HUD has a single speaker icon toggle, compact character rows and keyboard sh
 webgpu-renderer.js is a raw WebGPU/WGSL renderer with no Three.js:
 
 - The entire dungeon, characters, skulls, bubbles, plates and walls are 3D geometry with a depth buffer.
+- Stone boxes sample one of sixteen chipped, cracked slab textures; wood boards and diagonal crate braces use oak grain fixed to local UVs. The crate has metal corner plates and raised rivets on all six faces. Both sRGB textures and their mipmaps are uploaded once; the existing cached geometry and prop upload buffer are reused during movement and tumbling.
 - Only lattice node positions are uploaded for deforming jelly. A GPU compute pass embeds a smooth rounded surface in the lattice and transforms normals with the cofactor of its deformation Jacobian.
 - Per-creature back-face passes supply exit positions and material thickness. Front-face passes bend the view ray and sample the previously rendered layer. Rendering the farther creature first gives three screen-space refraction layers, sorted in full 3D so stacked creatures retain the correct order.
 - Beer-Lambert absorption deepens the core colour; thin regions transmit more light. Fresnel skin, a warm overhead key, a back strip and cool fill give crisp candy highlights. Skull motion has its own slower internal spring.
 - Decorative ivory inlays are anchored to the lattice's rest coordinates and stretch with the body. Far-face marks are attenuated through the jelly. They do not represent game scores. Crossed bones sit underneath the internal skull.
 - Torch point lights warm nearby stone, while the creatures cast a subtle coloured light pool on their supporting platform.
-- A jelly on its own final rune raises a thin, dim beam in its colour. Completing all three runes smoothly widens and brightens the beams; the celebration continues while gameplay is paused by victory. The three beams use one instanced draw of a cached quad with soft edges and no additional render pass.
+- Each jelly has a separate finish tile: green at (3,2), blue at (8,3), red at (9,2). The bridge button at (8,2) remains independent. A matching jelly approaching its tile smoothly illuminates the tile and its rim; leaving fades that light. Vertical beams appear only when all three finish, continuing to brighten and widen while gameplay is paused by victory. Tile lighting uses cached geometry and uniform updates; the ground halos and victory beams reuse instanced quads without extra render passes.
 - Opaque geometry casts PCF shadow-map shadows. Additional height-dependent coloured contact shadows approximate transmission through jelly. These contact shadows are analytic, not a separate top-down height-map solver.
 - HDR intermediate buffers, Khronos PBR Neutral tone mapping, 4x MSAA and final dithering.
 - The mesh overlay draws the actual tetrahedral edges rather than a decorative grid.
 - Skull, bone, bubble, crate, lift and spike geometry is built once in local coordinates. Frames reuse these meshes and one typed upload array, updating only transforms, bubble offsets and trap indicators. Camera rotation, physical skull motion and animated hazards keep the same appearance without rebuilding their triangles on the CPU.
 
-The dungeon setting stays in place rather than becoming the reference's paper studio or frosted-glass dice plate. Green, cyan and red jelly have separate absorption colours. Refraction is screen-space: it cannot recover off-screen geometry and is an approximation for complicated overlapping surfaces, not a ray-traced global illumination solution.
+The dungeon setting stays in place rather than becoming the reference's paper studio or frosted-glass dice plate. Green, saturated blue and red jelly have separate absorption colours. Refraction is screen-space: it cannot recover off-screen geometry and is an approximation for complicated overlapping surfaces, not a ray-traced global illumination solution.
 
 The PBR Neutral formula follows the Khronos reference: https://github.com/KhronosGroup/ToneMapping/tree/main/PBR_Neutral .
 
@@ -80,6 +82,6 @@ For real GPU/browser checks, install development dependencies with npm install, 
 
 Node tests exercise gameplay, all three physical keyboard layouts, three-rune puzzle completion, pushing, terrain, gravity and respawn, plus real lattice deformation, volume preservation, inversion recovery, strain bounds, heavy landing, sleeping, wall contacts, rigid-motion preservation and full-state undo. Stacking tests cover high-speed landings, jelly/crate support in either order, a three-body moving stack, independent passenger movement, crate drops and lift passengers.
 
-The browser suite compiles WGSL on an actual WebGPU device, checks GPU validation errors, exercises all camera angles, movement, pushing, poking, lattice display, layered refraction, fall/respawn, stacked jelly carrying, lift boarding/upper exit/empty return, crate pushing/drop/undo, spike death and scraps, height-changing portal traversal and effects, and the collider toggle. It also checks the speaker icon toggle, compact HUD, narrow-screen layout and the no-WebGPU card. Screenshots are saved to artifacts/. npm run profile:browser records a separate CPU/frame profile. FPS depends on the adapter, viewport, browser and number of awake solids; 60 FPS was observed at rest in an earlier development headless run.
+The browser suite compiles WGSL on an actual WebGPU device, checks GPU validation errors, exercises all camera angles, movement, pushing, poking, lattice display, layered refraction, fall/respawn, stacked jelly carrying, lift boarding/upper exit/empty return, crate pushing/drop/undo, spike death and scraps, height-changing portal traversal and effects, the collider toggle, separate finish tiles, matching tile illumination/fade and victory beams. It also checks the speaker icon toggle, compact HUD, narrow-screen layout and the no-WebGPU card. Screenshots are saved to artifacts/. npm run profile:browser records a separate CPU/frame profile. FPS depends on the adapter, viewport, browser and number of awake solids; 60 FPS was observed at rest in an earlier development headless run.
 
 npm run profile:compare compares three creatures with two visible creatures, disables prop generation and simulation separately, and samples one awake jelly. It records per-frame CPU physics, prop preparation and total render submission time, plus a Chrome CPU sample profile, in artifacts/performance-current.json. PERF_LABEL changes the output suffix. The prop-cache change reduced measured idle prop preparation from about 34 ms to about 5 ms per frame at 1440 by 1000 in the development headless browser. Headless frame pacing and GPU/driver limits mean its FPS is not directly interchangeable with an interactive browser's FPS.

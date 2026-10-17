@@ -8,6 +8,11 @@
    goalActive(goal,player){
     return !!goal&&!!player&&alive(player)&&player.kind!=='crate'&&Math.abs((player.y||0)-(goal.y??this.heightAt(goal.x,goal.z)??0))<.15&&Math.hypot(player.x-goal.x,player.z-goal.z)<.32;
    },
+   goalCharge(goal,player){
+    if(!goal||!player||!alive(player)||player.kind==='crate'||Math.abs((player.y||0)-(goal.y??this.heightAt(goal.x,goal.z)??0))>=.15)return 0;
+    const t=Math.max(0,Math.min(1,(Math.hypot(player.x-goal.x,player.z-goal.z)-.32)/.4));
+    return 1-t*t*(3-2*t);
+   },
    portalCharge(portal,players){
     const height=portal.y??this.heightAt(portal.x,portal.z)??0;
     let charge=0;

@@ -3,14 +3,15 @@ const canvas=document.querySelector('#scene');
 const reducedMotion=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
 let W,H,DPR,scale,angle=0,targetAngle=0,last=0,time=0,moves=0,history=[],won=false,audioOn=false,audio;
-const N=12, colors=['#9ddd56','#4ac5e5','#ef5346'],names=['Мох','Иней','Уголёк'];
+const N=12, colors=['#9ddd56','#477bff','#ef5346'],names=['Мох','Иней','Уголёк'];
 let zoom=1,fpsTime=0,fpsFrames=0;
 const start=[{x:2,z:8},{x:9,z:8},{x:9,z:7}],players=start.map(p=>({...p,spawn:{...p},state:'alive',y:0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:p.x,rz:p.z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null}));
 const crates=[{kind:'crate',x:7,z:9,y:1,spawn:{x:7,z:9},state:'alive',vx:0,vy:0,vz:0,deaths:0}];
 const bodies=[...players,...crates];
 let followedPlayer=0;
-const camera={x:start[0].x,z:start[0].z};
-const plates=[{x:2,z:5},{x:8,z:2}],goals=[{x:3,z:2},{x:8,z:2},{x:9,z:2}];
+const camera={x:start[0].x,z:start[0].z,mode:'perspective',pitch:55,fov:45};
+const cameraPitches={ortho:30,perspective:55};
+const plates=[{x:2,z:5},{x:8,z:2}],goals=[{x:3,z:2},{x:8,z:3},{x:9,z:2}];
 // Each side has a safe route back from its plate. The lower crossing requires teamwork.
 const bridges=[{x:8,z:4,plate:0},{x:3,z:4,plate:1}];
 const floor=new Set();
@@ -36,7 +37,7 @@ const movementKeys={KeyW:[0,0,-1],KeyS:[0,0,1],KeyA:[0,-1,0],KeyD:[0,1,0],ArrowU
 let accumulator=0;
 function resize(){W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio,2);scale=Math.min(W/16,H/12)*zoom;}
 addEventListener('resize',resize);resize();
-function project(x,y,z){const xx=x-camera.x,zz=z-camera.z,c=Math.cos(angle),s=Math.sin(angle),u=xx*c-zz*s,v=xx*s+zz*c;return{x:W*.5+(u-v)*scale*.71,y:H*.56+(u+v)*scale*.355-y*scale*.86};}
+function project(x,y,z){return JellyGPU.projectPoint(JellyGPU.cameraFrame(camera,angle,W,H,scale),x,y,z,W,H);}
 function active(i){return world.active(i,players);}
 function tone(freq){if(!audioOn)return;audio??=new AudioContext();const o=audio.createOscillator(),g=audio.createGain();o.type='sine';o.frequency.setValueAtTime(freq,audio.currentTime);o.frequency.exponentialRampToValueAtTime(freq*.6,audio.currentTime+.14);g.gain.setValueAtTime(.045,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.2);o.connect(g).connect(audio.destination);o.start();o.stop(audio.currentTime+.2);}
 function updateUI(){
@@ -45,20 +46,20 @@ function updateUI(){
  document.querySelector('#status').textContent=won?'Все руны пробуждены':lost>=0?`${names[lost]} ${players[lost].state==='falling'?'падает…':players[lost].deathReason==='spikes'?'погиб на шипах. Возрождение…':'возрождается…'}`:players.some(p=>p.portalBlocked)?'Выход портала занят':moving?'Лифт поднимается':players.some(p=>p.portalFlash>0)?'Магический переход':active(0)||active(1)?'Магический мост поднят':'Святилище ждёт вас';
 }
 function focusPlayer(i){followedPlayer=i;document.querySelectorAll('.member').forEach((member,j)=>{member.classList.toggle('following',i===j);member.setAttribute('aria-current',i===j?'true':'false');});}
-function clearGoalBeams(){level.won=false;sceneRenderer.goalBeamStrength=[];sceneRenderer.goalWinGlow=0;}
+function clearGoalVisuals(){level.won=false;sceneRenderer.goalGlowStrength=[];sceneRenderer.goalWinGlow=0;}
 function reset(){
  players.forEach((p,i)=>Object.assign(p,start[i],{spawn:{...start[i]},state:'alive',y:0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:start[i].x,rz:start[i].z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0}));
  crates.forEach(p=>Object.assign(p,p.spawn,{y:1,state:'alive',vx:0,vy:0,vz:0,deaths:0,respawnTimer:0}));
  history=[];moves=0;won=false;heldKeys.clear();world.held.clear();world.resetFeatures();soft.reset();effects.clear();sceneRenderer.bridgeKey=undefined;accumulator=0;
  players.forEach(p=>Object.assign(p,{portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null}));
- clearGoalBeams();
+ clearGoalVisuals();
  focusPlayer(0);camera.x=start[0].x;camera.z=start[0].z;updateUI();
 }
 function undo(){
  if(!history.length)return;
  const previous=history.pop();
  effects.clear();
- clearGoalBeams();
+ clearGoalVisuals();
  players.forEach((p,i)=>Object.assign(p,previous.players[i],{rx:previous.players[i].x,rz:previous.players[i].z,vx:0,vz:0,bounce:.2,impact:0,squish:0,squishVelocity:0}));
  crates.forEach((p,i)=>Object.assign(p,previous.crates[i],{vx:0,vy:0,vz:0}));
  world.held=new Set(previous.bridges);world.restoreFeatures(previous.features);soft.restore(bodies,previous.soft);bodies.forEach(p=>soft.get(p).velocities.forEach(v=>v.fill(0)));sceneRenderer.bridgeKey=undefined;heldKeys.clear();accumulator=0;moves--;won=false;updateUI();
@@ -95,6 +96,7 @@ function simulate(dt){
 function stopInput(){heldKeys.clear();players.forEach(p=>{p.vx=p.vz=0;const b=soft.get(p);b.velocities.forEach(v=>{v[0]=v[2]=0;});});accumulator=0;}
 addEventListener('keydown',e=>{
  if(e.ctrlKey||e.metaKey||e.altKey)return;
+ if(e.target?.closest?.('select,textarea,input:not([type=range]):not([type=checkbox])')||e.target?.matches?.('input[type=range]')&&/^(Arrow|Home|End|Page)/.test(e.code))return;
  // Physical positions stay the same across layouts, Caps Lock and layout changes while held.
  const k=e.code;
  if(movementKeys[k]){
@@ -138,10 +140,20 @@ document.querySelector('#softness').addEventListener('input',e=>{soft.softness=N
 document.querySelector('#decay').addEventListener('input',e=>soft.decay=Number(e.target.value));
 document.querySelector('#mesh').addEventListener('change',e=>sceneRenderer.mesh=e.target.checked);
 document.querySelector('#colliders').addEventListener('change',e=>sceneRenderer.colliders=e.target.checked);
+function updateCameraUI(){
+ document.querySelector('#camera-pitch').value=camera.pitch;
+ document.querySelector('#camera-pitch-value').textContent=camera.pitch+'°';
+ document.querySelector('#camera-fov-value').textContent=camera.fov+'°';
+ document.querySelector('#camera-fov').disabled=camera.mode!=='perspective';
+}
+document.querySelector('#camera-mode').addEventListener('change',e=>{stopInput();camera.mode=e.target.value;camera.pitch=cameraPitches[camera.mode];updateCameraUI();});
+document.querySelector('#camera-pitch').addEventListener('input',e=>{camera.pitch=Number(e.target.value);cameraPitches[camera.mode]=camera.pitch;updateCameraUI();});
+document.querySelector('#camera-fov').addEventListener('input',e=>{camera.fov=Number(e.target.value);updateCameraUI();});
+updateCameraUI();
 canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.65,Math.min(1.8,zoom*Math.exp(-e.deltaY*.001)));resize();},{passive:false});
 canvas.addEventListener('pointerdown',e=>{
  let closest=null,distance=Infinity;
- players.forEach((p,i)=>{const q=project(p.x,.42+(p.y||0),p.z),d=Math.hypot(e.clientX-q.x,e.clientY-q.y);if(JellyPhysics.alive(p)&&d<scale*.7&&d<distance){closest=i;distance=d;}});
+ players.forEach((p,i)=>{const q=project(p.x,.42+(p.y||0),p.z),d=Math.hypot(e.clientX-q.x,e.clientY-q.y);if(q.visible&&JellyPhysics.alive(p)&&d<q.scale*.7&&d<distance){closest=i;distance=d;}});
  if(closest!==null){history.push(snapshot());moves++;soft.poke(players[closest]);tone(240);}
 });
 requestAnimationFrame(frame);focusPlayer(0);updateUI();

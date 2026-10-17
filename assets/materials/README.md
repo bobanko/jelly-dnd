@@ -1,0 +1,16 @@
+# Dungeon material textures
+
+Generated with the built-in imagegen tool for this project, using the user's crate and stone material sheet as a visual reference. These are diffuse colour textures with hand-painted wear, not baked screenshots of 3D objects.
+
+- [dungeon-stone-atlas.png](dungeon-stone-atlas.png): sixteen worn stone slabs in a 4 by 4 atlas. Each box face selects a stable atlas cell and orientation. World lighting remains dynamic.
+- [crate-oak.png](crate-oak.png): continuous oak grain sampled by the separate boards and braces. UVs are fixed in the crate's local coordinates and rotate with its rigid body.
+
+The renderer uploads both textures once as sRGB, generates mip levels once and uses filtered sampling. Crate boards, cross braces, iron corner plates and rivets are cached 3D geometry. No texture or mesh is regenerated during animation.
+
+## Stone generation prompt
+
+Use case: stylized-concept. Asset type: production albedo texture atlas for a real 3D fantasy dungeon game. Generate a square 1024x1024 image consisting EXACTLY of a regular 4 by 4 grid of sixteen different square worn stone floor slabs, all viewed straight down orthographically. Each square fills its equal-size atlas cell; slabs have softly chipped corners, subtly uneven rounded edges, irregular shallow cracks, small pits and scattered mineral flecks, inspired by hand-painted high quality cozy dark fantasy dungeon game textures. Muted medium warm gray / taupe limestone with slight beige edge wear, variation in stone tone from slab to slab. Very narrow dark gray joints between the slabs, with all cell boundaries exactly aligned at 25%,50%,75%. No larger cracks crossing from one atlas cell into another. Surface detail at several scales, sparse readable cracks, not a dense noisy cobblestone mosaic. Flat diffuse ambient illumination only, extremely subtle hand-painted recess shading, no cast shadows or directional light baked in, no perspective, no scene, no background border, no labels, no text, no diagrams, no isometric views. This entire image is a flat UV texture atlas to map individual cells onto individual 3D stone cubes. Full image covered by the sixteen slabs.
+
+## Wood generation prompt
+
+Use case: stylized-concept. Asset type: square seamless albedo texture for individual wooden boards on a real 3D fantasy dungeon crate. Primary request: fill the entire image edge to edge with warm aged oak wood grain running vertically. Rich medium warm walnut / burnt sienna brown timber, long flowing fine grain, a few small irregular knots, occasional narrow splits and subtle shallow scratches, lightly worn golden fibers. High quality hand-painted fantasy game material, stylized readable wood rather than photoreal noise. Straight orthographic view of the surface. Flat diffuse neutral illumination, no directional shadows or highlights baked into the texture. IMPORTANT: one continuous wood surface, no assembled crate, no box edges, no metal fittings, no board dividers, no frame, no cross braces, no gaps, no text, no scenery, no objects, no 3D perspective. The image will be UV-mapped onto separate 3D boards and diagonal braces, which will supply geometry and real-time lighting. Seamless edges, moderate contrast, square composition.

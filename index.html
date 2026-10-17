@@ -1,12 +1,18 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>Jelly & Bones — The Sunken Sanctum</title><link rel="stylesheet" href="style.css"></head>
-<body><canvas id="scene" aria-label="Изометрическая головоломка с тремя желейными кубами"></canvas>
+<body><canvas id="scene" aria-label="Трёхмерная головоломка с тремя желейными кубами"></canvas>
 <header><a class="brand" href="./"><span class="brand-icon">✦</span> JELLY <i>&</i> BONES</a><div class="chapter">THE SUNKEN SANCTUM <span>/</span> CHAMBER 01</div><div class="header-tools"><span id="fps"></span><button id="sound" class="icon-button" title="Включить звук" aria-label="Включить звук" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4Z"/><path class="sound-on" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="sound-off" d="m16 9 6 6m0-6-6 6"/></svg></button></div></header>
 <main><div class="intro"><div class="eyebrow">CHAMBER 01</div><h1>Затонувшее святилище</h1></div>
 <aside aria-label="Персонажи и управление"><div class="member"><b class="dot green"></b><span>Мох</span><kbd>W A S D</kbd></div><div class="member"><b class="dot blue"></b><span>Иней</span><kbd>↑ ← ↓ →</kbd></div><div class="member"><b class="dot red"></b><span>Уголёк</span><kbd>I J K L</kbd></div></aside>
 <div id="status" class="sr-only" role="status" aria-live="polite"></div>
 <div id="win" hidden><div class="eyebrow">CHAMBER COMPLETE</div><h2>Вместе — не растечься.</h2><p>Все три руны пробудились. Подземелье запомнит вас.</p><button id="again">Ещё раз ↻</button></div></main>
-<details class="jelly-settings"><summary>Желе и уровень <span>⌁</span></summary><label>Мягкость<input id="softness" type="range" min="0" max="1" step=".05" value=".5"></label><label>Затухание<input id="decay" type="range" min="0" max="1" step=".05" value=".5"></label><label class="mesh-toggle"><input id="mesh" type="checkbox"> Показать решётку</label><label class="mesh-toggle"><input id="colliders" type="checkbox"> Коллайдеры уровня</label></details>
+<details class="jelly-settings"><summary>Настройки <span>⌁</span></summary>
+<label>Мягкость<input id="softness" type="range" min="0" max="1" step=".05" value=".5"></label><label>Затухание<input id="decay" type="range" min="0" max="1" step=".05" value=".5"></label><label class="mesh-toggle"><input id="mesh" type="checkbox"> Показать решётку</label><label class="mesh-toggle"><input id="colliders" type="checkbox"> Коллайдеры уровня</label>
+<fieldset class="camera-settings"><legend>Камера</legend>
+<label class="camera-mode-label" for="camera-mode">Проекция<select id="camera-mode"><option value="perspective" selected>Перспективная</option><option value="ortho">Изометрическая</option></select></label>
+<label for="camera-pitch">Наклон<input id="camera-pitch" type="range" min="25" max="80" step="1" value="55"><output id="camera-pitch-value" for="camera-pitch">55°</output></label>
+<label for="camera-fov">FOV<input id="camera-fov" type="range" min="25" max="85" step="1" value="45"><output id="camera-fov-value" for="camera-fov">45°</output></label>
+</fieldset></details>
 <section id="gpu-fallback" role="status"><span class="eyebrow">JELLY & BONES</span><h2>Пробуждаем подземелье</h2><p id="gpu-status">Подготавливаем свет и желе…</p><button onclick="location.reload()">Попробовать снова</button></section>
 <footer><div class="controls"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Камера</span><span><kbd>Q</kbd><kbd>E</kbd> Поворот</span><span><kbd>Z</kbd> Отменить</span><span><kbd>R</kbd> Сначала</span></div><div class="moves"><b id="moves">00</b> ДВИЖЕНИЙ <span>•</span> <button id="reset">↻ Сбросить</button></div></footer>
 <script src="soft-body.js"></script><script src="level-features.js"></script><script src="physics.js"></script><script src="webgpu-renderer.js"></script><script src="game-effects.js"></script><script src="game.js"></script></body></html>

@@ -6,7 +6,7 @@ function game(){
  const noop=()=>{},ctx=new Proxy({createRadialGradient:()=>({addColorStop:noop})},{get:(o,k)=>o[k]??noop});
  const element=()=>({addEventListener:noop,getContext:()=>ctx,classList:{toggle:noop},setAttribute:noop});
  const elements={},listeners={};
- const sandbox={innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellyEffects:require('./game-effects.js'),JellyPhysics:require('./physics.js'),JellySoftBody:require('./soft-body.js'),JellyGPU:{Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
+ const sandbox={innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellyEffects:require('./game-effects.js'),JellyPhysics:require('./physics.js'),JellySoftBody:require('./soft-body.js'),JellyGPU:{...require('./webgpu-renderer.js'),Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
  vm.createContext(sandbox);vm.runInContext(fs.readFileSync('game.js','utf8'),sandbox);
  const codeFor=key=>({arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'}[key]||(/^\d$/.test(key)?'Digit'+key:'Key'+key.toUpperCase()));
  return {run:s=>vm.runInContext(s,sandbox),key:(key,code=codeFor(key),options={})=>listeners.keydown({key,code,preventDefault:noop,...options}),up:(key,code=codeFor(key))=>listeners.keyup({key,code,preventDefault:noop}),blur:()=>listeners.blur()};
@@ -89,8 +89,17 @@ test('continuous route activates both plates and finishes the puzzle',()=>{
  };
  redTravel('x',8);redTravel('z',3);redTravel('x',9);redTravel('z',2);
  travel(0,'x',3);travel(0,'z',2);
+ // Blue leaves the bridge button for its separate finish tile.
+ travel(1,'z',3);
  g.run('simulate(.05)');assert.equal(g.run('won'),true);
  g.key('z');assert.equal(g.run('won'),false);
+});
+
+test('each finish has a floor tile separate from bridge buttons and portals',()=>{
+ const g=game();
+ assert.equal(g.run('goals.length'),3);
+ assert.equal(g.run('goals.every(g=>world.heightAt(g.x,g.z)!==null&&!plates.some(p=>p.x===g.x&&p.z===g.z)&&!world.portals.some(p=>p.x===g.x&&p.z===g.z))'),true);
+ assert.equal(g.run('new Set(goals.map(g=>`${g.x},${g.z}`)).size'),3);
 });
 test('fall clears only the affected controls; respawn resets height and undo restores life',()=>{
  const g=game();

@@ -10,9 +10,41 @@ const fs=require('node:fs');
   await page.goto('http://localhost:3000');
   await page.waitForFunction(()=>sceneRenderer.ready,null,{timeout:30000});
   await page.waitForFunction(()=>players.every(p=>soft.get(p).sleeping),null,{timeout:15000});
+  assert.ok(await page.evaluate(()=>sceneRenderer.stoneTexture.mipLevelCount>1&&sceneRenderer.woodTexture.mipLevelCount>1),'stone and wood textures must load with mipmaps');
   await page.screenshot({path:'artifacts/dungeon-webgpu.png'});
   assert.ok((await page.locator('aside').boundingBox()).height<155,'party panel should be compact');
   assert.equal(await page.locator('.hint,.camera-help,.footnote,.jelly-settings small,.intro p').count(),0);
+  // Both projections share follow/picking geometry; pitch and FOV are real camera controls.
+  await page.locator('.jelly-settings summary').click();
+  assert.equal(await page.locator('#camera-mode').inputValue(),'perspective');
+  assert.equal(await page.locator('.camera-settings legend').textContent(),'Камера');
+  assert.equal(await page.locator('#camera-mode option:checked').textContent(),'Перспективная');
+  assert.equal(await page.locator('#camera-pitch-value').textContent(),'55°');
+  await page.screenshot({path:'artifacts/camera-perspective-settings.png'});
+  await page.selectOption('#camera-mode','ortho');
+  assert.equal(await page.locator('#camera-fov').isDisabled(),true);
+  assert.equal(await page.locator('#camera-pitch').inputValue(),'30');
+  await page.waitForFunction(()=>sceneRenderer.cameraState?.perspective===false);
+  await page.screenshot({path:'artifacts/camera-orthographic-settings.png'});
+  await page.locator('#camera-pitch').evaluate(el=>{el.value='63';el.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.waitForFunction(()=>Math.abs(sceneRenderer.cameraState.view[1]-Math.sin(63*Math.PI/180))<.0001);
+  await page.selectOption('#camera-mode','perspective');
+  assert.equal(await page.locator('#camera-pitch').inputValue(),'55');
+  assert.equal(await page.locator('#camera-fov').isDisabled(),false);
+  await page.locator('#camera-pitch').evaluate(el=>{el.value='68';el.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.locator('#camera-fov').evaluate(el=>{el.value='72';el.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.waitForFunction(()=>sceneRenderer.cameraState.perspective&&camera.fov===72&&Math.abs(sceneRenderer.cameraState.view[1]-Math.sin(68*Math.PI/180))<.0001);
+  await page.screenshot({path:'artifacts/camera-steep-wide-fov.png'});
+  // Arrow keys adjust a focused slider without moving the blue character.
+  await page.locator('#camera-pitch').focus();await page.keyboard.press('ArrowRight');
+  assert.equal(await page.evaluate(()=>heldKeys.size),0);
+  assert.equal(await page.locator('#camera-pitch').inputValue(),'69');
+  await page.selectOption('#camera-mode','ortho');assert.equal(await page.locator('#camera-pitch').inputValue(),'63');
+  await page.locator('#camera-pitch').evaluate(el=>{el.value='30';el.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.selectOption('#camera-mode','perspective');
+  await page.locator('#camera-pitch').evaluate(el=>{el.value='55';el.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.locator('#camera-fov').evaluate(el=>{el.value='45';el.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.locator('.jelly-settings summary').click();
   await page.locator('#sound svg').click();assert.equal(await page.locator('#sound').getAttribute('aria-pressed'),'true');
   await page.locator('#sound svg').click();assert.equal(await page.locator('#sound').getAttribute('aria-pressed'),'false');
   assert.equal(await page.locator('#sound svg').count(),1);
@@ -33,7 +65,9 @@ const fs=require('node:fs');
   await page.waitForTimeout(1800);
   await page.screenshot({path:'artifacts/candy-contact.png'});
   const pokePoint=await page.evaluate(()=>project(players[0].x,.42+players[0].y,players[0].z));
+  const movesBeforePoke=await page.evaluate(()=>moves);
   await page.mouse.click(pokePoint.x,pokePoint.y);
+  assert.equal(await page.evaluate(()=>moves),movesBeforePoke+1,'perspective picking must match rendered jelly');
   await page.waitForTimeout(60);
   await page.screenshot({path:'artifacts/candy-poke.png'});
   await page.evaluate(()=>sceneRenderer.mesh=true);await page.waitForTimeout(100);
@@ -158,36 +192,46 @@ const fs=require('node:fs');
   assert.equal(await page.evaluate(()=>world.debugBoxes().some(b=>b.kind==='bridge')),false);
   await page.keyboard.press('KeyZ');assert.equal(await page.evaluate(()=>bridges[0].progress),1);
   await page.keyboard.press('KeyR');assert.equal(await page.evaluate(()=>bridges[0].progress),0);
-  // Only the matching player lights a rune. Leaving fades the beam out.
+  // Only the matching player lights a finish tile, with no pre-victory beam.
   await page.evaluate(()=>{
    reset();Object.assign(players[0],{...goals[0],rx:goals[0].x,rz:goals[0].z});soft.reset();focusPlayer(0);camera.x=3;camera.z=2;zoom=1.3;resize();
   });
-  await page.waitForFunction(()=>sceneRenderer.goalBeamStrength[0]>.95);
-  assert.ok(await page.evaluate(()=>!won&&sceneRenderer.goalWinGlow===0&&sceneRenderer.goalBeamStrength.slice(1).every(s=>s===0)));
-  await page.screenshot({path:'artifacts/goal-beam-faint.png'});
+  await page.waitForFunction(()=>sceneRenderer.goalGlowStrength[0]>.95);
+  assert.ok(await page.evaluate(()=>!won&&sceneRenderer.goalWinGlow===0&&sceneRenderer.goalGlowStrength.slice(1).every(s=>s===0)));
+  await page.screenshot({path:'artifacts/goal-tile-glow.png'});
   await page.evaluate(()=>{soft.translate(players[0],1,0,0,true);});
-  await page.waitForFunction(()=>sceneRenderer.goalBeamStrength[0]<.01);
+  await page.waitForFunction(()=>sceneRenderer.goalGlowStrength[0]<.01);
   await page.evaluate(()=>{reset();Object.assign(players[0],{...goals[1],rx:goals[1].x,rz:goals[1].z});soft.reset();});
   await page.waitForTimeout(350);
-  assert.ok(await page.evaluate(()=>sceneRenderer.goalBeamStrength.every(s=>s===0)),'a different-colour player must not light the rune');
+  assert.ok(await page.evaluate(()=>sceneRenderer.goalGlowStrength.every(s=>s===0)),'a different-colour player must not light the rune');
+  // The blue finish is separate from the bridge button and visibly illuminates.
+  await page.evaluate(()=>{
+   reset();Object.assign(players[1],{...goals[1],rx:goals[1].x,rz:goals[1].z});soft.reset();focusPlayer(1);camera.x=8;camera.z=3;zoom=1.6;resize();
+  });
+  await page.waitForFunction(()=>sceneRenderer.goalGlowStrength[1]>.95);
+  assert.ok(await page.evaluate(()=>!won&&sceneRenderer.goalWinGlow===0&&!active(1)&&goals[1].z!==plates[1].z));
+  await page.screenshot({path:'artifacts/blue-finish-tile.png'});
   // Victory keeps animating after simulation stops, widening and brightening all beams.
   await page.evaluate(()=>{
    reset();players.forEach((p,i)=>Object.assign(p,{...goals[i],rx:goals[i].x,rz:goals[i].z}));soft.reset();focusPlayer(1);camera.x=6;camera.z=2;zoom=1.2;resize();
   });
-  await page.waitForFunction(()=>won&&sceneRenderer.goalWinGlow>.97&&sceneRenderer.goalBeamStrength.every(s=>s>.97));
+  await page.waitForFunction(()=>won&&sceneRenderer.goalWinGlow>.97&&sceneRenderer.goalGlowStrength.every(s=>s>.97));
   assert.ok(await page.locator('#win').isVisible());
   await page.screenshot({path:'artifacts/goal-beams-victory.png'});
   await page.keyboard.press('KeyR');
-  assert.ok(await page.evaluate(()=>!won&&sceneRenderer.goalWinGlow===0&&sceneRenderer.goalBeamStrength.every(s=>s===0)));
+  assert.ok(await page.evaluate(()=>!won&&sceneRenderer.goalWinGlow===0&&sceneRenderer.goalGlowStrength.every(s=>s===0)));
   assert.deepEqual(await page.evaluate(()=>sceneRenderer.errors),[]);
   assert.deepEqual(errors,[]);
   await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);await page.screenshot({path:'artifacts/mobile-webgpu.png'});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.locator('.jelly-settings summary').click();
+  await page.screenshot({path:'artifacts/mobile-camera-settings.png'});
+  assert.ok(await page.evaluate(()=>{const r=document.querySelector('.jelly-settings').getBoundingClientRect();return r.top>=0&&r.right<=innerWidth&&r.bottom<innerHeight;}));
   const unsupported=await browser.newPage({viewport:{width:1000,height:700}});
   await unsupported.addInitScript(()=>Object.defineProperty(navigator,'gpu',{value:undefined}));
   await unsupported.goto('http://localhost:3000');
   await unsupported.waitForFunction(()=>document.querySelector('#gpu-status').textContent.includes('нет WebGPU'));
   assert.ok(await unsupported.locator('#gpu-fallback').isVisible());await unsupported.screenshot({path:'artifacts/webgpu-unavailable.png'});
-  console.log('PASS: WebGPU/WGSL, three player controls and refraction layers, camera, soft-body pushing, poke, lattice overlay, falls and landing, stacked jelly carrying, lift boarding/upper exit/return, crate pushing/drop/undo, smooth bridge extension/crossing/retraction/undo, lethal spikes/respawn, paired height-changing portals, matching rune beams/fade/victory/reset, level collider toggle, responsive layout and WebGPU fallback. No browser or GPU validation errors.');
+  console.log('PASS: WebGPU/WGSL, three player controls and refraction layers, camera, soft-body pushing, poke, lattice overlay, falls and landing, stacked jelly carrying, lift boarding/upper exit/return, crate pushing/drop/undo, smooth bridge extension/crossing/retraction/undo, lethal spikes/respawn, paired height-changing portals, separate blue finish, matching tile illumination/fade and victory beams/reset, level collider toggle, responsive layout and WebGPU fallback. No browser or GPU validation errors.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

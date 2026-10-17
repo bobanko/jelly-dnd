@@ -1,7 +1,7 @@
 // Short-lived visual particles. They never become gameplay colliders.
 (function(root){
  'use strict';
- const palettes=[[.12,.9,.16],[.025,.65,1.],[1.,.065,.035]];
+ const palettes=[[.12,.9,.16],[.025,.17,1.],[1.,.065,.035]];
  class System{
   constructor({reducedMotion=false}={}){this.reducedMotion=reducedMotion;this.particles=[];this.rings=[];this.seed=1;}
   random(){this.seed=(Math.imul(this.seed,1664525)+1013904223)>>>0;return this.seed/4294967296;}

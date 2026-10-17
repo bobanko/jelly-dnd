@@ -7,20 +7,73 @@
   for(let k=0;k<3;k++){m[k*4]=right[k]*2/width;m[k*4+1]=up[k]*2/height;m[k*4+2]=-view[k]/40;}
   m[12]=-dot(right,center)*2/width;m[13]=-dot(up,center)*2/height+offset;m[14]=.5+dot(view,center)/40;m[15]=1;return m;
  }
- function box(mesh,center,size,color,bevel=.04,material=0){
-  const h=size.map(v=>v*.5),radius=Math.min(bevel,...h),steps=4;
+ function cameraFrame(camera,angle,width,height,scale){
+  const perspective=camera.mode==='perspective',pitch=(camera.pitch??30)*Math.PI/180,azimuth=angle+Math.PI/4;
+  const view=[Math.sin(azimuth)*Math.cos(pitch),Math.sin(pitch),Math.cos(azimuth)*Math.cos(pitch)],target=[camera.x,0,camera.z];
+  const distance=perspective?Math.max(5,height/scale/(2*Math.tan(Math.PI/8))):20;
+  const eye=target.map((v,k)=>v+view[k]*distance);
+  if(!perspective)return {vp:viewMatrix(target,view,width/scale,height/scale,-.12),view,eye,perspective,distance};
+  const right=normalize(cross([0,1,0],view)),up=normalize(cross(view,right)),f=1/Math.tan((camera.fov??45)*Math.PI/360);
+  const near=.1,far=120,a=far/(far-near),b=near*a,offset=-.12,vp=new Float32Array(16),eyeDepth=distance+dot(view,target);
+  // WebGPU uses a zero-to-one depth range. The offset keeps the followed cube
+  // at the same screen anchor in both projection modes.
+  for(let k=0;k<3;k++){vp[k*4]=right[k]*f*height/width;vp[k*4+1]=up[k]*f-offset*view[k];vp[k*4+2]=-a*view[k];vp[k*4+3]=-view[k];}
+  vp[12]=-dot(right,target)*f*height/width;vp[13]=-dot(up,target)*f+offset*eyeDepth;vp[14]=a*eyeDepth-b;vp[15]=eyeDepth;
+  return {vp,view,eye,perspective,distance};
+ }
+ function projectPoint(frame,x,y,z,width,height){
+  const m=frame.vp,w=m[3]*x+m[7]*y+m[11]*z+m[15],depth=(m[2]*x+m[6]*y+m[10]*z+m[14])/w;
+  return {x:((m[0]*x+m[4]*y+m[8]*z+m[12])/w*.5+.5)*width,y:(.5-(m[1]*x+m[5]*y+m[9]*z+m[13])/w*.5)*height,depth,visible:w>0&&depth>=0&&depth<=1,scale:Math.hypot(m[0],m[4],m[8])*width*.5/w};
+ }
+ function box(mesh,center,size,color,bevel=.04,material=0,steps=4){
+  const h=size.map(v=>v*.5),radius=Math.min(bevel,...h);
   const faces=[[0,1,2,1],[0,1,2,-1],[1,2,0,1],[1,2,0,-1],[2,0,1,1],[2,0,1,-1]];
   for(const [axis,u,v,sign] of faces){const verts=[];
    for(let j=0;j<=steps;j++)for(let i=0;i<=steps;i++){
     const p=[0,0,0];p[axis]=h[axis]*sign;p[u]=(i/steps*2-1)*h[u];p[v]=(j/steps*2-1)*h[v];
     const core=p.map((x,k)=>Math.max(-h[k]+radius,Math.min(h[k]-radius,x))),d=p.map((x,k)=>x-core[k]),n=normalize(d);
-    const position=core.map((x,k)=>x+n[k]*radius+center[k]);verts.push([...position,...n,...color,material,0,0]);
+    const position=core.map((x,k)=>x+n[k]*radius+center[k]);let uv=[0,0];
+    if(material<.5){
+     const tile=Math.abs(Math.round(center[0]*73+center[1]*41+center[2]*137)+axis*5+(sign>0?3:0))%16;
+     const a=(tile%2?j:i)/steps,b=(tile%2?i:j)/steps;uv=[(tile%4+.02+a*.96)/4,(Math.floor(tile/4)+.02+b*.96)/4];
+    }else if(material===11){
+     const seed=Math.abs(Math.sin(dot(center,[19.7,31.1,47.3]))),a=(size[u]>size[v]?j:i)/steps,b=(size[u]>size[v]?i:j)/steps;
+     uv=[seed*.72+a*.2,.04+b*.92];
+    }
+    verts.push([...position,...n,...color,material,...uv]);
    }
    for(let j=0;j<steps;j++)for(let i=0;i<steps;i++){
     const a=j*(steps+1)+i,b=a+1,c=a+steps+1,d=c+1;
     for(const tri of sign>0?[[a,b,d],[a,d,c]]:[[a,d,b],[a,c,d]])mesh.push(...tri.flatMap(k=>verts[k]));
    }
   }
+ }
+ function crateGeometry(){
+  const mesh=[],wood=[.39,.28,.17],rim=[.52,.37,.23],iron=[.16,.17,.17];
+  box(mesh,[0,0,0],[.71,.71,.71],[.055,.033,.017],.012,13,2);
+  for(let axis=0;axis<3;axis++)for(const sign of [-1,1]){
+   const from=mesh.length;
+   for(let j=0;j<4;j++)box(mesh,[(j-1.5)*.155,0,.367],[.149,.63,.032],wood.map(v=>v*(.92+j*.045)),.004,11,2);
+   for(const edge of [-1,1]){
+    box(mesh,[edge*.315,0,.395],[.095,.73,.045],rim,.006,11,2);
+    box(mesh,[0,edge*.315,.398],[.73,.095,.045],rim,.006,11,2);
+   }
+   if(axis!==1)for(const direction of [-1,1]){
+    const start=mesh.length,a=direction*Math.PI/4,c=Math.cos(a),s=Math.sin(a);
+    box(mesh,[0,0,.416],[.072,.76,.026],rim,.004,11,2);
+    for(let k=start;k<mesh.length;k+=12)for(const offset of [0,3]){const x=mesh[k+offset],y=mesh[k+offset+1];mesh[k+offset]=x*c-y*s;mesh[k+offset+1]=x*s+y*c;}
+   }
+   for(const x of [-.31,.31])for(const y of [-.31,.31]){
+    box(mesh,[x,y,.43],[.14,.14,.022],iron,.008,12,2);
+    for(const dx of [-.034,.034])for(const dy of [-.034,.034])for(let k=0;k<8;k++){
+     const a=k*Math.PI/4,b=(k+1)*Math.PI/4;
+     for(const [px,py,pz,nx,ny,nz] of [[0,0,.006,0,0,1],[Math.cos(a)*.01,Math.sin(a)*.01,0,Math.cos(a)*.5,Math.sin(a)*.5,.866],[Math.cos(b)*.01,Math.sin(b)*.01,0,Math.cos(b)*.5,Math.sin(b)*.5,.866]])mesh.push(x+dx+px,y+dy+py,.443+pz,nx,ny,nz,.42,.35,.25,12,0,0);
+    }
+   }
+   const u=axis===0?[0,0,-sign]:axis===1?[1,0,0]:[sign,0,0],v=axis===1?[0,0,-sign]:[0,1,0],normal=[0,0,0];normal[axis]=sign;
+   for(let k=from;k<mesh.length;k+=12)for(const offset of [0,3]){const x=mesh[k+offset],y=mesh[k+offset+1],z=mesh[k+offset+2];for(let n=0;n<3;n++)mesh[k+offset+n]=u[n]*x+v[n]*y+normal[n]*z;}
+  }
+  return mesh;
  }
  const unitSphere=(()=>{
   const result=[],vertex=(u,v)=>[Math.cos(u)*Math.sin(v),Math.cos(v),Math.sin(u)*Math.sin(v)];
@@ -72,12 +125,15 @@
  struct Out { @builtin(position) clip:vec4f, @location(0) world:vec3f, @location(1) normal:vec3f, @location(2) color:vec3f, @location(3) material:f32, @location(4) local:vec3f };
  struct Vertex { position:vec4f, normal:vec4f, info:vec4f };
  @group(0) @binding(1) var<storage,read> vertices:array<Vertex>;
+ @group(0) @binding(4) var stoneAtlas:texture_2d<f32>;
+ @group(0) @binding(5) var oakTexture:texture_2d<f32>;
+ @group(0) @binding(6) var materialSampler:sampler;
  @vertex fn solidVS(@location(0) p:vec3f,@location(1) n:vec3f,@location(2) color:vec3f,@location(3) material:vec3f)->Out{
   var o:Out;o.clip=scene.vp*vec4f(p,1);o.world=p;o.normal=n;o.color=color;o.material=material.x;o.local=vec3f(material.y,0,material.z);return o;
  }
  @vertex fn softVS(@builtin(vertex_index) id:u32,@builtin(instance_index) instance:u32)->Out{
   let v=vertices[id+instance*1350u];var o:Out;o.clip=scene.vp*v.position;o.world=v.position.xyz;o.normal=v.normal.xyz;
-  let colors=array<vec3f,3>(vec3f(.045,.72,.095),vec3f(.025,.57,.95),vec3f(.95,.055,.025));
+  let colors=array<vec3f,3>(vec3f(.045,.72,.095),vec3f(.025,.15,.95),vec3f(.95,.055,.025));
   o.color=colors[instance];o.material=2.+f32(instance);o.local=v.info.xyz;return o;
  }
  @vertex fn portalHaloVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
@@ -97,16 +153,21 @@
  }
  @vertex fn goalBeamVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
   let goal=scene.goals[instance];let victory=goal.color.w;let uv=vec2f(p.x,(p.z+1.)*.5);
-  let right=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));let width=mix(.12,.4,victory);let height=mix(2.2,3.3,victory);
+  let right=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));let width=mix(.2,.4,victory);let height=3.3;
   var o:Out;o.world=goal.position.xyz+right*uv.x*width+vec3f(0,.04+uv.y*height,0);o.clip=scene.vp*vec4f(o.world,1.);
-  if(goal.position.w<.001){o.clip=vec4f(2,2,2,1);}
-  o.normal=vec3f(0,1,0);o.color=goal.color.rgb*mix(1.,2.4,victory);o.material=victory;o.local=vec3f(uv,goal.position.w);return o;
+  if(victory<.001){o.clip=vec4f(2,2,2,1);}
+  o.normal=vec3f(0,1,0);o.color=goal.color.rgb*2.4;o.material=victory;o.local=vec3f(uv,goal.position.w*victory);return o;
  }
  @fragment fn goalBeamFS(o:Out)->@location(0) vec4f{
   let edge=exp(-o.local.x*o.local.x*5.);let tip=1.-smoothstep(.5,1.,o.local.y);let base=smoothstep(0.,.035,o.local.y);
   let breath=.97+.03*sin(scene.options.z*2.+o.local.y*8.);let core=exp(-o.local.x*o.local.x*45.)*o.material*.1;
-  let alpha=o.local.z*(edge*mix(.15,.34,o.material)+core)*tip*base*breath;
+  let alpha=o.local.z*(edge*.34+core)*tip*base*breath;
   return vec4f(o.color,alpha);
+ }
+ @vertex fn goalGlowVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
+  let goal=scene.goals[instance];var o:Out;
+  o.world=goal.position.xyz+vec3f(p.x*.68,.061,p.z*.68);o.clip=scene.vp*vec4f(o.world,1.);
+  o.normal=vec3f(0,1,0);o.color=goal.color.rgb;o.material=9.;o.local=vec3f(p.x,goal.position.w*.55,p.z);return o;
  }
  @vertex fn shadowVS(@location(0) p:vec3f)->@builtin(position) vec4f{return scene.lightVP*vec4f(p,1);}
  @group(0) @binding(2) var shadowMap:texture_depth_2d;
@@ -131,10 +192,11 @@
  @fragment fn solidFS(o:Out)->@location(0) vec4f{
   let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);let h=normalize(v+l);
   var color=o.color;
+  let uv=o.local.xz;let dx=dpdx(uv);let dy=dpdy(uv);
   if(o.material<.5){
-   let grain=hash(floor(o.world*150.));let broad=hash(floor(o.world*4.));color*=.88+grain*.15+broad*.12;
-   let vein=abs(sin(o.world.x*29.+sin(o.world.z*12.)*4.+o.world.y*31.));color*=1.-smoothstep(.965,.995,vein)*.1;
+   color*=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb*3.8;
   }
+  if(o.material>10.5&&o.material<11.5){color*=textureSampleGrad(oakTexture,materialSampler,uv,dx,dy).rgb*3.;}
   var light=vec3f(.15,.19,.22)+vec3f(.94,.83,.63)*max(0.,dot(n,l))*shadow(o.world,n)*.95+vec3f(.12,.19,.28)*max(0.,dot(n,normalize(vec3f(-.6,.4,-.6))));
   let torches=array<vec3f,4>(vec3f(1,.85,2),vec3f(10,.85,2),vec3f(1,.85,9),vec3f(10,.85,9));
   for(var i=0;i<4;i++){
@@ -144,7 +206,7 @@
   }
   // Soft, coloured transmission shadows; wider and lighter when a cube lifts off.
   let bodies=array<vec4f,3>(scene.body0,scene.body1,scene.body2);
-  let tints=array<vec3f,3>(vec3f(.09,.85,.18),vec3f(.06,.57,1.),vec3f(1.,.08,.035));
+  let tints=array<vec3f,3>(vec3f(.09,.85,.18),vec3f(.035,.17,1.),vec3f(1.,.08,.035));
   for(var i=0;i<3;i++){
    let body=bodies[i];let delta=o.world.xz-body.xz;
    let height=max(0.,body.y-.42-(body.w-1.));let radius=.28+height*.18;
@@ -157,9 +219,14 @@
   }
   var result=color*light;
   if(o.material>.5&&o.material<1.5){result+=vec3f(.28)*pow(max(0.,dot(n,h)),55.);}
-  if(o.material>3.5){result=color*(1.4+sin(scene.options.z*4.)*.08);}
+  if(o.material>3.5&&o.material<4.5){result=color*(1.4+sin(scene.options.z*4.)*.08);}
+  if(o.material>11.5&&o.material<12.5){result+=vec3f(.42,.4,.34)*pow(max(0.,dot(n,h)),65.);}
   if(o.material>4.5&&o.material<5.5){let portal=scene.portals[u32(o.local.x)];let delta=o.world.xz-portal.position.xz;let radius=length(delta);let swirl=.5+.5*sin(atan2(delta.y,delta.x)*3.-radius*35.+scene.options.z*3.);result=(color*(.55+swirl*1.8)+vec3f(.06)*exp(-radius*12.))*(.55+portal.position.w*1.9);}
   if(o.material>7.5&&o.material<8.5){result=color*(.65+scene.portals[u32(o.local.x)].position.w*2.8);}
+  if(o.material>9.5&&o.material<10.5){let goal=scene.goals[u32(o.local.x)];let charge=goal.position.w;
+   result=mix(color*light,goal.color.rgb*.9,charge);
+   if(o.local.z>.5){result=color*mix(.32,2.7,charge);}
+  }
   return vec4f(result,1.);
  }
  @fragment fn effectFS(o:Out)->@location(0) vec4f{
@@ -184,14 +251,14 @@
  }
  @fragment fn backFS(o:Out)->@location(0) vec4f{return vec4f(o.world,1.+inlay(o.local));}
  @fragment fn skinFS(o:Out)->@location(0) vec4f{
-  let n=normalize(o.normal);let ray=normalize(vec3f(scene.vp[0].z,scene.vp[1].z,scene.vp[2].z));let uv=o.clip.xy/scene.options.xy;
+  let n=normalize(o.normal);let ray=select(normalize(vec3f(scene.vp[0].z,scene.vp[1].z,scene.vp[2].z)),normalize(o.world-scene.eye.xyz),scene.eye.w>.5);let uv=o.clip.xy/scene.options.xy;
   let back=textureSampleLevel(backFaces,linearSampler,uv,0.);var thick=max(.03,length(back.xyz-o.world));
   let inside=refract(ray,n,1./1.38);let estimated=o.world+inside*thick;
-  let exitClip=scene.vp*vec4f(estimated,1);let exitUV=vec2f(exitClip.x*.5+.5,.5-exitClip.y*.5);
+  let exitClip=scene.vp*vec4f(estimated,1);let exitUV=vec2f(exitClip.x/exitClip.w*.5+.5,.5-exitClip.y/exitClip.w*.5);
   let exit=textureSampleLevel(backFaces,linearSampler,clamp(exitUV,vec2f(.001),vec2f(.999)),0.);
   if(exit.w>.5){thick=clamp(dot(exit.xyz-o.world,inside),.03,1.4);}
   var refractedUV=mix(uv,exitUV,.55);refractedUV=clamp(refractedUV,vec2f(.002),vec2f(.998));
-  let pigment=o.color;var absorption=select(vec3f(2.1,.13,1.95),vec3f(2.7,.55,.12),o.material>2.5);
+  let pigment=o.color;var absorption=select(vec3f(2.1,.13,1.95),vec3f(2.9,1.7,.12),o.material>2.5);
   if(o.material>3.5){absorption=vec3f(.13,2.35,2.8);}
   let transmission=exp(-absorption*thick*1.35);
   let background=textureSampleLevel(behind,linearSampler,refractedUV,0.).rgb;
@@ -275,17 +342,18 @@
    this.deformed=d.createBuffer({size:4050*48,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.VERTEX});
    this.compute=d.createComputePipeline({layout:'auto',compute:{module:deform,entryPoint:'deform'}});
    this.computeGroup=d.createBindGroup({layout:this.compute.getBindGroupLayout(0),entries:[this.nodes,this.restNodes,this.bindBuffer,this.deformed].map((buffer,binding)=>({binding,resource:{buffer}}))});
-   this.sceneLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},{binding:1,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},{binding:2,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'depth'}},{binding:3,visibility:GPUShaderStage.FRAGMENT,sampler:{type:'comparison'}}]});
+   this.sceneLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},{binding:1,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},{binding:2,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'depth'}},{binding:3,visibility:GPUShaderStage.FRAGMENT,sampler:{type:'comparison'}},{binding:4,visibility:GPUShaderStage.FRAGMENT,texture:{}},{binding:5,visibility:GPUShaderStage.FRAGMENT,texture:{}},{binding:6,visibility:GPUShaderStage.FRAGMENT,sampler:{}}]});
    this.skinLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{}},{binding:1,visibility:GPUShaderStage.FRAGMENT,texture:{}},{binding:2,visibility:GPUShaderStage.FRAGMENT,sampler:{}}]});
    const layout=d.createPipelineLayout({bindGroupLayouts:[this.sceneLayout,this.skinLayout]});
    const vertexBuffers=[{arrayStride:48,attributes:[{shaderLocation:0,offset:0,format:'float32x3'},{shaderLocation:1,offset:12,format:'float32x3'},{shaderLocation:2,offset:24,format:'float32x3'},{shaderLocation:3,offset:36,format:'float32x3'}]}];
-   const pipeline=(vertexEntry,fragmentEntry,cullMode='back',samples=4,depthCompare='less',depthWrite=true,blend=undefined)=>d.createRenderPipeline({layout,vertex:{module:main,entryPoint:vertexEntry,buffers:['solidVS','portalHaloVS','portalRingVS','goalBeamVS'].includes(vertexEntry)?vertexBuffers:[]},fragment:{module:main,entryPoint:fragmentEntry,targets:[{format:'rgba16float',blend}]},primitive:{topology:'triangle-list',cullMode,frontFace:'ccw'},depthStencil:{format:'depth32float',depthWriteEnabled:depthWrite,depthCompare},multisample:{count:samples}});
+   const pipeline=(vertexEntry,fragmentEntry,cullMode='back',samples=4,depthCompare='less',depthWrite=true,blend=undefined)=>d.createRenderPipeline({layout,vertex:{module:main,entryPoint:vertexEntry,buffers:['solidVS','portalHaloVS','portalRingVS','goalBeamVS','goalGlowVS'].includes(vertexEntry)?vertexBuffers:[]},fragment:{module:main,entryPoint:fragmentEntry,targets:[{format:'rgba16float',blend}]},primitive:{topology:'triangle-list',cullMode,frontFace:'ccw'},depthStencil:{format:'depth32float',depthWriteEnabled:depthWrite,depthCompare},multisample:{count:samples}});
    this.opaque=pipeline('solidVS','solidFS');this.skin=pipeline('softVS','skinFS');this.back=pipeline('softVS','backFS','front',1,'greater');
    this.effectPipeline=pipeline('solidVS','effectFS','back',4,'less',false,{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}});
    const additive={color:{srcFactor:'src-alpha',dstFactor:'one',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}};
    this.portalHaloPipeline=pipeline('portalHaloVS','portalFXFS','none',4,'less',false,additive);
    this.portalRingPipeline=pipeline('portalRingVS','portalFXFS','back',4,'less',false,additive);
    this.goalBeamPipeline=pipeline('goalBeamVS','goalBeamFS','none',4,'less',false,additive);
+   this.goalGlowPipeline=pipeline('goalGlowVS','portalFXFS','none',4,'less',false,additive);
    const ring=[];portalRing(ring,0,0,0,[1,1,1]);this.portalRingCount=ring.length/12;this.portalRingBuffer=this.buffer(new Float32Array(ring),GPUBufferUsage.VERTEX);
    const halo=[];for(const p of [[-1,0,-1],[1,0,1],[1,0,-1],[-1,0,-1],[-1,0,1],[1,0,1]])halo.push(...p,0,1,0,1,1,1,0,0,0);this.portalHaloBuffer=this.buffer(new Float32Array(halo),GPUBufferUsage.VERTEX);
    this.shadow=d.createRenderPipeline({layout:d.createPipelineLayout({bindGroupLayouts:[this.sceneLayout]}),vertex:{module:main,entryPoint:'shadowVS',buffers:vertexBuffers},primitive:{topology:'triangle-list',cullMode:'back'},depthStencil:{format:'depth32float',depthWriteEnabled:true,depthCompare:'less'}});
@@ -298,10 +366,13 @@
    this.colliderBuffer=d.createBuffer({size:256000,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
    this.shadowTexture=d.createTexture({size:[1024,1024],format:'depth32float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});
    this.sampler=d.createSampler({magFilter:'linear',minFilter:'linear'});this.compareSampler=d.createSampler({compare:'less',magFilter:'linear',minFilter:'linear'});
-   this.sceneGroup=d.createBindGroup({layout:this.sceneLayout,entries:[{binding:0,resource:{buffer:this.uniform}},{binding:1,resource:{buffer:this.deformed}},{binding:2,resource:this.shadowTexture.createView()},{binding:3,resource:this.compareSampler}]});
+   [this.stoneTexture,this.woodTexture]=await Promise.all(['dungeon-stone-atlas.png','crate-oak.png'].map(name=>this.loadMaterialTexture('assets/materials/'+name)));
+   this.materialSampler=d.createSampler({magFilter:'linear',minFilter:'linear',mipmapFilter:'linear',maxAnisotropy:4});
+   const materialEntries=[{binding:4,resource:this.stoneTexture.createView()},{binding:5,resource:this.woodTexture.createView()},{binding:6,resource:this.materialSampler}];
+   this.sceneGroup=d.createBindGroup({layout:this.sceneLayout,entries:[{binding:0,resource:{buffer:this.uniform}},{binding:1,resource:{buffer:this.deformed}},{binding:2,resource:this.shadowTexture.createView()},{binding:3,resource:this.compareSampler},...materialEntries]});
    // A distinct unsampled depth texture avoids attachment/sampling hazards in the shadow pass.
    this.dummyShadow=d.createTexture({size:[1,1],format:'depth32float',usage:GPUTextureUsage.TEXTURE_BINDING});
-   this.shadowGroup=d.createBindGroup({layout:this.sceneLayout,entries:[{binding:0,resource:{buffer:this.uniform}},{binding:1,resource:{buffer:this.deformed}},{binding:2,resource:this.dummyShadow.createView()},{binding:3,resource:this.compareSampler}]});
+   this.shadowGroup=d.createBindGroup({layout:this.sceneLayout,entries:[{binding:0,resource:{buffer:this.uniform}},{binding:1,resource:{buffer:this.deformed}},{binding:2,resource:this.dummyShadow.createView()},{binding:3,resource:this.compareSampler},...materialEntries]});
    this.staticBuffer=d.createBuffer({size:4e6,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
    this.propBuffer=d.createBuffer({size:2e6,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
    this.bridgeBuffer=d.createBuffer({size:1e6,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
@@ -310,6 +381,16 @@
    this.ready=true;return this;
   }
   buffer(data,usage){const b=this.device.createBuffer({size:Math.max(4,data.byteLength),usage,mappedAtCreation:true});new Uint8Array(b.getMappedRange()).set(new Uint8Array(data.buffer,data.byteOffset,data.byteLength));b.unmap();return b;}
+  async loadMaterialTexture(url){
+   const response=await fetch(url);if(!response.ok)throw Error('Cannot load material: '+url);
+   const bitmap=await createImageBitmap(await response.blob()),{width,height}=bitmap,mipLevelCount=1+Math.floor(Math.log2(Math.max(width,height)));
+   const texture=this.device.createTexture({label:url,size:[width,height],mipLevelCount,format:'rgba8unorm-srgb',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT});
+   for(let mip=0;mip<mipLevelCount;mip++){
+    const w=Math.max(1,width>>mip),h=Math.max(1,height>>mip),canvas=new OffscreenCanvas(w,h),ctx=canvas.getContext('2d');
+    ctx.drawImage(bitmap,0,0,w,h);this.device.queue.copyExternalImageToTexture({source:canvas},{texture,mipLevel:mip},[w,h]);
+   }
+   bitmap.close();return texture;
+  }
   resize(){
    const ratio=Math.min(devicePixelRatio||1,1.25,Math.sqrt(2e6/(innerWidth*innerHeight))),w=Math.round(innerWidth*ratio),h=Math.round(innerHeight*ratio);
    if(this.canvas.width===w&&this.canvas.height===h&&this.hdr)return;
@@ -365,21 +446,7 @@
     append('jelly',i,mesh);
     for(let j=0;j<5;j++){const mesh=[],phase=j*2.4+i;const position=[Math.sin(phase)*.22,-.26+j*.097,Math.cos(phase)*.2];sphere(mesh,position,[.015,.015,.015],[[.55,.72,.23],[.25,.62,.7],[.9,.3,.12]][i],1);append('bubble',i,mesh,{bubble:j});}
    }
-   for(let i=0;i<(level.crates||[]).length;i++){
-    const mesh=[],x=0,y=0,z=0,wood=[.34,.17,.065],rim=[.48,.27,.1],iron=[.13,.15,.14];
-    box(mesh,[x,y,z],[.76,.76,.76],wood,.025);
-    for(const d of [-.24,0,.24]){
-     box(mesh,[x+d,y+.382,z],[.012,.009,.7],[.12,.065,.025],.002);
-     for(const sign of [-1,1])box(mesh,[x+d,y,z+sign*.382],[.012,.7,.009],[.12,.065,.025],.002);
-    }
-    for(const side of [-1,1])for(const edge of [-1,1]){
-     box(mesh,[x+edge*.32,y,z+side*.39],[.095,.77,.045],rim,.008);
-     box(mesh,[x,y+edge*.32,z+side*.398],[.73,.095,.045],rim,.008);
-     box(mesh,[x+side*.39,y+edge*.32,z],[.045,.095,.73],rim,.008);
-     for(const height of [-.3,.3])sphere(mesh,[x+edge*.32,y+height,z+side*.426],[.022,.022,.012],iron,1);
-    }
-    append('crate',i,mesh);
-   }
+   for(let i=0;i<(level.crates||[]).length;i++)append('crate',i,crateGeometry());
    for(let i=0;i<level.world.lifts.length;i++){
     const mesh=[],lift={x:0,z:0,height:0};
     box(mesh,[lift.x,lift.height-.08,lift.z],[.95,.16,.95],[.22,.24,.18],.035,1);
@@ -427,7 +494,14 @@
    const dynamicCount=cursor/12;this.device.queue.writeBuffer(this.propBuffer,0,data.buffer,0,cursor*4);
    const decorationKey=level.plates.map((p,i)=>level.world.active(i,players)).join(',');
    if(this.decorationKey!==decorationKey){const mesh=[];
-   level.goals.forEach((g,i)=>{box(mesh,[g.x,.018,g.z],[.66,.025,.66],[.04,.09,.075],.08);const color=[[.45,1.,.08],[.035,.7,1.],[1.,.055,.025]][i];for(let k=0;k<4;k++){const x=k<2?g.x+(k?1:-1)*.25:g.x,z=k>=2?g.z+(k===2?1:-1)*.25:g.z;box(mesh,[x,.041,z],k<2?[.025,.025,.5]:[.5,.025,.025],color,.01,4);}});
+   level.goals.forEach((g,i)=>{
+    const y=g.y??level.world.heightAt(g.x,g.z)??0,color=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025]][i],base=mesh.length;
+    box(mesh,[g.x,y+.023,g.z],[.86,.045,.86],[.065,.08,.095],.025,10);
+    for(let n=base;n<mesh.length;n+=12)mesh[n+10]=i;
+    const trim=mesh.length;
+    for(let k=0;k<4;k++){const x=k<2?g.x+(k?1:-1)*.39:g.x,z=k>=2?g.z+(k===2?1:-1)*.39:g.z;box(mesh,[x,y+.05,z],k<2?[.026,.012,.8]:[.8,.012,.026],color,.005,10);}
+    for(let n=trim;n<mesh.length;n+=12){mesh[n+10]=i;mesh[n+11]=1;}
+   });
    level.plates.forEach((p,i)=>{box(mesh,[p.x,.032,p.z],[.73,.06,.73],[.23,.2,.1],.07);sphere(mesh,[p.x,.076,p.z],[.24,.045,.24],level.world.active(i,players)?[1.,.7,.2]:[.5,.31,.08],level.world.active(i,players)?4:1);});
    for(const o of level.world.obstacles.filter(o=>o.half<.4))sphere(mesh,[o.x,.7,o.z],[.055,.13,.055],[2.,.65,.065],4);
    for(const trap of level.world.spikes){const y=trap.y??level.world.heightAt(trap.x,trap.z)??0;box(mesh,[trap.x,y+.015,trap.z],[.74,.03,.74],[.16,.11,.10],.025);for(const dx of [-.21,0,.21])for(const dz of [-.21,0,.21])box(mesh,[trap.x+dx,y+.031,trap.z+dz],[.115,.003,.115],[.025,.03,.03],.025);}
@@ -460,19 +534,19 @@
    if(effectCount){pass.setPipeline(this.effectPipeline);pass.setVertexBuffer(0,this.effectBuffer);pass.draw(effectCount);}
    const count=Math.min(4,level.world.portals.length);
    if(count){pass.setPipeline(this.portalHaloPipeline);pass.setVertexBuffer(0,this.portalHaloBuffer);pass.draw(6,count);pass.setPipeline(this.portalRingPipeline);pass.setVertexBuffer(0,this.portalRingBuffer);pass.draw(this.portalRingCount,count*3);}
-   if(level.goals.length){pass.setPipeline(this.goalBeamPipeline);pass.setVertexBuffer(0,this.portalHaloBuffer);pass.draw(6,Math.min(3,level.goals.length));}
+   if(level.goals.length){pass.setVertexBuffer(0,this.portalHaloBuffer);pass.setPipeline(this.goalGlowPipeline);pass.draw(6,Math.min(3,level.goals.length));if(this.goalWinGlow>.001){pass.setPipeline(this.goalBeamPipeline);pass.draw(6,Math.min(3,level.goals.length));}}
   }
   render(level,players,camera,angle,time,scale,dt=1/60){
    if(!this.ready)return;this.resize();const d=this.device,w=this.canvas.width,h=this.canvas.height;
-   const c=Math.cos(angle),s=Math.sin(angle),view=[(c+s)*.612372,.5,(c-s)*.612372],target=[camera.x,0,camera.z];
-   const vp=viewMatrix(target,view,innerWidth/scale,innerHeight/scale,-.12),lightVP=viewMatrix([5.5,0,5.5],normalize([-.45,1.,.35]),18,18);
-   const uniforms=new Float32Array(112);uniforms.set(vp);uniforms.set(lightVP,16);uniforms.set([...target.map((v,k)=>v+view[k]*20),1],32);uniforms.set([-2,12,9,1],36);
+   const frame=this.cameraState=cameraFrame(camera,angle,innerWidth,innerHeight,scale),{vp,view,eye}=frame;
+   const lightVP=viewMatrix([5.5,0,5.5],normalize([-.45,1.,.35]),18,18);
+   const uniforms=new Float32Array(112);uniforms.set(vp);uniforms.set(lightVP,16);uniforms.set([...eye,frame.perspective?1:0],32);uniforms.set([-2,12,9,1],36);
    players.forEach((p,i)=>uniforms.set([p.x,(p.y||0)+.42,p.z,p.state==='dead'?0:1+(level.world.heightAt(p.x,p.z)||0)],40+i*4));uniforms.set([w,h,time,this.mesh?1:0],52);
    level.world.portals.slice(0,4).forEach((p,i)=>{uniforms.set([p.x,p.y??level.world.heightAt(p.x,p.z)??0,p.z,level.world.portalCharge(p,players)],56+i*8);uniforms.set([...(p.color==='violet'?[.7,.045,1.]:[1.,.34,.025]),i*.23],60+i*8);});
-   this.goalBeamStrength??=[];this.goalWinGlow??=0;
+   this.goalGlowStrength??=[];this.goalWinGlow??=0;
    const fade=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*8),celebrate=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*4);
    this.goalWinGlow+=((level.won?1:0)-this.goalWinGlow)*celebrate;
-   level.goals.slice(0,3).forEach((g,i)=>{const target=level.world.goalActive(g,players[i])?1:0;this.goalBeamStrength[i]=(this.goalBeamStrength[i]||0)+(target-(this.goalBeamStrength[i]||0))*fade;uniforms.set([g.x,g.y??level.world.heightAt(g.x,g.z)??0,g.z,this.goalBeamStrength[i]],88+i*8);uniforms.set([...[[.45,1.,.08],[.035,.7,1.],[1.,.055,.025]][i],this.goalWinGlow],92+i*8);});d.queue.writeBuffer(this.uniform,0,uniforms);
+   level.goals.slice(0,3).forEach((g,i)=>{const target=level.world.goalCharge(g,players[i]);this.goalGlowStrength[i]=(this.goalGlowStrength[i]||0)+(target-(this.goalGlowStrength[i]||0))*fade;uniforms.set([g.x,g.y??level.world.heightAt(g.x,g.z)??0,g.z,this.goalGlowStrength[i]],88+i*8);uniforms.set([...[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025]][i],this.goalWinGlow],92+i*8);});d.queue.writeBuffer(this.uniform,0,uniforms);
    const nodes=new Float32Array(192*4);players.forEach((p,i)=>level.soft.get(p).positions.forEach((q,j)=>nodes.set([q[0],p.state==='dead'?-100:q[1],q[2],1],(i*64+j)*4)));d.queue.writeBuffer(this.nodes,0,nodes);
    if(this.bridgeKey===undefined){this.buildScene(level);this.bridgeKey='static';}
    const bridgeCount=this.bridges(level),propCount=this.props(level,players,angle,time),effectCount=this.effects(level.effects,view),encoder=d.createCommandEncoder();
@@ -496,5 +570,5 @@
    d.queue.submit([encoder.finish()]);this.frames++;
   }
  }
- const api={Renderer,viewMatrix,surfaceBindings};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyGPU=api;
+ const api={Renderer,viewMatrix,cameraFrame,projectPoint,surfaceBindings};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyGPU=api;
 })(globalThis);
