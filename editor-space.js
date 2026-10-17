@@ -2,6 +2,7 @@
 (function(root){
  'use strict';
  const GPU=typeof module!=='undefined'&&module.exports?require('./webgpu-renderer'):root.JellyGPU;
+ const Features=typeof module!=='undefined'&&module.exports?require('./level-features'):root.JellyLevelFeatures;
  function inverse(matrix){
   const rows=Array.from({length:4},(_,r)=>Array.from({length:8},(_,c)=>c<4?matrix[c*4+r]:+(c-4===r)));
   for(let c=0;c<4;c++){
@@ -41,14 +42,18 @@
   for(const p of map.tiles)add(p,'tiles',.5,-.72,p.height);
   for(const p of map.walls)add(p,'walls',p.half,p.base,p.base+p.height);
   for(const key of ['spawns','crates','archers'])for(const p of map[key])if(p){const y=p.y??heights.get(`${p.x},${p.z}`)??0;add({...p,y},key,key==='archers'?.26:.4,y,y+(key==='archers'?1.2:.84));}
-  for(const key of ['goals','plates','bridges','lifts','spikes','portals','conveyors','pickups'])for(const p of map[key])if(p){const y=p.y??p.base??heights.get(`${p.x},${p.z}`)??0;add({...p,y},key,key==='pickups'?.28:.46,y,y+(key==='spikes'?.36:key==='pickups'?.35:.12));}
+  for(const key of ['goals','plates','bridges','lifts','portals','conveyors','pickups'])for(const p of map[key])if(p){const y=p.y??p.base??heights.get(`${p.x},${p.z}`)??0;add({...p,y},key,key==='pickups'?.28:key==='plates'?.35:.46,y,y+(key==='pickups'?.35:key==='plates'?.065:.12));}
+  for(const [index,p] of map.spikes.entries()){
+   const y=p.y??heights.get(`${p.x},${p.z}`)??Math.max(0,...(map.blocks||[]).filter(b=>b.x===p.x&&b.z===p.z).map(b=>b.y)),f=Features.spikeFrame(p,y);
+   for(const b of Features.spikeBoxes(p,y)){const center=[b.x,(b.minY+b.maxY)*.5,b.z],half=[b.halfX,(b.maxY-b.minY)*.5,b.halfZ];result.push({x:p.x,y,z:p.z,key:'spikes',face:p.face||'top',index,min:center.map((v,k)=>v-Math.max(half[k],Math.abs(f.n[k])*.015)),max:center.map((v,k)=>v+Math.max(half[k],Math.abs(f.n[k])*.015))});}
+  }
   return result;
  }
  function pick(ray,bounds,size,height=0,lockedHeight=null){
   if(!ray)return null;
   if(lockedHeight!==null){const hit=plane(ray,lockedHeight);return hit?{x:Math.round(hit.position[0]),z:Math.round(hit.position[2]),height:lockedHeight,key:null,hit}:null;}
   let nearest=null;
-  for(const box of bounds){const hit=boxHit(ray,box);if(hit&&(!nearest||hit.distance<nearest.hit.distance))nearest={x:box.x,y:box.y,z:box.z,height:box.max[1],key:box.key,hit};}
+  for(const box of bounds){const hit=boxHit(ray,box);if(hit&&(!nearest||hit.distance<nearest.hit.distance))nearest={x:box.x,y:box.y,z:box.z,height:box.max[1],key:box.key,...(box.face?{face:box.face,index:box.index}:{}),hit};}
   if(nearest)return nearest;
   const hit=plane(ray,height);if(!hit)return null;
   const x=Math.round(hit.position[0]),z=Math.round(hit.position[2]);

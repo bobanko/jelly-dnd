@@ -3,6 +3,19 @@
  'use strict';
  const alive=p=>!p.state||p.state==='alive';
  const near=(p,q,r)=>Math.abs(p.x-q.x)<r&&Math.abs(p.z-q.z)<r;
+ const spikeNormals={top:[0,1,0],north:[0,0,-1],east:[1,0,0],south:[0,0,1],west:[-1,0,0]};
+ function spikeFrame(spike,height=0){
+  const n=spikeNormals[spike.face||'top']||spikeNormals.top,wall=n[1]===0;
+  return {origin:[spike.x+n[0]*.503,height-(wall?.5:0),spike.z+n[2]*.503],n,u:wall?[-n[2],0,n[0]]:[1,0,0],v:wall?[0,1,0]:[0,0,1]};
+ }
+ function spikeBoxes(spike,height=0,extension=1){
+  const f=spikeFrame(spike,height),length=.24*extension,boxes=[];
+  for(const u of [-.21,.21])for(const v of [-.21,.21]){
+   const center=f.origin.map((p,k)=>p+f.u[k]*u+f.v[k]*v+f.n[k]*(.015+length*.5));
+   const half=f.n.map((n,k)=>Math.abs(n)*length*.5+(Math.abs(f.u[k])+Math.abs(f.v[k]))*.075);
+   boxes.push({x:center[0],z:center[2],halfX:half[0],halfZ:half[2],minY:center[1]-half[1],maxY:center[1]+half[1],kind:'spikes',...(spike.color===undefined?{}:{color:spike.color})});
+  }return boxes;
+ }
  function install(World){
   Object.assign(World.prototype,{
    conveyorVelocity(p,foot=p.y||0){
@@ -56,6 +69,12 @@
     else if(phase>=5.5){extension=peek+(1-peek)*smooth((phase-5.5)/.3);stage='rising';}
     return {extension,stage,dangerous:extension>.35,warning:stage==='peeking'||(stage==='rising'&&extension<=.35)};
    },
+   spikeFrame(spike){return spikeFrame(spike,spike.y??this.heightAt(spike.x,spike.z)??0);},
+   spikeBoxes(spike,extension=1){return spikeBoxes(spike,spike.y??this.heightAt(spike.x,spike.z)??0,extension);},
+   spikeTouches(player,spike,extension=1){
+    if(spike.color!==undefined&&player.kind!=='crate'&&player.slot===spike.color)return false;
+    return this.spikeBoxes(spike,extension).some(b=>Math.abs(player.x-b.x)<.38+b.halfX&&Math.abs(player.z-b.z)<.38+b.halfZ&&(player.y||0)<b.maxY&&(player.y||0)+.84>b.minY);
+   },
    bridgeBounds(i){
     const bridge=this.bridges[i],progress=bridge.progress??(this.soft?0:this.held.has(i)?1:0);
     if(progress<=0)return null;
@@ -95,7 +114,7 @@
     for(const a of this.archers)if(a.state!=='dead'){const y=a.y??this.heightAt(a.x,a.z)??0;boxes.push({x:a.x,z:a.z,half:.25,minY:y,maxY:y+1.2,kind:'archer'});}
     return this._collisionCache=boxes;
    },
-   debugBoxes(){return [...this.collisionBoxes(),...this.spikes.filter(s=>this.spikeState(s).dangerous).map(s=>({...s,half:.34,minY:s.y??this.heightAt(s.x,s.z)??0,maxY:(s.y??this.heightAt(s.x,s.z)??0)+.03+.18*this.spikeState(s).extension,kind:'spikes'})),...this.portals.map(p=>({...p,half:.28,minY:p.y??this.heightAt(p.x,p.z)??0,maxY:(p.y??this.heightAt(p.x,p.z)??0)+.08,kind:'portal'}))];},
+   debugBoxes(){return [...this.collisionBoxes(),...this.spikes.flatMap(s=>{const state=this.spikeState(s);return state.dangerous?this.spikeBoxes(s,state.extension):[];}),...this.portals.map(p=>({...p,half:.28,minY:p.y??this.heightAt(p.x,p.z)??0,maxY:(p.y??this.heightAt(p.x,p.z)??0)+.08,kind:'portal'}))];},
    featureSnapshot(){return {time:this.featureTime||0,bridges:this.bridges.map(b=>({progress:b.progress||0,velocity:b.velocity||0})),lifts:this.lifts.map(l=>({height:l.height,target:l.target,occupiedTime:l.occupiedTime||0,emptyTime:l.emptyTime||0})),combat:this.combatSnapshot()};},
    restoreFeatures(snapshot){this.featureTime=snapshot?.time||0;this.bridges.forEach((b,i)=>Object.assign(b,snapshot?.bridges?.[i]||{progress:0,velocity:0}));this.lifts.forEach((l,i)=>Object.assign(l,snapshot?.lifts?.[i]||{height:l.base||0,target:l.base||0,occupiedTime:0,emptyTime:0}));this.restoreCombat(snapshot?.combat);this._collisionCache=null;},
    resetFeatures(){this.restoreFeatures(null);},
@@ -126,7 +145,7 @@
     const events=[];
     players.forEach((p,i)=>{
      if(!alive(p)||p.kind==='crate')return;
-     const spike=this.spikes.find(s=>this.spikeState(s).dangerous&&near(p,s,.65)&&Math.abs((p.y||0)-(s.y??this.heightAt(s.x,s.z)??0))<.2);
+     const spike=this.spikes.find(s=>{const state=this.spikeState(s);return state.dangerous&&this.spikeTouches(p,s,state.extension);});
      if(spike){p.state='dead';p.deaths=(p.deaths||0)+1;p.deathReason='spikes';p.respawnTimer=.7;p.vx=p.vy=p.vz=0;soft.get(p).velocities.forEach(v=>v.fill(0));events.push({type:'death',reason:'spikes',player:i});return;}
      const source=this.portals.find(portal=>portal.color!==p.portalLock&&near(p,portal,.28)&&Math.abs((p.y||0)-(portal.y??this.heightAt(portal.x,portal.z)??0))<.18);
      if(!source)return;
@@ -144,7 +163,7 @@
     const candidates=[{...p.spawn}];
     for(let radius=1;radius<=2;radius++)for(let x=-radius;x<=radius;x++)for(let z=-radius;z<=radius;z++)if(Math.max(Math.abs(x),Math.abs(z))===radius)candidates.push({x:p.spawn.x+x,z:p.spawn.z+z});
     for(const c of candidates){const height=this.heightAt(c.x,c.z,this.blocks?.length?(p.spawn.y??0)+.2:Infinity,p);if(height===null)continue;c.y=height;
-     if(this.spikes.some(s=>near(c,s,.7))||this.portals.some(portal=>near(c,portal,.5)))continue;
+     if(this.spikes.some(s=>this.spikeTouches({...p,...c},s))||this.portals.some(portal=>near(c,portal,.5)))continue;
      if(this.collisionBoxes().some(o=>this.blockSolid(p,o)&&(o.kind==='wall'||o.kind==='archer'||o.kind==='block')&&height+.03<o.maxY&&height+.84>o.minY&&near(c,o,.36+o.half+.015)))continue;
      if(bodies.some(b=>b!==p&&alive(b)&&near(c,b,.74)&&Math.abs((b.y||0)-height)<.75))continue;
      return c;
@@ -152,5 +171,5 @@
    }
   });
  }
- const api={install};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyLevelFeatures=api;
+ const api={install,spikeFrame,spikeBoxes};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyLevelFeatures=api;
 })(globalThis);

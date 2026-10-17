@@ -47,7 +47,7 @@
   const point=p=>{if(!p||!Number.isInteger(p.x)||!Number.isInteger(p.z)||p.x<0||p.z<0||p.x>=map.size||p.z>=map.size)fail('Объект находится за границами карты.');return {x:p.x,z:p.z,...(p.y===undefined?{}:{y:number(p.y,0,-2,12)})};};
   const list=(key,convert,max=limits[key])=>{
    const items=data[key]??[];if(!Array.isArray(items)||items.length>max)fail(`Слишком много объектов: ${key}.`);
-   const cells=new Set();map[key]=items.map((p,i)=>{const q=point(p),cell=`${q.x},${q.y??''},${q.z}`;if(cells.has(cell))fail(`Два объекта одного типа в одной клетке: ${key}.`);cells.add(cell);return {...q,...convert(p,i)};});
+   const cells=new Set();map[key]=items.map((p,i)=>{const q=point(p),cell=`${q.x},${q.y??''},${q.z}`+(key==='spikes'?','+(p.face||'top'):'');if(cells.has(cell))fail(`Два объекта одного типа в одной клетке: ${key}.`);cells.add(cell);return {...q,...convert(p,i)};});
   };
   list('blocks',p=>{if(!Number.isInteger(p.y))fail('Координата Y куба должна быть целой.');if(p.color!==undefined&&(!Number.isInteger(p.color)||p.color<0||p.color>3))fail('Цвет куба должен соответствовать одному из четырёх персонажей.');return {y:p.y,...(p.color===undefined?{}:{color:p.color})};});
   list('tiles',p=>({height:number(p.height,0,0,3)}));
@@ -58,7 +58,12 @@
   if(new Set(map.plates.map(p=>p.id)).size!==map.plates.length)fail('Идентификаторы кнопок должны быть уникальными.');
   list('bridges',p=>({plate:typeof p.plate==='string'?p.plate:'',y:number(p.y,0,-2,12)}));
   list('lifts',p=>({base:number(p.base,0,-2,12),top:number(p.top,1,-2,12)}));
-  list('spikes',p=>({offset:number(p.offset,0,0,5.8)}));
+  list('spikes',p=>{
+   if(p.face!==undefined&&!['top','north','east','south','west'].includes(p.face))fail('Неизвестная сторона крепления шипов.');
+   if(p.color!==undefined&&(!Number.isInteger(p.color)||p.color<0||p.color>3))fail('Неизвестный цвет шипов.');
+   if(p.face&&p.face!=='top'&&!Number.isInteger(p.y))fail('Для настенных шипов укажите целый Y блока крепления.');
+   return {offset:number(p.offset,0,0,5.8),...(p.face&&p.face!=='top'?{face:p.face}:{}),...(p.color===undefined?{}:{color:p.color})};
+  });
   list('portals',p=>{if(!['violet','amber'].includes(p.color))fail('Неизвестный цвет портала.');return {color:p.color};});
   list('crates',()=>({}));
   list('conveyors',p=>{const dx=number(p.dx,0,-1,1),dz=number(p.dz,1,-1,1);if(Math.abs(dx)+Math.abs(dz)!==1||!Number.isInteger(dx)||!Number.isInteger(dz))fail('Конвейер должен двигаться вдоль сетки.');return {dx,dz,speed:number(p.speed,.85,.2,2.5)};});
@@ -76,7 +81,7 @@
    if(!p){if(key==='goals'&&map.spawns[i])result.push(`${label} не установлен.`);return;}
    if(!tile(p)||at(map.bridges,p)||at(map.lifts,p))result.push(`${label} должен стоять на постоянной площадке.`);
    if(map.blocks?.some(b=>b.x===p.x&&b.z===p.z&&b.y===height(p)&&b.color===i)&&!map.tiles.some(t=>t.x===p.x&&t.z===p.z&&t.height===height(p)))result.push(`${label}: куб провалится сквозь площадку своего цвета.`);
-   if(at(map.walls,p)||at(map.spikes,p)||at(map.portals,p)||at(map.archers,p)||key==='spawns'&&at(map.crates,p))result.push(`${label} перекрыт другим объектом.`);
+   if(at(map.walls,p)||at(map.spikes.filter(s=>!s.face&&(s.color===undefined||s.color!==i)),p)||at(map.portals,p)||at(map.archers,p)||key==='spawns'&&at(map.crates,p))result.push(`${label} перекрыт другим объектом.`);
    if(key==='goals'&&at(map.conveyors,p))result.push(`${label} не должен находиться на конвейере.`);
    if(map.blocks?.some(b=>b.color!==i&&b.x===p.x&&b.z===p.z&&b.y>height(p)&&b.y-1<height(p)+.86))result.push(`${label}: недостаточно места над кубом.`);
   });
@@ -87,12 +92,13 @@
   for(const l of map.lifts)if(l.top<=l.base)result.push(`Верх лифта ${l.x}, ${l.z} должен быть выше основания.`);
   const features=['plates','lifts','spikes','portals','conveyors','crates','archers','pickups'];
   for(const key of [...features,'bridges'])for(const p of map[key]){
+   if(key==='spikes'&&p.face){if(!map.blocks.some(b=>b.x===p.x&&b.z===p.z&&b.y===p.y))result.push(`Настенным шипам ${p.x}, ${p.y}, ${p.z} нужен блок крепления.`);continue;}
    if(!tile(p))result.push(`Нет пола под объектом ${p.x}, ${p.z}.`);
    if(at(map.walls,p))result.push(`Объект ${p.x}, ${p.z} перекрыт стеной.`);
    if(key!=='bridges'&&at(map.bridges,p))result.push(`Объект ${p.x}, ${p.z} стоит на мосту.`);
   }
-  for(const p of map.lifts)if(features.some(key=>key!=='lifts'&&at(map[key],p)))result.push(`Лифт ${p.x}, ${p.z} перекрыт другим объектом.`);
-  for(const p of map.conveyors)if(['plates','spikes','portals'].some(key=>at(map[key],p)))result.push(`Конвейер ${p.x}, ${p.z} перекрыт другим механизмом.`);
+  for(const p of map.lifts)if(features.some(key=>key!=='lifts'&&at(key==='spikes'?map[key].filter(s=>!s.face):map[key],p)))result.push(`Лифт ${p.x}, ${p.z} перекрыт другим объектом.`);
+  for(const p of map.conveyors)if(['plates','spikes','portals'].some(key=>at(key==='spikes'?map[key].filter(s=>!s.face):map[key],p)))result.push(`Конвейер ${p.x}, ${p.z} перекрыт другим механизмом.`);
   return [...new Set(result)];
  }
  function instantiate(map,Physics,Soft){

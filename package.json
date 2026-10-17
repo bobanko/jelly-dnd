@@ -7,6 +7,7 @@
     "check": "node --check game.js && node --check physics.js && node --check soft-body.js && node --check level-features.js && node --check combat.js && node --check webgpu-renderer.js && node --check game-effects.js && node --check levels.js && node --check editor-model.js && node --check editor-space.js && node --check editor.js",
     "test": "node --test game.test.js physics.test.js soft-body.test.js level-features.test.js combat.test.js game-effects.test.js stacking.test.js camera.test.js levels.test.js conveyor.test.js editor-space.test.js voxel.test.js color-blocks.test.js",
     "test:color-blocks:browser": "node browser-color-blocks.cjs",
+    "test:glass-blocks:browser": "node browser-glass-blocks.cjs",
     "test:browser": "node browser-tests.cjs",
     "test:combat:browser": "node browser-combat.cjs",
     "test:editor:browser": "node browser-editor.cjs",

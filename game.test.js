@@ -41,11 +41,13 @@ test('every control set works for every solo colour, using physical positions in
 test('two players split all four sets as WASD/TFGH and arrows/IJKL, irrespective of colours',()=>{
  for(const slots of [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]])for(const [key,owner] of [['KeyW',0],['KeyT',0],['ArrowUp',1],['KeyI',1]]){
   const g=game({map:partyMap(slots)});g.key('layout independent',key);g.run('simulate(.05)');
-  assert.equal(g.run('followedPlayer'),owner);assert.ok(g.run(`players[${owner}].z<4`));assert.equal(g.run(`players[${1-owner}].z`),4);
+  assert.equal(g.run('followedPlayer'),owner);assert.ok(g.run(`players[${owner}].z<4`));assert.equal(g.run(`inputs()[${1-owner}].z`),0);assert.ok(Math.abs(g.run(`players[${1-owner}].z`)-4)<.001);
  }
  const g=game({map:partyMap([1,3])});g.key('', 'KeyW');g.key('', 'KeyT');g.key('', 'ArrowUp');g.key('', 'KeyI');
  assert.equal(g.run('heldKeys.size'),4);g.run('simulate(.05)');assert.ok(g.run('players.every(p=>p.z<4)'));
- g.run('players[0].state="dead";players[0].respawnTimer=10;simulate(.05)');g.key('', 'KeyZ');assert.equal(g.run('heldKeys.size'),0);
+ g.run('players[0].x=20;players[0].rx=20;soft.reset();simulate(.05)');assert.equal(g.run('players[0].state'),'falling');
+ assert.equal(g.run('heldKeys.has("KeyW")||heldKeys.has("KeyT")'),false);assert.equal(g.run('heldKeys.has("ArrowUp")&&heldKeys.has("KeyI")'),true);
+ g.key('', 'KeyZ');assert.equal(g.run('heldKeys.size'),0);
 });
 test('three and four players receive primary control sets in roster order',()=>{
  for(const slots of [[0,1,2],[0,1,3],[0,2,3],[1,2,3],[0,1,2,3]]){
