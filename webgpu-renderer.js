@@ -122,6 +122,20 @@
   }
   return mesh;
  }
+ function swordGeometry(){
+  const mesh=[],steel=[.57,.63,.64],gold=[.55,.34,.085];
+  box(mesh,[0,-.235,0],[.05,.18,.052],[.105,.055,.024],.008,13,2);
+  sphere(mesh,[0,-.335,0],[.044,.04,.04],gold,12);
+  box(mesh,[0,-.13,0],[.25,.048,.065],gold,.013,12,2);
+  // Diamond section blade, with bevels meeting along a central ridge.
+  const section=[[-.057,0],[0,.025],[.057,0],[0,-.025]];
+  for(let j=0;j<4;j++){
+   const a=section[j],b=section[(j+1)%4],lo=[a[0],-.1,a[1]],hi=[a[0],.43,a[1]],next=[b[0],.43,b[1]],bottom=[b[0],-.1,b[1]],tip=[0,.61,0];
+   for(const tri of [[lo,hi,next],[lo,next,bottom],[hi,tip,next]]){const n=normalize(cross(tri[1].map((v,k)=>v-tri[0][k]),tri[2].map((v,k)=>v-tri[0][k])));for(const p of tri)mesh.push(...p,...n,...steel,12,0,0);}
+  }
+  sphere(mesh,[0,-.13,.038],[.022,.022,.011],[.12,.42,.8],4);
+  return mesh;
+ }
  function archerGeometry(){
   const mesh=[],bone=[.72,.67,.47],dark=[.028,.023,.018],joint=(p,r=.037)=>sphere(mesh,p,[r,r,r],bone),limb=(a,b,w=.05)=>{rod(mesh,a,b,w,bone);joint(a,w*.65);joint(b,w*.65);};
   // Skull, separate jaw, sockets, nasal cavity and individual teeth.
@@ -347,7 +361,8 @@
   let fresnel=pow(1.-abs(dot(n,v)),3.);
   var color=o.color*(.5+.65*max(0.,dot(n,l)))+o.color*fresnel*.7;
   color+=vec3f(1.8,1.9,1.6)*pow(max(0.,dot(n,normalize(v+l))),85.);
-  if(o.material>6.5){color=o.color*2.2+vec3f(.16)*fresnel;}
+  if(o.material>6.5&&o.material<14.5){color=o.color*2.2+vec3f(.16)*fresnel;}
+  if(o.material>14.5){color=o.color*(.55+.7*max(0.,dot(n,l)));}
   return vec4f(color,clamp(o.local.x,0.,1.));
  }
  `;
@@ -572,7 +587,13 @@
    const shield=shieldGeometry(),heldShield=shield.slice();
    rod(heldShield,[0,-.02,-.25],[-.045,-.07,-.11],.043,bone);rod(heldShield,[-.045,-.07,-.11],[0,-.04,-.012],.035,bone);sphere(heldShield,[0,-.04,-.012],[.044,.037,.035],bone);
    for(let i=0;i<players.length;i++)append('shield',i,heldShield);
-   for(let i=0;i<level.world.pickups.length;i++)append('pickup',i,shield);
+   for(let i=0;i<players.length;i++)for(let damage=1;damage<=2;damage++){
+    const mesh=[],points=damage===1?[[-.13,.24,.057],[-.05,.12,.057],[-.1,.035,.057]]:[[.1,-.27,.057],[.04,-.18,.057],[.13,-.08,.057]];
+    for(let k=1;k<points.length;k++)for(const depth of [.057,-.004])rod(mesh,[points[k-1][0],points[k-1][1],depth],[points[k][0],points[k][1],depth],.009,[.025,.015,.008],13);append('shieldCrack',i,mesh,{damage});
+   }
+   const sword=swordGeometry(),heldSword=sword.slice();rod(heldSword,[0,-.08,-.25],[-.03,-.22,-.11],.043,bone);rod(heldSword,[-.03,-.22,-.11],[0,-.22,-.02],.035,bone);sphere(heldSword,[0,-.22,-.025],[.043,.036,.035],bone);
+   for(let i=0;i<players.length;i++)append('sword',i,heldSword);
+   for(let i=0;i<level.world.pickups.length;i++)append('pickup',i,level.world.pickups[i].kind==='sword'?sword:shield);
    const arrow=arrowGeometry();
    for(let i=0;i<12;i++)append('arrow',i,arrow);
    for(let i=0;i<level.world.archers.length;i++){
@@ -610,23 +631,26 @@
    // Reuse immutable local meshes and one upload array. No per-frame tessellation
    // or large JS number arrays for rigid decorations.
    for(const piece of this.propPieces){
-    const i=piece.index,source=piece.data;let x=0,y=0,z=0,rotate=false,matrix=null,stringPull=0;
+    const i=piece.index,source=piece.data;let x=0,y=0,z=0,rotate=false,matrix=null,stringPull=0,swing=0;
     if(piece.kind==='jelly'||piece.kind==='bubble'){
      const p=players[i];if(p.state==='dead')continue;
      const core=level.soft.get(p).core;x=core[0];y=core[1];z=core[2];rotate=piece.kind==='jelly';
      if(piece.kind==='bubble')y+=(piece.bubble*.097+time*.018)%.51-piece.bubble*.097;
     }else if(piece.kind==='crate'){
      const p=level.crates[i];if(p.state==='dead')continue;x=p.x;y=(p.y||0)+.42;z=p.z;matrix=level.soft.get(p).r;
-    }else if(piece.kind==='shield'){
-     const p=players[i];if(!p.shield||p.state==='dead')continue;
+    }else if(piece.kind==='shield'||piece.kind==='shieldCrack'||piece.kind==='sword'){
+     const p=players[i],sword=piece.kind==='sword';if(!(sword?p.sword:p.shield)||p.state==='dead')continue;
+     if(piece.kind==='shieldCrack'&&(p.shieldHP??3)>3-piece.damage)continue;
      const core=level.soft.get(p).core,fx=p.facingX||0,fz=p.facingZ??1;x=core[0]+fx*.55;y=core[1];z=core[2]+fz*.55;matrix=[fz,0,fx,0,1,0,-fx,0,fz];
+     if(sword&&p.attackTime>0&&!level.reducedMotion)swing=Math.sin((1-p.attackTime/.32)*Math.PI)*1.15;
     }else if(piece.kind==='pickup'){
-     const p=level.world.pickups[i];if(p.holder!==null&&p.holder!==undefined)continue;
+     const p=level.world.pickups[i];if(p.destroyed||p.holder!==null&&p.holder!==undefined)continue;
      x=p.x;y=(p.y??level.world.heightAt(p.x,p.z)??0)+.065+(level.reducedMotion?0:Math.sin(time*2)*.012);z=p.z;matrix=[1,0,0,0,0,1,0,-1,0];
     }else if(piece.kind==='arrow'){
      const p=level.world.arrows[i];if(!p)continue;x=p.x;y=p.y;z=p.z;matrix=[p.dz,0,p.dx,0,1,0,-p.dx,0,p.dz];
     }else if(piece.kind.startsWith('archer')||piece.kind==='nockedArrow'){
      const a=level.world.archers[i],length=Math.hypot(a.dx||0,a.dz??1)||1,fx=(a.dx||0)/length,fz=(a.dz??1)/length;
+     if(a.state==='dead')continue;
      x=a.x;y=a.y??level.world.heightAt(a.x,a.z)??0;z=a.z;matrix=[fz,0,fx,0,1,0,-fx,0,fz];
      const pull=Math.max(0,1-(a.cooldown??a.firstShot??1.6)/.65)*.22;
      if(piece.kind==='archerString')stringPull=pull;
@@ -640,7 +664,8 @@
      if(state.extension<=0)continue;y+=.03-.18*(1-state.extension);
     }
     data.set(source,cursor);
-    if(matrix){for(let n=0;n<source.length;n+=12){const k=cursor+n,localZ=source[n+2]-stringPull*Math.max(0,1-Math.abs(source[n+1]-.57)/.38);for(let axis=0;axis<3;axis++){const a=axis*3;data[k+axis]=(axis===0?x:axis===1?y:z)+matrix[a]*source[n]+matrix[a+1]*source[n+1]+matrix[a+2]*localZ;data[k+3+axis]=matrix[a]*source[n+3]+matrix[a+1]*source[n+4]+matrix[a+2]*source[n+5];}}}
+    if(swing){const c=Math.cos(swing),s=Math.sin(swing);for(let n=0;n<source.length;n+=12)for(const offset of [0,3]){const k=cursor+n+offset,a=data[k],b=data[k+1]+(offset?0:.13);data[k]=a*c-b*s;data[k+1]=a*s+b*c-(offset?0:.13);}}
+    if(matrix){for(let n=0;n<source.length;n+=12){const k=cursor+n,px=data[k],py=data[k+1],localZ=data[k+2]-stringPull*Math.max(0,1-Math.abs(py-.57)/.38),nx=data[k+3],ny=data[k+4],nz=data[k+5];for(let axis=0;axis<3;axis++){const a=axis*3;data[k+axis]=(axis===0?x:axis===1?y:z)+matrix[a]*px+matrix[a+1]*py+matrix[a+2]*localZ;data[k+3+axis]=matrix[a]*nx+matrix[a+1]*ny+matrix[a+2]*nz;}}}
     else if(rotate){for(let n=0;n<source.length;n+=12){const k=cursor+n;data[k]=x+rx*source[n]+fx*source[n+2];data[k+1]=y+source[n+1];data[k+2]=z+rz*source[n]+fz*source[n+2];data[k+3]=rx*source[n+3]+fx*source[n+5];data[k+5]=rz*source[n+3]+fz*source[n+5];}}
     else{for(let n=0;n<source.length;n+=12){const k=cursor+n;data[k]=x+source[n];data[k+1]=y+source[n+1];data[k+2]=z+source[n+2];}}
     cursor+=source.length;
@@ -686,13 +711,14 @@
    }return dynamicCount;
   }
   effects(system,view){
-   if(!system||(!system.particles.length&&!system.rings.length))return 0;
-   const mesh=[],items=[...system.particles,...system.rings].sort((a,b)=>dot(a.position||a.center,view)-dot(b.position||b.center,view));
+   if(!system||(!system.particles.length&&!system.rings.length&&!system.bones?.length))return 0;
+   const mesh=[],items=[...system.particles,...system.rings,...(system.bones||[])].sort((a,b)=>dot(a.position||a.center,view)-dot(b.position||b.center,view));
    for(const item of items){
-    const t=item.age/item.life,fade=1-t*t*(3-2*t),from=mesh.length;
+    const t=item.age/item.life,fade=item.kind==='bone'?1:1-t*t*(3-2*t),from=mesh.length;
     if(item.position){
-     const a=item.phase+item.age*8,c=Math.cos(a),s=Math.sin(a),size=item.size*(.65+.35*fade),jelly=item.kind==='jelly',wobble=1+Math.sin(a*1.8)*.22;
-     sphere(mesh,item.position,[size*wobble,size/(wobble*(jelly?1.3:1)),size],item.color,jelly?6:7,[[c,s,0],[-s,c,0],[0,0,1]]);
+     const a=item.phase+Math.min(item.age,.8)*8,c=Math.cos(a),s=Math.sin(a),size=item.size*(.65+.35*fade),jelly=item.kind==='jelly',bone=item.kind==='bone',wood=item.kind==='wood',wobble=1+Math.sin(a*1.8)*.22;
+     sphere(mesh,item.position,bone?(item.skull?[size,size*1.1,size]:[size*.4,size*1.6,size*.4]):wood?[size*.4,size*1.8,size*.3]:[size*wobble,size/(wobble*(jelly?1.3:1)),size],item.color,bone||wood?15:jelly?6:7,[[c,s,0],[-s,c,0],[0,0,1]]);
+     if(bone&&item.skull)for(const side of [-1,1])sphere(mesh,[item.position[0]+side*size*.4,item.position[1]+size*.12,item.position[2]+size*.9],[size*.27,size*.31,size*.1],[.02,.018,.014],15);
     }else{
      const [x,y,z]=item.center;
      portalRing(mesh,x,y+.075+t*.09,z,item.color);
@@ -701,7 +727,7 @@
      const flash=Math.max(0,1-t*3);
      if(flash>0)sphere(mesh,[x,y+.36,z],[.35*flash,.48*flash,.35*flash],item.color,7);
     }
-    for(let k=from;k<mesh.length;k+=12){mesh[k+9]=item.kind==='jelly'?6:7;mesh[k+10]=fade*(item.position ? .85 : .45);mesh[k+11]=0;}
+    for(let k=from;k<mesh.length;k+=12){mesh[k+9]=item.kind==='bone'||item.kind==='wood'?15:item.kind==='jelly'?6:7;mesh[k+10]=fade*(item.kind==='bone'?1:item.position ? .85 : .45);mesh[k+11]=0;}
    }
    this.device.queue.writeBuffer(this.effectBuffer,0,new Float32Array(mesh));return mesh.length/12;
   }

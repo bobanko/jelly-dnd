@@ -97,3 +97,22 @@ test('three persistent rune streams stay bounded and respect reduced motion',()=
  for(let i=0;i<30;i++)reduced.step(.1,goalWorld,goals,party);
  assert.equal(reduced.runes.length,0);
 });
+
+test('shield splinters fall and expire, while skeleton bones persist and gather on the five-second gameplay clock',()=>{
+ const effects=new System();effects.burst({type:'shieldBreak',position:[2,.5,3]},players,soft);
+ assert.ok(effects.particles.every(p=>p.kind==='wood'));
+ for(let i=0;i<12;i++)effects.step(.1,world);assert.equal(effects.particles.length,0);
+ const skeletonWorld={heightAt:()=>0,archers:[{x:2,z:3,state:'dead',respawnTimer:5,dz:1}]};
+ effects.burst({type:'archerDeath',archer:0,position:[2,0,3],direction:{x:0,z:1}},players,soft);
+ assert.ok(effects.bones.some(p=>p.skull));
+ for(let i=0;i<25;i++)effects.step(.1,skeletonWorld);
+ const head=effects.bones.find(p=>p.skull);assert.ok(head.position[1]<.2);
+ skeletonWorld.archers[0].respawnTimer=.35;effects.step(.01,skeletonWorld);
+ const midDistance=Math.hypot(...head.position.map((v,k)=>v-head.home[k]));
+ skeletonWorld.archers[0].respawnTimer=.01;effects.step(.01,skeletonWorld);
+ assert.ok(Math.hypot(...head.position.map((v,k)=>v-head.home[k]))<midDistance*.02);
+ skeletonWorld.archers[0].state='alive';effects.step(.01,skeletonWorld);assert.equal(effects.bones.length,0);
+ skeletonWorld.archers[0].state='dead';skeletonWorld.archers[0].respawnTimer=2;effects.step(.01,skeletonWorld);
+ assert.ok(effects.bones.length>0,'undo to a dead skeleton reconstructs its bone fragments');
+ effects.clear();assert.equal(effects.bones.length,0);
+});

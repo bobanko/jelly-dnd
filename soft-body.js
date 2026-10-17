@@ -136,7 +136,7 @@
    });
    players.forEach((p,i)=>{
     p.spawn??={x:p.x,z:p.z};p.state??='alive';p.y??=0;p.vy??=0;p.deaths??=0;p.respawnFlash=Math.max(0,(p.respawnFlash||0)-dt);
-    const b=lattices[i],input=inputs[i]||{x:0,z:0},magnitude=Math.hypot(input.x,input.z);b.driven=magnitude>0;
+    const b=lattices[i],input=inputs[i]||{x:0,z:0},magnitude=p.launchTimer>0?0:Math.hypot(input.x,input.z);b.driven=magnitude>0;
     if(p.state==='dead'){
      p.respawnTimer-=dt;const spawn=p.respawnTimer<=0&&world.respawnPosition(p,players);
      if(spawn){Object.assign(p,spawn,{state:'alive',y:spawn.y||0,vy:0,vx:0,vz:0,impact:0,respawnFlash:.65,portalLock:null,portalCooldown:0,deathReason:null});b.reset(p);events.push({type:'respawn',player:i});}
@@ -153,8 +153,8 @@
     // avoiding both sliding passengers and doubled carrier velocity.
     if(supports[i]>=0){p.vx-=b.carryVelocity[0];p.vz-=b.carryVelocity[2];for(const v of b.velocities){v[0]-=b.carryVelocity[0];v[1]-=b.carryVelocity[1];v[2]-=b.carryVelocity[2];}}
     b.carryVelocity=[0,0,0];
-    const ax=p.state==='alive'?((magnitude?input.x/magnitude*2.6:0)-(p.vx||0))*(magnitude?13:18):0;
-    const az=p.state==='alive'?((magnitude?input.z/magnitude*2.6:0)-(p.vz||0))*(magnitude?13:18):0;
+    const ax=p.state==='alive'&&!p.launchTimer?((magnitude?input.x/magnitude*2.6:0)-(p.vx||0))*(magnitude?13:18):0;
+    const az=p.state==='alive'&&!p.launchTimer?((magnitude?input.z/magnitude*2.6:0)-(p.vz||0))*(magnitude?13:18):0;
     for(let n=0;n<NODE_COUNT;n++){const v=b.velocities[n];v[0]+=ax*dt;v[1]-=15*dt;v[2]+=az*dt;for(let k=0;k<3;k++)b.positions[n][k]+=v[k]*dt;}
    });
    const ascending=players.map((_,i)=>i).sort((a,b)=>previousCenters[a][1]-previousCenters[b][1]);
@@ -194,7 +194,7 @@
     const driving=Math.hypot(inputs[i]?.x||0,inputs[i]?.z||0)>0;
     const ground=world.heightAt(p.x,p.z);
     const grounded=b.rigid?crateGrounded:ground!==null&&Math.abs(p.y-ground)<.15&&p.vy<.7;
-    if(p.state==='falling'&&(b.support||grounded)){p.state='alive';events.push({type:'land',player:i});}
+    if(p.state==='falling'&&(b.support||grounded)){p.state='alive';p.launchTimer=0;events.push({type:'land',player:i});}
     if(p.state==='alive'&&!b.support&&(b.rigid?!crateGrounded:ground===null||p.y<ground-.2||p.y>ground+.23)){p.state='falling';events.push({type:'fall',player:i});}
     if(p.state==='falling'&&p.y<-4){p.state='dead';p.deaths++;p.respawnTimer=.55;p.vx=p.vz=0;events.push({type:'death',player:i});}
     if(p.state==='alive'&&!driving&&energy<.003){b.calm+=dt;if(b.calm>.65){b.sleeping=true;b.velocities.forEach(v=>v.fill(0));p.vx=p.vy=p.vz=0;}}else b.calm=0;

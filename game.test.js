@@ -173,3 +173,17 @@ test('arrow death clears the affected controls and undo restores equipped protec
  g.key('z');assert.equal(g.run('players[1].state'),'alive');assert.equal(g.run('players[1].shield'),'oak-shield');
  assert.equal(g.run('world.pickups[0].holder'),1);assert.equal(g.run('world.archers[0].cooldown'),.1);assert.equal(g.run('world.arrows.length'),0);
 });
+
+test('undo restores shield durability, sword inventory, skeleton recovery time and an airborne throw',()=>{
+ const g=game();g.run(`
+  Object.assign(players[1],{shield:'oak-shield',shieldHP:1});Object.assign(world.pickups[0],{holder:1,durability:1});
+  Object.assign(players[2],{sword:'iron-sword',launchTimer:.8,state:'falling',y:.8,vx:2.22,vy:3,vz:0});world.pickups[1].holder=2;
+  Object.assign(world.archers[0],{state:'dead',respawnTimer:2.3});soft.reset();soft.get(players[2]).velocities.forEach(v=>{v[0]=2.22;v[1]=3;});
+  history.push(snapshot());moves++;players[1].shield=null;world.pickups[0].destroyed=true;players[2].sword=null;players[2].launchTimer=0;world.archers[0].state='alive';
+ `);
+ g.key('z');assert.equal(g.run('players[1].shieldHP'),1);assert.equal(g.run('world.pickups[0].durability'),1);assert.equal(g.run('world.pickups[0].destroyed'),false);
+ assert.equal(g.run('players[2].sword'),'iron-sword');assert.equal(g.run('players[2].launchTimer'),.8);assert.equal(g.run('world.archers[0].respawnTimer'),2.3);
+ assert.ok(g.run('soft.get(players[2]).velocities.every(v=>v[0]===2.22&&v[1]===3)'));
+ g.run('stopInput()');assert.equal(g.run('players[2].vx'),2.22,'camera/UI input changes do not interrupt a physical throw');
+ g.key('r');assert.ok(g.run('players.every(p=>!p.shield&&!p.sword&&!p.launchTimer)&&world.pickups.every(p=>!p.destroyed)&&world.archers[0].state==="alive"'));
+});

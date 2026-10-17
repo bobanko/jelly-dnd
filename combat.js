@@ -1,7 +1,8 @@
-// Cardinal archery, swept projectile collisions and automatically equipped shields.
+// Cardinal archery, durable shields, ballistic bashes and automatic sword attacks.
 (function(root){
  'use strict';
  const alive=p=>!p.state||p.state==='alive';
+ const carrying=p=>alive(p)||(p.state==='falling'&&(p.launchTimer||0)>0);
  function cardinal(x=0,z=1){return Math.abs(x)>Math.abs(z)?{x:Math.sign(x),z:0}:{x:0,z:Math.sign(z)||1};}
  function facing(p){return cardinal(p.facingX||0,p.facingZ??1);}
  function segmentBox(a,b,box){
@@ -24,45 +25,77 @@
   return {min:[center[0]-(f.x?.065:.27),center[1]-.34,center[2]-(f.z?.065:.27)],max:[center[0]+(f.x?.065:.27),center[1]+.34,center[2]+(f.z?.065:.27)]};
  }
  function install(World){Object.assign(World.prototype,{
-  combatSnapshot(){return {archers:this.archers.map(a=>({cooldown:a.cooldown??a.firstShot??1.6,shotFlash:a.shotFlash||0})),arrows:this.arrows.map(a=>({...a})),pickups:this.pickups.map(p=>({holder:p.holder??null}))};},
+  combatSnapshot(){return {archers:this.archers.map(a=>({cooldown:a.cooldown??a.firstShot??1.6,shotFlash:a.shotFlash||0,state:a.state||'alive',respawnTimer:a.respawnTimer||0})),arrows:this.arrows.map(a=>({...a})),pickups:this.pickups.map(p=>({holder:p.holder??null,durability:p.durability??3,destroyed:!!p.destroyed}))};},
   restoreCombat(state){
-   this.archers.forEach((a,i)=>Object.assign(a,state?.archers?.[i]||{cooldown:a.firstShot??1.6,shotFlash:0}));
+   this.archers.forEach((a,i)=>Object.assign(a,state?.archers?.[i]||{cooldown:a.firstShot??1.6,shotFlash:0,state:'alive',respawnTimer:0}));
    this.arrows=(state?.arrows||[]).map(a=>({...a}));
-   this.pickups.forEach((p,i)=>{p.holder=state?.pickups?.[i]?.holder??null;});
+   this.pickups.forEach((p,i)=>Object.assign(p,state?.pickups?.[i]||{holder:null,durability:3,destroyed:false}));
   },
   beforeCombat(bodies,inputs,dt){
    bodies.forEach((p,i)=>{
     if(p.kind==='crate')return;
-    p.facingX??=0;p.facingZ??=1;p.shield??=null;
-    if(!alive(p)){
+    p.facingX??=0;p.facingZ??=1;p.shield??=null;p.sword??=null;
+    p.launchTimer=Math.max(0,(p.launchTimer||0)-dt);p.bashCooldown=Math.max(0,(p.bashCooldown||0)-dt);p.attackTime=Math.max(0,(p.attackTime||0)-dt);p.attackCooldown=Math.max(0,(p.attackCooldown||0)-dt);
+    if(!carrying(p)){
      for(const item of this.pickups)if(item.holder===i)item.holder=null;
-     p.shield=null;return;
+     p.shield=null;p.shieldHP=0;p.sword=null;return;
     }
     const input=inputs[i];
-    if(input&&Math.hypot(input.x,input.z)>.01){
+    if(!p.launchTimer&&input&&Math.hypot(input.x,input.z)>.01){
      // Keep the current face on equal diagonals when it remains in the input.
      const old=facing(p),tie=Math.abs(input.x)===Math.abs(input.z);
      const f=tie&&(old.x*input.x+old.z*input.z)>0?old:cardinal(input.x,input.z);
      p.facingX=f.x;p.facingZ=f.z;
     }
    });
-   this.archers.forEach(a=>{a.cooldown??=a.firstShot??1.6;a.cooldown-=dt;a.shotFlash=Math.max(0,(a.shotFlash||0)-dt);});
+   this.archers.forEach(a=>{
+    if(a.state==='dead'){
+     a.respawnTimer=Math.max(0,a.respawnTimer-dt);
+     if(a.respawnTimer<=1e-8){a.state='alive';a.respawnTimer=0;a.cooldown=a.firstShot??1.6;this._collisionCache=null;}
+     return;
+    }
+    a.cooldown??=a.firstShot??1.6;a.cooldown-=dt;a.shotFlash=Math.max(0,(a.shotFlash||0)-dt);
+   });
   },
   afterCombat(bodies,soft,dt){
    const events=[];
    for(const item of this.pickups){
+    if(item.destroyed)continue;
     if(item.holder!==null&&item.holder!==undefined){
      const owner=bodies[item.holder];
-     if(!owner||!alive(owner)){if(owner)owner.shield=null;item.holder=null;}
+     if(!owner||!carrying(owner)){if(owner){owner.shield=null;owner.shieldHP=0;owner.sword=null;}item.holder=null;}
      else continue;
     }
     const height=item.y??this.heightAt(item.x,item.z)??0;
-    const i=bodies.findIndex(p=>alive(p)&&p.kind!=='crate'&&!p.shield&&Math.abs((p.y||0)-height)<.18&&Math.hypot(p.x-item.x,p.z-item.z)<.55);
-    if(i>=0){bodies[i].shield=item.id;item.holder=i;events.push({type:'pickup',item:'shield',player:i});}
+    const i=bodies.findIndex(p=>alive(p)&&p.kind!=='crate'&&!p.shield&&!p.sword&&Math.abs((p.y||0)-height)<.18&&Math.hypot(p.x-item.x,p.z-item.z)<.55);
+    if(i>=0){const kind=item.kind==='sword'?'sword':'shield';bodies[i][kind]=item.id;if(kind==='shield')bodies[i].shieldHP=item.durability??3;item.holder=i;events.push({type:'pickup',item:kind,player:i});}
    }
-   for(const a of this.archers)if(a.cooldown<=0){
+   bodies.forEach((p,i)=>{
+    if(!alive(p)||p.kind==='crate'||p.launchTimer)return;
+    const f=facing(p);
+    if(p.shield&&!(p.bashCooldown>0)&&((p.vx||0)*f.x+(p.vz||0)*f.z)>.3){
+     const victim=bodies.find(q=>q!==p&&alive(q)&&q.kind!=='crate'&&!(q.launchTimer>0)&&Math.abs((p.y||0)-(q.y||0))<.3&&
+      (q.x-p.x)*f.x+(q.z-p.z)*f.z>.35&&(q.x-p.x)*f.x+(q.z-p.z)*f.z<1.08&&Math.abs((q.x-p.x)*f.z-(q.z-p.z)*f.x)<.47);
+     if(victim&&this.combatLineClear([p.x,(p.y||0)+.42,p.z],[victim.x,(victim.y||0)+.42,victim.z])){
+      const speed=2/.9;Object.assign(victim,{state:'falling',launchTimer:1.25,vx:f.x*speed,vy:6.75,vz:f.z*speed});
+      if(soft){const b=soft.get(victim);b.sleeping=false;b.calm=0;b.support=null;b.carryVelocity=[0,0,0];b.velocities.forEach(v=>{v[0]=victim.vx;v[1]=victim.vy;v[2]=victim.vz;});}
+      p.bashCooldown=.8;events.push({type:'shieldBash',player:i,target:bodies.indexOf(victim),position:[victim.x,(victim.y||0)+.42,victim.z]});
+     }
+    }
+    if(p.sword&&!(p.attackCooldown>0)){
+     const index=this.archers.findIndex(a=>a.state!=='dead'&&Math.abs((p.y||0)-(a.y??this.heightAt(a.x,a.z)??0))<.3&&
+      (a.x-p.x)*f.x+(a.z-p.z)*f.z>.25&&(a.x-p.x)*f.x+(a.z-p.z)*f.z<1.16&&Math.abs((a.x-p.x)*f.z-(a.z-p.z)*f.x)<.42);
+     if(index>=0){const a=this.archers[index],y=a.y??this.heightAt(a.x,a.z)??0;
+      if(this.combatLineClear([p.x,(p.y||0)+.6,p.z],[a.x,y+.6,a.z],index)){
+       a.state='dead';a.respawnTimer=5;a.shotFlash=0;p.attackCooldown=.65;p.attackTime=.32;this._collisionCache=null;
+       events.push({type:'archerDeath',archer:index,player:i,position:[a.x,y,a.z],direction:cardinal(a.dx,a.dz)});
+      }
+     }
+    }
+   });
+   for(const a of this.archers)if(a.state!=='dead'&&a.cooldown<=0){
     const dir=cardinal(a.dx,a.dz),height=a.y??this.heightAt(a.x,a.z)??0;
-    if(this.arrows.length<12)this.arrows.push({x:a.x+dir.x*.48,y:height+.5,z:a.z+dir.z*.48,dx:dir.x,dz:dir.z,speed:a.speed??5.5,life:4});
+    if(this.arrows.length<12){this.arrows.push({x:a.x+dir.x*.48,y:height+.5,z:a.z+dir.z*.48,dx:dir.x,dz:dir.z,speed:a.speed??5.5,life:4});events.push({type:'archerShot',position:[a.x,height+.5,a.z]});}
     a.cooldown+=a.interval??2.4;a.shotFlash=.2;
    }
    if(!this.arrows.length)return events;
@@ -78,19 +111,32 @@
     for(const target of targets){
      if(target.p.state==='dead')continue;
      const f=facing(target.p);
-     if(target.p.shield&&alive(target.p)&&arrow.dx*f.x+arrow.dz*f.z<-.9)consider(shieldBox(target.p,soft),target,true);
+     if(target.p.shield&&carrying(target.p)&&arrow.dx*f.x+arrow.dz*f.z<-.9)consider(shieldBox(target.p,soft),target,true);
      consider(target.box,target);
     }
     if(!hit){[arrow.x,arrow.y,arrow.z]=to;keep.push(arrow);continue;}
     const position=from.map((v,k)=>v+(to[k]-v)*nearest),target=hit.target;
-    if(hit.shield){events.push({type:'arrowBlock',player:target.i,position});continue;}
+    if(hit.shield){
+     const p=target.p,item=this.pickups.find(item=>item.id===p.shield);p.shieldHP=Math.max(0,(p.shieldHP??item?.durability??3)-1);
+     if(item)item.durability=p.shieldHP;
+     events.push({type:'arrowBlock',player:target.i,position,durability:p.shieldHP});
+     if(p.shieldHP===0){p.shield=null;if(item){item.destroyed=true;item.holder=null;}events.push({type:'shieldBreak',player:target.i,position});}
+     continue;
+    }
     if(!target||target.p.kind==='crate'){events.push({type:'arrowImpact',position});continue;}
     const p=target.p;p.state='dead';p.deaths=(p.deaths||0)+1;p.deathReason='arrow';p.respawnTimer=.7;p.vx=p.vy=p.vz=0;
     if(soft)soft.get(p).velocities.forEach(v=>v.fill(0));
     for(const item of this.pickups)if(item.holder===target.i)item.holder=null;
-    p.shield=null;events.push({type:'death',reason:'arrow',player:target.i});
+    p.shield=null;p.shieldHP=0;p.sword=null;p.launchTimer=0;events.push({type:'death',reason:'arrow',player:target.i});
    }
    this.arrows=keep;return events;
+  },
+  combatLineClear(from,to,ignoredArcher=-1){
+   const ignored=this.archers[ignoredArcher];
+   return !this.collisionBoxes().some(o=>{
+    if(ignored&&o.kind==='archer'&&o.x===ignored.x&&o.z===ignored.z)return false;
+    return segmentBox(from,to,{min:[o.x-(o.halfX??o.half),o.minY,o.z-(o.halfZ??o.half)],max:[o.x+(o.halfX??o.half),o.maxY,o.z+(o.halfZ??o.half)]})!==null;
+   });
   }
  });}
  const api={install,facing,segmentBox};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyCombat=api;

@@ -5,7 +5,7 @@ const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
 let W,H,DPR,scale,angle=0,targetAngle=0,last=0,time=0,moves=0,history=[],won=false,audioOn=false,audio;
 const N=12, colors=['#9ddd56','#477bff','#ef5346'],names=['Мох','Иней','Уголёк'];
 let zoom=1,fpsTime=0,fpsFrames=0;
-const start=[{x:2,z:8},{x:9,z:8},{x:9,z:7}],players=start.map(p=>({...p,spawn:{...p},state:'alive',y:0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:p.x,rz:p.z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null,shield:null,facingX:0,facingZ:1}));
+const start=[{x:2,z:8},{x:9,z:8},{x:9,z:7}],players=start.map(p=>({...p,spawn:{...p},state:'alive',y:0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:p.x,rz:p.z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null,shield:null,shieldHP:0,sword:null,facingX:0,facingZ:1,launchTimer:0,bashCooldown:0,attackTime:0,attackCooldown:0}));
 const crates=[{kind:'crate',x:7,z:9,y:1,spawn:{x:7,z:9},state:'alive',vx:0,vy:0,vz:0,deaths:0}];
 const bodies=[...players,...crates];
 let followedPlayer=0;
@@ -34,6 +34,7 @@ world.portals.push({x:3,z:6,color:'violet'},{x:6,z:9,color:'violet'},{x:9,z:9,co
 floor.add('10,5');floor.add('10,6');
 world.archers.push({x:10,z:5,dx:0,dz:1,interval:2.4,firstShot:1.6});
 world.pickups.push({id:'oak-shield',kind:'shield',x:8,z:8,holder:null});
+world.pickups.push({id:'iron-sword',kind:'sword',x:8,z:7,holder:null});
 const effects=new JellyEffects.System({reducedMotion});
 const level={floor,bridges,plates,goals,world,soft,effects,crates,won:false,reducedMotion};
 const heldKeys=new Set();
@@ -44,6 +45,16 @@ addEventListener('resize',resize);resize();
 function project(x,y,z){return JellyGPU.projectPoint(JellyGPU.cameraFrame(camera,angle,W,H,scale),x,y,z,W,H);}
 function active(i){return world.active(i,players);}
 function tone(freq){if(!audioOn)return;audio??=new AudioContext();const o=audio.createOscillator(),g=audio.createGain();o.type='sine';o.frequency.setValueAtTime(freq,audio.currentTime);o.frequency.exponentialRampToValueAtTime(freq*.6,audio.currentTime+.14);g.gain.setValueAtTime(.045,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.2);o.connect(g).connect(audio.destination);o.start();o.stop(audio.currentTime+.2);}
+function woodHit(broken=false){
+ if(!audioOn)return;audio??=new AudioContext();
+ const now=audio.currentTime,duration=broken?.3:.18,buffer=audio.createBuffer(1,Math.ceil(audio.sampleRate*duration),audio.sampleRate),samples=buffer.getChannelData(0);
+ for(let i=0;i<samples.length;i++){
+  const t=i/audio.sampleRate,crack=Math.exp(-t*95)+.5*Math.exp(-Math.abs(t-.018)*420)+.3*Math.exp(-Math.abs(t-.045)*380)+(broken?.6*Math.exp(-Math.abs(t-.095)*180):0);
+  samples[i]=(Math.random()*2-1)*crack;
+ }
+ const source=audio.createBufferSource(),filter=audio.createBiquadFilter(),gain=audio.createGain();source.buffer=buffer;filter.type='bandpass';filter.frequency.value=broken?780:1050;filter.Q.value=.7;gain.gain.value=broken?.36:.26;source.connect(filter).connect(gain).connect(audio.destination);source.start();
+ const thud=audio.createOscillator(),body=audio.createGain();thud.type='triangle';thud.frequency.setValueAtTime(130,now);thud.frequency.exponentialRampToValueAtTime(60,now+.075);body.gain.setValueAtTime(.055,now);body.gain.exponentialRampToValueAtTime(.001,now+.1);thud.connect(body).connect(audio.destination);thud.start();thud.stop(now+.11);
+}
 function updateUI(){
  document.querySelector('#moves').textContent=String(moves).padStart(2,'0');document.querySelector('#win').hidden=!won;
  const lost=players.findIndex(p=>!JellyPhysics.alive(p)),moving=world.lifts.some(l=>Math.abs(l.target-l.height)>.01&&players.some(p=>Math.abs(p.x-l.x)<.4&&Math.abs(p.z-l.z)<.4));
@@ -52,7 +63,7 @@ function updateUI(){
 function focusPlayer(i){followedPlayer=i;document.querySelectorAll('.member').forEach((member,j)=>{member.classList.toggle('following',i===j);member.setAttribute('aria-current',i===j?'true':'false');});}
 function clearGoalVisuals(){level.won=false;sceneRenderer.goalGlowStrength=[];sceneRenderer.goalWinGlow=0;}
 function reset(){
- players.forEach((p,i)=>Object.assign(p,start[i],{spawn:{...start[i]},state:'alive',y:0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:start[i].x,rz:start[i].z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,shield:null,facingX:0,facingZ:1}));
+ players.forEach((p,i)=>Object.assign(p,start[i],{spawn:{...start[i]},state:'alive',y:0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:start[i].x,rz:start[i].z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,shield:null,shieldHP:0,sword:null,facingX:0,facingZ:1,launchTimer:0,bashCooldown:0,attackTime:0,attackCooldown:0}));
  crates.forEach(p=>Object.assign(p,p.spawn,{y:1,state:'alive',vx:0,vy:0,vz:0,deaths:0,respawnTimer:0}));
  history=[];moves=0;won=false;heldKeys.clear();world.held.clear();world.resetFeatures();soft.reset();effects.clear();sceneRenderer.bridgeKey=undefined;accumulator=0;
  players.forEach(p=>Object.assign(p,{portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null}));
@@ -66,9 +77,9 @@ function undo(){
  effects.clear();
  clearGoalVisuals();
  sceneRenderer.platePress=[];
- players.forEach((p,i)=>Object.assign(p,previous.players[i],{rx:previous.players[i].x,rz:previous.players[i].z,vx:0,vz:0,bounce:.2,impact:0,squish:0,squishVelocity:0}));
+ players.forEach((p,i)=>Object.assign(p,previous.players[i],{rx:previous.players[i].x,rz:previous.players[i].z,vx:previous.players[i].launchTimer?previous.players[i].vx:0,vz:previous.players[i].launchTimer?previous.players[i].vz:0,bounce:.2,impact:0,squish:0,squishVelocity:0}));
  crates.forEach((p,i)=>Object.assign(p,previous.crates[i],{vx:0,vy:0,vz:0}));
- world.held=new Set(previous.bridges);world.restoreFeatures(previous.features);soft.restore(bodies,previous.soft);bodies.forEach(p=>soft.get(p).velocities.forEach(v=>v.fill(0)));sceneRenderer.bridgeKey=undefined;heldKeys.clear();accumulator=0;moves--;won=false;updateUI();
+ world.held=new Set(previous.bridges);world.restoreFeatures(previous.features);soft.restore(bodies,previous.soft);bodies.forEach(p=>{if(!p.launchTimer)soft.get(p).velocities.forEach(v=>v.fill(0));});sceneRenderer.bridgeKey=undefined;heldKeys.clear();accumulator=0;moves--;won=false;updateUI();
 }
 function snapshot(){return {players:players.map(p=>({...p,spawn:{...p.spawn}})),crates:crates.map(p=>({...p,spawn:{...p.spawn}})),bridges:[...world.held],features:world.featureSnapshot(),soft:soft.snapshot(bodies)};}
 function inputs(){
@@ -90,7 +101,9 @@ function simulate(dt){
    if(event.type==='fall'||event.type==='death'){
     for(const key of heldKeys)if(movementKeys[key][0]===event.player)heldKeys.delete(key);
     input[event.player]={x:0,z:0};tone(95);
-   }else if(event.type==='respawn')tone(event.player?400:300);else if(event.type==='portal')tone(520);else if(event.type==='pickup')tone(720);else if(event.type==='arrowBlock')tone(840);
+   }else if(event.type==='shieldBash'){
+    for(const key of heldKeys)if(movementKeys[key][0]===event.target)heldKeys.delete(key);input[event.target]={x:0,z:0};woodHit();
+   }else if(event.type==='respawn')tone(event.player?400:300);else if(event.type==='portal')tone(520);else if(event.type==='pickup')tone(720);else if(event.type==='archerShot')tone(840);else if(event.type==='arrowBlock'&&event.durability>0)woodHit();else if(event.type==='shieldBreak')woodHit(true);else if(event.type==='archerDeath')tone(180);
   }
   accumulator-=JellyPhysics.STEP;
  }
@@ -99,7 +112,7 @@ function simulate(dt){
  if(won){players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);}
  updateUI();
 }
-function stopInput(){heldKeys.clear();players.forEach(p=>{p.vx=p.vz=0;const b=soft.get(p);b.velocities.forEach(v=>{v[0]=v[2]=0;});});accumulator=0;}
+function stopInput(){heldKeys.clear();players.forEach(p=>{if(p.launchTimer)return;p.vx=p.vz=0;const b=soft.get(p);b.velocities.forEach(v=>{v[0]=v[2]=0;});});accumulator=0;}
 addEventListener('keydown',e=>{
  if(e.ctrlKey||e.metaKey||e.altKey)return;
  if(e.target?.closest?.('select,textarea,input:not([type=range]):not([type=checkbox])')||e.target?.matches?.('input[type=range]')&&/^(Arrow|Home|End|Page)/.test(e.code))return;

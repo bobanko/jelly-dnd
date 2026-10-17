@@ -63,7 +63,7 @@
      boxes.push({x,z,half:.5,minY:lift?height-.16:-.72,maxY:height,kind:lift?'lift':'floor'});
     }
     for(const o of this.obstacles)boxes.push({...o,minY:o.minY??(o.half>.4?-.4:0),maxY:o.height??(o.half>.4?1.4:.56),kind:'wall'});
-    for(const a of this.archers){const y=a.y??this.heightAt(a.x,a.z)??0;boxes.push({x:a.x,z:a.z,half:.25,minY:y,maxY:y+1.2,kind:'archer'});}
+    for(const a of this.archers)if(a.state!=='dead'){const y=a.y??this.heightAt(a.x,a.z)??0;boxes.push({x:a.x,z:a.z,half:.25,minY:y,maxY:y+1.2,kind:'archer'});}
     return this._collisionCache=boxes;
    },
    debugBoxes(){return [...this.collisionBoxes(),...this.spikes.filter(s=>this.spikeState(s).dangerous).map(s=>({...s,half:.34,minY:s.y??this.heightAt(s.x,s.z)??0,maxY:(s.y??this.heightAt(s.x,s.z)??0)+.03+.18*this.spikeState(s).extension,kind:'spikes'})),...this.portals.map(p=>({...p,half:.28,minY:p.y??this.heightAt(p.x,p.z)??0,maxY:(p.y??this.heightAt(p.x,p.z)??0)+.08,kind:'portal'}))];},

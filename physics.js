@@ -41,7 +41,8 @@
      return;
     }
     if(p.state==='falling'){
-     p.vy-=GRAVITY*dt;p.y+=p.vy*dt;p.x+=p.vx*dt;p.z+=p.vz*dt;p.vx*=Math.exp(-dt*.8);p.vz*=Math.exp(-dt*.8);
+     p.vy-=GRAVITY*dt;p.y+=p.vy*dt;p.x+=p.vx*dt;p.z+=p.vz*dt;if(!p.launchTimer){p.vx*=Math.exp(-dt*.8);p.vz*=Math.exp(-dt*.8);}
+     if(p.launchTimer&&this.heightAt(p.x,p.z)!==null&&p.vy<0&&p.y<=this.heightAt(p.x,p.z)){p.y=this.heightAt(p.x,p.z);p.vy=0;p.state='alive';p.launchTimer=0;events.push({type:'land',player:i});return;}
      if(p.y<DEATH_HEIGHT){p.state='dead';p.deaths++;p.respawnTimer=RESPAWN_DELAY;p.vx=p.vz=0;events.push({type:'death',player:i});}
      return;
     }

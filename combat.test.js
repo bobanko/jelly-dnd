@@ -109,3 +109,77 @@ test('projectiles are bounded and expire in an open firing lane',()=>{
  g.world.archers=[];for(let i=0;i<410;i++)g.world.afterCombat(g.bodies,null,.01);
  assert.equal(g.world.arrows.length,0);
 });
+
+test('third arrow breaks the shield after blocking that hit; a fourth arrow kills and reset restores the pickup',()=>{
+ const g=scene();g.world.pickups=[{id:'shield',kind:'shield',x:5,z:5,holder:null}];
+ g.world.afterCombat(g.bodies,null,0);Object.assign(g.p,{facingX:-1,facingZ:0});
+ for(let hit=1;hit<=3;hit++){
+  const events=shoot(g);
+  assert.ok(events.some(e=>e.type==='arrowBlock'&&e.durability===3-hit));assert.equal(g.p.state,'alive');
+  assert.equal(g.p.shieldHP,3-hit);assert.equal(g.world.pickups[0].durability,3-hit);
+  assert.equal(events.some(e=>e.type==='shieldBreak'),hit===3);
+ }
+ assert.equal(g.p.shield,null);assert.equal(g.world.pickups[0].destroyed,true);
+ g.world.afterCombat(g.bodies,null,0);assert.equal(g.p.shield,null,'a broken shield cannot be picked up again');
+ shoot(g);assert.equal(g.p.state,'dead');
+ g.world.resetFeatures();assert.equal(g.world.pickups[0].destroyed,false);assert.equal(g.world.pickups[0].durability,3);
+});
+
+test('bash launches a jelly over one intervening tile, ignores held movement in flight and lands on the far bank',()=>{
+ const g=scene();g.world.soft=new System();
+ for(let z=0;z<12;z++)g.world.floor.delete(`6,${z}`);
+ const attacker={...g.p,x:4.02,shield:'shield',shieldHP:3,facingX:1,facingZ:0,vx:1};
+ g.p.sword='sword';g.bodies=[attacker,g.p];g.bodies.forEach(p=>g.world.soft.get(p));
+ const events=g.world.afterCombat(g.bodies,g.world.soft,0);
+ assert.ok(events.some(e=>e.type==='shieldBash'&&e.target===1));assert.equal(g.p.state,'falling');
+ let peak=0,landed=false;
+ for(let i=0;i<180&&!landed;i++){
+  const step=g.world.step(g.bodies,[{x:0,z:0},{x:-1,z:0}]);peak=Math.max(peak,g.p.y);landed=step.some(e=>e.type==='land'&&e.player===1);
+ }
+ assert.ok(landed);assert.ok(peak>1.2);assert.ok(Math.abs(g.p.x-7)<.25,`landing x=${g.p.x}`);
+ assert.equal(g.p.launchTimer,0);assert.equal(g.p.sword,'sword','airborne passengers retain equipment');
+});
+
+test('bash only triggers on a forward push and the thrown jelly still collides with a wall',()=>{
+ for(const override of [{vx:0},{facingX:-1},{z:6},{y:1}]){
+  const g=scene(),attacker={...g.p,x:4.02,shield:'shield',facingX:1,facingZ:0,vx:1,...override};g.bodies=[attacker,g.p];
+  assert.equal(g.world.afterCombat(g.bodies,null,0).some(e=>e.type==='shieldBash'),false);
+ }
+ const g=scene();g.world.soft=new System();g.world.obstacles.push({x:6,z:5,half:.5,height:3});
+ const attacker={...g.p,x:4.02,shield:'shield',facingX:1,facingZ:0,vx:1};g.bodies=[attacker,g.p];
+ g.world.afterCombat(g.bodies,g.world.soft,0);
+ for(let i=0;i<150;i++)g.world.step(g.bodies,[]);
+ assert.ok(g.p.x<5.35,'wall must stop the physical flight');assert.equal(g.p.state,'alive');
+});
+
+test('sword auto-equips in the active slot, kills a frontal skeleton and restores it after exactly five seconds',()=>{
+ const g=scene();g.world.pickups=[{id:'sword',kind:'sword',x:5,z:5,holder:null}];
+ g.world.afterCombat(g.bodies,null,0);assert.equal(g.p.sword,'sword');assert.equal(g.p.shield,undefined);
+ Object.assign(g.p,{facingX:1,facingZ:0});g.world.archers=[{x:6,z:5,dx:-1,dz:0,cooldown:0}];g.world._collisionCache=null;
+ const events=g.world.afterCombat(g.bodies,null,.01);
+ assert.ok(events.some(e=>e.type==='archerDeath'));assert.equal(g.world.archers[0].state,'dead');assert.equal(g.world.arrows.length,0);
+ assert.equal(g.world.collisionBoxes().some(b=>b.kind==='archer'),false);
+ assert.ok(g.p.attackTime>0);
+ for(let i=0;i<99;i++)g.world.beforeCombat(g.bodies,[],.05);
+ assert.equal(g.world.archers[0].state,'dead');
+ g.world.beforeCombat(g.bodies,[],.05);assert.equal(g.world.archers[0].state,'alive');assert.equal(g.world.archers[0].respawnTimer,0);
+ assert.ok(g.world.collisionBoxes().some(b=>b.kind==='archer'));assert.equal(g.world.archers[0].cooldown,1.6);
+});
+
+test('sword cannot hit behind, sideways, across a wall or onto a different floor',()=>{
+ for(const override of [{facingX:-1},{facingX:0,facingZ:1},{z:6},{y:1}]){
+  const g=scene();Object.assign(g.p,{sword:'sword',facingX:1,facingZ:0},override);g.world.archers=[{x:6,z:5,dx:-1,dz:0,cooldown:2}];
+  assert.equal(g.world.afterCombat(g.bodies,null,0).some(e=>e.type==='archerDeath'),false);
+ }
+ const g=scene();Object.assign(g.p,{sword:'sword',facingX:1,facingZ:0});g.world.archers=[{x:6,z:5,dx:-1,dz:0,cooldown:2}];g.world.obstacles.push({x:5.5,z:5,half:.08,height:1});
+ assert.equal(g.world.afterCombat(g.bodies,null,0).some(e=>e.type==='archerDeath'),false);
+ g.world.pickups=[{id:'shield',kind:'shield',x:5,z:5,holder:null}];g.world.afterCombat(g.bodies,null,0);
+ assert.equal(g.world.pickups[0].holder,null,'equipped sword occupies the item slot');
+});
+
+test('combat snapshots preserve broken shields and the skeleton resurrection clock',()=>{
+ const g=scene();g.world.pickups=[{id:'shield',kind:'shield',x:5,z:5,holder:null,durability:0,destroyed:true}];
+ g.world.archers=[{x:6,z:5,dx:-1,dz:0,state:'dead',respawnTimer:2.3,cooldown:1}];
+ const saved=g.world.featureSnapshot();g.world.resetFeatures();g.world.restoreFeatures(saved);
+ assert.deepEqual(g.world.featureSnapshot(),saved);assert.equal(g.world.archers[0].respawnTimer,2.3);assert.equal(g.world.pickups[0].destroyed,true);
+});
