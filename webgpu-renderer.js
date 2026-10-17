@@ -92,6 +92,62 @@
    else mesh.push(center[0]+px,center[1]+py,center[2]+pz,x,y,z,...color,material,0,0);
   }
  }
+ function rod(mesh,a,b,width,color,material=1){
+  const v=normalize(b.map((x,k)=>x-a[k])),u=normalize(Math.abs(v[1])>.95?cross(v,[0,0,1]):cross(v,[0,1,0])),w=cross(u,v),from=mesh.length;
+  box(mesh,[0,0,0],[width,Math.hypot(...b.map((x,k)=>x-a[k])),width],color,width*.25,material,2);
+  for(let k=from;k<mesh.length;k+=12)for(const offset of [0,3]){
+   const x=mesh[k+offset],y=mesh[k+offset+1],z=mesh[k+offset+2];
+   for(let n=0;n<3;n++)mesh[k+offset+n]=(offset?0:(a[n]+b[n])*.5)+u[n]*x+v[n]*y+w[n]*z;
+  }
+ }
+ function shieldGeometry(){
+  const mesh=[],iron=[.27,.28,.26],wood=[.44,.29,.13];
+  pressureSurface(mesh,[0,0,0],[[0,0],[.27,0],[.27,.052],[0,.052]],wood,11,0,32);
+  pressureSurface(mesh,[0,0,0],[[.265,0],[.31,0],[.31,.025],[.3,.07],[.27,.075],[.265,.055],[.265,0]],iron,12,0,32);
+  // Turn the lathed disc upright and give it the oval proportions of an oak shield.
+  for(let k=0;k<mesh.length;k+=12){const y=mesh[k+1],ny=mesh[k+4];mesh[k]*=.9;mesh[k+1]=-mesh[k+2]*1.1;mesh[k+2]=y;mesh[k+4]=-mesh[k+5];mesh[k+5]=ny;if(mesh[k+9]===11){mesh[k+10]=.5+mesh[k]*1.6;mesh[k+11]=.5-mesh[k+1]*1.4;}}
+  for(const x of [-.16,-.08,0,.08,.16]){const h=.58*Math.sqrt(1-(x/.245)**2);box(mesh,[x,0,.054],[.005,h,.003],[.07,.045,.02],.001,13,1);}
+  for(let i=0;i<12;i++){const a=i*Math.PI/6;sphere(mesh,[Math.cos(a)*.259,Math.sin(a)*.318,.069],[.013,.013,.012],[.55,.51,.38],12);}
+  sphere(mesh,[0,0,.065],[.085,.085,.025],iron,12);sphere(mesh,[0,0,.093],[.047,.047,.045],[.46,.46,.39],12);
+  return mesh;
+ }
+ function arrowGeometry(){
+  const mesh=[];rod(mesh,[0,0,-.34],[0,0,.08],.017,[.46,.31,.12],11);
+  // Four triangular metal faces form a readable arrowhead, with pale fletching behind.
+  const tip=[0,0,.19],base=[[.042,0,.06],[0,.042,.06],[-.042,0,.06],[0,-.042,.06]];
+  for(let i=0;i<4;i++){const a=base[i],b=base[(i+1)%4],normal=normalize(cross(b.map((v,k)=>v-a[k]),tip.map((v,k)=>v-a[k])));for(const p of [a,b,tip])mesh.push(...p,...normal,.63,.64,.58,12,0,0);}
+  for(const a of [0,Math.PI/2]){
+   const from=mesh.length;box(mesh,[0,.035,-.27],[.012,.08,.12],[.7,.65,.5],.002,1,1);
+   for(let k=from;k<mesh.length;k+=12)for(const offset of [0,3]){const x=mesh[k+offset],y=mesh[k+offset+1];mesh[k+offset]=x*Math.cos(a)-y*Math.sin(a);mesh[k+offset+1]=x*Math.sin(a)+y*Math.cos(a);}
+  }
+  return mesh;
+ }
+ function archerGeometry(){
+  const mesh=[],bone=[.72,.67,.47],dark=[.028,.023,.018],joint=(p,r=.037)=>sphere(mesh,p,[r,r,r],bone),limb=(a,b,w=.05)=>{rod(mesh,a,b,w,bone);joint(a,w*.65);joint(b,w*.65);};
+  // Skull, separate jaw, sockets, nasal cavity and individual teeth.
+  sphere(mesh,[0,1.04,0],[.158,.17,.14],bone);sphere(mesh,[0,.905,.025],[.108,.065,.108],bone);
+  for(const s of [-1,1]){sphere(mesh,[s*.061,1.06,.125],[.046,.052,.025],dark);sphere(mesh,[s*.061,1.06,.148],[.012,.016,.009],[1.6,.38,.035],4);}
+  sphere(mesh,[0,.996,.14],[.022,.028,.012],dark);
+  for(const x of [-.067,-.022,.022,.067])box(mesh,[x,.922,.12],[.027,.037,.024],bone,.005,1,2);
+  limb([0,.41,0],[0,.88,0],.055);
+  for(let i=0;i<4;i++)for(const s of [-1,1]){
+   const y=.79-i*.073;rod(mesh,[s*.02,y,-.025],[s*(.17-i*.013),y-.017,.005],.028,bone);
+   rod(mesh,[s*(.17-i*.013),y-.017,.005],[s*.07,y-.043,.095],.026,bone);
+  }
+  limb([-.17,.83,0],[.17,.83,0],.045);sphere(mesh,[0,.43,0],[.12,.07,.075],bone);
+  for(const s of [-1,1]){limb([s*.075,.41,0],[s*.115,.22,s*.025],.055);limb([s*.115,.22,s*.025],[s*.14,.04,.035],.045);box(mesh,[s*.14,.035,.09],[.09,.065,.18],bone,.02,1,2);}
+  // One arm holds the bow, the other draws the string back to the ribs.
+  limb([-.17,.83,0],[-.22,.65,.16],.044);limb([-.22,.65,.16],[-.09,.57,.34],.038);
+  limb([.17,.83,0],[.27,.64,-.045],.044);limb([.27,.64,-.045],[.025,.57,.09],.038);
+  sphere(mesh,[-.09,.57,.34],[.043,.043,.048],bone);sphere(mesh,[.025,.57,.09],[.042,.042,.042],bone);
+  return mesh;
+ }
+ function bowGeometry(){
+  const mesh=[],points=[[-.09,.19,.21],[-.09,.29,.32],[-.09,.43,.4],[-.09,.57,.42],[-.09,.71,.4],[-.09,.85,.32],[-.09,.95,.21]];
+  for(let i=1;i<points.length;i++)rod(mesh,points[i-1],points[i],.035,[.44,.23,.075],11);
+  rod(mesh,[-.09,.51,.42],[-.09,.63,.42],.047,[.13,.08,.04],13);
+  return mesh;
+ }
  function spike(mesh,x,y,z){
   const profile=[[-.034,-.045],[.034,-.045],[.045,-.034],[.045,.034],[.034,.045],[-.034,.045],[-.045,.034],[-.045,-.034]];
   for(let i=0;i<profile.length;i++){
@@ -513,6 +569,17 @@
     for(let j=0;j<5;j++){const mesh=[],phase=j*2.4+i;const position=[Math.sin(phase)*.22,-.26+j*.097,Math.cos(phase)*.2];sphere(mesh,position,[.015,.015,.015],[[.55,.72,.23],[.25,.62,.7],[.9,.3,.12]][i],1);append('bubble',i,mesh,{bubble:j});}
    }
    for(let i=0;i<(level.crates||[]).length;i++)append('crate',i,crateGeometry());
+   const shield=shieldGeometry(),heldShield=shield.slice();
+   rod(heldShield,[0,-.02,-.25],[-.045,-.07,-.11],.043,bone);rod(heldShield,[-.045,-.07,-.11],[0,-.04,-.012],.035,bone);sphere(heldShield,[0,-.04,-.012],[.044,.037,.035],bone);
+   for(let i=0;i<players.length;i++)append('shield',i,heldShield);
+   for(let i=0;i<level.world.pickups.length;i++)append('pickup',i,shield);
+   const arrow=arrowGeometry();
+   for(let i=0;i<12;i++)append('arrow',i,arrow);
+   for(let i=0;i<level.world.archers.length;i++){
+    append('archer',i,archerGeometry());append('archerBow',i,bowGeometry());
+    const string=[];rod(string,[-.09,.19,.21],[-.09,.57,.21],.008,[.72,.62,.42],1);rod(string,[-.09,.57,.21],[-.09,.95,.21],.008,[.72,.62,.42],1);append('archerString',i,string);
+    append('nockedArrow',i,arrow);
+   }
    for(let i=0;i<level.plates.length;i++){
     const mesh=[],plate=level.plates[i],palette={red:[.78,.026,.012],blue:[.018,.25,.78],amber:[.78,.36,.012],dark:[.12,.135,.14]},color=palette[plate.color]||[palette.red,palette.blue][i%2];
     pressureSurface(mesh,[0,0,0],[[0,0],[.285,0],[.3,.009],[.3,.032],[.287,.045],[0,.045]],color,14,(i*7+2)%16);
@@ -533,7 +600,7 @@
    if(this.propData.byteLength>this.propBuffer.size){this.propBuffer.destroy();this.propBuffer=this.device.createBuffer({size:this.propData.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}
   }
   props(level,players,angle,time,dt=1/60){
-   const key=[players.length,(level.crates||[]).length,level.world.lifts.length,level.world.spikes.length,level.plates.length].join(',');
+   const key=[players.length,(level.crates||[]).length,level.world.lifts.length,level.world.spikes.length,level.plates.length,level.world.archers.length,level.world.pickups.length].join(',');
    if(this.propGeometryKey!==key){this.buildProps(level,players);this.propGeometryKey=key;}
    this.platePress??=[];
    const plateBodies=[...players,...(level.crates||[])],pressFade=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*14);
@@ -543,13 +610,27 @@
    // Reuse immutable local meshes and one upload array. No per-frame tessellation
    // or large JS number arrays for rigid decorations.
    for(const piece of this.propPieces){
-    const i=piece.index,source=piece.data;let x=0,y=0,z=0,rotate=false,matrix=null;
+    const i=piece.index,source=piece.data;let x=0,y=0,z=0,rotate=false,matrix=null,stringPull=0;
     if(piece.kind==='jelly'||piece.kind==='bubble'){
      const p=players[i];if(p.state==='dead')continue;
      const core=level.soft.get(p).core;x=core[0];y=core[1];z=core[2];rotate=piece.kind==='jelly';
      if(piece.kind==='bubble')y+=(piece.bubble*.097+time*.018)%.51-piece.bubble*.097;
     }else if(piece.kind==='crate'){
      const p=level.crates[i];if(p.state==='dead')continue;x=p.x;y=(p.y||0)+.42;z=p.z;matrix=level.soft.get(p).r;
+    }else if(piece.kind==='shield'){
+     const p=players[i];if(!p.shield||p.state==='dead')continue;
+     const core=level.soft.get(p).core,fx=p.facingX||0,fz=p.facingZ??1;x=core[0]+fx*.55;y=core[1];z=core[2]+fz*.55;matrix=[fz,0,fx,0,1,0,-fx,0,fz];
+    }else if(piece.kind==='pickup'){
+     const p=level.world.pickups[i];if(p.holder!==null&&p.holder!==undefined)continue;
+     x=p.x;y=(p.y??level.world.heightAt(p.x,p.z)??0)+.065+(level.reducedMotion?0:Math.sin(time*2)*.012);z=p.z;matrix=[1,0,0,0,0,1,0,-1,0];
+    }else if(piece.kind==='arrow'){
+     const p=level.world.arrows[i];if(!p)continue;x=p.x;y=p.y;z=p.z;matrix=[p.dz,0,p.dx,0,1,0,-p.dx,0,p.dz];
+    }else if(piece.kind.startsWith('archer')||piece.kind==='nockedArrow'){
+     const a=level.world.archers[i],length=Math.hypot(a.dx||0,a.dz??1)||1,fx=(a.dx||0)/length,fz=(a.dz??1)/length;
+     x=a.x;y=a.y??level.world.heightAt(a.x,a.z)??0;z=a.z;matrix=[fz,0,fx,0,1,0,-fx,0,fz];
+     const pull=Math.max(0,1-(a.cooldown??a.firstShot??1.6)/.65)*.22;
+     if(piece.kind==='archerString')stringPull=pull;
+     if(piece.kind==='nockedArrow'){if((a.cooldown??1.6)>.85)continue;x+=fx*(.21-pull)-fz*.09;y+=.57;z+=fz*(.21-pull)+fx*.09;}
     }else if(piece.kind==='pressureButton'){
      const p=level.plates[i];x=p.x;y=(p.y??level.world.heightAt(p.x,p.z)??0)+.06-this.platePress[i]*.045;z=p.z;
     }else if(piece.kind==='lift'){
@@ -559,7 +640,7 @@
      if(state.extension<=0)continue;y+=.03-.18*(1-state.extension);
     }
     data.set(source,cursor);
-    if(matrix){for(let n=0;n<source.length;n+=12){const k=cursor+n;for(let axis=0;axis<3;axis++){const a=axis*3;data[k+axis]=(axis===0?x:axis===1?y:z)+matrix[a]*source[n]+matrix[a+1]*source[n+1]+matrix[a+2]*source[n+2];data[k+3+axis]=matrix[a]*source[n+3]+matrix[a+1]*source[n+4]+matrix[a+2]*source[n+5];}}}
+    if(matrix){for(let n=0;n<source.length;n+=12){const k=cursor+n,localZ=source[n+2]-stringPull*Math.max(0,1-Math.abs(source[n+1]-.57)/.38);for(let axis=0;axis<3;axis++){const a=axis*3;data[k+axis]=(axis===0?x:axis===1?y:z)+matrix[a]*source[n]+matrix[a+1]*source[n+1]+matrix[a+2]*localZ;data[k+3+axis]=matrix[a]*source[n+3]+matrix[a+1]*source[n+4]+matrix[a+2]*source[n+5];}}}
     else if(rotate){for(let n=0;n<source.length;n+=12){const k=cursor+n;data[k]=x+rx*source[n]+fx*source[n+2];data[k+1]=y+source[n+1];data[k+2]=z+rz*source[n]+fz*source[n+2];data[k+3]=rx*source[n+3]+fx*source[n+5];data[k+5]=rz*source[n+3]+fz*source[n+5];}}
     else{for(let n=0;n<source.length;n+=12){const k=cursor+n;data[k]=x+source[n];data[k+1]=y+source[n+1];data[k+2]=z+source[n+2];}}
     cursor+=source.length;

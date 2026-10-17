@@ -5,7 +5,7 @@
  const alive=p=>!p.state||p.state==='alive';
  const overlaps=(a,b,half=SIZE)=>Math.abs(a.x-b.x)<half&&Math.abs(a.z-b.z)<half;
  class World{
-  constructor(floor,bridges,plates,obstacles=[]){this.floor=floor;this.bridges=bridges;this.plates=plates;this.obstacles=obstacles;this.held=new Set();this.heights=new Map();this.lifts=[];this.spikes=[];this.portals=[];}
+  constructor(floor,bridges,plates,obstacles=[]){this.floor=floor;this.bridges=bridges;this.plates=plates;this.obstacles=obstacles;this.held=new Set();this.heights=new Map();this.lifts=[];this.spikes=[];this.portals=[];this.archers=[];this.arrows=[];this.pickups=[];}
   active(i,bodies){return bodies.some(p=>alive(p)&&Math.abs(p.y||0)<.15&&Math.abs(p.x-this.plates[i].x)<.42&&Math.abs(p.z-this.plates[i].z)<.42);}
   refresh(bodies){for(let i=0;i<this.bridges.length;i++){const b=this.bridges[i];if(this.active(b.plate,bodies))this.held.add(i);else if(!bodies.some(p=>alive(p)&&overlaps(p,b,.5+HALF+.001)))this.held.delete(i);}}
   solid(x,z){if(!this.floor.has(`${x},${z}`))return true;const i=this.bridges.findIndex(b=>b.x===x&&b.z===z);return i>=0&&!this.held.has(i);}
@@ -28,7 +28,8 @@
    p[axis]+=allowed;return p[axis]-before;
   }
   step(bodies,inputs,dt=STEP){
-   if(this.soft){this.beforeFeatures(bodies,this.soft,dt);const events=this.soft.step(this,bodies,inputs,dt);return [...events,...this.afterFeatures(bodies,this.soft)];}
+   this.beforeCombat(bodies,inputs,dt);
+   if(this.soft){this.beforeFeatures(bodies,this.soft,dt);const events=this.soft.step(this,bodies,inputs,dt);return [...events,...this.afterFeatures(bodies,this.soft),...this.afterCombat(bodies,this.soft,dt)];}
    const events=[];
    bodies.forEach(p=>{p.spawn??={x:p.x,z:p.z};p.state??='alive';p.y??=0;p.vy??=0;p.deaths??=0;p.respawnFlash=Math.max(0,(p.respawnFlash||0)-dt);});
    this.refresh(bodies);
@@ -72,10 +73,11 @@
     if(Math.hypot(p.vx,p.vz)<.001)p.vx=p.vz=0;
    });
    this.refresh(bodies);
-   return events;
+   return [...events,...this.afterCombat(bodies,null,dt)];
   }
  }
  if(typeof module!=='undefined'&&module.exports)require('./level-features.js').install(World);else root.JellyLevelFeatures.install(World);
+ if(typeof module!=='undefined'&&module.exports)require('./combat.js').install(World);else root.JellyCombat.install(World);
  const api={World,HALF,SIZE,STEP,SPEED,GRAVITY,DEATH_HEIGHT,RESPAWN_DELAY,alive};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyPhysics=api;
 })(globalThis);

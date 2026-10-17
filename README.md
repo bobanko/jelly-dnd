@@ -40,6 +40,10 @@ Violet floor portals link (3,6) and the upper terrace at (6,9). Amber portals li
 
 The portal swirl and rim brighten smoothly as a living creature's footprint moves over the opening, with a matching coloured glow on the surrounding floor. After arrival, the occupied exit becomes dim grey, its swirl stops and its rising rings and floor glow disappear. It remains inactive even when the arrival only partly overlaps the portal slab; normal colour and effects return after the jelly fully clears it. The distant matching portal keeps its colour. Three translucent rings rise, expand and dissolve above active portals. Their mesh is cached once and instanced; the GPU animates height, radius and opacity. The glow and rings share the final jelly render pass instead of adding another full-screen resolve. Reduced-motion mode keeps the ambient rings stationary. Cubes on another floor and crates do not charge portals.
 
+A skeleton archer stands at (10,5), facing south along the x=10 grid lane. It fires every 2.4 seconds and draws its bowstring during the last 0.65 seconds before each shot. Arrows travel on a single cardinal axis without tracking targets. Swept segment collisions stop them at the nearest wall, raised terrain, crate, shield or creature, including during fast frames. An unprotected hit shatters and respawns the jelly. The skeleton has a solid level collider visible in the collider overlay.
+
+An oak shield lies at (8,8). Any living jelly can automatically pick it up by approaching on the same floor. The equipped shield and a small bone arm attach to the front face, turning to the last movement direction in world space, including after camera rotation. Facing persists while stationary; equal diagonal inputs retain a compatible current face. Only frontal hits are blocked, with a brief shower of sparks; side and rear hits remain lethal. When its owner falls or dies, the shield returns to the pickup tile. Undo restores inventory, facing, pickup ownership, arrows and the firing clock; reset clears them. Skeleton, bow, arrows and shield reuse cached meshes in the existing opaque pass.
+
 Z restores the complete movement gesture: all three creatures, crate position and state, deformations, death state, portal locks and lift height/target/timers. Reset returns the crate to its terrace and lifts to their lower position. Physics uses one exposed floor height per column; this level does not have walkable tunnels beneath raised terraces. Stepping down onto a lower supported surface lands safely, while a fall into a true hole still kills and respawns the creature.
 
 ## Physics
@@ -84,6 +88,8 @@ npm run check
 npm test
 
 For real GPU/browser checks, install development dependencies with npm install, keep the local server running, then run npm run test:browser. The script uses the installed Windows Chrome executable; CHROME_PATH can select another compatible Chromium executable. It launches an isolated headless browser with WebGPU enabled, never a personal browser profile.
+
+npm run test:combat:browser additionally checks automatic shield pickup, inventory undo/reset, camera-relative equipment facing, frontal arrow blocks, impact sparks, rear-hit death and respawn on the real GPU. Combat unit tests cover all four firing directions, swept collisions, walls, crates, floor heights, nearest-hit ordering and bounded projectile lifetime.
 
 npm run test:dice renders the production pip shader onto all six faces, counts the separate dots from a GPU readback and checks the 1–6 values and opposite-face sums. It also captures the three actual jelly creatures at four camera rotations. Audit images are saved in artifacts/.
 

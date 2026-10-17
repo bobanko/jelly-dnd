@@ -22,6 +22,12 @@
      const q=body.positions[Math.floor(random()*body.positions.length)],a=random()*Math.PI*2,speed=.6+random()*1.8;
      this.particles.push({kind:'jelly',position:[...q],velocity:[Math.cos(a)*speed,1+random()*2.2,Math.sin(a)*speed],size:.075+random()*.075,phase:random()*6.28,color:palettes[event.player],age:0,life});
     }
+   }else if(event.type==='arrowBlock'||event.type==='arrowImpact'){
+    const color=event.type==='arrowBlock'?[1.,.72,.26]:[.48,.4,.29];
+    for(let i=0;i<(this.reducedMotion?2:7);i++){
+     const a=random()*Math.PI*2;
+     this.particles.push({kind:'magic',position:[...event.position],velocity:[Math.cos(a)*.8,.3+random()*.7,Math.sin(a)*.8],size:.012+random()*.012,phase:a,color,age:0,life:.18+random()*.12});
+    }
    }else if(event.type==='portal'){
     const color=event.color==='violet'?[.75,.12,1.]:[1.,.48,.05];
     for(const center of [event.source,event.destination]){

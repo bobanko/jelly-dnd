@@ -5,7 +5,7 @@ const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
 let W,H,DPR,scale,angle=0,targetAngle=0,last=0,time=0,moves=0,history=[],won=false,audioOn=false,audio;
 const N=12, colors=['#9ddd56','#477bff','#ef5346'],names=['Мох','Иней','Уголёк'];
 let zoom=1,fpsTime=0,fpsFrames=0;
-const start=[{x:2,z:8},{x:9,z:8},{x:9,z:7}],players=start.map(p=>({...p,spawn:{...p},state:'alive',y:0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:p.x,rz:p.z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null}));
+const start=[{x:2,z:8},{x:9,z:8},{x:9,z:7}],players=start.map(p=>({...p,spawn:{...p},state:'alive',y:0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:p.x,rz:p.z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null,shield:null,facingX:0,facingZ:1}));
 const crates=[{kind:'crate',x:7,z:9,y:1,spawn:{x:7,z:9},state:'alive',vx:0,vy:0,vz:0,deaths:0}];
 const bodies=[...players,...crates];
 let followedPlayer=0;
@@ -30,6 +30,10 @@ for(const x of [5,6,7])for(const z of [8,9,10]){floor.add(`${x},${z}`);world.hei
 world.lifts.push({x:5,z:7,base:0,top:1,height:0,target:0});
 world.spikes.push({x:3,z:9},{x:9,z:6,offset:2.9});
 world.portals.push({x:3,z:6,color:'violet'},{x:6,z:9,color:'violet'},{x:9,z:9,color:'amber'},{x:7,z:2,color:'amber'});
+// A side firing lane leaves the cooperative bridge route available.
+floor.add('10,5');floor.add('10,6');
+world.archers.push({x:10,z:5,dx:0,dz:1,interval:2.4,firstShot:1.6});
+world.pickups.push({id:'oak-shield',kind:'shield',x:8,z:8,holder:null});
 const effects=new JellyEffects.System({reducedMotion});
 const level={floor,bridges,plates,goals,world,soft,effects,crates,won:false,reducedMotion};
 const heldKeys=new Set();
@@ -48,7 +52,7 @@ function updateUI(){
 function focusPlayer(i){followedPlayer=i;document.querySelectorAll('.member').forEach((member,j)=>{member.classList.toggle('following',i===j);member.setAttribute('aria-current',i===j?'true':'false');});}
 function clearGoalVisuals(){level.won=false;sceneRenderer.goalGlowStrength=[];sceneRenderer.goalWinGlow=0;}
 function reset(){
- players.forEach((p,i)=>Object.assign(p,start[i],{spawn:{...start[i]},state:'alive',y:0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:start[i].x,rz:start[i].z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0}));
+ players.forEach((p,i)=>Object.assign(p,start[i],{spawn:{...start[i]},state:'alive',y:0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:start[i].x,rz:start[i].z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,shield:null,facingX:0,facingZ:1}));
  crates.forEach(p=>Object.assign(p,p.spawn,{y:1,state:'alive',vx:0,vy:0,vz:0,deaths:0,respawnTimer:0}));
  history=[];moves=0;won=false;heldKeys.clear();world.held.clear();world.resetFeatures();soft.reset();effects.clear();sceneRenderer.bridgeKey=undefined;accumulator=0;
  players.forEach(p=>Object.assign(p,{portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null}));
@@ -86,7 +90,7 @@ function simulate(dt){
    if(event.type==='fall'||event.type==='death'){
     for(const key of heldKeys)if(movementKeys[key][0]===event.player)heldKeys.delete(key);
     input[event.player]={x:0,z:0};tone(95);
-   }else if(event.type==='respawn')tone(event.player?400:300);else if(event.type==='portal')tone(520);
+   }else if(event.type==='respawn')tone(event.player?400:300);else if(event.type==='portal')tone(520);else if(event.type==='pickup')tone(720);else if(event.type==='arrowBlock')tone(840);
   }
   accumulator-=JellyPhysics.STEP;
  }

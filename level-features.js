@@ -63,11 +63,12 @@
      boxes.push({x,z,half:.5,minY:lift?height-.16:-.72,maxY:height,kind:lift?'lift':'floor'});
     }
     for(const o of this.obstacles)boxes.push({...o,minY:o.minY??(o.half>.4?-.4:0),maxY:o.height??(o.half>.4?1.4:.56),kind:'wall'});
+    for(const a of this.archers){const y=a.y??this.heightAt(a.x,a.z)??0;boxes.push({x:a.x,z:a.z,half:.25,minY:y,maxY:y+1.2,kind:'archer'});}
     return this._collisionCache=boxes;
    },
    debugBoxes(){return [...this.collisionBoxes(),...this.spikes.filter(s=>this.spikeState(s).dangerous).map(s=>({...s,half:.34,minY:s.y??this.heightAt(s.x,s.z)??0,maxY:(s.y??this.heightAt(s.x,s.z)??0)+.03+.18*this.spikeState(s).extension,kind:'spikes'})),...this.portals.map(p=>({...p,half:.28,minY:p.y??this.heightAt(p.x,p.z)??0,maxY:(p.y??this.heightAt(p.x,p.z)??0)+.08,kind:'portal'}))];},
-   featureSnapshot(){return {time:this.featureTime||0,bridges:this.bridges.map(b=>({progress:b.progress||0,velocity:b.velocity||0})),lifts:this.lifts.map(l=>({height:l.height,target:l.target,occupiedTime:l.occupiedTime||0,emptyTime:l.emptyTime||0}))};},
-   restoreFeatures(snapshot){this.featureTime=snapshot?.time||0;this.bridges.forEach((b,i)=>Object.assign(b,snapshot?.bridges?.[i]||{progress:0,velocity:0}));this.lifts.forEach((l,i)=>Object.assign(l,snapshot?.lifts?.[i]||{height:l.base||0,target:l.base||0,occupiedTime:0,emptyTime:0}));this._collisionCache=null;},
+   featureSnapshot(){return {time:this.featureTime||0,bridges:this.bridges.map(b=>({progress:b.progress||0,velocity:b.velocity||0})),lifts:this.lifts.map(l=>({height:l.height,target:l.target,occupiedTime:l.occupiedTime||0,emptyTime:l.emptyTime||0})),combat:this.combatSnapshot()};},
+   restoreFeatures(snapshot){this.featureTime=snapshot?.time||0;this.bridges.forEach((b,i)=>Object.assign(b,snapshot?.bridges?.[i]||{progress:0,velocity:0}));this.lifts.forEach((l,i)=>Object.assign(l,snapshot?.lifts?.[i]||{height:l.base||0,target:l.base||0,occupiedTime:0,emptyTime:0}));this.restoreCombat(snapshot?.combat);this._collisionCache=null;},
    resetFeatures(){this.restoreFeatures(null);},
    beforeFeatures(players,soft,dt){
     this.featureTime=(this.featureTime||0)+dt;
@@ -115,7 +116,7 @@
     for(let radius=1;radius<=2;radius++)for(let x=-radius;x<=radius;x++)for(let z=-radius;z<=radius;z++)if(Math.max(Math.abs(x),Math.abs(z))===radius)candidates.push({x:p.spawn.x+x,z:p.spawn.z+z});
     for(const c of candidates){const height=this.heightAt(c.x,c.z);if(height===null)continue;c.y=height;
      if(this.spikes.some(s=>near(c,s,.7))||this.portals.some(portal=>near(c,portal,.5)))continue;
-     if(this.collisionBoxes().some(o=>o.kind==='wall'&&height<o.maxY&&near(c,o,.36+o.half+.015)))continue;
+     if(this.collisionBoxes().some(o=>(o.kind==='wall'||o.kind==='archer')&&height<o.maxY&&near(c,o,.36+o.half+.015)))continue;
      if(bodies.some(b=>b!==p&&alive(b)&&near(c,b,.74)&&Math.abs((b.y||0)-height)<.75))continue;
      return c;
     }

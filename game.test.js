@@ -153,3 +153,23 @@ test('undo of the first portal trip restores position, height and portal lock',(
  g.run("effects.burst({type:'portal',color:'amber',source:[1,0,1],destination:[2,1,2]},players,soft)");g.key('r');
  assert.equal(g.run('effects.rings.length+effects.particles.length'),0);
 });
+
+test('first-gesture shield pickup and facing undo without duplicating inventory; reset clears equipment',()=>{
+ const g=game();g.run('players[1].x=8.6;players[1].rx=8.6;soft.reset()');g.key('arrowleft');
+ g.run('for(let n=0;n<30&&!players[1].shield;n++)simulate(.05)');g.up('arrowleft');
+ assert.equal(g.run('players[1].shield'),'oak-shield');assert.equal(g.run('world.pickups[0].holder'),1);
+ assert.equal(g.run('players[1].facingX'),-1);
+ g.key('z');assert.equal(g.run('players[1].shield'),null);assert.equal(g.run('world.pickups[0].holder'),null);
+ assert.equal(g.run('players[1].facingX'),0);assert.equal(g.run('players[1].facingZ'),1);
+ g.run('players[1].shield="oak-shield";world.pickups[0].holder=1');g.key('r');
+ assert.equal(g.run('players[1].shield'),null);assert.equal(g.run('world.pickups[0].holder'),null);assert.equal(g.run('world.arrows.length'),0);
+});
+
+test('arrow death clears the affected controls and undo restores equipped protection and the firing clock',()=>{
+ const g=game();g.run('Object.assign(players[1],{x:10,z:7,rx:10,rz:7,shield:"oak-shield",facingZ:1});world.pickups[0].holder=1;world.archers[0].cooldown=.1;soft.reset()');
+ g.key('arrowdown');g.run('for(let n=0;n<40&&players[1].state!=="dead";n++)simulate(.05)');
+ assert.equal(g.run('players[1].deathReason'),'arrow');assert.equal(g.run('heldKeys.size'),0);
+ assert.equal(g.run('players[1].shield'),null);assert.ok(g.run('effects.particles.some(p=>p.kind==="jelly")'));
+ g.key('z');assert.equal(g.run('players[1].state'),'alive');assert.equal(g.run('players[1].shield'),'oak-shield');
+ assert.equal(g.run('world.pickups[0].holder'),1);assert.equal(g.run('world.archers[0].cooldown'),.1);assert.equal(g.run('world.arrows.length'),0);
+});
