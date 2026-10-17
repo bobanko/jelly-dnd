@@ -9,6 +9,7 @@
     "test:color-blocks:browser": "node browser-color-blocks.cjs",
     "test:glass-blocks:browser": "node browser-glass-blocks.cjs",
     "test:spikes:browser": "node browser-spikes.cjs",
+    "test:torches:browser": "node browser-torches.cjs",
     "test:browser": "node browser-tests.cjs",
     "test:combat:browser": "node browser-combat.cjs",
     "test:editor:browser": "node browser-editor.cjs",

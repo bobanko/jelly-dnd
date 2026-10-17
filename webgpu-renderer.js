@@ -1,5 +1,6 @@
 (function(root){
  'use strict';
+ const Levels=typeof module!=='undefined'&&module.exports?require('./levels.js'):root.JellyLevels;
  const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
  const normalize=a=>{const l=Math.hypot(...a)||1;return a.map(v=>v/l);};
  function viewMatrix(center,view,width,height,offset=0){
@@ -112,47 +113,6 @@
   for(let i=0;i<12;i++){const a=i*Math.PI/6;sphere(mesh,[Math.cos(a)*.259,Math.sin(a)*.318,.069],[.013,.013,.012],[.55,.51,.38],12);}
   sphere(mesh,[0,0,.065],[.085,.085,.025],iron,12);sphere(mesh,[0,0,.093],[.047,.047,.045],[.46,.46,.39],12);
   return mesh;
- }
- function gearGeometry(mesh,x,y,radius,teeth=12){
-  const from=mesh.length,bronze=[.37,.235,.105],edge=[.59,.39,.17];
-  pressureSurface(mesh,[x,0,-y],[[radius*.48,0],[radius*.88,0],[radius*.94,.025],[radius*.94,.08],[radius*.85,.105],[radius*.48,.105],[radius*.48,0]],bronze,12,0,teeth*2);
-  for(let k=from;k<mesh.length;k+=12){const py=mesh[k+1],nz=mesh[k+5];mesh[k+1]=-mesh[k+2];mesh[k+2]=py;mesh[k+5]=mesh[k+4];mesh[k+4]=-nz;}
-  for(let i=0;i<teeth;i++){
-   const angle=i*Math.PI*2/teeth,c=Math.cos(angle),s=Math.sin(angle),start=mesh.length;
-   box(mesh,[0,0,.056],[radius*.24,radius*.23,.085],edge,.012,12,2);
-   for(let k=start;k<mesh.length;k+=12)for(const off of [0,3]){const a=mesh[k+off],b=mesh[k+off+1];mesh[k+off]=a*c-b*s+(off?0:x+c*radius);mesh[k+off+1]=a*s+b*c+(off?0:y+s*radius);}
-  }
-  for(let i=0;i<4;i++){const a=i*Math.PI/2;rod(mesh,[x,y,.045],[x+Math.cos(a)*radius*.6,y+Math.sin(a)*radius*.6,.045],radius*.15,bronze,12);}
-  sphere(mesh,[x,y,.075],[radius*.22,radius*.22,.075],edge,12);
-  box(mesh,[x,y,.14],[radius*.16,radius*.16,.045],[.105,.12,.12],.008,12,2);
- }
- function wallRelief(mesh,center,nx,nz,banner){
-  const from=mesh.length,bronze=[.43,.28,.12],iron=[.08,.105,.11];
-  if(banner){
-   rod(mesh,[-.36,.58,.06],[.36,.58,.06],.045,bronze,12);
-   box(mesh,[0,.04,.025],[.58,1.02,.024],[.24,.048,.032],.012,18,2);
-   for(const side of [-1,1])box(mesh,[side*.265,.04,.044],[.018,1.,.007],[.51,.30,.10],.003,12,1);
-   sphere(mesh,[0,.15,.051],[.115,.13,.016],[.63,.39,.15],15);
-   for(const side of [-1,1])sphere(mesh,[side*.046,.17,.07],[.029,.036,.008],[.14,.035,.022],15);
-   for(const side of [-1,1])rod(mesh,[-.13,-.1+side*.075,.05],[.13,-.1-side*.075,.05],.024,[.63,.39,.15],15);
-   for(const t of [-1,0,1])box(mesh,[t*.034,.026,.054],[.023,.045,.01],[.63,.39,.15],.003,15,1);
-  }else{
-   box(mesh,[0,0,.003],[1.02,.72,.06],iron,.025,12,2);
-   gearGeometry(mesh,-.18,.07,.34,12);gearGeometry(mesh,.37,-.21,.21,10);
-   rod(mesh,[-.53,-.27,.01],[.55,-.27,.01],.074,bronze,12);
-   for(const x of [-.46,.46])for(const y of [-.28,.28])sphere(mesh,[x,y,.055],[.032,.032,.025],bronze,12);
-  }
-  for(let k=from;k<mesh.length;k+=12)for(const off of [0,3]){const x=mesh[k+off],y=mesh[k+off+1],z=mesh[k+off+2];mesh[k+off]=(off?0:center[0])+nz*x+nx*z;mesh[k+off+1]=(off?0:center[1])+y;mesh[k+off+2]=(off?0:center[2])-nx*x+nz*z;}
- }
- function dungeonReliefs(mesh,world){
-  const candidates=[],seen=new Set(),walls=world.collisionBoxes().filter(b=>b.kind==='block'&&b.color===undefined&&b.maxY>=1||b.kind==='wall'&&b.half>=.4);
-  for(const wall of walls)for(const [nx,nz] of [[0,1],[1,0],[0,-1],[-1,0]]){
-   const x=wall.x+nx,z=wall.z+nz,y=world.heightAt(x,z,wall.maxY-.9),height=wall.maxY-(wall.minY??0);
-   if(y===null||height<.9||wall.maxY-y<1.2||world.collisionBoxes().some(b=>Math.abs(b.x-x)<.1&&Math.abs(b.z-z)<.1&&b.minY<y+.9&&b.maxY>y+.1))continue;
-   const key=`${wall.x},${wall.z}`;if(seen.has(key))continue;seen.add(key);candidates.push({x:wall.x,z:wall.z,y:y+.8,nx,nz});
-  }
-  candidates.sort((a,b)=>(a.x*17+a.z*31)%23-(b.x*17+b.z*31)%23);const chosen=[];
-  for(const p of candidates){if(chosen.some(q=>Math.hypot(q.x-p.x,q.z-p.z)<3.5))continue;wallRelief(mesh,[p.x+p.nx*.511,p.y,p.z+p.nz*.511],p.nx,p.nz,chosen.length%2===1);chosen.push(p);if(chosen.length===4)break;}
  }
  function arrowGeometry(){
   const mesh=[];rod(mesh,[0,0,-.34],[0,0,.08],.017,[.46,.31,.12],11);
@@ -718,7 +678,6 @@
     }else{box(mesh,[x,height-.36,z],[.97,.72,.97],color,.045);const upper=level.world.heights.get(key)||0;for(let y=0;y<upper;y++){const span=Math.min(1,upper-y);box(mesh,[x,y+span*.5,z],[.97,span,.97],color,.045);}}
    }
    for(const o of level.world.collisionBoxes().filter(o=>o.kind==='wall'))box(mesh,[o.x,(o.minY+o.maxY)*.5,o.z],[o.half*2-.03,o.maxY-o.minY,o.half*2-.03],o.half>.4?[.12,.145,.18]:[.105,.12,.115],.045);
-   dungeonReliefs(mesh,level.world);
    const data=new Float32Array(mesh);if(data.byteLength>this.staticBuffer.size){this.staticBuffer.destroy();this.staticBuffer=this.device.createBuffer({size:Math.ceil(data.byteLength/65536)*65536,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}
    this.staticCount=mesh.length/12;this.device.queue.writeBuffer(this.staticBuffer,0,data);
    const phaseData=new Float32Array(phaseMesh);if(phaseData.byteLength>this.phaseBuffer.size){this.phaseBuffer.destroy();this.phaseBuffer=this.device.createBuffer({size:Math.ceil(phaseData.byteLength/65536)*65536,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}
@@ -850,7 +809,7 @@
     cursor+=source.length;
    }
    const dynamicCount=cursor/12;this.device.queue.writeBuffer(this.propBuffer,0,data.buffer,0,cursor*4);
-   const decorationKey=[level.goals.length,level.plates.length,level.world.spikes.length,level.world.portals.length,level.world.conveyors.length].join(',');
+   const decorationKey=[level.goals.length,level.plates.length,level.world.spikes.length,level.world.portals.length,level.world.conveyors.length,JSON.stringify(level.world.torches||[])].join(',');
    if(this.decorationKey!==decorationKey){const mesh=[];
    level.goals.forEach((g,i)=>{
     if(!g)return;
@@ -867,14 +826,18 @@
     pressureSurface(mesh,[p.x,y,p.z],[[.293,.003],[.342,.003],[.346,.014],[.334,.038],[.304,.038],[.293,.024],[.293,.003]],[.09,.095,.093],12);
     pressureSurface(mesh,[p.x,y+.004,p.z],[[0,0],[.294,0],[.294,.012],[0,.012]],[.027,.03,.029],13);
    });
-   for(const o of level.world.obstacles.filter(o=>o.half<.4)){
-    const y=o.minY||0,iron=[.085,.1,.105],bronze=[.4,.255,.10];
-    box(mesh,[o.x,y+.33,o.z],[.085,.36,.085],[.22,.115,.035],.01,11,2);
-    for(const sign of [-1,1])box(mesh,[o.x,y+.33+sign*.12,o.z],[.13,.045,.13],bronze,.008,12,2);
-    pressureSurface(mesh,[o.x,y+.47,o.z],[[0,0],[.055,0],[.11,.12],[.11,.145],[.08,.145],[.04,.06],[0,.06]],iron,12,0,12);
-    sphere(mesh,[o.x,y+.655,o.z],[.07,.13,.07],[2.8,.48,.025],4);
-    sphere(mesh,[o.x-.015,y+.76,o.z],[.035,.105,.038],[2.5,.65,.035],4);
-    sphere(mesh,[o.x,y+.62,o.z+.025],[.041,.085,.04],[4.,1.85,.18],4);
+   for(const torch of level.world.torches||[]){
+    const from=mesh.length,f=Levels.torchFrame(torch),iron=[.085,.1,.105],bronze=[.4,.255,.10];
+    box(mesh,[0,-.05,.025],[.18,.44,.065],iron,.02,12,2);
+    for(const y of [-.21,.11])sphere(mesh,[0,y,.064],[.026,.026,.018],bronze,12);
+    rod(mesh,[0,-.2,.065],[0,-.13,.23],.035,iron,12);
+    rod(mesh,[0,-.23,.15],[0,.1,.25],.042,[.22,.115,.035],11);
+    for(const y of [-.12,.04])box(mesh,[0,y,.21+(y+.12)*.3],[.11,.035,.11],bronze,.007,12,2);
+    pressureSurface(mesh,[0,.08,.25],[[0,0],[.055,0],[.11,.12],[.11,.145],[.08,.145],[.04,.06],[0,.06]],iron,12,0,12);
+    sphere(mesh,[0,.27,.25],[.07,.13,.07],[2.8,.48,.025],4);
+    sphere(mesh,[-.015,.375,.25],[.035,.105,.038],[2.5,.65,.035],4);
+    sphere(mesh,[0,.235,.275],[.041,.085,.04],[4.,1.85,.18],4);
+    for(let k=from;k<mesh.length;k+=12)for(const off of [0,3]){const u=mesh[k+off],y=mesh[k+off+1],n=mesh[k+off+2];for(let axis=0;axis<3;axis++)mesh[k+off+axis]=(off?0:f.origin[axis])+f.u[axis]*u+(axis===1?y:0)+f.n[axis]*n;}
    }
    for(const trap of level.world.spikes){
     const from=mesh.length,f=level.world.spikeFrame(trap);
@@ -942,7 +905,7 @@
    const rect=this.canvas.getBoundingClientRect(),frame=this.cameraState=cameraFrame(camera,angle,rect.width,rect.height,scale),{vp,view,eye}=frame;
    const extent=level.definition?.size??12,lightVP=viewMatrix([(extent-1)*.5,0,(extent-1)*.5],normalize([-.45,1.,.35]),Math.max(18,extent+4),Math.max(18,extent+4));
    const uniforms=new Float32Array(168);uniforms.set(vp);uniforms.set(lightVP,16);uniforms.set([...eye,frame.perspective?1:0],32);uniforms.set([-2,12,9,1],36);uniforms[160]=Math.max(0,Math.min(1,level.finishProgress||0));
-   level.world.obstacles.filter(o=>o.half<.4).slice(0,8).forEach((o,i)=>uniforms.set([o.x,(o.minY||0)+.85,o.z,1],120+i*4));
+   (level.world.torches||[]).slice(0,8).forEach((p,i)=>uniforms.set([...Levels.torchFrame(p).light,1],120+i*4));
    players.forEach((p,i)=>uniforms.set([p.x,(p.y||0)+.42,p.z,p.state==='dead'?0:4+(level.world.heightAt(p.x,p.z,(p.y||0)+.2,p)||0)],i===3?152:40+i*4));uniforms.set([w,h,time,this.mesh?1:0],52);
    level.world.portals.slice(0,4).forEach((p,i)=>{const charge=level.world.portalInactive(p,players)?-1:level.world.portalCharge(p,players);uniforms.set([p.x,p.y??level.world.heightAt(p.x,p.z)??0,p.z,charge],56+i*8);uniforms.set([...(p.color==='violet'?[.7,.045,1.]:[1.,.34,.025]),i*.23],60+i*8);});
    this.goalGlowStrength??=[];this.goalWinGlow??=0;

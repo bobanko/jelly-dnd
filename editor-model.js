@@ -18,7 +18,14 @@
    if(tool==='erase'){this.erase(x,z,y);return;}
    if(tool==='floor'||tool==='cube'||tool==='wall'||/^color-[0-3]$/.test(tool)){const p=this.cube(x,y,z);if(tool.startsWith('color-'))p.color=Number(tool.slice(-1));else delete p.color;return;}
    if(/^(spawn|goal)-[0-3]$/.test(tool)){this.cube(x,y,z);this.map[tool.startsWith('spawn')?'spawns':'goals'][Number(tool.slice(-1))]={x,y,z};return;}
-   const key={torch:'walls',plate:'plates',bridge:'bridges',lift:'lifts',spikes:'spikes',conveyor:'conveyors','portal-violet':'portals','portal-amber':'portals',crate:'crates',archer:'archers',shield:'pickups',sword:'pickups'}[tool];if(!key)return;
+   if(tool==='torch'){
+    const face=options.face||'south';if(!Object.hasOwn(L.wallFaces,face))throw new Error('Факел крепится к боковой грани.');
+    if(this.map.torches.some(p=>p.x===x&&p.y===y&&p.z===z&&p.face===face))return;
+    if(this.map.torches.length>=L.limits.torches)throw new Error('На карте уже восемь факелов.');
+    const block=this.at('blocks',x,z,y);if(block?.color!==undefined)throw new Error('Факелу нужен обычный каменный блок.');
+    this.cube(x,y,z);this.map.torches.push({x,y,z,face});return;
+   }
+   const key={plate:'plates',bridge:'bridges',lift:'lifts',spikes:'spikes',conveyor:'conveyors','portal-violet':'portals','portal-amber':'portals',crate:'crates',archer:'archers',shield:'pickups',sword:'pickups'}[tool];if(!key)return;
    if(key==='spikes'){
     const face=options.face||'top',same=p=>p.x===x&&p.z===z&&p.y===y,existing=this.map.spikes.find(p=>same(p)&&(p.face||'top')===face);
     if(!existing&&this.map.spikes.length>=L.limits.spikes)throw new Error('Достигнут лимит объектов.');
@@ -32,7 +39,6 @@
     this.map.spikes.push({x,y,z,offset:existing?.offset||0,...(face==='top'?{}:{face}),...(color===undefined?{}:{color})});return;
    }
    const existing=this.at(key,x,z,y);if(!existing&&this.map[key].length>=L.limits[key])throw new Error('Достигнут лимит объектов.');
-   if(tool==='torch'&&!existing&&this.map.walls.length>=8)throw new Error('На карте уже восемь факелов.');
    if(key==='portals'&&!existing&&this.map.portals.filter(p=>p.color===tool.slice(7)).length>=2)throw new Error('Для этого цвета уже есть два портала.');
    this.cube(x,y,z);const groups=surface.includes(key)?surface:props.includes(key)?props:['walls',...surface,...props];
    for(const other of groups)this.map[other]=this.map[other].filter(p=>p.x!==x||p.z!==z||p.y!==y);
@@ -52,6 +58,7 @@
   erase(x,z,y){const hit=p=>p&&p.x===x&&p.z===z&&(y===undefined||(p.y??p.height??0)===y);for(const key of Object.keys(L.limits))this.map[key]=this.map[key].filter(p=>!hit(p));for(const key of ['spawns','goals'])this.map[key]=this.map[key].map(p=>hit(p)?null:p);}
   paint(tool,x,z,options={}){
    if(x<0||z<0||x>=this.map.size||z>=this.map.size||tool==='select')return;
+   if(tool==='torch'){this.paintVoxel(tool,x,options.y??options.height??0,z,options);return;}
    if(options.voxel||tool==='cube'||/^color-[0-3]$/.test(tool)){this.paintVoxel(tool,x,options.y??options.height??0,z,options);return;}
    const height=options.height??0;
    if(tool==='erase'){this.erase(x,z);return;}
@@ -62,9 +69,8 @@
     const lift=this.at('lifts',x,z);if(lift){lift.base=height;lift.top=Math.min(3,Math.max(height+1,lift.top+height-old));}return;
    }
    if(/^(spawn|goal)-[0-3]$/.test(tool)){this.ensureFloor(x,z,height);this.map[tool.startsWith('spawn')?'spawns':'goals'][Number(tool.slice(-1))]={x,z};return;}
-   const key={wall:'walls',torch:'walls',plate:'plates',bridge:'bridges',lift:'lifts',spikes:'spikes','portal-violet':'portals','portal-amber':'portals',conveyor:'conveyors',crate:'crates',archer:'archers',shield:'pickups',sword:'pickups'}[tool];
+   const key={wall:'walls',plate:'plates',bridge:'bridges',lift:'lifts',spikes:'spikes','portal-violet':'portals','portal-amber':'portals',conveyor:'conveyors',crate:'crates',archer:'archers',shield:'pickups',sword:'pickups'}[tool];
    if(!key)return;
-   if(tool==='torch'&&!(this.at('walls',x,z)?.half<.4)&&this.map.walls.filter(p=>p.half<.4).length>=8)throw new Error('На карте уже восемь факелов.');
    if(!this.at(key,x,z)&&this.map[key].length>=L.limits[key])throw new Error(`Достигнут лимит объектов (${L.limits[key]}).`);
    if(key==='portals'&&!this.at(key,x,z)&&this.map.portals.filter(p=>p.color===tool.slice(7)).length>=2)throw new Error('Для этого цвета уже есть два портала.');
    const existing=this.at(key,x,z);
@@ -75,7 +81,7 @@
    for(const other of group)this.map[other]=this.map[other].filter(p=>p.x!==x||p.z!==z);
    if(key!=='walls')this.map.walls=this.map.walls.filter(p=>p.x!==x||p.z!==z);
    const p={x,z};
-   if(key==='walls')Object.assign(p,{half:tool==='torch'?.17:.5,base:floor.height,height:tool==='torch'?.56:1.4});
+   if(key==='walls')Object.assign(p,{half:.5,base:floor.height,height:1.4});
    if(key==='plates')Object.assign(p,{id:this.id('plate'),color:options.color||'red'});
    if(key==='bridges')Object.assign(p,{plate:options.plate||this.map.plates[0]?.id||'',y:floor.height});
    if(key==='lifts')Object.assign(p,{base:floor.height,top:Math.min(3,floor.height+1)});
@@ -87,7 +93,7 @@
    this.map[key].push(p);
   }
   remove(key,index){return this.change(map=>{if(key==='spawns'||key==='goals')map[key][index]=null;else map[key].splice(index,1);});}
-  move(key,index,x,z,height=0){return this.change(map=>{const p=map[key][index],voxel=key==='blocks'||p.y!==undefined;if(this.map[key].some((q,j)=>j!==index&&q&&q.x===x&&q.z===z&&(!voxel||q.y===height)&&(key!=='spikes'||(q.face||'top')===(p.face||'top'))))throw new Error('В этой клетке уже есть такой объект.');if(voxel){if(key==='blocks'){if(!Number.isInteger(height))throw new Error('Y должен быть целым.');}else this.cube(x,height,z);const delta=height-(p.y||0);Object.assign(p,{x,y:height,z});if(key==='walls')p.base+=delta;if(key==='lifts'){p.base=height;p.top=Math.min(12,p.top+delta);}return;}const previousHeight=this.at('tiles',p.x,p.z)?.height||0,floor=this.ensureFloor(x,z,height);Object.assign(p,{x,z});if(key==='walls')p.base+=floor.height-previousHeight;if(key==='bridges')p.y=floor.height;if(key==='lifts'){p.base=floor.height;p.top=Math.min(3,p.base+1);}});}
+  move(key,index,x,z,height=0){return this.change(map=>{const p=map[key][index],voxel=key==='blocks'||p.y!==undefined;if(this.map[key].some((q,j)=>j!==index&&q&&q.x===x&&q.z===z&&(!voxel||q.y===height)&&(!['spikes','torches'].includes(key)||(q.face||'top')===(p.face||'top'))))throw new Error('В этой клетке уже есть такой объект.');if(voxel){if(key==='blocks'){if(!Number.isInteger(height))throw new Error('Y должен быть целым.');}else this.cube(x,height,z);const delta=height-(p.y||0);Object.assign(p,{x,y:height,z});if(key==='walls')p.base+=delta;if(key==='lifts'){p.base=height;p.top=Math.min(12,p.top+delta);}return;}const previousHeight=this.at('tiles',p.x,p.z)?.height||0,floor=this.ensureFloor(x,z,height);Object.assign(p,{x,z});if(key==='walls')p.base+=floor.height-previousHeight;if(key==='bridges')p.y=floor.height;if(key==='lifts'){p.base=floor.height;p.top=Math.min(3,p.base+1);}});}
   resize(size){return this.change(map=>{map.size=size;for(const key of Object.keys(L.limits))map[key]=map[key].filter(p=>p.x<size&&p.z<size);for(const key of ['spawns','goals'])map[key]=map[key].map(p=>p&&(p.x>=size||p.z>=size)?null:p);});}
  }
  const api={Model,surface,props};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyEditorModel=api;

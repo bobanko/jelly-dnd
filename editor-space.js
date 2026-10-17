@@ -3,6 +3,7 @@
  'use strict';
  const GPU=typeof module!=='undefined'&&module.exports?require('./webgpu-renderer'):root.JellyGPU;
  const Features=typeof module!=='undefined'&&module.exports?require('./level-features'):root.JellyLevelFeatures;
+ const Levels=typeof module!=='undefined'&&module.exports?require('./levels'):root.JellyLevels;
  function inverse(matrix){
   const rows=Array.from({length:4},(_,r)=>Array.from({length:8},(_,c)=>c<4?matrix[c*4+r]:+(c-4===r)));
   for(let c=0;c<4;c++){
@@ -41,6 +42,10 @@
   for(const p of map.blocks||[])add(p,'blocks',.5,p.y-1,p.y);
   for(const p of map.tiles)add(p,'tiles',.5,-.72,p.height);
   for(const p of map.walls)add(p,'walls',p.half,p.base,p.base+p.height);
+  for(const [index,p] of (map.torches||[]).entries()){
+   const f=Levels.torchFrame(p),center=f.origin.map((v,k)=>v+f.n[k]*.18),half=f.n.map((n,k)=>Math.abs(n)*.18+Math.abs(f.u[k])*.14+(k===1?.48:0));
+   result.push({...p,key:'torches',index,min:center.map((v,k)=>v-half[k]),max:center.map((v,k)=>v+half[k])});
+  }
   for(const key of ['spawns','crates','archers'])for(const p of map[key])if(p){const y=p.y??heights.get(`${p.x},${p.z}`)??0;add({...p,y},key,key==='archers'?.26:.4,y,y+(key==='archers'?1.2:.84));}
   for(const key of ['goals','plates','bridges','lifts','portals','conveyors','pickups'])for(const p of map[key])if(p){const y=p.y??p.base??heights.get(`${p.x},${p.z}`)??0;add({...p,y},key,key==='pickups'?.28:key==='plates'?.35:.46,y,y+(key==='pickups'?.35:key==='plates'?.065:.12));}
   for(const [index,p] of map.spikes.entries()){

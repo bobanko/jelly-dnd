@@ -6,7 +6,8 @@ try{const saved=localStorage.getItem(L.DRAFT_KEY);if(saved)initial=L.read(saved)
 const model=new M.Model(L.voxelize(initial));
 const phaseSymbols=['△','⊙','◇','☼'];
 const groups=[
- ['Основание',[['floor','▣','Каменный куб'],['torch','♨','Факел']]],
+ ['Основание',[['floor','▣','Каменный куб']]],
+ ['Декор',[['torch','♨','Настенный факел']]],
  ['Цветные блоки',L.characters.map((p,i)=>['color-'+i,phaseSymbols[i],p.name,p.color])],
  ['Персонажи',L.characters.map((p,i)=>['spawn-'+i,'▣',p.name,p.color])],
  ['Финиши',L.characters.map((p,i)=>['goal-'+i,p.glyph,p.name,p.color])],
@@ -17,7 +18,7 @@ const tools=Object.fromEntries(groups.flatMap(g=>g[1]).map(([id,glyph,label,colo
 Object.assign(tools,{select:{glyph:'↖',label:'Выбор'},erase:{glyph:'⌫',label:'Ластик'},pan:{glyph:'✥',label:'Перемещение вида'},orbit:{glyph:'⟳',label:'Вращение камеры'}});
 const names=L.characters.map(p=>p.name),colors=L.characters.map(p=>p.color);
 const cubeTool=value=>value==='floor'||/^color-[0-3]$/.test(value);
-const labels={blocks:'Каменный куб',tiles:'Камень',walls:'Факел',spawns:'Спавн',goals:'Финиш',plates:'Кнопка',bridges:'Мост',lifts:'Лифт',conveyors:'Конвейер',spikes:'Шипы',portals:'Портал',crates:'Ящик',archers:'Скелет-лучник',pickups:'Предмет'};
+const labels={blocks:'Каменный куб',tiles:'Камень',walls:'Стена',torches:'Настенный факел',spawns:'Спавн',goals:'Финиш',plates:'Кнопка',bridges:'Мост',lifts:'Лифт',conveyors:'Конвейер',spikes:'Шипы',portals:'Портал',crates:'Ящик',archers:'Скелет-лучник',pickups:'Предмет'};
 let tool='floor',selected=null,hover=null,moveObject=null,gesture=null,space=false,view3d=false,expandedIssues=false,toastTimer,gridFrame;
 let gridView={zoom:1,x:0,y:0},previewZoom=1,previewAngle=0,previewDirty=true,previewRuntime=null,previewRenderer=null,previewPromise=null,previewLast=0,previewFrame=0;
 let pickBounds=null,lastPointer=null,previewFitHeight=0;
@@ -32,7 +33,7 @@ function toast(message){$('toast').textContent=message;$('toast').hidden=false;c
 function save(){try{localStorage.setItem(L.DRAFT_KEY,JSON.stringify(model.map));$('save-status').textContent='● Сохранено';$('save-status').className='valid';return true;}catch(error){$('save-status').textContent='Не сохранено';$('save-status').className='invalid';toast('Не удалось сохранить в браузере. Используйте экспорт файла.');return false;}}
 function changed(){previewDirty=true;pickBounds=null;save();renderPanels();invalidate();}
 function edit(fn){try{if(model.change(fn))changed();else renderPanels();}catch(error){toast(error.message);renderPanels();}}
-function selectTool(value){finishGesture();tool=value;moveObject=null;for(const button of document.querySelectorAll('[data-tool]'))button.setAttribute('aria-pressed',String(button.dataset.tool===tool));$('active-tool').textContent=tools[tool]?.label||'Переместить';$('conveyor-brush').hidden=tool!=='conveyor';$('spike-brush').hidden=tool!=='spikes';refreshHover();invalidate();}
+function selectTool(value){finishGesture();tool=value;moveObject=null;for(const button of document.querySelectorAll('[data-tool]'))button.setAttribute('aria-pressed',String(button.dataset.tool===tool));$('active-tool').textContent=tools[tool]?.label||'Переместить';$('conveyor-brush').hidden=tool!=='conveyor';$('spike-brush').hidden=tool!=='spikes';$('torch-brush').hidden=tool!=='torch';refreshHover();invalidate();}
 for(const [name,items] of groups){const group=element('section',undefined,'tool-group');group.append(element('h2',name.toUpperCase()));const grid=element('div',undefined,'tool-grid');for(const [id,glyph,label,color] of items){const button=element('button',undefined,'tool');button.dataset.tool=id;button.title=label;button.style.setProperty('--tool-color',color||'#a7bba4');button.append(element('span',glyph,'glyph'),element('span',label));grid.append(button);}group.append(grid);$('palette').append(group);}
 const panButton=element('button','✥');panButton.dataset.tool='pan';panButton.title='Перемещение вида (M)';panButton.setAttribute('aria-label','Перемещение вида');document.querySelector('.basic-tools').append(panButton);
 const orbitButton=element('button','⟳');orbitButton.dataset.tool='orbit';orbitButton.title='Вращение камеры · правая кнопка мыши';orbitButton.setAttribute('aria-label','Вращение камеры');document.querySelector('.basic-tools').append(orbitButton);
@@ -59,12 +60,14 @@ const spikeFace=element('select'),spikeColor=element('select');spikeFace.id='spi
 for(const [control,label,values] of [[spikeFace,'Крепление шипов',[['auto','По грани'],...spikeFaces]],[spikeColor,'Цвет шипов',spikeColors]]){
  control.setAttribute('aria-label',label);for(const [value,text] of values){const option=element('option',text);option.value=value;control.append(option);}const row=element('label',label+' ');row.append(control);spikeBrush.append(row);control.onchange=()=>{refreshHover();invalidate();};
 }document.querySelector('.viewport-toolbar').append(spikeBrush);
+const torchFaces=spikeFaces.filter(([face])=>face!=='top'),torchBrush=element('div',undefined,'conveyor-brush'),torchFace=element('select');torchBrush.id='torch-brush';torchBrush.hidden=true;torchFace.id='torch-face';torchFace.setAttribute('aria-label','Крепление факела');
+for(const [value,text] of [['auto','По боковой грани'],...torchFaces]){const option=element('option',text);option.value=value;torchFace.append(option);}const torchLabel=element('label','Крепление факела ');torchLabel.append(torchFace);torchBrush.append(torchLabel);document.querySelector('.viewport-toolbar').append(torchBrush);torchFace.onchange=()=>{refreshHover();invalidate();};
 const placementMode=element('select');placementMode.id='placement-mode';placementMode.setAttribute('aria-label','Способ размещения');for(const [value,text] of [['face','По грани'],['layer','На слое Y']]){const option=element('option',text);option.value=value;placementMode.append(option);}document.querySelector('.height-control').after(placementMode);
 $('brush-height').replaceChildren(...Array.from({length:15},(_,i)=>{const option=element('option',`Y ${i-2}`);option.value=i-2;return option;}));$('brush-height').value='0';
 const coordinateRoot=element('section',undefined,'coordinate-placement');coordinateRoot.append(element('div','КУБ ПО КООРДИНАТАМ','panel-heading'));
 for(const axis of ['x','y','z']){const row=element('label',axis.toUpperCase()),input=element('input');input.type='number';input.id='coordinate-'+axis;input.setAttribute('aria-label','Координата '+axis.toUpperCase());input.min=axis==='y'?-2:0;input.max=axis==='y'?12:model.map.size-1;input.step=1;input.value=0;row.append(input);coordinateRoot.append(row);}
 const placeCoordinate=element('button','Поставить куб');placeCoordinate.id='place-coordinate';placeCoordinate.onclick=()=>{const p={x:Number($('coordinate-x').value),y:Number($('coordinate-y').value),z:Number($('coordinate-z').value)};if(!inside(p)||!Number.isInteger(p.x)||!Number.isInteger(p.z)||!Number.isInteger(p.y)||p.y< -2||p.y>12){toast('Проверьте целые координаты X / Y / Z.');return;}edit(()=>paintCell(p,cubeTool(tool)?tool:'floor'));};coordinateRoot.append(placeCoordinate);document.querySelector('.inspector').prepend(coordinateRoot);
-function cellObjects(x,z,y){const result=[];for(const key of ['blocks','tiles','walls','spawns','goals','plates','bridges','lifts','conveyors','spikes','portals','crates','archers','pickups'])model.map[key].forEach((p,index)=>{if(p&&p.x===x&&p.z===z&&(y===undefined||Math.abs((p.y??p.base??p.height??L.surfaceY(model.map,x,z)??0)-y)<.01))result.push({key,index,p});});return result;}
+function cellObjects(x,z,y){const result=[];for(const key of ['blocks','tiles','walls','torches','spawns','goals','plates','bridges','lifts','conveyors','spikes','portals','crates','archers','pickups'])model.map[key].forEach((p,index)=>{if(p&&p.x===x&&p.z===z&&(y===undefined||Math.abs((p.y??p.base??p.height??L.surfaceY(model.map,x,z)??0)-y)<.01))result.push({key,index,p});});return result;}
 function field(card,label,value,options,onChange){
  const row=element('label',label),control=element(options?.values?'select':'input');
  if(options?.values)for(const [v,name] of options.values){const option=element('option',name);option.value=v;control.append(option);}
@@ -92,7 +95,10 @@ function renderProperties(){
   if(key==='blocks')for(const axis of ['x','y','z'])field(card,axis.toUpperCase(),p[axis],{min:axis==='y'?-2:0,max:axis==='y'?12:model.map.size-1},value=>{const q={...p,[axis]:value};try{if(model.move('blocks',index,q.x,q.z,q.y)){selected=q;changed();}}catch(error){toast(error.message);renderPanels();}});
   if(key==='blocks'){field(card,'Цвет блока',p.color??'',{values:[['','Обычный камень'],...L.characters.map((c,i)=>[String(i),c.name])]},v=>edit(map=>{if(v==='')delete map.blocks[index].color;else map.blocks[index].color=Number(v);}));if(p.color!==undefined)card.append(element('p',`Проходит только ${names[p.color]}. Ящики не проходят.`,'empty-state'));}
   if(key==='tiles')field(card,'Высота пола',p.height,{min:0,max:3},value=>edit(()=>model.paint('floor',p.x,p.z,{height:value})));
-  if(key==='walls')field(card,'Y факела',p.base,{min:-2,max:12},v=>edit(map=>{map.walls[index].base=v;map.walls[index].y=v;}));
+  if(key==='torches'){
+   field(card,'Крепление факела',p.face,{values:torchFaces},v=>set('face',v));
+   for(const axis of ['x','y','z'])field(card,'Факел · '+axis.toUpperCase(),p[axis],{min:axis==='y'?-2:0,max:axis==='y'?12:model.map.size-1},value=>{const q={...p,[axis]:value};try{if(model.move(key,index,q.x,q.z,q.y)){selected={x:q.x,y:q.y,z:q.z};changed();}}catch(error){toast(error.message);renderPanels();}});
+  }
   if(key==='plates'){field(card,'Цвет',p.color,{values:[['red','Красный'],['blue','Синий'],['amber','Золотой'],['dark','Каменный']]},v=>set('color',v));card.append(element('p',`Канал ${index+1} · мостов: ${model.map.bridges.filter(b=>b.plate===p.id).length}`,'empty-state'));}
   if(key==='bridges')field(card,'Кнопка',p.plate,{values:[['','Не выбрана'],...model.map.plates.map((b,i)=>[b.id,`К${i+1} · ${b.x}, ${b.z}`])]},v=>set('plate',v));
   if(key==='lifts'){field(card,'Нижний уровень',p.base,{min:-2,max:12},v=>edit(map=>{map.lifts[index].base=v;map.lifts[index].y=v;model.cube(p.x,v,p.z);}));field(card,'Верхний уровень',p.top,{min:-2,max:12},v=>set('top',v));}
@@ -134,6 +140,7 @@ function screenRay(event){const r=$('viewport').getBoundingClientRect();return S
 function point(event){
  if(view3d){pickBounds??=S.boxes(model.map);const layer=Number($('brush-height').value),painting=!['select','erase','pan','orbit'].includes(tool)&&!event.shiftKey;
   if(gesture?.tool==='spikes'&&gesture.face&&gesture.face!=='top')return gesture.start;
+  if(gesture?.tool==='torch')return gesture.start;
   if(!gesture&&painting&&placementMode.value==='layer'){const hit=S.plane(screenRay(event),layer);return hit?{x:Math.round(hit.position[0]),y:layer,z:Math.round(hit.position[2]),hit}:null;}
   const p=S.pick(screenRay(event),pickBounds,model.map.size,layer,gesture?.planeY??null);if(!p)return null;
   if(gesture){p.y=gesture.blockY;p.x+=gesture.offsetX||0;p.z+=gesture.offsetZ||0;return p;}
@@ -141,6 +148,7 @@ function point(event){
   if(painting&&tool==='spikes'){
    p.face=spikeFace.value==='auto'?(p.key==='spikes'?p.face:p.key==='blocks'&&p.hit.axis!==1?['west','east','north','south'][(p.hit.axis===2?2:0)+(p.hit.sign>0?1:0)]:'top'):spikeFace.value;
   }
+  if(painting&&tool==='torch')p.face=torchFace.value==='auto'?(p.key==='torches'?p.face:p.key==='blocks'&&p.hit.axis!==1?['west','east','north','south'][(p.hit.axis===2?2:0)+(p.hit.sign>0?1:0)]:'south'):torchFace.value;
   if(p.key==='blocks'&&(painting&&cubeTool(tool)||moveObject?.key==='blocks')&&placementMode.value==='face'){if(p.hit.axis===0)p.x+=p.hit.sign;if(p.hit.axis===1)p.y+=p.hit.sign;if(p.hit.axis===2)p.z+=p.hit.sign;}
   return p;
  }
@@ -177,6 +185,7 @@ function drawGrid(){
  model.map.plates.forEach((p,i)=>{glyph(p,'●',{red:'#d66b52',blue:'#528eee',amber:'#d6aa55',dark:'#8c9a92'}[p.color],.7);glyph(p,String(i+1),'#111c1d',.24);});
  for(const p of model.map.lifts)glyph(p,'↥','#e5ca8f',.68);
  for(const p of model.map.spikes.filter(onLayer))glyph(p,({north:'↑',east:'→',south:'↓',west:'←'})[p.face]||'▴▴',p.color===undefined?'#c5cbd2':colors[p.color],.4);
+ for(const p of model.map.torches.filter(onLayer)){const n=L.wallFaces[p.face];glyph({...p,x:p.x+n[0]*.36,z:p.z+n[2]*.36},'♨','#e9b85d',.4);}
  for(const p of model.map.portals)glyph(p,'◎',p.color==='violet'?'#ca8bfd':'#e9ba60',.74);
  for(const p of model.map.crates)glyph(p,'⊠','#d3a56e',.7);
  for(const p of model.map.pickups)glyph(p,p.kind==='shield'?'◈':'⚔',p.kind==='shield'?'#dbb17b':'#d2dde3',.63);
@@ -188,7 +197,7 @@ function drawGrid(){
  if(gesture?.rectangle&&inside(hover)){const a=gesture.start,b=hover,x=Math.min(a.x,b.x),z=Math.min(a.z,b.z);ctx.fillStyle='#b9db8b1a';ctx.fillRect(ox+x*cell,oy+z*cell,(Math.abs(a.x-b.x)+1)*cell,(Math.abs(a.z-b.z)+1)*cell);ctx.strokeStyle='#badc8d';ctx.setLineDash([5,4]);ctx.strokeRect(ox+x*cell,oy+z*cell,(Math.abs(a.x-b.x)+1)*cell,(Math.abs(a.z-b.z)+1)*cell);ctx.setLineDash([]);}
  $('zoom-label').textContent=Math.round(gridView.zoom*100)+'%';
 }
-function paintCell(p,activeTool){const y=p.y??gesture?.blockY??Number($('brush-height').value);if(!inside({...p,y}))return;try{const [dx,dz]=beltDirection.value.split(',').map(Number),speed=Math.max(.2,Math.min(2.5,Number(beltSpeed.value)||.85));model.paint(activeTool,p.x,p.z,{height:y,y,voxel:true,dx,dz,speed,...(activeTool==='spikes'?{face:gesture?.face||p.face||(spikeFace.value==='auto'?'top':spikeFace.value),color:spikeColor.value===''?null:Number(spikeColor.value)}:{})});previewDirty=true;pickBounds=null;}catch(error){toast(error.message);}selected={x:p.x,y,z:p.z};}
+function paintCell(p,activeTool){const y=p.y??gesture?.blockY??Number($('brush-height').value);if(!inside({...p,y}))return;try{const [dx,dz]=beltDirection.value.split(',').map(Number),speed=Math.max(.2,Math.min(2.5,Number(beltSpeed.value)||.85));model.paint(activeTool,p.x,p.z,{height:y,y,voxel:true,dx,dz,speed,...(activeTool==='torch'?{face:gesture?.face||p.face||(torchFace.value==='auto'?'south':torchFace.value)}:{}),...(activeTool==='spikes'?{face:gesture?.face||p.face||(spikeFace.value==='auto'?'top':spikeFace.value),color:spikeColor.value===''?null:Number(spikeColor.value)}:{})});previewDirty=true;pickBounds=null;}catch(error){toast(error.message);}selected={x:p.x,y,z:p.z};}
 function finishGesture(){
  if(!gesture)return;
  if(gesture.pan||gesture.orbit){gesture=null;$('viewport').classList.remove('camera-drag');refreshHover();invalidate();return;}
@@ -242,6 +251,11 @@ function drawSpatialOverlay(){
  if(selected)square(selected,(selected.y??floor(selected.x,selected.z))+.04,'#e2edb4','#d6eea714');
  if(gesture?.pan||gesture?.orbit||!inside(hover)||['pan','orbit'].includes(tool))return;
  const active=gesture?.tool||tool,isErase=active==='erase',color=isErase?'#f2a78b':tools[active]?.color||'#ceecaa',fill=isErase?'#ef8c732b':color+'24';
+ if(active==='torch'||moveObject?.key==='torches'){
+  const torch=moveObject?{...model.map.torches[moveObject.index],...hover}:{...hover,face:hover.face||(torchFace.value==='auto'?'south':torchFace.value)},f=L.torchFrame({...torch,y:torch.y??layer});
+  const local=(u,y,n)=>f.origin.map((p,k)=>p+f.u[k]*u+(k===1?y:0)+f.n[k]*n);
+  path([local(-.1,-.27,.04),local(.1,-.27,.04),local(.1,.17,.04),local(-.1,.17,.04)],color,null,true);path([local(0,-.23,.15),local(0,.1,.25),local(0,.47,.25)],'#efbd72',null,true);return;
+ }
  if(active==='spikes'||moveObject?.key==='spikes'){
   const trap=moveObject?{...model.map.spikes[moveObject.index],...hover}:{...hover,face:hover.face||(spikeFace.value==='auto'?'top':spikeFace.value)},f=JellyLevelFeatures.spikeFrame(trap,trap.y??layer);
   const projectLocal=(u,n,v)=>f.origin.map((p,k)=>p+f.u[k]*u+f.n[k]*n+f.v[k]*v),tint=moveObject?(trap.color===undefined?'#d4dbe5':colors[trap.color]):spikeColor.value===''?'#d4dbe5':colors[Number(spikeColor.value)];
@@ -249,7 +263,7 @@ function drawSpatialOverlay(){
  }
  if(gesture?.rectangle){for(let z=Math.min(gesture.start.z,hover.z);z<=Math.max(gesture.start.z,hover.z);z++)for(let x=Math.min(gesture.start.x,hover.x);x<=Math.max(gesture.start.x,hover.x);x++)square({x,z},gesture.blockY+.04,color,fill,true);return;}
  const y=hover.y??layer;square(hover,y+.045,color,fill,active!=='select');
- const height=active==='torch'?.56:active==='crate'||active.startsWith('spawn-')?.84:active==='archer'?1.2:cubeTool(active)||moveObject?.key==='blocks'?1:moveObject?.key==='crates'?.84:0;
+ const height=active==='crate'||active.startsWith('spawn-')?.84:active==='archer'?1.2:cubeTool(active)||moveObject?.key==='blocks'?1:moveObject?.key==='crates'?.84:0;
  if(height){const cube=cubeTool(active)||moveObject?.key==='blocks',top=cube?y+.045:y+height,base=cube?y-1:y;for(const dx of [-.46,.46])for(const dz of [-.46,.46])path([[hover.x+dx,base,hover.z+dz],[hover.x+dx,top,hover.z+dz]],color,null,true);square(hover,top,color,null,true);}
 }
 function rebuildPreview(){

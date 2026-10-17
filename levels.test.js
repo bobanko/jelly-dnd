@@ -44,7 +44,7 @@ test('editor places the full arsenal, preserves floor height and relinks buttons
  const m=new Model(L.blank());
  const catalog=['floor','wall','torch','spawn-0','spawn-1','spawn-2','spawn-3','goal-0','goal-1','goal-2','goal-3','plate','bridge','lift','spikes','portal-violet','portal-amber','crate','archer','shield','sword'];
  catalog.forEach((tool,i)=>m.change(()=>m.paint(tool,i%8,Math.floor(i/8),{height:1})));
- assert.equal(m.map.archers.length,1);assert.equal(m.map.pickups.length,2);assert.equal(m.map.walls.length,2);assert.ok(m.map.spawns.every(Boolean));
+ assert.equal(m.map.archers.length,1);assert.equal(m.map.pickups.length,2);assert.equal(m.map.walls.length,1);assert.equal(m.map.torches.length,1);assert.ok(m.map.spawns.every(Boolean));
  const plate=m.map.plates[0],bridge=m.map.bridges[0];assert.equal(bridge.plate,plate.id);assert.equal(bridge.y,1);
  m.move('plates',0,12,12);assert.equal(m.map.bridges[0].plate,plate.id);
  m.change(()=>m.paint('plate',11,12));m.change(map=>map.plates.reverse());
@@ -68,13 +68,34 @@ test('raised spawns, ground crates, elevated bridges and lifts use the same heig
  r.world.lifts[0].base=1;r.world.lifts[0].top=2;r.world.resetFeatures();assert.equal(r.world.heightAt(5,7),1);
 });
 
-test('torch placement limits and moving a torch to a raised platform preserve its real light height',()=>{
+test('wall torch limits and moving a mounted light preserve its face and real light height without colliders',()=>{
  const m=new Model(L.blank());
  for(let x=0;x<8;x++)m.change(()=>m.paint('torch',x,1));
- assert.throws(()=>m.change(()=>m.paint('torch',9,1)));assert.equal(m.map.walls.length,8);
- m.change(()=>m.paint('floor',9,2,{height:2}));m.move('walls',0,9,2);
- assert.equal(m.map.walls[0].base,2);const runtime=L.instantiate(m.map,Physics,Soft);assert.equal(runtime.world.obstacles[0].minY,2);
- const imported=L.copy(m.map);imported.walls.push({x:10,z:1,half:.17,base:0,height:.56});assert.throws(()=>L.read(imported));
+ assert.throws(()=>m.change(()=>m.paint('torch',9,1)));assert.equal(m.map.torches.length,8);
+ m.move('torches',0,9,2,3);
+ assert.equal(m.map.torches[0].y,3);assert.equal(m.map.torches[0].face,'south');const runtime=L.instantiate(m.map,Physics,Soft);assert.equal(runtime.world.obstacles.length,0);
+ assert.equal(L.torchFrame(runtime.world.torches[0]).light[1],2.82);
+ assert.ok(runtime.world.debugBoxes().every(b=>b.kind==='block'),'only supporting masonry has colliders');
+ const imported=L.copy(m.map);imported.torches.push({x:10,y:1,z:1,face:'east'});assert.throws(()=>L.read(imported));
+});
+
+test('torches on four wall faces coexist with mechanisms, roundtrip and remain selectable outside their host',()=>{
+ const S=require('./editor-space'),m=new Model(L.blank());
+ for(const face of ['north','east','south','west'])m.change(()=>m.paint('torch',3,3,{voxel:true,y:2,face}));
+ m.change(()=>m.paint('plate',3,3,{voxel:true,y:2}));assert.equal(m.map.torches.length,4);assert.equal(m.map.plates.length,1);
+ assert.deepEqual(L.read(JSON.stringify(m.map)),m.map);
+ const runtime=L.instantiate(m.map,Physics,Soft);assert.equal(runtime.world.torches.length,4);assert.equal(runtime.world.collisionBoxes().length,1);
+ const bounds=S.boxes(m.map).filter(b=>b.key==='torches');assert.equal(bounds.length,4);
+ for(const p of m.map.torches){const f=L.torchFrame(p),box=bounds.find(b=>b.face===p.face);assert.ok(f.light.every((v,k)=>v>=box.min[k]&&v<=box.max[k]));const ray={origin:f.origin.map((v,k)=>v+f.n[k]*2),direction:f.n.map(v=>-v)},hit=S.pick(ray,S.boxes(m.map),16);assert.equal(hit.key,'torches');assert.equal(hit.face,p.face);}
+ assert.throws(()=>m.change(map=>map.torches[0].face='east'),'duplicate mount should reject');assert.equal(m.map.torches[0].face,'north');
+});
+
+test('legacy narrow torch obstacles migrate to masonry mounts once and missing hosts are reported',()=>{
+ const map=L.defaultLevel();map.torches=[];map.walls.push({x:1,z:2,half:.17,base:0,height:.56});
+ const migrated=L.read(map);assert.equal(migrated.torches.length,1);assert.ok(migrated.walls.every(w=>w.half>=.4));assert.deepEqual(migrated.torches[0],{x:0,y:1,z:2,face:'east'});assert.deepEqual(L.read(migrated),migrated);assert.deepEqual(L.issues(migrated),[]);
+ assert.deepEqual(L.voxelize(migrated).torches,migrated.torches);
+ const missing=L.blank();missing.torches=[{x:2,y:1,z:2,face:'north'}];assert.ok(L.issues(L.read(missing)).some(s=>s.includes('блок крепления')));
+ for(const p of [{x:2,y:1,z:2,face:'top'},{x:2,y:1.5,z:2,face:'east'},{x:2,y:1,z:2,face:'__proto__'}]){missing.torches=[p];assert.throws(()=>L.read(missing));}
 });
 
 test('any one to four colours form a valid party, and only their matching markers are required',()=>{

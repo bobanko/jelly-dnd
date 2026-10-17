@@ -4,8 +4,10 @@
  const DRAFT_KEY='jelly-dnd.editor.v1',PLAY_KEY='jelly-dnd.play.v1';
  const copy=value=>JSON.parse(JSON.stringify(value));
  const characters=[{name:'Мох',color:'#9ddd56',glyph:'ᛉ',keys:'W A S D'},{name:'Иней',color:'#477bff',glyph:'ᛟ',keys:'↑ ← ↓ →'},{name:'Уголёк',color:'#ef5346',glyph:'ᛋ',keys:'I J K L'},{name:'Аметист',color:'#bb70ef',glyph:'ᛜ',keys:'T F G H'}];
- const limits={blocks:4096,tiles:256,walls:256,plates:16,bridges:16,lifts:16,spikes:32,portals:4,conveyors:256,crates:4,archers:4,pickups:8};
- function blank(){return {version:1,name:'Новое подземелье',size:16,blocks:[],tiles:[],walls:[],spawns:[null,null,null,null],goals:[null,null,null,null],plates:[],bridges:[],lifts:[],spikes:[],portals:[],conveyors:[],crates:[],archers:[],pickups:[]};}
+ const limits={blocks:4096,tiles:256,walls:256,torches:8,plates:16,bridges:16,lifts:16,spikes:32,portals:4,conveyors:256,crates:4,archers:4,pickups:8};
+ const wallFaces={north:[0,0,-1],east:[1,0,0],south:[0,0,1],west:[-1,0,0]};
+ function torchFrame(p){const n=wallFaces[p.face]||wallFaces.south,origin=[p.x+n[0]*.49,p.y-.5,p.z+n[2]*.49];return {origin,n,u:[n[2],0,-n[0]],light:origin.map((v,k)=>v+n[k]*.25+(k===1?.32:0))};}
+ function blank(){return {version:1,name:'Новое подземелье',size:16,blocks:[],tiles:[],walls:[],torches:[],spawns:[null,null,null,null],goals:[null,null,null,null],plates:[],bridges:[],lifts:[],spikes:[],portals:[],conveyors:[],crates:[],archers:[],pickups:[]};}
  function surfaceY(map,x,z,ceiling=Infinity){const ys=[...map.tiles.filter(p=>p.x===x&&p.z===z).map(p=>p.height),...(map.blocks||[]).filter(p=>p.x===x&&p.z===z).map(p=>p.y)].filter(y=>y<=ceiling+.001);return ys.length?Math.max(...ys):null;}
  function voxelize(input){
   const map=read(input),occupied=new Set(map.blocks.map(p=>`${p.x},${p.y},${p.z}`));
@@ -23,7 +25,7 @@
   map.tiles=map.tiles.filter(p=>!holes.has(`${p.x},${p.z}`));
   for(const x of [5,6,7])for(const z of [8,9,10]){map.tiles=map.tiles.filter(p=>p.x!==x||p.z!==z);map.tiles.push({x,z,height:1});}
   for(const z of [5,6])map.tiles.push({x:10,z,height:0});
-  for(const [x,z] of [[1,2],[10,2],[1,9],[10,9]])map.walls.push({x,z,half:.17,height:.56,base:0});
+  for(const z of [2,9])for(const x of [0,11])map.torches.push({x,y:1,z,face:x===0?'east':'west'});
   for(let x=1;x<=10;x++)for(const z of [0,11])if(x!==5&&x!==6)map.walls.push({x,z,half:.5,height:1.8,base:-.4});
   for(const x of [0,11])for(let z=1;z<=10;z++)if(z!==7&&z!==8)map.walls.push({x,z,half:.5,height:1.8,base:-.4});
   map.spawns=[{x:2,z:8},{x:9,z:8},{x:9,z:7},null];map.goals=[{x:3,z:2},{x:8,z:3},{x:9,z:2},null];
@@ -47,12 +49,26 @@
   const point=p=>{if(!p||!Number.isInteger(p.x)||!Number.isInteger(p.z)||p.x<0||p.z<0||p.x>=map.size||p.z>=map.size)fail('Объект находится за границами карты.');return {x:p.x,z:p.z,...(p.y===undefined?{}:{y:number(p.y,0,-2,12)})};};
   const list=(key,convert,max=limits[key])=>{
    const items=data[key]??[];if(!Array.isArray(items)||items.length>max)fail(`Слишком много объектов: ${key}.`);
-   const cells=new Set();map[key]=items.map((p,i)=>{const q=point(p),cell=`${q.x},${q.y??''},${q.z}`+(key==='spikes'?','+(p.face||'top'):'');if(cells.has(cell))fail(`Два объекта одного типа в одной клетке: ${key}.`);cells.add(cell);return {...q,...convert(p,i)};});
+   const cells=new Set();map[key]=items.map((p,i)=>{const q=point(p),cell=`${q.x},${q.y??''},${q.z}`+(key==='spikes'||key==='torches'?','+(p.face||'top'):'');if(cells.has(cell))fail(`Два объекта одного типа в одной клетке: ${key}.`);cells.add(cell);return {...q,...convert(p,i)};});
   };
   list('blocks',p=>{if(!Number.isInteger(p.y))fail('Координата Y куба должна быть целой.');if(p.color!==undefined&&(!Number.isInteger(p.color)||p.color<0||p.color>3))fail('Цвет куба должен соответствовать одному из четырёх персонажей.');return {y:p.y,...(p.color===undefined?{}:{color:p.color})};});
   list('tiles',p=>({height:number(p.height,0,0,3)}));
   list('walls',p=>({half:number(p.half,.5,.1,.5),base:number(p.base,0,-2,12),height:number(p.height,1.4,.1,6)}));
-  if(map.walls.filter(p=>p.half<.4).length>8)fail('На карте может быть не более восьми факелов.');
+  list('torches',p=>{if(!Number.isInteger(p.y))fail('Для факела укажите целый Y блока крепления.');if(!Object.hasOwn(wallFaces,p.face))fail('Выберите боковую грань крепления факела.');return {face:p.face};});
+  // Older maps stored free-standing torches as narrow walls. Attach those lights
+  // to the nearest existing masonry face once, while importing the definition.
+  const oldTorches=map.walls.filter(p=>p.half<.4);map.walls=map.walls.filter(p=>p.half>=.4);
+  if(oldTorches.length+map.torches.length>limits.torches)fail('На карте может быть не более восьми факелов.');
+  for(const old of oldTorches){
+   const candidates=[];
+   for(const b of [...map.blocks,...map.walls.map(w=>({x:w.x,y:Math.max(-2,Math.min(12,Math.round(old.base)+1)),z:w.z,base:w.base,height:w.height}))]){
+    if(b.color!==undefined||b.base!==undefined&&(b.y-.5<b.base||b.y-.5>b.base+b.height))continue;
+    for(const [face,n] of Object.entries(wallFaces)){const distance=Math.hypot(old.x-b.x-n[0]*.7,old.z-b.z-n[2]*.7,(old.base+.5)-(b.y-.5));candidates.push({x:b.x,y:b.y,z:b.z,face,distance});}
+   }
+   candidates.sort((a,b)=>a.distance-b.distance);const best=candidates[0]||{x:old.x,y:Math.min(12,Math.round(old.base)+1),z:old.z,face:'south'};const {x,y,z,face}=best;
+   if(!map.torches.some(p=>p.x===x&&p.y===y&&p.z===z&&p.face===face))map.torches.push({x,y,z,face});
+  }
+  if(map.torches.length>limits.torches)fail('На карте может быть не более восьми факелов.');
   for(const key of ['spawns','goals']){if(!Array.isArray(data[key])||data[key].length<1||data[key].length>4)fail('Допустимо от одного до четырёх слотов персонажей.');map[key]=Array.from({length:4},(_,i)=>data[key][i]==null?null:point(data[key][i]));}
   list('plates',(p,i)=>({id:id(p.id,`plate-${i+1}`),color:['red','blue','amber','dark'].includes(p.color)?p.color:'red'}));
   if(new Set(map.plates.map(p=>p.id)).size!==map.plates.length)fail('Идентификаторы кнопок должны быть уникальными.');
@@ -99,12 +115,13 @@
   }
   for(const p of map.lifts)if(features.some(key=>key!=='lifts'&&at(key==='spikes'?map[key].filter(s=>!s.face):map[key],p)))result.push(`Лифт ${p.x}, ${p.z} перекрыт другим объектом.`);
   for(const p of map.conveyors)if(['plates','spikes','portals'].some(key=>at(key==='spikes'?map[key].filter(s=>!s.face):map[key],p)))result.push(`Конвейер ${p.x}, ${p.z} перекрыт другим механизмом.`);
+  for(const p of map.torches||[])if(!map.blocks.some(b=>b.x===p.x&&b.z===p.z&&b.y===p.y&&b.color===undefined)&&!map.walls.some(w=>w.x===p.x&&w.z===p.z&&p.y-.5>=w.base&&p.y-.5<=w.base+w.height))result.push(`Факелу ${p.x}, ${p.y}, ${p.z} нужен каменный блок крепления.`);
   return [...new Set(result)];
  }
  function instantiate(map,Physics,Soft){
   const floor=new Set(map.tiles.map(p=>`${p.x},${p.z}`)),plates=copy(map.plates),bridges=map.bridges.map(p=>({...p,plate:plates.findIndex(q=>q.id===p.plate)}));
   const world=new Physics.World(floor,bridges,plates,map.walls.map(p=>({x:p.x,z:p.z,half:p.half,minY:p.base,height:p.base+p.height})));
-  world.blocks=copy(map.blocks||[]);world.blockColumns=new Map();for(const b of world.blocks){const key=`${b.x},${b.z}`;if(!world.blockColumns.has(key))world.blockColumns.set(key,[]);world.blockColumns.get(key).push(b.y);}
+  world.torches=copy(map.torches||[]);world.blocks=copy(map.blocks||[]);world.blockColumns=new Map();for(const b of world.blocks){const key=`${b.x},${b.z}`;if(!world.blockColumns.has(key))world.blockColumns.set(key,[]);world.blockColumns.get(key).push(b.y);}
   world.blockColors=new Map(world.blocks.filter(b=>b.color!==undefined).map(b=>[`${b.x},${b.y},${b.z}`,b.color]));
   for(const p of map.tiles)if(p.height)world.heights.set(`${p.x},${p.z}`,p.height);
   world.lifts=map.lifts.map(p=>({...p,height:p.base,target:p.base}));world.spikes=copy(map.spikes);world.portals=copy(map.portals);world.conveyors=copy(map.conveyors);world.archers=copy(map.archers);world.pickups=map.pickups.map(p=>({...p,holder:null,durability:3,destroyed:false}));
@@ -119,6 +136,6 @@
   const saved=storage?.getItem(PLAY_KEY);if(!saved)throw new Error('Тестовый уровень не найден. Откройте редактор и нажмите «Играть».');
   const map=read(saved),errors=issues(map);if(errors.length)throw new Error(errors.join('\n'));return map;
  }
- const api={DRAFT_KEY,PLAY_KEY,characters,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize};
+ const api={DRAFT_KEY,PLAY_KEY,characters,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyLevels=api;
 })(globalThis);
