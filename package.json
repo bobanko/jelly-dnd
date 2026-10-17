@@ -1,0 +1,16 @@
+{
+  "name": "jelly-dnd",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check game.js && node --check physics.js && node --check soft-body.js && node --check level-features.js && node --check webgpu-renderer.js && node --check game-effects.js",
+    "test": "node --test game.test.js physics.test.js soft-body.test.js level-features.test.js game-effects.test.js stacking.test.js",
+    "test:browser": "node browser-tests.cjs",
+    "profile:browser": "node browser-smoke.cjs",
+    "profile:compare": "node browser-performance.cjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1"
+  }
+}
