@@ -83,7 +83,7 @@
     const height=world.heightAt(node[0],node[2]),old=b.old[i];
     if(height!==null&&height<=(p.y||0)+.2&&node[1]<height+.035&&(old[1]>height-.14||p.state==='alive'&&Math.abs((p.y||0)-height)<.18)){
      const penetration=height+.035-node[1];node[1]=height+.035;
-     const dx=node[0]-old[0],dz=node[2]-old[2],slip=Math.hypot(dx,dz);
+     const dx=node[0]-old[0]-(b.surfaceVelocity?.x||0)*(this.contactStep||0),dz=node[2]-old[2]-(b.surfaceVelocity?.z||0)*(this.contactStep||0),slip=Math.hypot(dx,dz);
      // Coulomb floor friction: static contact sticks; sliding uses a smaller coefficient.
      const friction=!b.driven&&slip<penetration*.65?1:Math.min(1,penetration*(b.driven?.12:.38)/(slip||1));
      node[0]-=dx*friction;node[2]-=dz*friction;
@@ -128,6 +128,7 @@
    }
   }
   step(world,players,inputs,dt){
+   this.contactStep=dt;
    const events=[],lattices=players.map(p=>this.get(p));world.refresh(players);
    const previousCenters=lattices.map(b=>b.summarize().slice());
    const supports=lattices.map((b,i)=>{
@@ -136,7 +137,9 @@
    });
    players.forEach((p,i)=>{
     p.spawn??={x:p.x,z:p.z};p.state??='alive';p.y??=0;p.vy??=0;p.deaths??=0;p.respawnFlash=Math.max(0,(p.respawnFlash||0)-dt);
-    const b=lattices[i],input=inputs[i]||{x:0,z:0},magnitude=p.launchTimer>0?0:Math.hypot(input.x,input.z);b.driven=magnitude>0;
+    const b=lattices[i],input=inputs[i]||{x:0,z:0},magnitude=p.launchTimer>0?0:Math.hypot(input.x,input.z);
+    const belt=supports[i]>=0?{x:0,z:0}:world.conveyorVelocity(p,Math.min(...b.positions.map(n=>n[1]))-.035),onBelt=Math.hypot(belt.x,belt.z)>.001;
+    b.surfaceVelocity=belt;b.driven=magnitude>0||onBelt;
     if(p.state==='dead'){
      p.respawnTimer-=dt;const spawn=p.respawnTimer<=0&&world.respawnPosition(p,players);
      if(spawn){Object.assign(p,spawn,{state:'alive',y:spawn.y||0,vy:0,vx:0,vz:0,impact:0,respawnFlash:.65,portalLock:null,portalCooldown:0,deathReason:null});b.reset(p);events.push({type:'respawn',player:i});}
@@ -146,15 +149,16 @@
     b.collisionBoxes=world.collisionBoxes().filter(o=>Math.abs(o.x-p.x)<o.half+1&&Math.abs(o.z-p.z)<o.half+1);
     b.disturbance=Math.max(0,(b.disturbance||0)-dt);
     const neighbour=players.some((other,j)=>j!==i&&other.state!=='dead'&&!lattices[j].sleeping&&(Math.hypot(other.vx,other.vy||0,other.vz)>.05||lattices[j].disturbance>0||Math.hypot(inputs[j]?.x||0,inputs[j]?.z||0)>0)&&Math.hypot(p.x-other.x,p.z-other.z)<1.25);
-    if(magnitude||neighbour||p.state==='falling'||!world.supported(p)){b.sleeping=false;b.calm=0;}
+    if(magnitude||onBelt||neighbour||p.state==='falling'||!world.supported(p)){b.sleeping=false;b.calm=0;}
     if(b.sleeping)return;
     b.old=b.positions.map(p=>p.slice());b.previousCenter=b.center.slice();
     // Drive relative to the supporting body. Its displacement is added once below,
     // avoiding both sliding passengers and doubled carrier velocity.
     if(supports[i]>=0){p.vx-=b.carryVelocity[0];p.vz-=b.carryVelocity[2];for(const v of b.velocities){v[0]-=b.carryVelocity[0];v[1]-=b.carryVelocity[1];v[2]-=b.carryVelocity[2];}}
     b.carryVelocity=[0,0,0];
-    const ax=p.state==='alive'&&!p.launchTimer?((magnitude?input.x/magnitude*2.6:0)-(p.vx||0))*(magnitude?13:18):0;
-    const az=p.state==='alive'&&!p.launchTimer?((magnitude?input.z/magnitude*2.6:0)-(p.vz||0))*(magnitude?13:18):0;
+    const driveGain=magnitude?13:onBelt?8:18;
+    const ax=p.state==='alive'&&!p.launchTimer?((magnitude?input.x/magnitude*2.6:0)+belt.x-(p.vx||0))*driveGain:0;
+    const az=p.state==='alive'&&!p.launchTimer?((magnitude?input.z/magnitude*2.6:0)+belt.z-(p.vz||0))*driveGain:0;
     for(let n=0;n<NODE_COUNT;n++){const v=b.velocities[n];v[0]+=ax*dt;v[1]-=15*dt;v[2]+=az*dt;for(let k=0;k<3;k++)b.positions[n][k]+=v[k]*dt;}
    });
    const ascending=players.map((_,i)=>i).sort((a,b)=>previousCenters[a][1]-previousCenters[b][1]);
@@ -191,7 +195,7 @@
     b.positions.forEach((node,n)=>{const rigid=add(vcom,cross(omega,sub(node,center))),internal=sub(b.velocities[n],rigid);b.velocities[n]=add(rigid,mul(internal,damping));energy+=dot(b.velocities[n],b.velocities[n])/NODE_COUNT;});
     Object.assign(p,{x:center[0],z:center[2],y:center[1]-.42,vx:vcom[0],vz:vcom[2],vy:vcom[1]});
     for(let k=0;k<3;k++){b.coreVelocity[k]+=((center[k]-b.core[k])*64-8*b.coreVelocity[k])*dt;b.core[k]+=b.coreVelocity[k]*dt;b.core[k]=Math.max(center[k]-.12,Math.min(center[k]+.12,b.core[k]));}
-    const driving=Math.hypot(inputs[i]?.x||0,inputs[i]?.z||0)>0;
+    const driving=b.driven;
     const ground=world.heightAt(p.x,p.z);
     const grounded=b.rigid?crateGrounded:ground!==null&&Math.abs(p.y-ground)<.15&&p.vy<.7;
     if(p.state==='falling'&&(b.support||grounded)){p.state='alive';p.launchTimer=0;events.push({type:'land',player:i});}

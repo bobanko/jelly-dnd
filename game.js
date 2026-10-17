@@ -5,38 +5,17 @@ const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
 let W,H,DPR,scale,angle=0,targetAngle=0,last=0,time=0,moves=0,history=[],won=false,audioOn=false,audio;
 const N=12, colors=['#9ddd56','#477bff','#ef5346'],names=['Мох','Иней','Уголёк'];
 let zoom=1,fpsTime=0,fpsFrames=0;
-const start=[{x:2,z:8},{x:9,z:8},{x:9,z:7}],players=start.map(p=>({...p,spawn:{...p},state:'alive',y:0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:p.x,rz:p.z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null,shield:null,shieldHP:0,sword:null,facingX:0,facingZ:1,launchTimer:0,bashCooldown:0,attackTime:0,attackCooldown:0}));
-const crates=[{kind:'crate',x:7,z:9,y:1,spawn:{x:7,z:9},state:'alive',vx:0,vy:0,vz:0,deaths:0}];
-const bodies=[...players,...crates];
+let mapError=null,definition;
+try{const search=globalThis.location?.search||'';definition=JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.defaultLevel());}
+const runtime=JellyLevels.instantiate(definition,JellyPhysics,JellySoftBody);
+const {start,players,crates,bodies,plates,goals,bridges,floor,world,soft}=runtime;
 let followedPlayer=0;
 const camera={x:start[0].x,z:start[0].z,mode:'perspective',pitch:55,fov:45};
 const cameraPitches={ortho:30,perspective:55};
-const plates=[{x:2,z:5},{x:8,z:2}],goals=[{x:3,z:2},{x:8,z:3},{x:9,z:2}];
-// Each side has a safe route back from its plate. The lower crossing requires teamwork.
-const bridges=[{x:8,z:4,plate:0},{x:3,z:4,plate:1}];
-const floor=new Set();
-for(let z=1;z<=10;z++)for(let x=1;x<=10;x++){
- if(z>=5 || (z<=3 && x>=2&&x<=9) || (z===4&&(x===3||x===8)))floor.add(`${x},${z}`);
-}
-// Remove tiles to make distinct islands and narrow approaches.
-for(const [x,z] of [[5,5],[6,5],[5,6],[6,6],[1,5],[10,5],[1,6],[10,6],[4,8],[7,8],[4,9],[7,9],[5,10],[6,10]])floor.delete(`${x},${z}`);
-const world=new JellyPhysics.World(floor,bridges,plates,[{x:1,z:2,half:.17},{x:10,z:2,half:.17},{x:1,z:9,half:.17},{x:10,z:9,half:.17}]);
-// Walls stop horizontal movement; open edges and missing floor tiles allow falls.
-for(let x=1;x<=10;x++)for(const z of [0,11])if(x!==5&&x!==6)world.obstacles.push({x,z,half:.5});
-for(const x of [0,11])for(let z=1;z<=10;z++)if(z!==7&&z!==8)world.obstacles.push({x,z,half:.5});
-const soft=new JellySoftBody.System();world.soft=soft;
-// A side route demonstrates the new mechanics without blocking the cooperative rune puzzle.
-for(const x of [5,6,7])for(const z of [8,9,10]){floor.add(`${x},${z}`);world.heights.set(`${x},${z}`,1);}
-world.lifts.push({x:5,z:7,base:0,top:1,height:0,target:0});
-world.spikes.push({x:3,z:9},{x:9,z:6,offset:2.9});
-world.portals.push({x:3,z:6,color:'violet'},{x:6,z:9,color:'violet'},{x:9,z:9,color:'amber'},{x:7,z:2,color:'amber'});
-// A side firing lane leaves the cooperative bridge route available.
-floor.add('10,5');floor.add('10,6');
-world.archers.push({x:10,z:5,dx:0,dz:1,interval:2.4,firstShot:1.6});
-world.pickups.push({id:'oak-shield',kind:'shield',x:8,z:8,holder:null});
-world.pickups.push({id:'iron-sword',kind:'sword',x:8,z:7,holder:null});
 const effects=new JellyEffects.System({reducedMotion});
-const level={floor,bridges,plates,goals,world,soft,effects,crates,won:false,reducedMotion};
+const level={...runtime,effects,won:false,reducedMotion};
+document.querySelector('.intro h1').textContent=definition.name;
+if(globalThis.location?.search?.includes('level=editor')){document.querySelector('#editor-link').textContent='← В редактор';document.querySelector('.chapter').textContent='ТЕСТ УРОВНЯ';}
 const heldKeys=new Set();
 const movementKeys={KeyW:[0,0,-1],KeyS:[0,0,1],KeyA:[0,-1,0],KeyD:[0,1,0],ArrowUp:[1,0,-1],ArrowDown:[1,0,1],ArrowLeft:[1,-1,0],ArrowRight:[1,1,0],KeyI:[2,0,-1],KeyK:[2,0,1],KeyJ:[2,-1,0],KeyL:[2,1,0]};
 let accumulator=0;
@@ -63,8 +42,8 @@ function updateUI(){
 function focusPlayer(i){followedPlayer=i;document.querySelectorAll('.member').forEach((member,j)=>{member.classList.toggle('following',i===j);member.setAttribute('aria-current',i===j?'true':'false');});}
 function clearGoalVisuals(){level.won=false;sceneRenderer.goalGlowStrength=[];sceneRenderer.goalWinGlow=0;}
 function reset(){
- players.forEach((p,i)=>Object.assign(p,start[i],{spawn:{...start[i]},state:'alive',y:0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:start[i].x,rz:start[i].z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,shield:null,shieldHP:0,sword:null,facingX:0,facingZ:1,launchTimer:0,bashCooldown:0,attackTime:0,attackCooldown:0}));
- crates.forEach(p=>Object.assign(p,p.spawn,{y:1,state:'alive',vx:0,vy:0,vz:0,deaths:0,respawnTimer:0}));
+ players.forEach((p,i)=>Object.assign(p,start[i],{spawn:{...start[i]},state:'alive',y:start[i].y||0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:start[i].x,rz:start[i].z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,shield:null,shieldHP:0,sword:null,facingX:0,facingZ:1,launchTimer:0,bashCooldown:0,attackTime:0,attackCooldown:0}));
+ crates.forEach(p=>Object.assign(p,p.spawn,{y:p.spawn.y||0,state:'alive',vx:0,vy:0,vz:0,deaths:0,respawnTimer:0}));
  history=[];moves=0;won=false;heldKeys.clear();world.held.clear();world.resetFeatures();soft.reset();effects.clear();sceneRenderer.bridgeKey=undefined;accumulator=0;
  players.forEach(p=>Object.assign(p,{portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null}));
  clearGoalVisuals();
@@ -90,7 +69,7 @@ function inputs(){
  return result;
 }
 function simulate(dt){
- if(won)return;
+ if(won||mapError)return;
  accumulator+=Math.min(dt,.05);
  const input=inputs();
  while(accumulator>=JellyPhysics.STEP){
@@ -155,7 +134,7 @@ function frame(t){
 }
 function gpuFailure(message){document.querySelector('#gpu-fallback').hidden=false;document.querySelector('#gpu-status').textContent=message;}
 sceneRenderer.onFailure=gpuFailure;
-sceneRenderer.init().then(()=>{document.querySelector('#gpu-fallback').hidden=true;}).catch(error=>gpuFailure(error.message));
+sceneRenderer.init().then(()=>{if(mapError){document.querySelector('#gpu-fallback h2').textContent='Не удалось открыть уровень';gpuFailure(mapError);}else document.querySelector('#gpu-fallback').hidden=true;}).catch(error=>gpuFailure(error.message));
 document.querySelector('#softness').addEventListener('input',e=>{soft.softness=Number(e.target.value);players.forEach(p=>{soft.get(p).sleeping=false;soft.get(p).calm=0;});});
 document.querySelector('#decay').addEventListener('input',e=>soft.decay=Number(e.target.value));
 document.querySelector('#mesh').addEventListener('change',e=>sceneRenderer.mesh=e.target.checked);

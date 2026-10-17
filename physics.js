@@ -5,7 +5,7 @@
  const alive=p=>!p.state||p.state==='alive';
  const overlaps=(a,b,half=SIZE)=>Math.abs(a.x-b.x)<half&&Math.abs(a.z-b.z)<half;
  class World{
-  constructor(floor,bridges,plates,obstacles=[]){this.floor=floor;this.bridges=bridges;this.plates=plates;this.obstacles=obstacles;this.held=new Set();this.heights=new Map();this.lifts=[];this.spikes=[];this.portals=[];this.archers=[];this.arrows=[];this.pickups=[];}
+  constructor(floor,bridges,plates,obstacles=[]){this.floor=floor;this.bridges=bridges;this.plates=plates;this.obstacles=obstacles;this.held=new Set();this.heights=new Map();this.lifts=[];this.spikes=[];this.portals=[];this.conveyors=[];this.archers=[];this.arrows=[];this.pickups=[];}
   active(i,bodies){return bodies.some(p=>alive(p)&&Math.abs(p.y||0)<.15&&Math.abs(p.x-this.plates[i].x)<.42&&Math.abs(p.z-this.plates[i].z)<.42);}
   refresh(bodies){for(let i=0;i<this.bridges.length;i++){const b=this.bridges[i];if(this.active(b.plate,bodies))this.held.add(i);else if(!bodies.some(p=>alive(p)&&overlaps(p,b,.5+HALF+.001)))this.held.delete(i);}}
   solid(x,z){if(!this.floor.has(`${x},${z}`))return true;const i=this.bridges.findIndex(b=>b.x===x&&b.z===z);return i>=0&&!this.held.has(i);}
@@ -46,9 +46,9 @@
      if(p.y<DEATH_HEIGHT){p.state='dead';p.deaths++;p.respawnTimer=RESPAWN_DELAY;p.vx=p.vz=0;events.push({type:'death',player:i});}
      return;
     }
-    const input=inputs[i]||{x:0,z:0},length=Math.hypot(input.x,input.z),gain=1-Math.exp(-(length?13:18)*dt);
-    p.vx+=(length?input.x/length*SPEED-p.vx:-p.vx)*gain;
-    p.vz+=(length?input.z/length*SPEED-p.vz:-p.vz)*gain;
+    const input=inputs[i]||{x:0,z:0},length=Math.hypot(input.x,input.z),belt=this.conveyorVelocity(p),gain=1-Math.exp(-(length?13:Math.hypot(belt.x,belt.z)>.001?8:18)*dt);
+    p.vx+=((length?input.x/length*SPEED:0)+belt.x-p.vx)*gain;
+    p.vz+=((length?input.z/length*SPEED:0)+belt.z-p.vz)*gain;
     for(const axis of ['x','z']){const v='v'+axis,wanted=p[v]*dt,actual=this.moveAxis(p,axis,wanted);if(Math.abs(actual-wanted)>1e-7){p.impact=Math.max(p.impact||0,Math.min(1,Math.abs(p[v])*.3));p[v]=0;}}
    });
    // Equal masses exchange momentum. Resolve against the map as well as each other,

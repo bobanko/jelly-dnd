@@ -2,11 +2,12 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
-function game(){
+function game(options={}){
  const noop=()=>{},ctx=new Proxy({createRadialGradient:()=>({addColorStop:noop})},{get:(o,k)=>o[k]??noop});
  const element=()=>({addEventListener:noop,getContext:()=>ctx,classList:{toggle:noop},setAttribute:noop});
  const elements={},listeners={};
- const sandbox={innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellyEffects:require('./game-effects.js'),JellyPhysics:require('./physics.js'),JellySoftBody:require('./soft-body.js'),JellyGPU:{...require('./webgpu-renderer.js'),Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
+ const sandbox={innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellyLevels:require('./levels.js'),JellyEffects:require('./game-effects.js'),JellyPhysics:require('./physics.js'),JellySoftBody:require('./soft-body.js'),JellyGPU:{...require('./webgpu-renderer.js'),Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
+ if(options.map){sandbox.location={search:'?level=editor'};sandbox.localStorage={getItem:()=>JSON.stringify(options.map)};}
  vm.createContext(sandbox);vm.runInContext(fs.readFileSync('game.js','utf8'),sandbox);
  const codeFor=key=>({arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'}[key]||(/^\d$/.test(key)?'Digit'+key:'Key'+key.toUpperCase()));
  return {run:s=>vm.runInContext(s,sandbox),key:(key,code=codeFor(key),options={})=>listeners.keydown({key,code,preventDefault:noop,...options}),up:(key,code=codeFor(key))=>listeners.keyup({key,code,preventDefault:noop}),blur:()=>listeners.blur()};
@@ -186,4 +187,11 @@ test('undo restores shield durability, sword inventory, skeleton recovery time a
  assert.ok(g.run('soft.get(players[2]).velocities.every(v=>v[0]===2.22&&v[1]===3)'));
  g.run('stopInput()');assert.equal(g.run('players[2].vx'),2.22,'camera/UI input changes do not interrupt a physical throw');
  g.key('r');assert.ok(g.run('players.every(p=>!p.shield&&!p.sword&&!p.launchTimer)&&world.pickups.every(p=>!p.destroyed)&&world.archers[0].state==="alive"'));
+});
+
+test('edited level preserves raised spawns and arbitrary crate start heights on reset',()=>{
+ const map=require('./levels').read(require('./levels').defaultLevel());map.spawns[0]={x:5,z:9};map.crates=[{x:6,z:7}];map.name='Custom chamber';
+ const g=game({map});assert.equal(g.run('definition.name'),'Custom chamber');assert.equal(g.run('players[0].y'),1);assert.equal(g.run('crates[0].y'),0);
+ g.run('players[0].y=3;crates[0].y=4');g.key('r');assert.equal(g.run('players[0].y'),1);assert.equal(g.run('crates[0].y'),0);
+ assert.equal(g.run('mapError'),null);
 });

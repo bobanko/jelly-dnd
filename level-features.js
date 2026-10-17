@@ -5,6 +5,23 @@
  const near=(p,q,r)=>Math.abs(p.x-q.x)<r&&Math.abs(p.z-q.z)<r;
  function install(World){
   Object.assign(World.prototype,{
+   conveyorVelocity(p,foot=p.y||0){
+    let x=0,z=0;
+    if(!alive(p)||p.launchTimer>0||Math.abs(p.vy||0)>.9)return {x,z};
+    const half=.36,area=4*half*half;
+    for(const belt of this.conveyors){
+     if(Math.abs(p.x-belt.x)>.5+half||Math.abs(p.z-belt.z)>.5+half)continue;
+     const height=this.heightAt(belt.x,belt.z);if(height===null||Math.abs(foot-height)>.13)continue;
+     const overlapX=Math.max(0,Math.min(p.x+half,belt.x+.5)-Math.max(p.x-half,belt.x-.5));
+     const overlapZ=Math.max(0,Math.min(p.z+half,belt.z+.5)-Math.max(p.z-half,belt.z-.5));
+     const weight=overlapX*overlapZ/area,speed=belt.speed??.85;x+=(belt.dx||0)*speed*weight;z+=(belt.dz??1)*speed*weight;
+    }
+    return {x,z};
+   },
+   conveyorJoined(belt,sign){
+    const dx=belt.dx||0,dz=belt.dz??1,y=this.heightAt(belt.x,belt.z);
+    return this.conveyors.some(other=>other!==belt&&other.x===belt.x+dx*sign&&other.z===belt.z+dz*sign&&(other.dx||0)===dx&&(other.dz??1)===dz&&this.heightAt(other.x,other.z)===y);
+   },
    goalActive(goal,player){
     return !!goal&&!!player&&alive(player)&&player.kind!=='crate'&&Math.abs((player.y||0)-(goal.y??this.heightAt(goal.x,goal.z)??0))<.15&&Math.hypot(player.x-goal.x,player.z-goal.z)<.32;
    },
@@ -43,16 +60,16 @@
     const bridge=this.bridges[i],progress=bridge.progress??(this.soft?0:this.held.has(i)?1:0);
     if(progress<=0)return null;
     // Slide out of the northern bank, revealing only the supported part of the gap.
-    return {x:bridge.x,z:bridge.z-.5+progress*.5,half:.5,halfX:.5,halfZ:progress*.5,minY:-.26,maxY:0,kind:'bridge'};
+    return {x:bridge.x,z:bridge.z-.5+progress*.5,half:.5,halfX:.5,halfZ:progress*.5,minY:(bridge.y||0)-.26,maxY:bridge.y||0,kind:'bridge'};
    },
    heightAt(x,z){
     const tileX=Math.floor(x+.5),tileZ=Math.floor(z+.5),bridge=this.bridges.findIndex(b=>b.x===tileX&&b.z===tileZ);
-    if(bridge>=0){const bounds=this.bridgeBounds(bridge);return bounds&&Math.abs(x-bounds.x)<=bounds.halfX&&Math.abs(z-bounds.z)<=bounds.halfZ+1e-8?0:null;}
+    if(bridge>=0){const bounds=this.bridgeBounds(bridge);return bounds&&Math.abs(x-bounds.x)<=bounds.halfX&&Math.abs(z-bounds.z)<=bounds.halfZ+1e-8?bounds.maxY:null;}
     x=tileX;z=tileZ;if(this.solid(x,z))return null;
     const lift=this.lifts.find(l=>l.x===x&&l.z===z);return lift?lift.height:(this.heights.get(`${x},${z}`)||0);
    },
    supported(p){const height=this.heightAt(p.x,p.z);return height!==null&&(p.y||0)>=height-.2;},
-   active(i,bodies){const plate=this.plates[i],height=plate.y??this.heightAt(plate.x,plate.z)??0;return bodies.some(p=>alive(p)&&Math.abs((p.y||0)-height)<.15&&near(p,plate,.42));},
+   active(i,bodies){const plate=this.plates[i];if(!plate)return false;const height=plate.y??this.heightAt(plate.x,plate.z)??0;return bodies.some(p=>alive(p)&&Math.abs((p.y||0)-height)<.15&&near(p,plate,.42));},
    collisionBoxes(){
     if(this._collisionCache)return this._collisionCache;
     const boxes=[];

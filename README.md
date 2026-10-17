@@ -8,6 +8,24 @@ Run npm start (or node server.js), then open http://localhost:3000 in Chrome or 
 
 If the browser has no WebGPU adapter, an explanation appears instead of a blank scene. A lost GPU device also shows the fallback card. There is no silent return to the old 2D renderer.
 
+## Level editor
+
+Open http://localhost:3000/editor.html or use the Editor link in the game header. The editor opens the original chamber on first use and restores the most recent draft on subsequent visits. It is a separate page, with a top-down painting grid and a real WebGPU 3D preview using the game's meshes, materials and colliders. The grid and file operations also work without WebGPU.
+
+- Paint stone floors at heights 0–3, walls and torches. Drag a brush or use a rectangle to build platforms; right-click erases an entire cell. Heights represent the single exposed surface in each column, with solid blocks beneath it.
+- Place the three coloured spawns and matching rune finishes. A colour's existing spawn/finish moves when it is placed again. Select a cell to inspect its objects, change properties, remove an individual object or move it to a new cell.
+- Place buttons, sliding bridges, lifts, timed spike traps, two coloured portal pairs, crates, skeleton archers, shields and swords. Objects create a floor underneath when necessary. Crates may share a button tile. Surface mechanisms replace other surface mechanisms on the same tile.
+- Select a bridge's controlling button in its properties. Connections use stable button IDs, so moving a button or reordering the array preserves the link. Deleting a button leaves a visible validation error until the bridge is relinked. Connection lines and channel numbers appear on the grid.
+- Set lift base/top levels, spike phase delay, portal colour, archer facing, firing interval and initial delay. Walls and torch bases can be adjusted separately. Bridge height follows the floor height of its cell.
+- Switch to 3D to inspect the actual level. Bridges are displayed extended so their geometry is visible; gameplay still starts with them retracted. Rotate in quarter turns, zoom, pan, or enable collider outlines. Clicking a painting tool returns to the grid.
+- Ctrl+Z undoes a complete brush/rectangle gesture; Ctrl+Y or Ctrl+Shift+Z redoes it. V selects, B paints stone, X erases, F fits the view, Space+drag or the middle mouse button pans, and the wheel zooms. The pan tool and explicit +/− buttons also work on small touch screens. Ctrl+S saves, including when a property field is focused. Shortcuts use physical key positions.
+
+Draft edits autosave in this browser under jelly-dnd.editor.v1. Export downloads a versioned JSON level file; Import loads such a file after validating its structure. Import, a new map, resizing and restoring the original chamber can all be undone. File errors leave the current draft intact. The grid can be resized from 8×8 to 16×16; shrinking removes out-of-bounds objects and can be undone.
+
+Play validates the map, saves a separate playtest copy under jelly-dnd.play.v1, and opens /?level=editor. Missing or obstructed spawns/finishes, missing floors, unpaired portals, invalid lift heights and dangling bridge links are reported before launch. The game loads this exact shared map format and derives player/crate spawn heights from the surfaces. Reset preserves those heights. The game header returns to the editor; playing never modifies the draft. Opening the ordinary game URL always loads the original chamber.
+
+The current engine keeps three characters and finishes, at most two portal pairs, four crates, four archers, eight item pickups, eight torches, sixteen buttons/bridges/lifts and thirty-two spike traps per map. Floors and walls can cover the full grid. GPU buffers grow for larger geometry and collider overlays; lights follow placed torches instead of the original chamber's fixed positions. Map files contain initial definitions only, not live velocities, health, collected items or timer state. levels.js owns parsing, validation, the original chamber and runtime construction; editor-model.js owns reversible editing operations.
+
 ## Play
 
 - Hold WASD for Moss, arrow keys for Frost, and I/J/K/L for the red Ember (I forward, J left, K back, L right). Movement is continuous, diagonals are supported, and all three characters can be controlled simultaneously.
@@ -96,6 +114,8 @@ npm test
 For real GPU/browser checks, install development dependencies with npm install, keep the local server running, then run npm run test:browser. The script uses the installed Windows Chrome executable; CHROME_PATH can select another compatible Chromium executable. It launches an isolated headless browser with WebGPU enabled, never a personal browser profile.
 
 npm run test:combat:browser additionally checks item pickup, inventory undo/reset, camera-relative equipment facing, frontal blocks, three-hit shield cracks/destruction, wood impact audio and the firing tone, physical shield bashes, sword strikes, and skeleton collapse/reassembly on the real GPU. Combat unit tests cover all four firing directions, swept collisions, walls, crates, floor heights, nearest-hit ordering, bounded projectile lifetime, throwing across a hole, blocked flight, durability and the five-second recovery clock.
+
+npm run test:editor:browser checks real pointer painting, rectangles, erase and grouped history, entity properties and moves, button links, portal validation, export/import, draft persistence, 3D rotation/colliders, full-board buffer growth, blank-map preview, custom game launch/reset/victory and return, narrow screens and the no-WebGPU editor. levels.test.js covers the shared schema, invalid imports, original-map equivalence, entity limits, reversible operations and height-aware runtime construction.
 
 npm run test:dice renders the production pip shader onto all six faces, counts the separate dots from a GPU readback and checks the 1–6 values and opposite-face sums. It also captures the three actual jelly creatures at four camera rotations. Audit images are saved in artifacts/.
 
