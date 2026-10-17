@@ -21,6 +21,12 @@ test('perspective makes near objects larger; orthographic scale stays constant w
   else assert.ok(Math.abs(a.scale-b.scale)<1e-8);
  }
 });
+test('both projections follow elevated and below-zero anchors without changing their framing',()=>{
+ for(const mode of ['ortho','perspective'])for(const y of [-2,0,1,6,12])for(const fov of [25,45,85])for(let q=0;q<4;q++){
+  const f=frame(mode,{targetY:y,focusHeight:y+.42,fov},q*Math.PI/2),p=project(f,[5,y,6]);
+  assert.ok(Math.abs(p.x-720)<.002);assert.ok(Math.abs(p.y-560)<.002);assert.equal(p.visible,true);assert.ok(f.vp.every(Number.isFinite));
+ }
+});
 
 test('FOV compensates camera distance to preserve the followed cube size at either height',()=>{
  for(const focusHeight of [.42,1.42])for(const pitch of [25,55,80])for(const scale of [55,150]){

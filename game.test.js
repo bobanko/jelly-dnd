@@ -24,10 +24,10 @@ test('solo and duo levels assign controls by active order, keeping camera keys, 
   assert.ok(g.run(`players[${slots.length-1}].z<4`));assert.equal(g.run('followedPlayer'),slots.length-1);
   g.key('z');assert.equal(g.run(`players[${slots.length-1}].z`),4);g.key(String(slot+1));assert.equal(g.run('followedPlayer'),slots.length-1);
   g.key('r');assert.equal(g.run('players.length'),slots.length);assert.ok(g.run('players.every(p=>p.state==="alive")'));
-  g.run('players.forEach(p=>{const g=goals.find(g=>g.slot===p.slot);Object.assign(p,g,{rx:g.x,rz:g.z});});soft.reset();simulate(.05)');assert.equal(g.run('won'),true);
+  g.run('players.forEach(p=>{const g=goals.find(g=>g.slot===p.slot);Object.assign(p,g,{rx:g.x,rz:g.z});});soft.reset();for(let n=0;n<101;n++)simulate(.05)');assert.equal(g.run('won'),true);
  }
  const solo=game({map:partyMap([1])});for(const key of ['Digit1','Digit3','Digit4'])solo.key('',key);assert.equal(solo.run('moves'),0);assert.equal(solo.run('followedPlayer'),0);
- const withUnused=partyMap([1]);withUnused.goals[0]={x:5,z:1};const extra=game({map:withUnused});extra.run('Object.assign(players[0],goals.find(g=>g.slot===1));soft.reset();simulate(.05)');assert.equal(extra.run('won'),true,'unused colours do not block victory');
+ const withUnused=partyMap([1]);withUnused.goals[0]={x:5,z:1};const extra=game({map:withUnused});extra.run('Object.assign(players[0],goals.find(g=>g.slot===1));soft.reset();for(let n=0;n<101;n++)simulate(.05)');assert.equal(extra.run('won'),true,'unused colours do not block victory');
  const wrong=game({map:withUnused});wrong.run('players[0].x=5;players[0].z=1;soft.reset();simulate(.05);effects.step(.1,world,goals,players)');assert.equal(wrong.run('won'),false);assert.equal(wrong.run('effects.runes.length'),0,'another colour cannot activate an unused rune');
 });
 test('every control set works for every solo colour, using physical positions in all directions',()=>{
@@ -62,7 +62,7 @@ test('fourth purple jelly uses physical TFGH, participates in victory, and respa
   assert.ok((g.run('players[3].'+axis)-before)*sign>0);assert.equal(g.run('followedPlayer'),3);g.key('4');assert.equal(g.run('followedPlayer'),3);
  }
  const g=game({map:partyMap([0,1,2,3])});g.run('players.slice(0,3).forEach((p,i)=>Object.assign(p,goals[i]));soft.reset();simulate(.05)');assert.equal(g.run('won'),false);
- g.run('Object.assign(players[3],goals[3]);soft.reset();simulate(.05)');assert.equal(g.run('won'),true);
+ g.run('Object.assign(players[3],goals[3]);soft.reset();for(let n=0;n<101;n++)simulate(.05)');assert.equal(g.run('won'),true);
  g.run('reset();players[3].state="dead";players[3].respawnTimer=.01;simulate(.05)');assert.equal(g.run('players[3].state'),'alive');assert.equal(g.run('players.length'),4);
 });
 test('physical WASD works on Russian layout and releases after a layout change',()=>{
@@ -105,19 +105,29 @@ test('camera follows rendered position smoothly and centers either cube at all f
  for(let q=0;q<4;q++){
   g.run(`angle=${q}*Math.PI/2`);
   assert.ok(g.run('Math.abs(project(players[1].rx,0,players[1].rz).x-W*.5)<.1'));
-  assert.ok(g.run('Math.abs(project(players[1].rx,0,players[1].rz).y-H*.56)<.1'));
+  assert.ok(g.run('Math.abs(project(players[1].rx,players[1].y,players[1].rz).y-H*.56)<.1'));
  }
  g.key('1');assert.equal(g.run('followedPlayer'),0);
  g.key('r');assert.equal(g.run('camera.x'),2);
 });
-test('FOV compensation follows upper floors without diving into the void during a fall',()=>{
+test('camera follows height smoothly upwards and downwards, including negative floors and falling',()=>{
  const g=game();
- g.run('won=true;camera.fov=85;players[0].y=1;frame(16)');
- assert.equal(g.run('camera.focusHeight'),1.42);
- g.run('players[0].y=-.01;frame(24)');
- assert.ok(g.run('Math.abs(camera.focusHeight-.41)<1e-10'));
- g.run('players[0].y=-3;players[0].state="falling";frame(32)');
- assert.equal(g.run('camera.focusHeight'),.42);
+ g.run('won=true;camera.fov=85;players[0].y=3;frame(16)');
+ assert.ok(g.run('camera.targetY>0&&camera.targetY<3'));assert.equal(g.run('camera.focusHeight'),3.42);
+ g.run('for(let t=32;t<=2400;t+=16)frame(t)');assert.ok(g.run('Math.abs(camera.targetY-3)<.001'));
+ for(const mode of ['ortho','perspective'])for(let q=0;q<4;q++){
+  g.run(`camera.mode='${mode}';angle=${q}*Math.PI/2`);assert.ok(g.run('Math.abs(project(players[0].rx,3,players[0].rz).y-H*.56)<.1'));
+ }
+ g.run('players[0].y=-1;frame(2416)');assert.ok(g.run('camera.targetY>-1&&camera.targetY<3'));
+ g.run('for(let t=2432;t<=4800;t+=16)frame(t)');assert.ok(g.run('Math.abs(camera.targetY+1)<.001'));
+ g.run('players[0].y=-3;players[0].state="falling";frame(4816)');assert.ok(g.run('camera.targetY<-1&&camera.targetY>-3'));assert.equal(g.run('camera.focusHeight'),-2.58);
+ g.run('players[0].state="alive";players[0].y=0;for(let t=4832;t<=7200;t+=16)frame(t)');assert.ok(g.run('Math.abs(camera.targetY)<.001'));
+});
+test('switching followed heroes eases to their height and reset immediately restores spawn height',()=>{
+ const g=game();g.run('won=true;players[1].y=2');g.key('2');g.run('frame(16)');assert.ok(g.run('camera.targetY>0&&camera.targetY<2'));
+ g.run('for(let t=32;t<=2400;t+=16)frame(t)');assert.ok(g.run('Math.abs(camera.targetY-2)<.001'));
+ g.key('1');g.run('frame(2416)');assert.ok(g.run('camera.targetY>0&&camera.targetY<2'));
+ g.key('r');assert.equal(g.run('camera.targetY'),0);assert.equal(g.run('camera.focusHeight'),.42);
 });
 
 test('continuous keyboard motion, release friction, undo and camera-relative input',()=>{
@@ -155,8 +165,33 @@ test('continuous route activates both plates and finishes the puzzle',()=>{
  travel(0,'x',3);travel(0,'z',2);
  // Blue leaves the bridge button for its separate finish tile.
  travel(1,'z',3);
- g.run('simulate(.05)');assert.equal(g.run('won'),true);
+ g.run('for(let n=0;n<101;n++)simulate(.05)');assert.equal(g.run('won'),true);
  g.key('z');assert.equal(g.run('won'),false);
+});
+
+test('victory requires five continuous seconds for solo, duo, three and four active colours',()=>{
+ for(const slots of [[3],[1,3],[0,2,3],[0,1,2,3]]){
+  const g=game({map:partyMap(slots)});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<599;n++)simulate(JellyPhysics.STEP)');
+  assert.equal(g.run('won'),false);assert.ok(g.run('finishHold>4.98&&finishHold<5'));
+  assert.match(g.run('document.querySelector("#status").textContent'),/Удерживайте финиши: 1 с/);
+  g.run('simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),true);assert.equal(g.run('finishHold'),5);assert.equal(g.run('document.querySelector("#win").hidden'),false);
+ }
+});
+test('leaving any finish before the deadline cancels the timer and re-entry requires a full five seconds',()=>{
+ const g=game({map:partyMap([1,3])});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<480;n++)simulate(JellyPhysics.STEP)');
+ assert.ok(g.run('finishHold>3.99'));assert.equal(g.run('won'),false);
+ g.run('players[1].x+=.8;soft.reset();simulate(JellyPhysics.STEP)');assert.equal(g.run('finishHold'),0);assert.equal(g.run('won'),false);
+ g.run('Object.assign(players[1],goals.find(g=>g.slot===players[1].slot),{vx:0,vz:0});soft.reset();for(let n=0;n<599;n++)simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),false);
+ g.run('simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),true);
+});
+test('death, reset and undo clear pending victory; wrong or unoccupied finishes never start it',()=>{
+ const g=game({map:partyMap([0,2])});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<240;n++)simulate(JellyPhysics.STEP)');
+ assert.ok(g.run('finishHold>1.99'));
+ g.run('players[1].state="dead";players[1].respawnTimer=10;simulate(JellyPhysics.STEP)');assert.equal(g.run('finishHold'),0);assert.equal(g.run('won'),false);
+ g.key('r');assert.equal(g.run('finishHold'),0);
+ g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();history.push(snapshot());moves++;for(let n=0;n<240;n++)simulate(JellyPhysics.STEP)');
+ assert.ok(g.run('finishHold>1.99'));g.key('z');assert.equal(g.run('finishHold'),0);assert.equal(g.run('won'),false);
+ g.key('r');g.run('players.forEach((p,i)=>{const g=goals.find(g=>g.slot===[2,0][i]);p.x=g.x;p.z=g.z;});soft.reset();for(let n=0;n<720;n++)simulate(JellyPhysics.STEP)');assert.equal(g.run('finishHold'),0);assert.equal(g.run('won'),false);
 });
 
 test('each finish has a floor tile separate from bridge buttons and portals',()=>{
@@ -245,6 +280,8 @@ test('undo restores shield durability, sword inventory, skeleton recovery time a
 test('edited level preserves raised spawns and arbitrary crate start heights on reset',()=>{
  const map=require('./levels').read(require('./levels').defaultLevel());map.spawns[0]={x:5,z:9};map.crates=[{x:6,z:7}];map.name='Custom chamber';
  const g=game({map});assert.equal(g.run('definition.name'),'Custom chamber');assert.equal(g.run('players[0].y'),1);assert.equal(g.run('crates[0].y'),0);
+ assert.equal(g.run('camera.targetY'),1);assert.equal(g.run('camera.focusHeight'),1.42);
  g.run('players[0].y=3;crates[0].y=4');g.key('r');assert.equal(g.run('players[0].y'),1);assert.equal(g.run('crates[0].y'),0);
+ assert.equal(g.run('camera.targetY'),1);assert.equal(g.run('camera.focusHeight'),1.42);
  assert.equal(g.run('mapError'),null);
 });

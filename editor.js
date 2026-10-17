@@ -4,9 +4,10 @@ let startupError='';
 let initial=L.defaultLevel();
 try{const saved=localStorage.getItem(L.DRAFT_KEY);if(saved)initial=L.read(saved);}catch(error){startupError='Черновик не удалось открыть: '+error.message;}
 const model=new M.Model(L.voxelize(initial));
+const phaseSymbols=['△','⊙','◇','☼'];
 const groups=[
  ['Основание',[['floor','▣','Каменный куб'],['torch','♨','Факел']]],
- ['Цветные блоки',L.characters.map((p,i)=>['color-'+i,p.glyph,p.name,p.color])],
+ ['Цветные блоки',L.characters.map((p,i)=>['color-'+i,phaseSymbols[i],p.name,p.color])],
  ['Персонажи',L.characters.map((p,i)=>['spawn-'+i,'▣',p.name,p.color])],
  ['Финиши',L.characters.map((p,i)=>['goal-'+i,p.glyph,p.name,p.color])],
  ['Механизмы',[['plate','⊙','Кнопка'],['bridge','≋','Мост'],['lift','↥','Лифт'],['conveyor','»','Конвейер','#d8bb72'],['spikes','♜','Шипы'],['portal-violet','◎','Портал','#c98cff'],['portal-amber','◎','Портал','#edb65b']]],
@@ -85,7 +86,7 @@ function renderProperties(){
  for(const {key,index,p} of items){
   const card=element('div',undefined,'object-card'),head=element('div',undefined,'object-head');
   card.dataset.object=`${key}-${index}`;
-  let label=labels[key];if(key==='spawns'||key==='goals')label+=` · ${names[index]}`;if(key==='pickups')label=p.kind==='shield'?'Деревянный щит':'Железный меч';if(key==='walls'&&p.half<.4)label='Факел';
+  let label=labels[key];if(key==='blocks'&&p.color!==undefined)label='Энергетический блок';if(key==='spawns'||key==='goals')label+=` · ${names[index]}`;if(key==='pickups')label=p.kind==='shield'?'Деревянный щит':'Железный меч';if(key==='walls'&&p.half<.4)label='Факел';
   head.append(element('span',key==='goals'?L.characters[index].glyph:key==='spawns'?'▣':key==='archers'?'☠':key==='pickups'?(p.kind==='shield'?'◈':'⚔'):'◇','marker'),element('span',label));card.append(head);
   const set=(property,value)=>edit(map=>{map[key][index][property]=value;});
   if(key==='blocks')for(const axis of ['x','y','z'])field(card,axis.toUpperCase(),p[axis],{min:axis==='y'?-2:0,max:axis==='y'?12:model.map.size-1},value=>{const q={...p,[axis]:value};try{if(model.move('blocks',index,q.x,q.z,q.y)){selected=q;changed();}}catch(error){toast(error.message);renderPanels();}});
@@ -156,7 +157,7 @@ function drawGrid(){
   const px=ox+x*cell,py=oy+z*cell,layer=Number($('brush-height').value),block=model.at('blocks',x,z,layer),tile=block?{height:block.y}:model.at('tiles',x,z),wall=model.at('walls',x,z,layer);
   ctx.fillStyle=tile?['#514e3d','#62634c','#76795a','#8b9267'][Math.floor(tile.height)]||'#62634c':'#101c2080';ctx.fillRect(px+1,py+1,cell-2,cell-2);
   if(tile&&atlas.complete&&atlas.naturalWidth){const id=(x*7+z*13)%16,unit=atlas.naturalWidth/4;ctx.globalAlpha=.42;ctx.drawImage(atlas,id%4*unit,Math.floor(id/4)*unit,unit,unit,px+1,py+1,cell-2,cell-2);ctx.globalAlpha=1;}
-  if(block?.color!==undefined){ctx.fillStyle=colors[block.color]+'60';ctx.fillRect(px+1,py+1,cell-2,cell-2);ctx.fillStyle=colors[block.color];ctx.font=`${Math.max(10,cell*.55)}px serif`;ctx.fillText(L.characters[block.color].glyph,px+cell/2,py+cell/2);}
+  if(block?.color!==undefined){ctx.fillStyle=colors[block.color]+'60';ctx.fillRect(px+1,py+1,cell-2,cell-2);ctx.fillStyle=colors[block.color];ctx.font=`${Math.max(10,cell*.55)}px serif`;ctx.fillText(phaseSymbols[block.color],px+cell/2,py+cell/2);}
   ctx.strokeStyle=tile?'#c9ccaa22':'#a5c0b30c';ctx.strokeRect(px+.5,py+.5,cell-1,cell-1);
   if(tile?.height){ctx.textAlign='right';ctx.font=`${Math.max(7,cell*.18)}px Arial`;ctx.fillStyle='#cbd7ad';ctx.fillText('+'+tile.height,px+cell-4,py+7);ctx.textAlign='center';}
   if(wall){ctx.fillStyle=wall.half<.4?'#a2762e':'#7d8680';ctx.fillRect(px+cell*.13,py+cell*.13,cell*.74,cell*.74);ctx.strokeStyle='#b6c5b151';ctx.strokeRect(px+cell*.13,py+cell*.13,cell*.74,cell*.74);ctx.beginPath();ctx.moveTo(px+cell*.13,py+cell*.5);ctx.lineTo(px+cell*.87,py+cell*.5);ctx.moveTo(px+cell*.5,py+cell*.13);ctx.lineTo(px+cell*.5,py+cell*.5);ctx.stroke();if(wall.half<.4){ctx.fillStyle='#ffd170';ctx.font=`${cell*.6}px Georgia`;ctx.fillText('♨',px+cell*.5,py+cell*.53);}}
@@ -244,7 +245,7 @@ function drawSpatialOverlay(){
  if(active==='spikes'||moveObject?.key==='spikes'){
   const trap=moveObject?{...model.map.spikes[moveObject.index],...hover}:{...hover,face:hover.face||(spikeFace.value==='auto'?'top':spikeFace.value)},f=JellyLevelFeatures.spikeFrame(trap,trap.y??layer);
   const projectLocal=(u,n,v)=>f.origin.map((p,k)=>p+f.u[k]*u+f.n[k]*n+f.v[k]*v),tint=moveObject?(trap.color===undefined?'#d4dbe5':colors[trap.color]):spikeColor.value===''?'#d4dbe5':colors[Number(spikeColor.value)];
-  for(const u of [-.21,.21])for(const v of [-.21,.21]){const ring=Array.from({length:16},(_,i)=>projectLocal(u+Math.cos(i*Math.PI/8)*.133,.012,v+Math.sin(i*Math.PI/8)*.133));path(ring,tint,null,true);for(const sign of [-1,1])path([projectLocal(u+sign*.075,.015,v-.075),projectLocal(u,.255,v),projectLocal(u+sign*.075,.015,v+.075)],tint,null,true);}return;
+  for(const u of [-.21,.21])for(const v of [-.21,.21]){const rim=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([x,z])=>projectLocal(u+x*.132,.012,v+z*.132));path(rim,tint,null,true);for(const sign of [-1,1])path([projectLocal(u+sign*.075,.015,v-.075),projectLocal(u,.255,v),projectLocal(u+sign*.075,.015,v+.075)],tint,null,true);}return;
  }
  if(gesture?.rectangle){for(let z=Math.min(gesture.start.z,hover.z);z<=Math.max(gesture.start.z,hover.z);z++)for(let x=Math.min(gesture.start.x,hover.x);x<=Math.max(gesture.start.x,hover.x);x++)square({x,z},gesture.blockY+.04,color,fill,true);return;}
  const y=hover.y??layer;square(hover,y+.045,color,fill,active!=='select');

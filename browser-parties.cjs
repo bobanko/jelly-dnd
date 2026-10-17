@@ -29,10 +29,17 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
    if(slots.length===4){await page.evaluate(()=>{camera.x=3.5;camera.z=4;zoom=1.5;resize();});await page.screenshot({path:'artifacts/four-jellies.png'});}
    // Every active jelly, including purple, is required to finish.
    if(slots.length>1){await page.evaluate(()=>{players.slice(0,-1).forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();});await page.waitForTimeout(150);assert.equal(await page.evaluate(()=>won),false);}
-   await page.evaluate(()=>{players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();});await page.waitForFunction(()=>won&&sceneRenderer.goalWinGlow>.5);
+   await page.evaluate(()=>{players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();});
+   await page.waitForFunction(()=>finishHold>.1&&!won);assert.ok(await page.locator('#win').isHidden());assert.match(await page.locator('#status').textContent(),/Удерживайте финиши:/);assert.equal(await page.evaluate(()=>sceneRenderer.goalWinGlow),0);
+   if(slots.length===2){
+    await page.waitForFunction(()=>finishHold>1.2&&!won);await page.keyboard.down('KeyS');await page.waitForFunction(()=>!world.goalActive(goals.find(g=>g.slot===players[0].slot),players[0]));await page.keyboard.up('KeyS');
+    assert.equal(await page.evaluate(()=>finishHold),0);assert.equal(await page.evaluate(()=>won),false);assert.ok(await page.evaluate(()=>world.goalActive(goals.find(g=>g.slot===players[1].slot),players[1])));
+    await page.evaluate(()=>{Object.assign(players[0],goals.find(g=>g.slot===players[0].slot),{vx:0,vz:0});soft.reset();});await page.waitForFunction(()=>finishHold>.1&&!won);
+   }
+   await page.waitForFunction(()=>won&&sceneRenderer.goalWinGlow>.5);assert.equal(await page.evaluate(()=>finishHold),5);
    assert.ok(await page.evaluate(()=>effects.runes.some(p=>p.glyph===3&&p.color[2]===1)));assert.equal(await page.evaluate(()=>sceneRenderer.goalGlowStrength.length),slots.length);
    await page.screenshot({path:`artifacts/party-${slots.length}-victory.png`});
-   await page.keyboard.press('KeyR');assert.ok(await page.evaluate(n=>players.length===n&&players.every(p=>p.state==='alive')&&!won,slots.length));
+   await page.keyboard.press('KeyR');assert.ok(await page.evaluate(n=>players.length===n&&players.every(p=>p.state==='alive')&&!won&&finishHold===0,slots.length));
    if(slots.length===4){await page.setViewportSize({width:390,height:844});await page.screenshot({path:'artifacts/four-jellies-mobile.png'});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.setViewportSize({width:1600,height:1000});}
    assert.deepEqual(await page.evaluate(()=>sceneRenderer.errors),[]);await page.locator('#editor-link').click();await page.waitForURL('**/editor.html');await page.waitForFunction(()=>previewRenderer?.ready&&previewRuntime);assert.deepEqual(await page.evaluate(()=>model.map.spawns.flatMap((p,i)=>p?[i]:[])),slots);
   }

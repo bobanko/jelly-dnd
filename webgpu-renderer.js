@@ -34,9 +34,11 @@
   for(const [axis,u,v,sign] of faces){const verts=[];
    for(let j=0;j<=steps;j++)for(let i=0;i<=steps;i++){
     const p=[0,0,0];p[axis]=h[axis]*sign;p[u]=(i/steps*2-1)*h[u];p[v]=(j/steps*2-1)*h[v];
+    if(material===17){const samples=half=>[-half,-half+radius*.5,-half+radius,0,half-radius,half-radius*.5,half];p[u]=samples(h[u])[i];p[v]=samples(h[v])[j];}
     const core=p.map((x,k)=>Math.max(-h[k]+radius,Math.min(h[k]-radius,x))),d=p.map((x,k)=>x-core[k]),n=normalize(d);
     const position=core.map((x,k)=>x+n[k]*radius+center[k]);let uv=[0,0];
-    if(material<.5||material===17){
+    if(material===17){uv=[p[u]/h[u],p[v]/h[v]];}
+    else if(material<.5){
      const tile=Math.abs(Math.round(center[0]*73+center[1]*41+center[2]*137)+axis*5+(sign>0?3:0))%16;
      const a=(tile%2?j:i)/steps,b=(tile%2?i:j)/steps;uv=[(tile%4+.02+a*.96)/4,(Math.floor(tile/4)+.02+b*.96)/4];
     }else if(material===11){
@@ -203,6 +205,20 @@
   rod(mesh,[-.09,.51,.42],[-.09,.63,.42],.047,[.13,.08,.04],13);
   return mesh;
  }
+ const spikeTints=[[.16,.75,.09],[.045,.24,.95],[.95,.045,.025],[.63,.12,.88]];
+ const spikeTint=trap=>trap.color===undefined?[.58,.63,.68]:spikeTints[trap.color];
+ function spikeSocket(mesh,x,z,tint){
+  const profile=[[.082,.003],[.125,.003],[.132,.011],[.121,.028],[.085,.028],[.08,.014],[.082,.003]],color=tint.map(c=>c*.72+.02);
+  for(let band=0;band<profile.length-1;band++){
+   const [r0,y0]=profile[band],[r1,y1]=profile[band+1],a=[[-1,-1],[1,-1],[1,1],[-1,1]];
+   for(let side=0;side<4;side++){
+    const p=a[side],q=a[(side+1)%4],vertices=[[x+p[0]*r0,y0,z+p[1]*r0],[x+p[0]*r1,y1,z+p[1]*r1],[x+q[0]*r1,y1,z+q[1]*r1],[x+q[0]*r0,y0,z+q[1]*r0]];
+    const n=normalize(cross(vertices[1].map((v,k)=>v-vertices[0][k]),vertices[2].map((v,k)=>v-vertices[0][k])));
+    for(const i of [0,1,2,0,2,3])mesh.push(...vertices[i],...n,...color,24,0,0);
+   }
+  }
+  box(mesh,[x,.004,z],[.16,.006,.16],[.008,.01,.012],.002,13,1);
+ }
  function spike(mesh,x,y,z,tint){
   const profile=[[-.075,-.075],[.075,-.075],[.075,.075],[-.075,.075]];
   for(let i=0;i<profile.length;i++){
@@ -252,13 +268,13 @@
   }
  }
  function colorBlockRunes(mesh,block,color,axis,sign){
-  // The allowed hero's finish glyph, readable on every cube face.
-   const from=mesh.length,u=axis===0?[0,0,1]:[1,0,0],n=[0,0,0];n[axis]=sign;const v=cross(u,n);
-   goalRune(mesh,[0,0,0],block.color,color,19);
+   const from=mesh.length,n=[0,0,0];n[axis]=sign;const u=axis===1?[1,0,0]:[n[2],0,-n[0]],v=cross(u,n);
+   // A signed-distance sigil has a luminous core and halo without opaque plates.
+   for(const [x,z] of [[-1,-1],[1,1],[1,-1],[-1,-1],[-1,1],[1,1]])mesh.push(x*.35,0,z*.35,0,1,0,...color,19+block.color,x,z);
    for(let k=from;k<mesh.length;k+=12)for(const offset of [0,3]){const x=mesh[k+offset],y=mesh[k+offset+1],z=mesh[k+offset+2];for(let j=0;j<3;j++)mesh[k+offset+j]=u[j]*x+n[j]*y+v[j]*z+(offset===0?[block.x,block.y-.5,block.z][j]+n[j]*(axis===1?.504:.489):0);}
  }
  function phaseBlock(mesh,faces,block,color){
-  const shell=[];box(shell,[block.x,block.y-.5,block.z],[.97,1,.97],color,.045,17,2);
+  const shell=[];box(shell,[block.x,block.y-.5,block.z],[.97,1,.97],color,.075,17,6);
   // Keep each face and its rune together, so a jelly inside the block can be
   // composited between the far and near surfaces without opaque depth writes.
   const faceSize=shell.length/6;
@@ -267,6 +283,11 @@
    mesh.push(...shell.slice(face*faceSize,(face+1)*faceSize));colorBlockRunes(mesh,block,color,axis,sign);
    faces.push({kind:'phase',center,normal,first:from,count:mesh.length/12-from});
   }
+ }
+ function phaseGroundGlow(mesh,faces,block,color){
+  const first=mesh.length/12,center=[block.x,block.y-.995,block.z];
+  for(const [x,z] of [[-1,-1],[1,1],[1,-1],[-1,-1],[-1,1],[1,1]])mesh.push(center[0]+x*.9,center[1],center[2]+z*.9,0,1,0,...color,23,x,z);
+  faces.push({kind:'phase',center,normal:[0,1,0],first,count:6});
  }
  function colliderLines(boxes){
   const data=[],colors={floor:[.12,.65,1],block:[.22,.75,1],wall:[.8,.88,.95],lift:[1,.65,.04],bridge:[1,.7,.2],conveyor:[.7,.9,.3],spikes:[1,.1,.12],portal:[.85,.2,1]};
@@ -427,6 +448,7 @@
   if(o.material>3.5&&o.material<4.5){result=color*(1.4+sin(scene.options.z*4.)*.08);}
   if(o.material>11.5&&o.material<12.5){result+=vec3f(.56,.4,.21)*pow(max(0.,dot(n,h)),45.);}
   if(o.material>13.5&&o.material<14.5){result+=color*.12+vec3f(.18)*pow(max(0.,dot(n,h)),80.);}
+  if(o.material>23.5&&o.material<24.5){result+=color*.3+vec3f(.25)*pow(max(0.,dot(n,h)),65.);}
   if(o.material>4.5&&o.material<5.5){let portal=scene.portals[u32(o.local.x)];let inactive=portal.position.w<0.;let charge=max(0.,portal.position.w);let delta=o.world.xz-portal.position.xz;let radius=length(delta);let swirl=.5+.5*sin(atan2(delta.y,delta.x)*3.-radius*35.+scene.options.z*select(3.,0.,inactive));let tint=select(color,vec3f(.14,.15,.16),inactive);result=(tint*(.55+swirl*select(1.8,.35,inactive))+vec3f(.06)*exp(-radius*12.))*select(.55+charge*1.9,.5,inactive);}
   if(o.material>7.5&&o.material<8.5){let portal=scene.portals[u32(o.local.x)];result=select(color*(.65+max(0.,portal.position.w)*2.8),vec3f(.075,.08,.085),portal.position.w<0.);}
   if(o.material>9.5&&o.material<10.5){let goal=scene.goals[u32(o.local.x)];let charge=goal.position.w;
@@ -435,18 +457,35 @@
   }
   return vec4f(result,1.);
  }
+ fn energyRune(p:vec2f,glyph:u32)->f32{
+  if(glyph==0u){
+   let a=vec2f(0,-.63);let b=vec2f(.58,.43);let c=vec2f(-.58,.43);
+   let outer=min(runeSegment(p,a,b),min(runeSegment(p,b,c),runeSegment(p,c,a)));
+   let inner=min(runeSegment(p,a*.35,b*.35),min(runeSegment(p,b*.35,c*.35),runeSegment(p,c*.35,a*.35)));
+   return min(outer,inner);
+  }
+  if(glyph==1u){return min(abs(length(p)-.51),max(0.,length(p)-.065));}
+  if(glyph==2u){let d=abs(p.x)+abs(p.y);return min(abs(d-.66),abs(d-.15))*.7071;}
+  var distance=abs(length(p)-.29);
+  for(var i=0;i<8;i++){let a=f32(i)*.785398;let axis=vec2f(cos(a),sin(a));distance=min(distance,runeSegment(p,axis*.43,axis*.61));}
+  return distance;
+ }
  @fragment fn phaseFS(o:Out)->@location(0) vec4f{
-  if(o.material>18.5){return vec4f(o.color*1.65,.64);}
+  let uv=o.local.xz;let aa=max(.002,length(fwidth(uv))*.6);
+  if(o.material>22.5){let radius=length(uv);let glow=exp(-radius*radius*3.5)*(1.-smoothstep(.55,1.,radius));return vec4f(o.color*2.4,glow*.18);}
+  if(o.material>18.5){
+   let distance=energyRune(uv,u32(round(o.material-19.)));
+   let stroke=1.-smoothstep(.047-aa,.047+aa,distance);let halo=exp(-distance*14.);
+   return vec4f(o.color*3.2+vec3f(.26,.2,.12),min(.97,stroke*.86+halo*.42));
+  }
   let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);
-  var uv=vec2f(o.world.x+.5,o.world.y);
-  if(abs(n.x)>.7){uv=vec2f(o.world.z+.5,o.world.y);}
-  if(abs(n.y)>.7){uv=o.world.xz+vec2f(.5);}
-  let face=fract(uv);let edge=min(min(face.x,face.y),min(1.-face.x,1.-face.y));
-  let rim=1.-smoothstep(.018,.08,edge);let fresnel=pow(1.-abs(dot(n,v)),3.);
-  let haze=.5+.5*sin(o.world.y*8.+sin(o.world.x*5.+o.world.z*4.)+scene.options.z*.65);
-  let gloss=pow(max(0.,dot(n,normalize(v+l))),100.);
-  let color=o.color*(.65+max(0.,dot(n,l))*.35+rim*.5+fresnel*.8)+vec3f(.8,.9,1.)*gloss*.65;
-  return vec4f(color,.12+rim*.27+fresnel*.12+haze*.015);
+  let edge=1.-max(abs(uv.x),abs(uv.y));let rim=1.-smoothstep(.025,.17,edge);let lip=1.-smoothstep(.012,.055,edge);
+  let fresnel=pow(1.-abs(dot(n,v)),3.);let reflection=environment(reflect(-v,n));
+  let haze=.5+.5*sin(o.world.y*9.+sin(o.world.x*7.+scene.options.z*.3)+sin(o.world.z*8.-scene.options.z*.2));
+  let bead=length((abs(uv)-vec2f(.66,.65))*vec2f(1.,1.25));let inclusions=exp(-abs(bead-.043)*100.);
+  let gloss=pow(max(0.,dot(n,normalize(v+l))),110.);
+  let color=o.color*(.6+max(0.,dot(n,l))*.3+rim*1.65+fresnel*.7+inclusions*.9)+reflection*(.08+fresnel*.18)+vec3f(1.5,1.65,1.8)*gloss;
+  return vec4f(color,.18+rim*.25+lip*.09+fresnel*.1+inclusions*.12+haze*.018);
  }
  @fragment fn effectFS(o:Out)->@location(0) vec4f{
   let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);
@@ -640,10 +679,10 @@
   }
   buildScene(level){
    const mesh=[],phaseMesh=[],blocks=(level.world.blocks||[]).filter(b=>!level.bridges.some(p=>p.x===b.x&&p.z===b.z&&p.y===b.y)&&!level.world.lifts.some(p=>p.x===b.x&&p.z===b.z&&p.base===b.y)),occupied=new Set(blocks.filter(b=>b.color===undefined).map(b=>[b.x,b.y,b.z].join(',')));
-   const blockTints=[[.24,.9,.09],[.07,.3,1.],[1.,.12,.055],[.73,.22,1.]];this.phaseFaces=[];
+   const blockTints=[[.08,.88,.12],[.025,.48,1.],[1.,.045,.015],[.64,.07,1.]];this.phaseFaces=[];
    for(const b of blocks){
     if([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].every(d=>occupied.has([b.x+d[0],b.y+d[1],b.z+d[2]].join(','))))continue;
-    if(b.color!==undefined){phaseBlock(phaseMesh,this.phaseFaces,b,blockTints[b.color]);continue;}
+    if(b.color!==undefined){phaseBlock(phaseMesh,this.phaseFaces,b,blockTints[b.color]);const support=level.world.heightAt(b.x,b.z,b.y-.99);if(support!==null&&Math.abs(support-(b.y-1))<.01)phaseGroundGlow(phaseMesh,this.phaseFaces,b,blockTints[b.color]);continue;}
     const n=((b.x*73+b.y*31+b.z*137)%19+19)%19/19,color=b.y>0?[.135+n*.028,.15+n*.028,.18+n*.032]:[.265+n*.04,.225+n*.035,.18+n*.03];box(mesh,[b.x,b.y-.5,b.z],[.97,1,.97],color,.045,0,2);
    }
    for(const key of level.floor){const [x,z]=key.split(',').map(Number);if(level.bridges.some(b=>b.x===x&&b.z===z))continue;const height=0;
@@ -727,7 +766,7 @@
     append('lift',i,mesh);
    }
    for(let i=0;i<level.world.spikes.length;i++){
-    const mesh=[],trap=level.world.spikes[i],color=trap.color===undefined?[.58,.63,.68]:[[.16,.75,.09],[.045,.24,.95],[.95,.045,.025],[.63,.12,.88]][trap.color];
+    const mesh=[],trap=level.world.spikes[i],color=spikeTint(trap);
     for(const dx of [-.21,.21])for(const dz of [-.21,.21])spike(mesh,dx,0,dz,color);append('spikes',i,mesh);
    }
    this.propPieces=pieces;this.propData=new Float32Array(pieces.reduce((sum,p)=>sum+p.data.length,0));
@@ -813,11 +852,7 @@
    }
    for(const trap of level.world.spikes){
     const from=mesh.length,f=level.world.spikeFrame(trap);
-    for(const dx of [-.21,.21])for(const dz of [-.21,.21]){
-     const center=[dx,0,dz];
-     pressureSurface(mesh,center,[[.107,.003],[.129,.003],[.133,.012],[.124,.027],[.11,.027],[.105,.013],[.107,.003]],[.11,.12,.13],12,0,24);
-     pressureSurface(mesh,[dx,.004,dz],[[0,0],[.106,0],[.106,.003],[0,.003]],[.008,.01,.012],13,0,24);
-    }
+    for(const dx of [-.21,.21])for(const dz of [-.21,.21])spikeSocket(mesh,dx,dz,spikeTint(trap));
     for(let k=from;k<mesh.length;k+=12)for(const off of [0,3]){const a=mesh[k+off],b=mesh[k+off+1],c=mesh[k+off+2];for(let axis=0;axis<3;axis++)mesh[k+off+axis]=(off?0:f.origin[axis])+f.u[axis]*a+f.n[axis]*b+f.v[axis]*c;}
    }
    for(const belt of level.world.conveyors){

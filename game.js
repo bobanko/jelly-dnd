@@ -2,7 +2,8 @@
 const canvas=document.querySelector('#scene');
 const reducedMotion=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
-let W,H,DPR,scale,angle=0,targetAngle=0,last=0,time=0,moves=0,history=[],won=false,audioOn=false,audio;
+let W,H,DPR,scale,angle=0,targetAngle=0,last=0,time=0,moves=0,history=[],won=false,finishHold=0,audioOn=false,audio;
+const WIN_HOLD_SECONDS=5;
 const N=12, colors=JellyLevels.characters.map(p=>p.color),names=JellyLevels.characters.map(p=>p.name);
 let zoom=1,fpsTime=0,fpsFrames=0;
 let mapError=null,definition;
@@ -10,7 +11,7 @@ try{const search=globalThis.location?.search||'';definition=JellyLevels.forGame(
 const runtime=JellyLevels.instantiate(definition,JellyPhysics,JellySoftBody);
 const {start,players,crates,bodies,plates,goals,bridges,floor,world,soft}=runtime;
 let followedPlayer=0;
-const camera={x:start[0].x,z:start[0].z,mode:'perspective',pitch:55,fov:45};
+const camera={x:start[0].x,z:start[0].z,targetY:start[0].y||0,focusHeight:(start[0].y||0)+.42,mode:'perspective',pitch:55,fov:45};
 const cameraPitches={ortho:30,perspective:55};
 const effects=new JellyEffects.System({reducedMotion});
 const level={...runtime,effects,won:false,reducedMotion};
@@ -46,18 +47,18 @@ function woodHit(broken=false){
 function updateUI(){
  document.querySelector('#moves').textContent=String(moves).padStart(2,'0');document.querySelector('#win').hidden=!won;
  const lost=players.findIndex(p=>!JellyPhysics.alive(p)),moving=world.lifts.some(l=>Math.abs(l.target-l.height)>.01&&players.some(p=>Math.abs(p.x-l.x)<.4&&Math.abs(p.z-l.z)<.4));
- document.querySelector('#status').textContent=won?'Все руны пробуждены':lost>=0?`${names[players[lost].slot]} ${players[lost].state==='falling'?'падает…':players[lost].deathReason==='spikes'?'погиб на шипах. Возрождение…':'возрождается…'}`:players.some(p=>p.portalBlocked)?'Выход портала занят':moving?'Лифт поднимается':players.some(p=>p.portalFlash>0)?'Магический переход':active(0)||active(1)?'Магический мост поднят':'Святилище ждёт вас';
+ document.querySelector('#status').textContent=won?'Все руны пробуждены':lost>=0?`${names[players[lost].slot]} ${players[lost].state==='falling'?'падает…':players[lost].deathReason==='spikes'?'погиб на шипах. Возрождение…':'возрождается…'}`:finishHold>0?`Удерживайте финиши: ${Math.ceil(WIN_HOLD_SECONDS-finishHold)} с`:players.some(p=>p.portalBlocked)?'Выход портала занят':moving?'Лифт поднимается':players.some(p=>p.portalFlash>0)?'Магический переход':active(0)||active(1)?'Магический мост поднят':'Святилище ждёт вас';
 }
 function focusPlayer(i){if(!players[i])return;followedPlayer=i;document.querySelectorAll('.member').forEach((member,slot)=>{const current=players[i].slot===slot;member.classList.toggle('following',current);member.setAttribute('aria-current',current?'true':'false');});}
 function clearGoalVisuals(){level.won=false;sceneRenderer.goalGlowStrength=[];sceneRenderer.goalWinGlow=0;}
 function reset(){
  players.forEach((p,i)=>Object.assign(p,start[i],{spawn:{...start[i]},state:'alive',y:start[i].y||0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:start[i].x,rz:start[i].z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,shield:null,shieldHP:0,sword:null,facingX:0,facingZ:1,launchTimer:0,bashCooldown:0,attackTime:0,attackCooldown:0}));
  crates.forEach(p=>Object.assign(p,p.spawn,{y:p.spawn.y||0,state:'alive',vx:0,vy:0,vz:0,deaths:0,respawnTimer:0}));
- history=[];moves=0;won=false;heldKeys.clear();world.held.clear();world.resetFeatures();soft.reset();effects.clear();sceneRenderer.bridgeKey=undefined;accumulator=0;
+ history=[];moves=0;won=false;finishHold=0;heldKeys.clear();world.held.clear();world.resetFeatures();soft.reset();effects.clear();sceneRenderer.bridgeKey=undefined;accumulator=0;
  players.forEach(p=>Object.assign(p,{portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null}));
  clearGoalVisuals();
  sceneRenderer.platePress=[];
- focusPlayer(0);camera.x=start[0].x;camera.z=start[0].z;updateUI();
+ focusPlayer(0);camera.x=start[0].x;camera.z=start[0].z;camera.targetY=start[0].y||0;camera.focusHeight=camera.targetY+.42;updateUI();
 }
 function undo(){
  if(!history.length)return;
@@ -67,7 +68,7 @@ function undo(){
  sceneRenderer.platePress=[];
  players.forEach((p,i)=>Object.assign(p,previous.players[i],{rx:previous.players[i].x,rz:previous.players[i].z,vx:previous.players[i].launchTimer?previous.players[i].vx:0,vz:previous.players[i].launchTimer?previous.players[i].vz:0,bounce:.2,impact:0,squish:0,squishVelocity:0}));
  crates.forEach((p,i)=>Object.assign(p,previous.crates[i],{vx:0,vy:0,vz:0}));
- world.held=new Set(previous.bridges);world.restoreFeatures(previous.features);soft.restore(bodies,previous.soft);bodies.forEach(p=>{if(!p.launchTimer)soft.get(p).velocities.forEach(v=>v.fill(0));});sceneRenderer.bridgeKey=undefined;heldKeys.clear();accumulator=0;moves--;won=false;updateUI();
+ world.held=new Set(previous.bridges);world.restoreFeatures(previous.features);soft.restore(bodies,previous.soft);bodies.forEach(p=>{if(!p.launchTimer)soft.get(p).velocities.forEach(v=>v.fill(0));});sceneRenderer.bridgeKey=undefined;heldKeys.clear();accumulator=0;moves--;won=false;finishHold=0;updateUI();
 }
 function snapshot(){return {players:players.map(p=>({...p,spawn:{...p.spawn}})),crates:crates.map(p=>({...p,spawn:{...p.spawn}})),bridges:[...world.held],features:world.featureSnapshot(),soft:soft.snapshot(bodies)};}
 function inputs(){
@@ -81,7 +82,7 @@ function simulate(dt){
  if(won||mapError)return;
  accumulator+=Math.min(dt,.05);
  const input=inputs();
- while(accumulator>=JellyPhysics.STEP){
+ while(accumulator>=JellyPhysics.STEP&&!won){
   const events=world.step(bodies,input);
   for(const event of events){
    if(event.player>=players.length)continue;
@@ -93,11 +94,12 @@ function simulate(dt){
     for(const key of heldKeys)if(movementKeys[key][0]===event.target)heldKeys.delete(key);input[event.target]={x:0,z:0};woodHit();
    }else if(event.type==='respawn')tone(event.player?400:300);else if(event.type==='portal')tone(520);else if(event.type==='pickup')tone(720);else if(event.type==='archerShot')tone(840);else if(event.type==='arrowBlock'&&event.durability>0)woodHit();else if(event.type==='shieldBreak')woodHit(true);else if(event.type==='archerDeath')tone(180);
   }
+  const allFinished=players.length>0&&players.every(p=>world.goalActive(goals.find(g=>g.slot===p.slot),p)&&Math.hypot(p.vx,p.vz)<.25);
+  finishHold=allFinished?Math.min(WIN_HOLD_SECONDS,finishHold+JellyPhysics.STEP):0;
+  if(finishHold>=WIN_HOLD_SECONDS-1e-9){finishHold=WIN_HOLD_SECONDS;won=true;players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);}
   accumulator-=JellyPhysics.STEP;
  }
  players.forEach(p=>{p.rx=p.x;p.rz=p.z;p.bounce=Math.max(p.impact,Math.min(.24,Math.hypot(p.vx,p.vz)*.07));});
- won=players.length>0&&players.every(p=>world.goalActive(goals.find(g=>g.slot===p.slot),p)&&Math.hypot(p.vx,p.vz)<.25);
- if(won){players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);}
  updateUI();
 }
 function stopInput(){heldKeys.clear();players.forEach(p=>{if(p.launchTimer)return;p.vx=p.vz=0;const b=soft.get(p);b.velocities.forEach(v=>{v[0]=v[2]=0;});});accumulator=0;}
@@ -136,7 +138,8 @@ function frame(t){
  effects.step(dt,world,goals,players);
  const follow=players[followedPlayer],tracking=reducedMotion?1:1-Math.exp(-dt*5);
  camera.x+=(follow.rx-camera.x)*tracking;camera.z+=(follow.rz-camera.z)*tracking;
- camera.focusHeight=(follow.state==='alive'?(follow.y||0):Math.max(0,follow.y||0))+.42;
+ camera.targetY+=((follow.y||0)-camera.targetY)*tracking;
+ camera.focusHeight=(follow.y||0)+.42;
  level.won=won;sceneRenderer.render(level,players,camera,angle,reducedMotion?0:time,scale,dt);
  fpsTime+=elapsed;fpsFrames++;if(fpsTime>.5){document.querySelector('#fps').textContent=Math.round(fpsFrames/fpsTime)+' FPS';fpsTime=0;fpsFrames=0;}
  requestAnimationFrame(frame);
