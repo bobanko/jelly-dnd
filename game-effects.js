@@ -2,10 +2,17 @@
 (function(root){
  'use strict';
  const palettes=[[.12,.9,.16],[.025,.17,1.],[1.,.065,.035]];
+ const runeColors=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025]],RUNE_LIMIT=32;
  class System{
-  constructor({reducedMotion=false}={}){this.reducedMotion=reducedMotion;this.particles=[];this.rings=[];this.seed=1;}
+  constructor({reducedMotion=false}={}){this.reducedMotion=reducedMotion;this.particles=[];this.rings=[];this.runes=[];this.runeTimers=[];this.runeActive=[];this.seed=1;}
   random(){this.seed=(Math.imul(this.seed,1664525)+1013904223)>>>0;return this.seed/4294967296;}
-  clear(){this.particles.length=0;this.rings.length=0;}
+  clear(){this.particles.length=0;this.rings.length=0;this.runes.length=0;this.runeTimers=[];this.runeActive=[];}
+  emitRune(goal,index,world){
+   if(this.runes.length>=RUNE_LIMIT)return;
+   const a=this.random()*Math.PI*2,edge=Math.floor(this.random()*4),offset=(this.random()-.5)*.6;
+   const x=edge<2?(edge===0?-.4:.4):offset,z=edge>=2?(edge===2?-.4:.4):offset;
+   this.runes.push({glyph:index,position:[goal.x+x,(goal.y??world.heightAt(goal.x,goal.z)??0)+.07,goal.z+z],velocity:[Math.cos(a)*.045,.72+this.random()*.2,Math.sin(a)*.045],color:runeColors[index],size:.105+this.random()*.035,phase:this.random()*Math.PI*2,age:0,life:1.8+this.random()*.4});
+  }
   burst(event,players,soft){
    const random=()=>this.random();
    if(event.type==='death'){
@@ -27,7 +34,7 @@
    }
    this.particles=this.particles.slice(-96);this.rings=this.rings.slice(-8);
   }
-  step(dt,world){
+  step(dt,world,goals=[],players=[]){
    // Cap long background-tab gaps for stable presentation.
    dt=Math.min(Math.max(0,dt),.1);
    for(const p of this.particles){
@@ -43,6 +50,15 @@
    this.particles=this.particles.filter(p=>p.age<p.life);
    for(const ring of this.rings)ring.age+=dt;
    this.rings=this.rings.filter(r=>r.age<r.life);
+   for(const rune of this.runes){rune.age+=dt;for(let k=0;k<3;k++)rune.position[k]+=rune.velocity[k]*dt;}
+   this.runes=this.runes.filter(r=>r.age<r.life);
+   if(!this.reducedMotion)goals.slice(0,3).forEach((goal,i)=>{
+    const charge=world.goalCharge(goal,players[i]);
+    if(charge<=.1){this.runeActive[i]=false;this.runeTimers[i]=0;return;}
+    if(!this.runeActive[i]){this.runeActive[i]=true;this.runeTimers[i]=0;this.emitRune(goal,i,world);}
+    this.runeTimers[i]+=dt*charge;
+    while(this.runeTimers[i]>=.25){this.runeTimers[i]-=.25;this.emitRune(goal,i,world);}
+   });
   }
  }
  const api={System};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyEffects=api;

@@ -56,6 +56,16 @@ test('camera follows rendered position smoothly and centers either cube at all f
  g.key('1');assert.equal(g.run('followedPlayer'),0);
  g.key('r');assert.equal(g.run('camera.x'),2);
 });
+test('FOV compensation follows upper floors without diving into the void during a fall',()=>{
+ const g=game();
+ g.run('won=true;camera.fov=85;players[0].y=1;frame(16)');
+ assert.equal(g.run('camera.focusHeight'),1.42);
+ g.run('players[0].y=-.01;frame(24)');
+ assert.ok(g.run('Math.abs(camera.focusHeight-.41)<1e-10'));
+ g.run('players[0].y=-3;players[0].state="falling";frame(32)');
+ assert.equal(g.run('camera.focusHeight'),.42);
+});
+
 test('continuous keyboard motion, release friction, undo and camera-relative input',()=>{
  const g=game();g.key('w');g.run('simulate(.05)');
  assert.ok(g.run('players[0].z<8&&players[0].z>7.9'));

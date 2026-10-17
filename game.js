@@ -28,7 +28,7 @@ const soft=new JellySoftBody.System();world.soft=soft;
 // A side route demonstrates the new mechanics without blocking the cooperative rune puzzle.
 for(const x of [5,6,7])for(const z of [8,9,10]){floor.add(`${x},${z}`);world.heights.set(`${x},${z}`,1);}
 world.lifts.push({x:5,z:7,base:0,top:1,height:0,target:0});
-world.spikes.push({x:3,z:9},{x:9,z:6,offset:2.4});
+world.spikes.push({x:3,z:9},{x:9,z:6,offset:2.9});
 world.portals.push({x:3,z:6,color:'violet'},{x:6,z:9,color:'violet'},{x:9,z:9,color:'amber'},{x:7,z:2,color:'amber'});
 const effects=new JellyEffects.System({reducedMotion});
 const level={floor,bridges,plates,goals,world,soft,effects,crates,won:false,reducedMotion};
@@ -53,6 +53,7 @@ function reset(){
  history=[];moves=0;won=false;heldKeys.clear();world.held.clear();world.resetFeatures();soft.reset();effects.clear();sceneRenderer.bridgeKey=undefined;accumulator=0;
  players.forEach(p=>Object.assign(p,{portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null}));
  clearGoalVisuals();
+ sceneRenderer.platePress=[];
  focusPlayer(0);camera.x=start[0].x;camera.z=start[0].z;updateUI();
 }
 function undo(){
@@ -60,6 +61,7 @@ function undo(){
  const previous=history.pop();
  effects.clear();
  clearGoalVisuals();
+ sceneRenderer.platePress=[];
  players.forEach((p,i)=>Object.assign(p,previous.players[i],{rx:previous.players[i].x,rz:previous.players[i].z,vx:0,vz:0,bounce:.2,impact:0,squish:0,squishVelocity:0}));
  crates.forEach((p,i)=>Object.assign(p,previous.crates[i],{vx:0,vy:0,vz:0}));
  world.held=new Set(previous.bridges);world.restoreFeatures(previous.features);soft.restore(bodies,previous.soft);bodies.forEach(p=>soft.get(p).velocities.forEach(v=>v.fill(0)));sceneRenderer.bridgeKey=undefined;heldKeys.clear();accumulator=0;moves--;won=false;updateUI();
@@ -126,9 +128,10 @@ function frame(t){
  const elapsed=Math.max(0,(t-last)/1000),dt=Math.min(elapsed,.05);last=t;time=t/1000;
  angle=reducedMotion?targetAngle:angle+(targetAngle-angle)*(1-Math.exp(-dt*11));
  if(sceneRenderer.ready)simulate(dt);
- effects.step(dt,world);
+ effects.step(dt,world,goals,players);
  const follow=players[followedPlayer],tracking=reducedMotion?1:1-Math.exp(-dt*5);
  camera.x+=(follow.rx-camera.x)*tracking;camera.z+=(follow.rz-camera.z)*tracking;
+ camera.focusHeight=(follow.state==='alive'?(follow.y||0):Math.max(0,follow.y||0))+.42;
  level.won=won;sceneRenderer.render(level,players,camera,angle,reducedMotion?0:time,scale,dt);
  fpsTime+=elapsed;fpsFrames++;if(fpsTime>.5){document.querySelector('#fps').textContent=Math.round(fpsFrames/fpsTime)+' FPS';fpsTime=0;fpsFrames=0;}
  requestAnimationFrame(frame);

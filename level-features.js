@@ -13,7 +13,12 @@
     const t=Math.max(0,Math.min(1,(Math.hypot(player.x-goal.x,player.z-goal.z)-.32)/.4));
     return 1-t*t*(3-2*t);
    },
+   portalInactive(portal,players){
+    const height=portal.y??this.heightAt(portal.x,portal.z)??0;
+    return players.some(p=>alive(p)&&p.kind!=='crate'&&p.portalLock===portal.color&&Math.abs((p.y||0)-height)<.2&&near(p,portal,.78));
+   },
    portalCharge(portal,players){
+    if(this.portalInactive(portal,players))return 0;
     const height=portal.y??this.heightAt(portal.x,portal.z)??0;
     let charge=0;
     for(const p of players){
@@ -24,14 +29,15 @@
     return charge;
    },
    spikeState(spike){
-    // Two seconds up, a short descent, 2.2 seconds fully hidden, then a short rise.
-    const cycle=4.8,phase=(((this.featureTime||0)+(spike.offset||0))%cycle+cycle)%cycle;
+    // A one-second warning beat shows harmless tips before the full rise.
+    const cycle=5.8,phase=(((this.featureTime||0)+(spike.offset||0))%cycle+cycle)%cycle,peek=.3;
     const smooth=t=>t*t*(3-2*t);
     let extension=1,stage='raised';
     if(phase>=2&&phase<2.3){extension=1-smooth((phase-2)/.3);stage='retracting';}
     else if(phase>=2.3&&phase<4.5){extension=0;stage='hidden';}
-    else if(phase>=4.5){extension=smooth((phase-4.5)/.3);stage='rising';}
-    return {extension,stage,dangerous:extension>.25,warning:(stage==='hidden'&&phase>=4.05)||(stage==='rising'&&extension<=.25)};
+    else if(phase>=4.5&&phase<5.5){extension=peek*smooth(Math.min(1,(phase-4.5)/.15));stage='peeking';}
+    else if(phase>=5.5){extension=peek+(1-peek)*smooth((phase-5.5)/.3);stage='rising';}
+    return {extension,stage,dangerous:extension>.35,warning:stage==='peeking'||(stage==='rising'&&extension<=.35)};
    },
    bridgeBounds(i){
     const bridge=this.bridges[i],progress=bridge.progress??(this.soft?0:this.held.has(i)?1:0);
@@ -94,6 +100,7 @@
      if(spike){p.state='dead';p.deaths=(p.deaths||0)+1;p.deathReason='spikes';p.respawnTimer=.7;p.vx=p.vy=p.vz=0;soft.get(p).velocities.forEach(v=>v.fill(0));events.push({type:'death',reason:'spikes',player:i});return;}
      const source=this.portals.find(portal=>portal.color!==p.portalLock&&near(p,portal,.28)&&Math.abs((p.y||0)-(portal.y??this.heightAt(portal.x,portal.z)??0))<.18);
      if(!source)return;
+     if(this.portalInactive(source,players)){p.portalBlocked=true;return;}
      const destination=this.portals.find(portal=>portal!==source&&portal.color===source.color);if(!destination)return;
      const fromHeight=source.y??this.heightAt(source.x,source.z)??0,toHeight=destination.y??this.heightAt(destination.x,destination.z)??0;
      if(players.some(other=>other!==p&&alive(other)&&near(other,destination,.8)&&Math.abs((other.y||0)-toHeight)<.7)){p.portalBlocked=true;return;}

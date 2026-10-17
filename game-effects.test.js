@@ -1,6 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {System}=require('./game-effects.js');
+const {World}=require('./physics.js');
 const world={heightAt:()=>0},players=[{}],soft={get:()=>({positions:[[2,.05,3],[2.2,.7,3.1]]})};
 const death={type:'death',reason:'spikes',player:0};
 const portal={type:'portal',color:'violet',source:[3,0,6],destination:[6,1,9]};
@@ -43,4 +44,56 @@ test('effects stay bounded during bursts and respect reduced motion',()=>{
  reduced.burst(death,players,soft);assert.equal(reduced.particles.length,6);
  for(let i=0;i<4;i++)reduced.step(.1,world);
  assert.equal(reduced.rings.length+reduced.particles.length,0);
+});
+
+const goals=[{x:2,z:2},{x:4,y:1,z:2},{x:6,z:2}];
+const goalWorld=new World(new Set(['2,2','4,2','6,2']),[],[]);
+const finishPlayers=()=>goals.map(g=>({...g,y:g.y||0,state:'alive'}));
+
+test('matching finishes emit their own coloured glyphs at floor height and keep rising',()=>{
+ const effects=new System(),party=finishPlayers();
+ effects.step(.01,goalWorld,goals,party);
+ assert.deepEqual(effects.runes.map(p=>p.glyph),[0,1,2]);
+ assert.deepEqual(effects.runes.map(p=>p.position[1]),[.07,1.07,.07]);
+ assert.equal(new Set(effects.runes.map(p=>p.color.join(','))).size,3);
+ const first=effects.runes[0],start=first.position[1];
+ for(let i=0;i<10;i++)effects.step(.1,goalWorld,goals,party);
+ assert.ok(first.position[1]>start+.7);
+ assert.ok(effects.runes.length>3,'standing on a finish sustains the stream');
+});
+
+test('finish particles require the matching living jelly on the correct floor',()=>{
+ const effects=new System(),party=finishPlayers();
+ [party[0],party[2]]=[party[2],party[0]];party[1].y=0;
+ effects.step(.1,goalWorld,goals,party);
+ assert.equal(effects.runes.length,0);
+ const invalid=finishPlayers();invalid[0].state='dead';invalid[1].kind='crate';invalid[2].y=1;
+ effects.step(.1,goalWorld,goals,invalid);
+ assert.equal(effects.runes.length,0);
+});
+
+test('leaving stops emission, existing glyphs expire, and reset allows immediate re-entry',()=>{
+ const effects=new System(),party=finishPlayers();
+ effects.step(.1,goalWorld,goals,party);
+ const first=effects.runes[0];party.forEach(p=>p.z+=2);
+ effects.step(.1,goalWorld,goals,party);
+ assert.equal(effects.runes.length,3);assert.ok(first.age>0);
+ for(let i=0;i<25;i++)effects.step(.1,goalWorld,goals,party);
+ assert.equal(effects.runes.length,0);
+ party[0].z-=2;effects.step(.01,goalWorld,goals,party);
+ assert.equal(effects.runes.length,1);
+ effects.clear();assert.equal(effects.runes.length,0);
+ effects.step(.01,goalWorld,goals,party);assert.equal(effects.runes.length,1);
+});
+
+test('three persistent rune streams stay bounded and respect reduced motion',()=>{
+ const effects=new System(),party=finishPlayers();
+ for(let i=0;i<600;i++){
+  effects.step(.1,goalWorld,goals,party);
+  assert.ok(effects.runes.length<=32);
+ }
+ assert.ok(effects.runes.some(p=>p.age<.3),'stream keeps spawning during an extended victory');
+ const reduced=new System({reducedMotion:true});
+ for(let i=0;i<30;i++)reduced.step(.1,goalWorld,goals,party);
+ assert.equal(reduced.runes.length,0);
 });

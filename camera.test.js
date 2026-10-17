@@ -22,10 +22,20 @@ test('perspective makes near objects larger; orthographic scale stays constant w
  }
 });
 
-test('FOV changes angular field of view while wheel zoom changes camera distance',()=>{
- const narrow=frame('perspective',{fov:25}),wide=frame('perspective',{fov:85});
- assert.equal(narrow.distance,wide.distance);
- assert.ok(project(narrow,[6,0,6]).scale>project(wide,[6,0,6]).scale*3);
+test('FOV compensates camera distance to preserve the followed cube size at either height',()=>{
+ for(const focusHeight of [.42,1.42])for(const pitch of [25,55,80])for(const scale of [55,150]){
+  const make=fov=>cameraFrame({x:5,z:6,mode:'perspective',pitch,fov,focusHeight},0,1440,1000,scale);
+  const narrow=make(25),normal=make(45),wide=make(85),focus=[5,focusHeight,6];
+  assert.ok(narrow.distance>normal.distance&&normal.distance>wide.distance);
+  assert.ok(Math.abs(project(narrow,focus).scale-project(wide,focus).scale)<.001);
+  assert.ok(Math.abs(project(normal,focus).scale-project(wide,focus).scale)<.001);
+  const near=focus.map((v,k)=>v+wide.view[k]*1.5);
+  assert.ok(project(wide,near).scale/project(wide,focus).scale>project(narrow,near).scale/project(narrow,focus).scale,'wide FOV increases perspective depth scaling');
+ }
+});
+
+test('wheel zoom still controls apparent size independently of the FOV setting',()=>{
+ const wide=frame('perspective',{fov:45});
  const zoomed=cameraFrame({x:5,z:6,mode:'perspective',pitch:55,fov:45},0,1440,1000,150);
  assert.ok(zoomed.distance<wide.distance);
  assert.ok(project(zoomed,[5,0,6]).scale>project(frame(),[5,0,6]).scale);
@@ -38,4 +48,9 @@ test('perspective clips the eye and points behind it, with WebGPU zero-to-one de
  assert.ok(Math.abs(project(f,at(.1)).depth)<.0001);
  assert.ok(Math.abs(project(f,at(120)).depth-1)<.0001);
  assert.equal(project(f,at(130)).visible,false);
+});
+
+test('narrow FOV remains visible at the furthest portrait zoom',()=>{
+ const f=cameraFrame({x:5,z:6,mode:'perspective',pitch:55,fov:25},0,320,844,320/16*.65);
+ assert.ok(f.distance>120);assert.equal(project(f,[5,.42,6],320,844).visible,true);
 });

@@ -10,11 +10,14 @@
  function cameraFrame(camera,angle,width,height,scale){
   const perspective=camera.mode==='perspective',pitch=(camera.pitch??30)*Math.PI/180,azimuth=angle+Math.PI/4;
   const view=[Math.sin(azimuth)*Math.cos(pitch),Math.sin(pitch),Math.cos(azimuth)*Math.cos(pitch)],target=[camera.x,0,camera.z];
-  const distance=perspective?Math.max(5,height/scale/(2*Math.tan(Math.PI/8))):20;
+  const referenceDistance=Math.max(5,height/scale/(2*Math.tan(Math.PI/8))),focusDepth=view[1]*(camera.focusHeight??.42);
+  // Compensate focal length at the followed jelly's centre: FOV changes
+  // perspective strength while keeping that character's apparent size stable.
+  const distance=perspective?focusDepth+(referenceDistance-focusDepth)*Math.tan(Math.PI/8)/Math.tan((camera.fov??45)*Math.PI/360):20;
   const eye=target.map((v,k)=>v+view[k]*distance);
   if(!perspective)return {vp:viewMatrix(target,view,width/scale,height/scale,-.12),view,eye,perspective,distance};
   const right=normalize(cross([0,1,0],view)),up=normalize(cross(view,right)),f=1/Math.tan((camera.fov??45)*Math.PI/360);
-  const near=.1,far=120,a=far/(far-near),b=near*a,offset=-.12,vp=new Float32Array(16),eyeDepth=distance+dot(view,target);
+  const near=.1,far=Math.max(120,distance+60),a=far/(far-near),b=near*a,offset=-.12,vp=new Float32Array(16),eyeDepth=distance+dot(view,target);
   // WebGPU uses a zero-to-one depth range. The offset keeps the followed cube
   // at the same screen anchor in both projection modes.
   for(let k=0;k<3;k++){vp[k*4]=right[k]*f*height/width;vp[k*4+1]=up[k]*f-offset*view[k];vp[k*4+2]=-a*view[k];vp[k*4+3]=-view[k];}
@@ -90,13 +93,51 @@
   }
  }
  function spike(mesh,x,y,z){
-  for(let i=0;i<8;i++){const a=i/8*Math.PI*2,b=(i+1)/8*Math.PI*2,p=[x+Math.cos(a)*.058,y,z+Math.sin(a)*.058],q=[x+Math.cos(b)*.058,y,z+Math.sin(b)*.058],top=[x,y+.18,z],n=normalize(cross(top.map((v,k)=>v-p[k]),q.map((v,k)=>v-p[k])));
-   for(const v of [p,top,q])mesh.push(...v,...n,.32,.38,.4,1,0,0);
+  const profile=[[-.034,-.045],[.034,-.045],[.045,-.034],[.045,.034],[.034,.045],[-.034,.045],[-.045,.034],[-.045,-.034]];
+  for(let i=0;i<profile.length;i++){
+   const a=profile[i],b=profile[(i+1)%profile.length],p=[x+a[0],y,z+a[1]],q=[x+b[0],y,z+b[1]],top=[x,y+.18,z],n=normalize(cross(top.map((v,k)=>v-p[k]),q.map((v,k)=>v-p[k]))),color=i%2?[.4,.37,.31]:[.3,.285,.255];
+   for(const v of [p,top,q])mesh.push(...v,...n,...color,12,0,0);
   }
  }
  function portalRing(mesh,x,y,z,color){
   const vertex=(a,b)=>{const radius=.3+Math.cos(b)*.024;return [x+Math.cos(a)*radius,y+Math.sin(b)*.024,z+Math.sin(a)*radius,Math.cos(a)*Math.cos(b),Math.sin(b),Math.sin(a)*Math.cos(b),...color,4,x,z];};
   for(let i=0;i<32;i++)for(let j=0;j<6;j++){const a=i/32*Math.PI*2,b=j/6*Math.PI*2,da=Math.PI/16,db=Math.PI/3;mesh.push(...vertex(a,b),...vertex(a+da,b+db),...vertex(a+da,b),...vertex(a,b),...vertex(a,b+db),...vertex(a+da,b+db));}
+ }
+ function pressureSurface(mesh,center,profile,color,material,tile=0,segments=48){
+  for(let band=0;band<profile.length-1;band++){
+   const [r0,y0]=profile[band],[r1,y1]=profile[band+1],dr=r1-r0,dy=y1-y0,length=Math.hypot(dr,dy);
+   const vertex=(a,r,y)=>{
+    const x=Math.cos(a)*r,z=Math.sin(a)*r,uv=[(tile%4+.02+(.5+x/.6)*.96)/4,(Math.floor(tile/4)+.02+(.5+z/.6)*.96)/4];
+    return [center[0]+x,center[1]+y,center[2]+z,Math.cos(a)*dy/length,-dr/length,Math.sin(a)*dy/length,...color,material,...uv];
+   };
+   for(let k=0;k<segments;k++){
+    const a=k/segments*Math.PI*2,b=(k+1)/segments*Math.PI*2;
+    mesh.push(...vertex(a,r0,y0),...vertex(a,r1,y1),...vertex(b,r1,y1),...vertex(a,r0,y0),...vertex(b,r1,y1),...vertex(b,r0,y0));
+   }
+  }
+ }
+ const runePaths=[
+   [[[0,.26],[0,-.26]],[[0,.02],[-.18,-.17]],[[0,.02],[.18,-.17]]],
+   [[[0,-.25],[.2,0],[0,.25],[-.2,0],[0,-.25]],[[-.2,0],[.2,0]]],
+   [[[.17,-.25],[-.12,-.04],[.12,.04],[-.17,.25]]]
+ ];
+ const runeGlyphShader=`
+ fn runeSegment(p:vec2f,a:vec2f,b:vec2f)->f32{let ab=b-a;return length(p-a-ab*clamp(dot(p-a,ab)/dot(ab,ab),0.,1.));}
+ fn runeDistance(p:vec2f,glyph:u32)->f32{var distance=10.;
+ ${runePaths.map((paths,index)=>`if(glyph==${index}u){${paths.flatMap(path=>path.slice(1).map((b,j)=>`distance=min(distance,runeSegment(p,vec2f(${path[j].join(',')}),vec2f(${b.join(',')})));`)).join('')}}`).join('')}
+ return distance;}
+ `;
+ function goalRune(mesh,center,index,color){
+  const paths=runePaths[index];
+  for(const path of paths)for(let j=0;j<path.length-1;j++){
+   const a=path[j],b=path[j+1],dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),s=dx/length,c=dz/length,from=mesh.length;
+   box(mesh,[0,0,0],[.034,.007,length+.018],color,.003,10,2);
+   for(let k=from;k<mesh.length;k+=12){
+    const x=mesh[k],z=mesh[k+2],nx=mesh[k+3],nz=mesh[k+5];
+    mesh[k]=center[0]+(a[0]+b[0])*.5+x*c+z*s;mesh[k+1]+=center[1];mesh[k+2]=center[2]+(a[1]+b[1])*.5-x*s+z*c;
+    mesh[k+3]=nx*c+nz*s;mesh[k+5]=-nx*s+nz*c;
+   }
+  }
  }
  function colliderLines(boxes){
   const data=[],colors={floor:[.12,.65,1],wall:[.8,.88,.95],lift:[1,.65,.04],bridge:[1,.7,.2],spikes:[1,.1,.12],portal:[.85,.2,1]};
@@ -128,6 +169,7 @@
  @group(0) @binding(4) var stoneAtlas:texture_2d<f32>;
  @group(0) @binding(5) var oakTexture:texture_2d<f32>;
  @group(0) @binding(6) var materialSampler:sampler;
+ ${runeGlyphShader}
  @vertex fn solidVS(@location(0) p:vec3f,@location(1) n:vec3f,@location(2) color:vec3f,@location(3) material:vec3f)->Out{
   var o:Out;o.clip=scene.vp*vec4f(p,1);o.world=p;o.normal=n;o.color=color;o.material=material.x;o.local=vec3f(material.y,0,material.z);return o;
  }
@@ -138,13 +180,15 @@
  }
  @vertex fn portalHaloVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
   let portal=scene.portals[instance];var o:Out;o.world=portal.position.xyz+vec3f(p.x*.78,.033,p.z*.78);o.clip=scene.vp*vec4f(o.world,1.);
-  o.normal=vec3f(0,1,0);o.color=portal.color.rgb;o.material=9.;o.local=vec3f(p.x,.065+portal.position.w*.3,p.z);return o;
+  o.normal=vec3f(0,1,0);o.color=portal.color.rgb;o.material=9.;o.local=vec3f(p.x,select(.065+portal.position.w*.3,0.,portal.position.w<0.),p.z);return o;
  }
  @vertex fn portalRingVS(@location(0) p:vec3f,@location(1) n:vec3f,@builtin(instance_index) instance:u32)->Out{
   let portal=scene.portals[instance/3u];let phase=fract(scene.options.z*.42+f32(instance%3u)/3.+portal.color.w);let radius=.85+phase*.8;
   var o:Out;o.world=portal.position.xyz+vec3f(p.x*radius,.065+phase*.92+p.y*(1.-phase*.6),p.z*radius);o.clip=scene.vp*vec4f(o.world,1.);
-  o.normal=normalize(vec3f(n.x/radius,n.y/(1.-phase*.6),n.z/radius));o.color=portal.color.rgb*(1.+portal.position.w*1.15);o.material=10.;
-  o.local=vec3f(0.,smoothstep(0.,.1,phase)*pow(1.-phase,1.6)*(.22+portal.position.w*.38),0.);return o;
+  let charge=max(0.,portal.position.w);
+  if(portal.position.w<0.){o.clip=vec4f(2,2,2,1);}
+  o.normal=normalize(vec3f(n.x/radius,n.y/(1.-phase*.6),n.z/radius));o.color=portal.color.rgb*(1.+charge*1.15);o.material=10.;
+  o.local=vec3f(0.,smoothstep(0.,.1,phase)*pow(1.-phase,1.6)*(.22+charge*.38),0.);return o;
  }
  @fragment fn portalFXFS(o:Out)->@location(0) vec4f{
   var alpha=o.local.y;var color=o.color*1.8;
@@ -163,6 +207,17 @@
   let breath=.97+.03*sin(scene.options.z*2.+o.local.y*8.);let core=exp(-o.local.x*o.local.x*45.)*o.material*.1;
   let alpha=o.local.z*(edge*.34+core)*tip*base*breath;
   return vec4f(o.color,alpha);
+ }
+ @vertex fn runeVS(@location(0) p:vec3f,@location(4) positionSize:vec4f,@location(5) colorOpacity:vec4f,@location(6) info:vec4f)->Out{
+  let right=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));let view=normalize(-vec3f(scene.vp[0].z,scene.vp[1].z,scene.vp[2].z));let up=normalize(cross(view,right));
+  let c=cos(info.y);let s=sin(info.y);let uv=vec2f(p.x*c-p.z*s,p.x*s+p.z*c);var o:Out;
+  o.world=positionSize.xyz+(right*uv.x+up*uv.y)*positionSize.w;o.clip=scene.vp*vec4f(o.world,1.);
+  o.normal=view;o.color=colorOpacity.rgb*2.5;o.material=info.x;o.local=vec3f(p.x*.3,-p.z*.3,colorOpacity.w);return o;
+ }
+ @fragment fn runeFS(o:Out)->@location(0) vec4f{
+  let distance=runeDistance(o.local.xy,u32(o.material));let aa=max(.001,fwidth(distance));
+  let stroke=1.-smoothstep(.022-aa,.022+aa,distance);let glow=exp(-distance*35.)*.22;
+  return vec4f(o.color,(stroke*.85+glow)*o.local.z);
  }
  @vertex fn goalGlowVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
   let goal=scene.goals[instance];var o:Out;
@@ -197,6 +252,7 @@
    color*=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb*3.8;
   }
   if(o.material>10.5&&o.material<11.5){color*=textureSampleGrad(oakTexture,materialSampler,uv,dx,dy).rgb*3.;}
+  if(o.material>13.5&&o.material<14.5){let stone=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;let wear=clamp(dot(stone,vec3f(.25,.6,.15))*3.5,.3,1.35);color*=wear;}
   var light=vec3f(.15,.19,.22)+vec3f(.94,.83,.63)*max(0.,dot(n,l))*shadow(o.world,n)*.95+vec3f(.12,.19,.28)*max(0.,dot(n,normalize(vec3f(-.6,.4,-.6))));
   let torches=array<vec3f,4>(vec3f(1,.85,2),vec3f(10,.85,2),vec3f(1,.85,9),vec3f(10,.85,9));
   for(var i=0;i<4;i++){
@@ -221,8 +277,9 @@
   if(o.material>.5&&o.material<1.5){result+=vec3f(.28)*pow(max(0.,dot(n,h)),55.);}
   if(o.material>3.5&&o.material<4.5){result=color*(1.4+sin(scene.options.z*4.)*.08);}
   if(o.material>11.5&&o.material<12.5){result+=vec3f(.42,.4,.34)*pow(max(0.,dot(n,h)),65.);}
-  if(o.material>4.5&&o.material<5.5){let portal=scene.portals[u32(o.local.x)];let delta=o.world.xz-portal.position.xz;let radius=length(delta);let swirl=.5+.5*sin(atan2(delta.y,delta.x)*3.-radius*35.+scene.options.z*3.);result=(color*(.55+swirl*1.8)+vec3f(.06)*exp(-radius*12.))*(.55+portal.position.w*1.9);}
-  if(o.material>7.5&&o.material<8.5){result=color*(.65+scene.portals[u32(o.local.x)].position.w*2.8);}
+  if(o.material>13.5&&o.material<14.5){result+=color*.12+vec3f(.18)*pow(max(0.,dot(n,h)),80.);}
+  if(o.material>4.5&&o.material<5.5){let portal=scene.portals[u32(o.local.x)];let inactive=portal.position.w<0.;let charge=max(0.,portal.position.w);let delta=o.world.xz-portal.position.xz;let radius=length(delta);let swirl=.5+.5*sin(atan2(delta.y,delta.x)*3.-radius*35.+scene.options.z*select(3.,0.,inactive));let tint=select(color,vec3f(.14,.15,.16),inactive);result=(tint*(.55+swirl*select(1.8,.35,inactive))+vec3f(.06)*exp(-radius*12.))*select(.55+charge*1.9,.5,inactive);}
+  if(o.material>7.5&&o.material<8.5){let portal=scene.portals[u32(o.local.x)];result=select(color*(.65+max(0.,portal.position.w)*2.8),vec3f(.075,.08,.085),portal.position.w<0.);}
   if(o.material>9.5&&o.material<10.5){let goal=scene.goals[u32(o.local.x)];let charge=goal.position.w;
    result=mix(color*light,goal.color.rgb*.9,charge);
    if(o.local.z>.5){result=color*mix(.32,2.7,charge);}
@@ -244,9 +301,16 @@
  @group(1) @binding(2) var linearSampler:sampler;
  // Embedded ivory marks use rest coordinates, so they stretch with the actual gel.
  fn inlay(p:vec3f)->f32{
-  let a=abs(p);var face=p.xy;if(a.x>=a.y&&a.x>=a.z){face=p.yz;}else if(a.y>=a.z){face=p.xz;}
-  let corner=length(abs(face)-vec2f(.185));var center=10.;if(a.y>=a.x&&a.y>=a.z){center=length(face);}
-  let distance=min(corner,center);let aa=max(.0015,fwidth(distance)*.8);
+  // Opposites sum to seven: +Y/-Y = 1/6, +Z/-Z = 2/5, +X/-X = 3/4.
+  let a=abs(p);var face=p.xy;var count=select(5u,2u,p.z>=0.);
+  if(a.x>=a.y&&a.x>=a.z){face=p.zy;count=select(4u,3u,p.x>=0.);}
+  else if(a.y>=a.z){face=p.xz;count=select(6u,1u,p.y>=0.);}
+  var distance=10.;
+  if(count%2u==1u){distance=length(face);}
+  if(count==2u||count==3u){distance=min(distance,min(length(face-vec2f(-.185)),length(face-vec2f(.185))));}
+  if(count>=4u){distance=min(distance,length(abs(face)-vec2f(.185)));}
+  if(count==6u){distance=min(distance,length(vec2f(abs(face.x)-.185,face.y)));}
+  let aa=max(.0015,fwidth(distance)*.8);
   return 1.-smoothstep(.041-aa,.041+aa,distance);
  }
  @fragment fn backFS(o:Out)->@location(0) vec4f{return vec4f(o.world,1.+inlay(o.local));}
@@ -346,10 +410,12 @@
    this.skinLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{}},{binding:1,visibility:GPUShaderStage.FRAGMENT,texture:{}},{binding:2,visibility:GPUShaderStage.FRAGMENT,sampler:{}}]});
    const layout=d.createPipelineLayout({bindGroupLayouts:[this.sceneLayout,this.skinLayout]});
    const vertexBuffers=[{arrayStride:48,attributes:[{shaderLocation:0,offset:0,format:'float32x3'},{shaderLocation:1,offset:12,format:'float32x3'},{shaderLocation:2,offset:24,format:'float32x3'},{shaderLocation:3,offset:36,format:'float32x3'}]}];
-   const pipeline=(vertexEntry,fragmentEntry,cullMode='back',samples=4,depthCompare='less',depthWrite=true,blend=undefined)=>d.createRenderPipeline({layout,vertex:{module:main,entryPoint:vertexEntry,buffers:['solidVS','portalHaloVS','portalRingVS','goalBeamVS','goalGlowVS'].includes(vertexEntry)?vertexBuffers:[]},fragment:{module:main,entryPoint:fragmentEntry,targets:[{format:'rgba16float',blend}]},primitive:{topology:'triangle-list',cullMode,frontFace:'ccw'},depthStencil:{format:'depth32float',depthWriteEnabled:depthWrite,depthCompare},multisample:{count:samples}});
+   const pipeline=(vertexEntry,fragmentEntry,cullMode='back',samples=4,depthCompare='less',depthWrite=true,blend=undefined,buffers=['solidVS','portalHaloVS','portalRingVS','goalBeamVS','goalGlowVS'].includes(vertexEntry)?vertexBuffers:[])=>d.createRenderPipeline({layout,vertex:{module:main,entryPoint:vertexEntry,buffers},fragment:{module:main,entryPoint:fragmentEntry,targets:[{format:'rgba16float',blend}]},primitive:{topology:'triangle-list',cullMode,frontFace:'ccw'},depthStencil:{format:'depth32float',depthWriteEnabled:depthWrite,depthCompare},multisample:{count:samples}});
    this.opaque=pipeline('solidVS','solidFS');this.skin=pipeline('softVS','skinFS');this.back=pipeline('softVS','backFS','front',1,'greater');
    this.effectPipeline=pipeline('solidVS','effectFS','back',4,'less',false,{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}});
    const additive={color:{srcFactor:'src-alpha',dstFactor:'one',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}};
+   this.runePipeline=pipeline('runeVS','runeFS','none',4,'less',false,additive,[vertexBuffers[0],{arrayStride:48,stepMode:'instance',attributes:[{shaderLocation:4,offset:0,format:'float32x4'},{shaderLocation:5,offset:16,format:'float32x4'},{shaderLocation:6,offset:32,format:'float32x4'}]}]);
+   this.runeData=new Float32Array(32*12);this.runeBuffer=d.createBuffer({size:this.runeData.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
    this.portalHaloPipeline=pipeline('portalHaloVS','portalFXFS','none',4,'less',false,additive);
    this.portalRingPipeline=pipeline('portalRingVS','portalFXFS','back',4,'less',false,additive);
    this.goalBeamPipeline=pipeline('goalBeamVS','goalBeamFS','none',4,'less',false,additive);
@@ -447,6 +513,11 @@
     for(let j=0;j<5;j++){const mesh=[],phase=j*2.4+i;const position=[Math.sin(phase)*.22,-.26+j*.097,Math.cos(phase)*.2];sphere(mesh,position,[.015,.015,.015],[[.55,.72,.23],[.25,.62,.7],[.9,.3,.12]][i],1);append('bubble',i,mesh,{bubble:j});}
    }
    for(let i=0;i<(level.crates||[]).length;i++)append('crate',i,crateGeometry());
+   for(let i=0;i<level.plates.length;i++){
+    const mesh=[],plate=level.plates[i],palette={red:[.78,.026,.012],blue:[.018,.25,.78],amber:[.78,.36,.012],dark:[.12,.135,.14]},color=palette[plate.color]||[palette.red,palette.blue][i%2];
+    pressureSurface(mesh,[0,0,0],[[0,0],[.285,0],[.3,.009],[.3,.032],[.287,.045],[0,.045]],color,14,(i*7+2)%16);
+    append('pressureButton',i,mesh);
+   }
    for(let i=0;i<level.world.lifts.length;i++){
     const mesh=[],lift={x:0,z:0,height:0};
     box(mesh,[lift.x,lift.height-.08,lift.z],[.95,.16,.95],[.22,.24,.18],.035,1);
@@ -457,42 +528,44 @@
    }
    for(let i=0;i<level.world.spikes.length;i++){
     const mesh=[];for(const dx of [-.21,0,.21])for(const dz of [-.21,0,.21])spike(mesh,dx,0,dz);append('spikes',i,mesh);
-    const indicator=[];box(indicator,[0,0,0],[.65,.025,.03],[1,1,1],.006,4);append('indicator',i,indicator);
    }
    this.propPieces=pieces;this.propData=new Float32Array(pieces.reduce((sum,p)=>sum+p.data.length,0));
    if(this.propData.byteLength>this.propBuffer.size){this.propBuffer.destroy();this.propBuffer=this.device.createBuffer({size:this.propData.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}
   }
-  props(level,players,angle,time){
-   const key=[players.length,(level.crates||[]).length,level.world.lifts.length,level.world.spikes.length].join(',');
+  props(level,players,angle,time,dt=1/60){
+   const key=[players.length,(level.crates||[]).length,level.world.lifts.length,level.world.spikes.length,level.plates.length].join(',');
    if(this.propGeometryKey!==key){this.buildProps(level,players);this.propGeometryKey=key;}
+   this.platePress??=[];
+   const plateBodies=[...players,...(level.crates||[])],pressFade=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*14);
+   level.plates.forEach((plate,i)=>{const target=level.world.active(i,plateBodies)?1:0;this.platePress[i]=(this.platePress[i]||0)+(target-(this.platePress[i]||0))*pressFade;});
    const data=this.propData,c=Math.cos(angle),s=Math.sin(angle),rx=(c-s)*.7071,rz=-(s+c)*.7071,fx=(c+s)*.7071,fz=(c-s)*.7071;
    let cursor=0;
    // Reuse immutable local meshes and one upload array. No per-frame tessellation
    // or large JS number arrays for rigid decorations.
    for(const piece of this.propPieces){
-    const i=piece.index,source=piece.data;let x=0,y=0,z=0,rotate=false,tint=null,matrix=null;
+    const i=piece.index,source=piece.data;let x=0,y=0,z=0,rotate=false,matrix=null;
     if(piece.kind==='jelly'||piece.kind==='bubble'){
      const p=players[i];if(p.state==='dead')continue;
      const core=level.soft.get(p).core;x=core[0];y=core[1];z=core[2];rotate=piece.kind==='jelly';
      if(piece.kind==='bubble')y+=(piece.bubble*.097+time*.018)%.51-piece.bubble*.097;
     }else if(piece.kind==='crate'){
      const p=level.crates[i];if(p.state==='dead')continue;x=p.x;y=(p.y||0)+.42;z=p.z;matrix=level.soft.get(p).r;
+    }else if(piece.kind==='pressureButton'){
+     const p=level.plates[i];x=p.x;y=(p.y??level.world.heightAt(p.x,p.z)??0)+.06-this.platePress[i]*.045;z=p.z;
     }else if(piece.kind==='lift'){
      const lift=level.world.lifts[i];x=lift.x;y=lift.height;z=lift.z;
     }else{
      const trap=level.world.spikes[i],state=level.world.spikeState(trap);x=trap.x;y=trap.y??level.world.heightAt(trap.x,trap.z)??0;z=trap.z;
-     if(piece.kind==='spikes'){if(state.extension<=0)continue;y+=.03-.18*(1-state.extension);}
-     else{y+=.035;z+=.33;const pulse=.65+.35*Math.sin((level.world.featureTime||0)*20);tint=state.warning?[pulse,.36*pulse,.02]:state.dangerous?[.7,.045,.025]:[.035,.38,.13];}
+     if(state.extension<=0)continue;y+=.03-.18*(1-state.extension);
     }
     data.set(source,cursor);
     if(matrix){for(let n=0;n<source.length;n+=12){const k=cursor+n;for(let axis=0;axis<3;axis++){const a=axis*3;data[k+axis]=(axis===0?x:axis===1?y:z)+matrix[a]*source[n]+matrix[a+1]*source[n+1]+matrix[a+2]*source[n+2];data[k+3+axis]=matrix[a]*source[n+3]+matrix[a+1]*source[n+4]+matrix[a+2]*source[n+5];}}}
     else if(rotate){for(let n=0;n<source.length;n+=12){const k=cursor+n;data[k]=x+rx*source[n]+fx*source[n+2];data[k+1]=y+source[n+1];data[k+2]=z+rz*source[n]+fz*source[n+2];data[k+3]=rx*source[n+3]+fx*source[n+5];data[k+5]=rz*source[n+3]+fz*source[n+5];}}
     else{for(let n=0;n<source.length;n+=12){const k=cursor+n;data[k]=x+source[n];data[k+1]=y+source[n+1];data[k+2]=z+source[n+2];}}
-    if(tint)for(let n=0;n<source.length;n+=12){const k=cursor+n;data[k+6]=tint[0];data[k+7]=tint[1];data[k+8]=tint[2];}
     cursor+=source.length;
    }
    const dynamicCount=cursor/12;this.device.queue.writeBuffer(this.propBuffer,0,data.buffer,0,cursor*4);
-   const decorationKey=level.plates.map((p,i)=>level.world.active(i,players)).join(',');
+   const decorationKey=[level.goals.length,level.plates.length,level.world.spikes.length,level.world.portals.length].join(',');
    if(this.decorationKey!==decorationKey){const mesh=[];
    level.goals.forEach((g,i)=>{
     const y=g.y??level.world.heightAt(g.x,g.z)??0,color=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025]][i],base=mesh.length;
@@ -500,13 +573,35 @@
     for(let n=base;n<mesh.length;n+=12)mesh[n+10]=i;
     const trim=mesh.length;
     for(let k=0;k<4;k++){const x=k<2?g.x+(k?1:-1)*.39:g.x,z=k>=2?g.z+(k===2?1:-1)*.39:g.z;box(mesh,[x,y+.05,z],k<2?[.026,.012,.8]:[.8,.012,.026],color,.005,10);}
+    goalRune(mesh,[g.x,y+.053,g.z],i,color);
     for(let n=trim;n<mesh.length;n+=12){mesh[n+10]=i;mesh[n+11]=1;}
    });
-   level.plates.forEach((p,i)=>{box(mesh,[p.x,.032,p.z],[.73,.06,.73],[.23,.2,.1],.07);sphere(mesh,[p.x,.076,p.z],[.24,.045,.24],level.world.active(i,players)?[1.,.7,.2]:[.5,.31,.08],level.world.active(i,players)?4:1);});
+   level.plates.forEach(p=>{
+    const y=p.y??level.world.heightAt(p.x,p.z)??0;
+    box(mesh,[p.x,y,p.z],[.88,.08,.88],[.22,.205,.19],.032);
+    pressureSurface(mesh,[p.x,y,p.z],[[.293,.043],[.342,.043],[.346,.054],[.334,.078],[.304,.078],[.293,.064],[.293,.043]],[.09,.095,.093],12);
+    pressureSurface(mesh,[p.x,y+.044,p.z],[[0,0],[.294,0],[.294,.012],[0,.012]],[.027,.03,.029],13);
+   });
    for(const o of level.world.obstacles.filter(o=>o.half<.4))sphere(mesh,[o.x,.7,o.z],[.055,.13,.055],[2.,.65,.065],4);
-   for(const trap of level.world.spikes){const y=trap.y??level.world.heightAt(trap.x,trap.z)??0;box(mesh,[trap.x,y+.015,trap.z],[.74,.03,.74],[.16,.11,.10],.025);for(const dx of [-.21,0,.21])for(const dz of [-.21,0,.21])box(mesh,[trap.x+dx,y+.031,trap.z+dz],[.115,.003,.115],[.025,.03,.03],.025);}
+   for(const trap of level.world.spikes){
+    const y=trap.y??level.world.heightAt(trap.x,trap.z)??0;
+    box(mesh,[trap.x,y-.025,trap.z],[.92,.06,.92],[.085,.08,.075],.018,0,2);
+    for(const sx of [-1,1])for(const sz of [-1,1])box(mesh,[trap.x+sx*.395,y+.005,trap.z+sz*.395],[.15,.09,.15],[.26,.225,.185],.018,0,3);
+    for(const side of [-1,1])for(const offset of [-.16,.16]){
+     box(mesh,[trap.x+offset,y+.005,trap.z+side*.395],[.3,.09,.15],[.25,.22,.185],.018,0,3);
+     box(mesh,[trap.x+side*.395,y+.005,trap.z+offset],[.15,.09,.3],[.25,.22,.185],.018,0,3);
+    }
+    for(const dx of [-.21,0,.21])for(const dz of [-.21,0,.21]){
+     const center=[trap.x+dx,y,trap.z+dz];
+     box(mesh,[center[0],y,center[2]],[.202,.045,.202],[.075,.08,.08],.006,0,2);
+     pressureSurface(mesh,center,[[.059,.025],[.076,.025],[.079,.032],[.072,.044],[.06,.044],[.057,.033],[.057,.025]],[.13,.125,.11],12,0,16);
+     pressureSurface(mesh,[center[0],y+.026,center[2]],[[0,0],[.057,0],[.057,.002],[0,.002]],[.008,.01,.012],13,0,16);
+    }
+   }
    level.world.portals.forEach((portal,i)=>{const y=portal.y??level.world.heightAt(portal.x,portal.z)??0,color=portal.color==='violet'?[.7,.045,1.]:[1.,.34,.025];box(mesh,[portal.x,y+.012,portal.z],[.75,.024,.75],[.08,.075,.095],.05);const rim=mesh.length;portalRing(mesh,portal.x,y+.053,portal.z,color);for(let n=rim;n<mesh.length;n+=12){mesh[n+9]=8;mesh[n+10]=i;mesh[n+11]=0;}const from=mesh.length;sphere(mesh,[portal.x,y+.04,portal.z],[.267,.012,.267],color,5);for(let n=from;n<mesh.length;n+=12){mesh[n+10]=i;mesh[n+11]=0;}});
-   this.decorationCount=mesh.length/12;this.device.queue.writeBuffer(this.decorationBuffer,0,new Float32Array(mesh));this.decorationKey=decorationKey;
+   const decorations=new Float32Array(mesh);
+   if(decorations.byteLength>this.decorationBuffer.size){this.decorationBuffer.destroy();this.decorationBuffer=this.device.createBuffer({size:Math.ceil(decorations.byteLength/65536)*65536,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}
+   this.decorationCount=mesh.length/12;this.device.queue.writeBuffer(this.decorationBuffer,0,decorations);this.decorationKey=decorationKey;
    }return dynamicCount;
   }
   effects(system,view){
@@ -529,9 +624,20 @@
    }
    this.device.queue.writeBuffer(this.effectBuffer,0,new Float32Array(mesh));return mesh.length/12;
   }
+  updateRunes(system){
+   const runes=system?.runes||[],count=Math.min(32,runes.length),data=this.runeData;
+   for(let i=0;i<count;i++){
+    const p=runes[i],k=i*12,t=p.age/p.life,enter=Math.min(1,p.age/.18),end=Math.max(0,Math.min(1,(1-t)/.4)),opacity=enter*enter*(3-2*enter)*end*end*(3-2*end)*.8;
+    data[k]=p.position[0];data[k+1]=p.position[1];data[k+2]=p.position[2];data[k+3]=p.size;
+    data[k+4]=p.color[0];data[k+5]=p.color[1];data[k+6]=p.color[2];data[k+7]=opacity;
+    data[k+8]=p.glyph;data[k+9]=Math.sin(p.phase+p.age*.9)*.12;data[k+10]=data[k+11]=0;
+   }
+   if(count)this.device.queue.writeBuffer(this.runeBuffer,0,data.buffer,0,count*48);this.runeCount=count;
+  }
   drawEffects(pass,level,effectCount){
    pass.setBindGroup(0,this.sceneGroup);pass.setBindGroup(1,this.skinGroups[0]);
    if(effectCount){pass.setPipeline(this.effectPipeline);pass.setVertexBuffer(0,this.effectBuffer);pass.draw(effectCount);}
+   if(this.runeCount){pass.setPipeline(this.runePipeline);pass.setVertexBuffer(0,this.portalHaloBuffer);pass.setVertexBuffer(1,this.runeBuffer);pass.draw(6,this.runeCount);}
    const count=Math.min(4,level.world.portals.length);
    if(count){pass.setPipeline(this.portalHaloPipeline);pass.setVertexBuffer(0,this.portalHaloBuffer);pass.draw(6,count);pass.setPipeline(this.portalRingPipeline);pass.setVertexBuffer(0,this.portalRingBuffer);pass.draw(this.portalRingCount,count*3);}
    if(level.goals.length){pass.setVertexBuffer(0,this.portalHaloBuffer);pass.setPipeline(this.goalGlowPipeline);pass.draw(6,Math.min(3,level.goals.length));if(this.goalWinGlow>.001){pass.setPipeline(this.goalBeamPipeline);pass.draw(6,Math.min(3,level.goals.length));}}
@@ -542,14 +648,15 @@
    const lightVP=viewMatrix([5.5,0,5.5],normalize([-.45,1.,.35]),18,18);
    const uniforms=new Float32Array(112);uniforms.set(vp);uniforms.set(lightVP,16);uniforms.set([...eye,frame.perspective?1:0],32);uniforms.set([-2,12,9,1],36);
    players.forEach((p,i)=>uniforms.set([p.x,(p.y||0)+.42,p.z,p.state==='dead'?0:1+(level.world.heightAt(p.x,p.z)||0)],40+i*4));uniforms.set([w,h,time,this.mesh?1:0],52);
-   level.world.portals.slice(0,4).forEach((p,i)=>{uniforms.set([p.x,p.y??level.world.heightAt(p.x,p.z)??0,p.z,level.world.portalCharge(p,players)],56+i*8);uniforms.set([...(p.color==='violet'?[.7,.045,1.]:[1.,.34,.025]),i*.23],60+i*8);});
+   level.world.portals.slice(0,4).forEach((p,i)=>{const charge=level.world.portalInactive(p,players)?-1:level.world.portalCharge(p,players);uniforms.set([p.x,p.y??level.world.heightAt(p.x,p.z)??0,p.z,charge],56+i*8);uniforms.set([...(p.color==='violet'?[.7,.045,1.]:[1.,.34,.025]),i*.23],60+i*8);});
    this.goalGlowStrength??=[];this.goalWinGlow??=0;
    const fade=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*8),celebrate=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*4);
    this.goalWinGlow+=((level.won?1:0)-this.goalWinGlow)*celebrate;
    level.goals.slice(0,3).forEach((g,i)=>{const target=level.world.goalCharge(g,players[i]);this.goalGlowStrength[i]=(this.goalGlowStrength[i]||0)+(target-(this.goalGlowStrength[i]||0))*fade;uniforms.set([g.x,g.y??level.world.heightAt(g.x,g.z)??0,g.z,this.goalGlowStrength[i]],88+i*8);uniforms.set([...[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025]][i],this.goalWinGlow],92+i*8);});d.queue.writeBuffer(this.uniform,0,uniforms);
    const nodes=new Float32Array(192*4);players.forEach((p,i)=>level.soft.get(p).positions.forEach((q,j)=>nodes.set([q[0],p.state==='dead'?-100:q[1],q[2],1],(i*64+j)*4)));d.queue.writeBuffer(this.nodes,0,nodes);
    if(this.bridgeKey===undefined){this.buildScene(level);this.bridgeKey='static';}
-   const bridgeCount=this.bridges(level),propCount=this.props(level,players,angle,time),effectCount=this.effects(level.effects,view),encoder=d.createCommandEncoder();
+   const bridgeCount=this.bridges(level),propCount=this.props(level,players,angle,time,dt),effectCount=this.effects(level.effects,view);
+   this.updateRunes(level.effects);const encoder=d.createCommandEncoder();
    const computePass=encoder.beginComputePass();computePass.setPipeline(this.compute);computePass.setBindGroup(0,this.computeGroup);computePass.dispatchWorkgroups(Math.ceil(4050/64));computePass.end();
    const shadowPass=encoder.beginRenderPass({colorAttachments:[],depthStencilAttachment:{view:this.shadowTexture.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
    shadowPass.setPipeline(this.shadow);shadowPass.setBindGroup(0,this.shadowGroup);shadowPass.setVertexBuffer(0,this.staticBuffer);shadowPass.draw(this.staticCount);if(bridgeCount){shadowPass.setVertexBuffer(0,this.bridgeBuffer);shadowPass.draw(bridgeCount);}shadowPass.end();

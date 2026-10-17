@@ -53,16 +53,16 @@ test('a pushed cube can be killed by spikes',()=>{
  assert.equal(g.players[1].state,'dead');assert.equal(g.players[1].deathReason,'spikes');assert.equal(g.players[0].state,'alive');
 });
 
-test('spikes retract smoothly, stay fully hidden for over two seconds and warn before rising',()=>{
+test('spikes show harmless tips for a warning beat before the next full rise',()=>{
  const g=scene(),trap={x:3,z:2};g.world.spikes.push(trap);
  g.world.featureTime=2;assert.equal(g.world.spikeState(trap).extension,1);
  g.world.featureTime=2.15;assert.ok(Math.abs(g.world.spikeState(trap).extension-.5)<1e-10);
  for(const time of [2.31,3,4,4.49]){g.world.featureTime=time;const state=g.world.spikeState(trap);assert.equal(state.extension,0);assert.equal(state.dangerous,false);assert.equal(g.world.debugBoxes().some(b=>b.kind==='spikes'),false);}
- g.world.featureTime=4.2;assert.equal(g.world.spikeState(trap).warning,true);
- g.world.featureTime=4.55;assert.equal(g.world.spikeState(trap).warning,true);assert.equal(g.world.spikeState(trap).dangerous,false);
- g.world.featureTime=4.65;const state=g.world.spikeState(trap),box=g.world.debugBoxes().find(b=>b.kind==='spikes');
- assert.ok(Math.abs(state.extension-.5)<1e-10);assert.ok(state.dangerous);assert.ok(Math.abs(box.maxY-(.03+.18*state.extension))<1e-10);
- g.world.featureTime=4.8;assert.equal(g.world.spikeState(trap).extension,1);
+ g.world.featureTime=4.575;assert.ok(Math.abs(g.world.spikeState(trap).extension-.15)<1e-10);
+ for(const time of [4.66,5,5.49]){g.world.featureTime=time;const state=g.world.spikeState(trap);assert.equal(state.stage,'peeking');assert.equal(state.extension,.3);assert.equal(state.warning,true);assert.equal(state.dangerous,false);assert.equal(g.world.debugBoxes().some(b=>b.kind==='spikes'),false);}
+ g.world.featureTime=5.65;const state=g.world.spikeState(trap),box=g.world.debugBoxes().find(b=>b.kind==='spikes');
+ assert.ok(Math.abs(state.extension-.65)<1e-10);assert.ok(state.dangerous);assert.ok(Math.abs(box.maxY-(.03+.18*state.extension))<1e-10);
+ g.world.featureTime=5.8;assert.equal(g.world.spikeState(trap).extension,1);
 });
 
 test('a jelly can cross a hidden spike trap, but camping there is lethal when it rises',()=>{
@@ -71,7 +71,8 @@ test('a jelly can cross a hidden spike trap, but camping there is lethal when it
  assert.ok(pass.players[0].x>3.65);assert.equal(pass.players[0].state,'alive');assert.equal(pass.players[0].deaths,0);
  const camp=scene([[3,2,0]]);camp.world.spikes.push({x:3,z:2});camp.world.featureTime=2.4;
  camp.step([],240);assert.equal(camp.players[0].state,'alive');assert.equal(camp.players[0].deaths,0);
- for(let n=0;n<60&&camp.players[0].state!=='dead';n++)camp.step();
+ camp.step([],120);assert.equal(camp.world.spikeState(camp.world.spikes[0]).stage,'peeking');assert.equal(camp.players[0].state,'alive');
+ for(let n=0;n<80&&camp.players[0].state!=='dead';n++)camp.step();
  assert.equal(camp.players[0].state,'dead');assert.equal(camp.players[0].deathReason,'spikes');
 });
 
@@ -88,7 +89,9 @@ test('matching floor portals preserve deformation, transfer height and do not bo
  g.world.portals.push({x:2,z:2,color:'violet'},{x:6,z:6,color:'violet'},{x:3,z:3,color:'amber'},{x:8,z:8,color:'amber'});
  const events=g.step();assert.ok(events.some(e=>e.type==='portal'));assert.ok(Math.abs(g.players[0].x-6)<.01);assert.ok(Math.abs(g.players[0].y-1)<.05);assert.equal(g.players[0].portalLock,'violet');
  g.step([],200);assert.ok(Math.abs(g.players[0].x-6)<.04);assert.equal(g.players[0].deaths,0);
- const p=g.players[0];g.soft.translate(p,1,0,0,true);g.step();assert.equal(p.portalLock,null);
+ const p=g.players[0],exit=g.world.portals[1];assert.equal(g.world.portalInactive(exit,g.players),true);
+ g.soft.translate(p,.7,0,0,true);g.step();assert.equal(p.portalLock,'violet');assert.equal(g.world.portalInactive(exit,g.players),true);
+ g.soft.translate(p,.3,0,0,true);g.step();assert.equal(p.portalLock,null);assert.equal(g.world.portalInactive(exit,g.players),false);
  g.soft.translate(p,-1,0,0,true);g.step();assert.ok(Math.abs(p.x-2)<.04);assert.ok(Math.abs(p.y)<.05);
 });
 
@@ -97,7 +100,24 @@ test('portal brightness grows smoothly as the jelly footprint covers the portal'
  const charges=[.9,.65,.5,.38,0].map(offset=>g.world.portalCharge(portal,[{x:3+offset,z:3,y:0,state:'alive'}]));
  assert.equal(charges[0],0);assert.equal(charges.at(-1),1);
  for(let i=1;i<4;i++)assert.ok(charges[i]>charges[i-1]);
- assert.equal(g.world.portalCharge(portal,[{x:3,z:3,y:0,state:'alive',portalLock:'violet'}]),1,'portal remains bright beneath the arriving cube');
+ assert.equal(g.world.portalCharge(portal,[{x:3,z:3,y:0,state:'alive',portalLock:'violet'}]),0,'arrival lock suppresses portal charging');
+});
+
+test('only the exit overlapped by an arriving living jelly is inactive',()=>{
+ const g=scene(),portal={x:3,z:3,color:'violet'},p={x:3,z:3,y:0,state:'alive',portalLock:'violet'};
+ assert.equal(g.world.portalInactive(portal,[p]),true);
+ assert.equal(g.world.portalInactive(portal,[{...p,x:3.7}]),true,'part of the jelly still overlaps the portal slab');
+ for(const override of [{x:3.8},{y:1},{state:'dead'},{state:'falling'},{kind:'crate'},{portalLock:null},{portalLock:'amber'}])assert.equal(g.world.portalInactive(portal,[{...p,...override}]),false);
+ assert.equal(g.world.portalInactive({...portal,x:7},[p]),false,'the distant same-colour portal remains active');
+});
+
+test('another jelly waits until the arrival fully clears an inactive portal',()=>{
+ const g=scene([[2.7,2,0],[2,2,0]]);g.world.portals.push({x:2,z:2,color:'violet'},{x:6,z:6,color:'violet'});
+ g.players[0].portalLock='violet';
+ assert.equal(g.world.afterFeatures(g.players,g.soft).length,0);assert.equal(g.players[1].portalBlocked,true);
+ g.players[0].x=3;g.soft.reset();
+ const events=g.world.afterFeatures(g.players,g.soft);
+ assert.ok(events.some(e=>e.type==='portal'&&e.player===1));assert.ok(Math.abs(g.players[1].x-6)<.01);
 });
 
 test('portal charge ignores dead cubes, crates and cubes on a different floor',()=>{

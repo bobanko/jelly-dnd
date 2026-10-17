@@ -2,7 +2,7 @@
 
 Generated with the built-in imagegen tool for this project, using the user's crate and stone material sheet as a visual reference. These are diffuse colour textures with hand-painted wear, not baked screenshots of 3D objects.
 
-- [dungeon-stone-atlas.png](dungeon-stone-atlas.png): sixteen worn stone slabs in a 4 by 4 atlas. Each box face selects a stable atlas cell and orientation. World lighting remains dynamic.
+- [dungeon-stone-atlas.png](dungeon-stone-atlas.png): sixteen worn stone slabs in a 4 by 4 atlas. Each box face selects a stable atlas cell and orientation. Pressure-plate mounts reuse this stone; their red/blue circular buttons tint an atlas cell's surface detail. World lighting remains dynamic.
 - [crate-oak.png](crate-oak.png): continuous oak grain sampled by the separate boards and braces. UVs are fixed in the crate's local coordinates and rotate with its rigid body.
 
 The renderer uploads both textures once as sRGB, generates mip levels once and uses filtered sampling. Crate boards, cross braces, iron corner plates and rivets are cached 3D geometry. No texture or mesh is regenerated during animation.
