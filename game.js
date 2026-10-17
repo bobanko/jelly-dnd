@@ -3,7 +3,7 @@ const canvas=document.querySelector('#scene');
 const reducedMotion=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
 let W,H,DPR,scale,angle=0,targetAngle=0,last=0,time=0,moves=0,history=[],won=false,finishHold=0,audioOn=false,audio;
-const WIN_HOLD_SECONDS=5;
+const WIN_HOLD_SECONDS=3;
 const N=12, colors=JellyLevels.characters.map(p=>p.color),names=JellyLevels.characters.map(p=>p.name);
 let zoom=1,fpsTime=0,fpsFrames=0;
 let mapError=null,definition;
@@ -14,7 +14,7 @@ let followedPlayer=0;
 const camera={x:start[0].x,z:start[0].z,targetY:start[0].y||0,focusHeight:(start[0].y||0)+.42,mode:'perspective',pitch:55,fov:45};
 const cameraPitches={ortho:30,perspective:55};
 const effects=new JellyEffects.System({reducedMotion});
-const level={...runtime,effects,won:false,reducedMotion};
+const level={...runtime,effects,won:false,finishProgress:0,reducedMotion};
 document.querySelector('.intro h1').textContent=definition.name;
 document.querySelectorAll('.camera-player').forEach((key,slot)=>key.hidden=!players.some(p=>p.slot===slot));
 if(globalThis.location?.search?.includes('level=editor')){document.querySelector('#editor-link').textContent='← В редактор';document.querySelector('.chapter').textContent='ТЕСТ УРОВНЯ';}
@@ -47,10 +47,10 @@ function woodHit(broken=false){
 function updateUI(){
  document.querySelector('#moves').textContent=String(moves).padStart(2,'0');document.querySelector('#win').hidden=!won;
  const lost=players.findIndex(p=>!JellyPhysics.alive(p)),moving=world.lifts.some(l=>Math.abs(l.target-l.height)>.01&&players.some(p=>Math.abs(p.x-l.x)<.4&&Math.abs(p.z-l.z)<.4));
- document.querySelector('#status').textContent=won?'Все руны пробуждены':lost>=0?`${names[players[lost].slot]} ${players[lost].state==='falling'?'падает…':players[lost].deathReason==='spikes'?'погиб на шипах. Возрождение…':'возрождается…'}`:finishHold>0?`Удерживайте финиши: ${Math.ceil(WIN_HOLD_SECONDS-finishHold)} с`:players.some(p=>p.portalBlocked)?'Выход портала занят':moving?'Лифт поднимается':players.some(p=>p.portalFlash>0)?'Магический переход':active(0)||active(1)?'Магический мост поднят':'Святилище ждёт вас';
+ document.querySelector('#status').textContent=won?'Все руны пробуждены':lost>=0?`${names[players[lost].slot]} ${players[lost].state==='falling'?'падает…':players[lost].deathReason==='spikes'?'погиб на шипах. Возрождение…':'возрождается…'}`:finishHold>0?'Рунические печати наполняются светом…':players.some(p=>p.portalBlocked)?'Выход портала занят':moving?'Лифт поднимается':players.some(p=>p.portalFlash>0)?'Магический переход':active(0)||active(1)?'Магический мост поднят':'Святилище ждёт вас';
 }
 function focusPlayer(i){if(!players[i])return;followedPlayer=i;document.querySelectorAll('.member').forEach((member,slot)=>{const current=players[i].slot===slot;member.classList.toggle('following',current);member.setAttribute('aria-current',current?'true':'false');});}
-function clearGoalVisuals(){level.won=false;sceneRenderer.goalGlowStrength=[];sceneRenderer.goalWinGlow=0;}
+function clearGoalVisuals(){level.won=false;level.finishProgress=0;sceneRenderer.goalGlowStrength=[];sceneRenderer.goalWinGlow=0;}
 function reset(){
  players.forEach((p,i)=>Object.assign(p,start[i],{spawn:{...start[i]},state:'alive',y:start[i].y||0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:start[i].x,rz:start[i].z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,shield:null,shieldHP:0,sword:null,facingX:0,facingZ:1,launchTimer:0,bashCooldown:0,attackTime:0,attackCooldown:0}));
  crates.forEach(p=>Object.assign(p,p.spawn,{y:p.spawn.y||0,state:'alive',vx:0,vy:0,vz:0,deaths:0,respawnTimer:0}));
@@ -97,6 +97,7 @@ function simulate(dt){
   const allFinished=players.length>0&&players.every(p=>world.goalActive(goals.find(g=>g.slot===p.slot),p)&&Math.hypot(p.vx,p.vz)<.25);
   finishHold=allFinished?Math.min(WIN_HOLD_SECONDS,finishHold+JellyPhysics.STEP):0;
   if(finishHold>=WIN_HOLD_SECONDS-1e-9){finishHold=WIN_HOLD_SECONDS;won=true;players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);}
+  level.finishProgress=finishHold/WIN_HOLD_SECONDS;
   accumulator-=JellyPhysics.STEP;
  }
  players.forEach(p=>{p.rx=p.x;p.rz=p.z;p.bounce=Math.max(p.impact,Math.min(.24,Math.hypot(p.vx,p.vz)*.07));});

@@ -24,10 +24,10 @@ test('solo and duo levels assign controls by active order, keeping camera keys, 
   assert.ok(g.run(`players[${slots.length-1}].z<4`));assert.equal(g.run('followedPlayer'),slots.length-1);
   g.key('z');assert.equal(g.run(`players[${slots.length-1}].z`),4);g.key(String(slot+1));assert.equal(g.run('followedPlayer'),slots.length-1);
   g.key('r');assert.equal(g.run('players.length'),slots.length);assert.ok(g.run('players.every(p=>p.state==="alive")'));
-  g.run('players.forEach(p=>{const g=goals.find(g=>g.slot===p.slot);Object.assign(p,g,{rx:g.x,rz:g.z});});soft.reset();for(let n=0;n<101;n++)simulate(.05)');assert.equal(g.run('won'),true);
+  g.run('players.forEach(p=>{const g=goals.find(g=>g.slot===p.slot);Object.assign(p,g,{rx:g.x,rz:g.z});});soft.reset();for(let n=0;n<61;n++)simulate(.05)');assert.equal(g.run('won'),true);
  }
  const solo=game({map:partyMap([1])});for(const key of ['Digit1','Digit3','Digit4'])solo.key('',key);assert.equal(solo.run('moves'),0);assert.equal(solo.run('followedPlayer'),0);
- const withUnused=partyMap([1]);withUnused.goals[0]={x:5,z:1};const extra=game({map:withUnused});extra.run('Object.assign(players[0],goals.find(g=>g.slot===1));soft.reset();for(let n=0;n<101;n++)simulate(.05)');assert.equal(extra.run('won'),true,'unused colours do not block victory');
+ const withUnused=partyMap([1]);withUnused.goals[0]={x:5,z:1};const extra=game({map:withUnused});extra.run('Object.assign(players[0],goals.find(g=>g.slot===1));soft.reset();for(let n=0;n<61;n++)simulate(.05)');assert.equal(extra.run('won'),true,'unused colours do not block victory');
  const wrong=game({map:withUnused});wrong.run('players[0].x=5;players[0].z=1;soft.reset();simulate(.05);effects.step(.1,world,goals,players)');assert.equal(wrong.run('won'),false);assert.equal(wrong.run('effects.runes.length'),0,'another colour cannot activate an unused rune');
 });
 test('every control set works for every solo colour, using physical positions in all directions',()=>{
@@ -62,7 +62,7 @@ test('fourth purple jelly uses physical TFGH, participates in victory, and respa
   assert.ok((g.run('players[3].'+axis)-before)*sign>0);assert.equal(g.run('followedPlayer'),3);g.key('4');assert.equal(g.run('followedPlayer'),3);
  }
  const g=game({map:partyMap([0,1,2,3])});g.run('players.slice(0,3).forEach((p,i)=>Object.assign(p,goals[i]));soft.reset();simulate(.05)');assert.equal(g.run('won'),false);
- g.run('Object.assign(players[3],goals[3]);soft.reset();for(let n=0;n<101;n++)simulate(.05)');assert.equal(g.run('won'),true);
+ g.run('Object.assign(players[3],goals[3]);soft.reset();for(let n=0;n<61;n++)simulate(.05)');assert.equal(g.run('won'),true);
  g.run('reset();players[3].state="dead";players[3].respawnTimer=.01;simulate(.05)');assert.equal(g.run('players[3].state'),'alive');assert.equal(g.run('players.length'),4);
 });
 test('physical WASD works on Russian layout and releases after a layout change',()=>{
@@ -165,32 +165,33 @@ test('continuous route activates both plates and finishes the puzzle',()=>{
  travel(0,'x',3);travel(0,'z',2);
  // Blue leaves the bridge button for its separate finish tile.
  travel(1,'z',3);
- g.run('for(let n=0;n<101;n++)simulate(.05)');assert.equal(g.run('won'),true);
+ g.run('for(let n=0;n<61;n++)simulate(.05)');assert.equal(g.run('won'),true);
  g.key('z');assert.equal(g.run('won'),false);
 });
 
-test('victory requires five continuous seconds for solo, duo, three and four active colours',()=>{
+test('victory requires three continuous seconds for solo, duo, three and four active colours',()=>{
  for(const slots of [[3],[1,3],[0,2,3],[0,1,2,3]]){
-  const g=game({map:partyMap(slots)});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<599;n++)simulate(JellyPhysics.STEP)');
-  assert.equal(g.run('won'),false);assert.ok(g.run('finishHold>4.98&&finishHold<5'));
-  assert.match(g.run('document.querySelector("#status").textContent'),/Удерживайте финиши: 1 с/);
-  g.run('simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),true);assert.equal(g.run('finishHold'),5);assert.equal(g.run('document.querySelector("#win").hidden'),false);
+  const g=game({map:partyMap(slots)});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<359;n++)simulate(JellyPhysics.STEP)');
+  assert.equal(g.run('won'),false);assert.ok(g.run('finishHold>2.98&&finishHold<3'));
+  assert.match(g.run('document.querySelector("#status").textContent'),/Рунические печати/);
+  assert.ok(g.run('level.finishProgress>.99&&level.finishProgress<1'));
+  g.run('simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),true);assert.equal(g.run('finishHold'),3);assert.equal(g.run('level.finishProgress'),1);assert.equal(g.run('document.querySelector("#win").hidden'),false);
  }
 });
-test('leaving any finish before the deadline cancels the timer and re-entry requires a full five seconds',()=>{
- const g=game({map:partyMap([1,3])});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<480;n++)simulate(JellyPhysics.STEP)');
- assert.ok(g.run('finishHold>3.99'));assert.equal(g.run('won'),false);
- g.run('players[1].x+=.8;soft.reset();simulate(JellyPhysics.STEP)');assert.equal(g.run('finishHold'),0);assert.equal(g.run('won'),false);
- g.run('Object.assign(players[1],goals.find(g=>g.slot===players[1].slot),{vx:0,vz:0});soft.reset();for(let n=0;n<599;n++)simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),false);
+test('leaving any finish before the deadline cancels the timer and re-entry requires a full three seconds',()=>{
+ const g=game({map:partyMap([1,3])});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<240;n++)simulate(JellyPhysics.STEP)');
+ assert.ok(g.run('finishHold>1.99'));assert.equal(g.run('won'),false);
+ g.run('players[1].x+=.8;soft.reset();simulate(JellyPhysics.STEP)');assert.equal(g.run('finishHold'),0);assert.equal(g.run('level.finishProgress'),0);assert.equal(g.run('won'),false);
+ g.run('Object.assign(players[1],goals.find(g=>g.slot===players[1].slot),{vx:0,vz:0});soft.reset();for(let n=0;n<359;n++)simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),false);
  g.run('simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),true);
 });
 test('death, reset and undo clear pending victory; wrong or unoccupied finishes never start it',()=>{
  const g=game({map:partyMap([0,2])});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<240;n++)simulate(JellyPhysics.STEP)');
  assert.ok(g.run('finishHold>1.99'));
  g.run('players[1].state="dead";players[1].respawnTimer=10;simulate(JellyPhysics.STEP)');assert.equal(g.run('finishHold'),0);assert.equal(g.run('won'),false);
- g.key('r');assert.equal(g.run('finishHold'),0);
+ g.key('r');assert.equal(g.run('finishHold'),0);assert.equal(g.run('level.finishProgress'),0);
  g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();history.push(snapshot());moves++;for(let n=0;n<240;n++)simulate(JellyPhysics.STEP)');
- assert.ok(g.run('finishHold>1.99'));g.key('z');assert.equal(g.run('finishHold'),0);assert.equal(g.run('won'),false);
+ assert.ok(g.run('finishHold>1.99'));g.key('z');assert.equal(g.run('finishHold'),0);assert.equal(g.run('level.finishProgress'),0);assert.equal(g.run('won'),false);
  g.key('r');g.run('players.forEach((p,i)=>{const g=goals.find(g=>g.slot===[2,0][i]);p.x=g.x;p.z=g.z;});soft.reset();for(let n=0;n<720;n++)simulate(JellyPhysics.STEP)');assert.equal(g.run('finishHold'),0);assert.equal(g.run('won'),false);
 });
 
