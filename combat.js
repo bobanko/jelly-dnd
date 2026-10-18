@@ -1,6 +1,7 @@
 // Cardinal archery, durable shields, ballistic bashes and automatic sword attacks.
 (function(root){
  'use strict';
+ const Levels=typeof module!=='undefined'&&module.exports?require('./levels.js'):root.JellyLevels;
  const alive=p=>!p.state||p.state==='alive';
  const carrying=p=>alive(p)||(p.state==='falling'&&(p.launchTimer||0)>0);
  function cardinal(x=0,z=1){return Math.abs(x)>Math.abs(z)?{x:Math.sign(x),z:0}:{x:0,z:Math.sign(z)||1};}
@@ -32,7 +33,7 @@
    this.arrows=(state?.arrows||[]).map(a=>({...a}));
    this.pickups.forEach((p,i)=>Object.assign(p,state?.pickups?.[i]||{holder:null,durability:3,destroyed:false}));
   },
-  droneOrigin(d){return [d.x,(d.y??this.heightAt(d.x,d.z)??0)+(d.hover??1.8),d.z];},
+  droneOrigin(d){return Levels.droneOrigin(d,this.heightAt(d.x,d.z)??0);},
   traceDrones(bodies,soft){
    if(!this.drones?.length)return [];
    const targets=bodies.flatMap((p,i)=>p.state==='dead'?[]:[{p,i,box:bodyBox(p,soft)}]);

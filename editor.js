@@ -113,7 +113,7 @@ function renderProperties(){
   if(key==='drones'){
    field(card,'Цвет луча',p.color,{values:L.characters.map((c,i)=>[String(i),c.name])},v=>set('color',Number(v)));
    field(card,'Цель дрона',p.target,{values:[['-1','Ближайшая желейка'],...L.characters.map((c,i)=>[String(i),c.name])]},v=>set('target',Number(v)));
-   field(card,'Высота полёта',p.hover,{min:.6,max:6,step:.1},v=>set('hover',v));
+   field(card,'Высота полёта',p.hover,{min:0,max:6,step:.1},v=>set('hover',v));
    for(const axis of ['x','y','z'])field(card,'Дрон · '+axis.toUpperCase(),p[axis],{min:axis==='y'?-2:0,max:axis==='y'?12:model.map.size-1},value=>{const q={...p,[axis]:value};try{if(model.move(key,index,q.x,q.z,q.y)){selected={x:q.x,y:q.y,z:q.z};changed();}}catch(error){toast(error.message);renderPanels();}});
   }
   if(key==='plates'){field(card,'Цвет',p.color,{values:[['red','Красный'],['blue','Синий'],['amber','Золотой'],['dark','Каменный']]},v=>set('color',v));card.append(element('p',`Канал ${index+1} · мостов: ${model.map.bridges.filter(b=>b.plate===p.id).length}`,'empty-state'));}
@@ -231,8 +231,8 @@ function drawSpatialOverlay(){
  if(gesture?.pan||gesture?.orbit||!inside(hover)||['pan','orbit'].includes(tool))return;
  const active=gesture?.tool||tool,isErase=active==='erase',color=isErase?'#f2a78b':tools[active]?.color||'#ceecaa',fill=isErase?'#ef8c732b':color+'24';
  if(active==='drone'||moveObject?.key==='drones'){
-  const d=moveObject?model.map.drones[moveObject.index]:{hover:1.8,color:3},y=(hover.y??layer)+d.hover,x=hover.x,z=hover.z;
-  path([[x,y-.55,z],[x-.22,y,z],[x,y+.55,z],[x+.22,y,z]],colors[d.color],fill,true);path([[x,y,z-.22],[x,y+.55,z],[x,y,z+.22],[x,y-.55,z]],colors[d.color],null,true);return;
+  const d=moveObject?model.map.drones[moveObject.index]:{hover:0,color:3},y=L.droneOrigin({...d,x:hover.x,y:hover.y??layer,z:hover.z})[1],x=hover.x,z=hover.z;
+  path([[x,y-.56,z],[x-.22,y,z],[x,y+.56,z],[x+.22,y,z]],colors[d.color],fill,true);path([[x,y,z-.22],[x,y+.56,z],[x,y,z+.22],[x,y-.56,z]],colors[d.color],null,true);return;
  }
  if(active==='torch'||moveObject?.key==='torches'){
   const torch=moveObject?{...model.map.torches[moveObject.index],...hover}:{...hover,face:hover.face||(torchFace.value==='auto'?'south':torchFace.value)},f=L.torchFrame({...torch,y:torch.y??layer});

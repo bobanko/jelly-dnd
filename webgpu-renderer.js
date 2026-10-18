@@ -117,17 +117,20 @@
  }
  const beamColors=[[.12,1.,.16],[.035,.22,1.],[1.,.065,.035],[.72,.12,1.]];
  function droneGeometry(color){
-  const mesh=[],rings=[[-.56,0],[-.2,.17],[0,.22],[.2,.17],[.56,0]],bronze=[.38,.24,.1];
+  const mesh=[],crystal=[],rings=[[-.56,0],[-.22,.255],[.19,.28],[.36,.19],[.56,0]],bronze=[.38,.24,.1];
   for(let r=0;r<rings.length-1;r++)for(let i=0;i<8;i++){
    const a=i*Math.PI/4,b=(i+1)*Math.PI/4,p=(ring,angle)=>[Math.cos(angle)*ring[1],ring[0],Math.sin(angle)*ring[1]],quad=[p(rings[r],a),p(rings[r+1],a),p(rings[r+1],b),p(rings[r],b)];
-   for(const triangle of [[0,1,2],[0,2,3]]){const ps=triangle.map(i=>quad[i]),n=normalize(cross(ps[1].map((v,k)=>v-ps[0][k]),ps[2].map((v,k)=>v-ps[0][k])));if(Math.hypot(...n)<.1)continue;for(const q of ps)mesh.push(...q,...n,...color.map(v=>v*(.65+i%3*.14)),4,0,0);}
+   const uv=[[0,0],[0,1],[1,1],[1,0]];
+   for(const triangle of [[0,1,2],[0,2,3]]){const ps=triangle.map(i=>quad[i]),n=normalize(cross(ps[1].map((v,k)=>v-ps[0][k]),ps[2].map((v,k)=>v-ps[0][k])));if(Math.hypot(...n)<.1)continue;for(const j of triangle)crystal.push(...quad[j],...n,...color.map(v=>v*(.63+i%3*.15+r*.035)),25,...uv[j]);}
   }
   for(const y of [-.23,.16]){
-   pressureSurface(mesh,[0,y,0],[[.19,0],[.29,0],[.31,.025],[.31,.075],[.28,.095],[.19,.095],[.19,0]],bronze,12,0,8);
-   for(let i=0;i<4;i++){const a=i*Math.PI/2+.4;sphere(mesh,[Math.cos(a)*.296,y+.055,Math.sin(a)*.296],[.027,.027,.027],[.68,.45,.18],12);}
+   pressureSurface(mesh,[0,y,0],[[.245,0],[.295,0],[.315,.015],[.315,.05],[.29,.065],[.245,.065],[.245,0]],bronze,12,0,8);
+   for(let i=0;i<4;i++){const a=i*Math.PI/2+.4;sphere(mesh,[Math.cos(a)*.306,y+.035,Math.sin(a)*.306],[.023,.023,.023],[.68,.45,.18],12);}
   }
-  for(let i=0;i<4;i++){const a=i*Math.PI/2+.4,x=Math.cos(a)*.27,z=Math.sin(a)*.27;rod(mesh,[x,-.16,z],[x,.18,z],.032,bronze,12);}
-  sphere(mesh,[0,0,0],[.12,.12,.12],color.map(v=>v*1.8),4);return mesh;
+  for(let i=0;i<4;i++){const a=i*Math.PI/2+.4,x=Math.cos(a)*.29,z=Math.sin(a)*.29;rod(mesh,[x,-.16,z],[x,.18,z],.025,bronze,12);}
+  // A small luminous heart is visible through the independently blended facets.
+  for(let k=0;k<crystal.length;k+=12)mesh.push(crystal[k]*.26,crystal[k+1]*.32,crystal[k+2]*.26,...crystal.slice(k+3,k+6),...color,4,0,0);
+  return {mesh,crystal};
  }
  function arrowGeometry(){
   const mesh=[];rod(mesh,[0,0,-.34],[0,0,.08],.017,[.46,.31,.12],11);
@@ -348,11 +351,24 @@
   let direction=normalize(end.xyz-start.xyz);let view=normalize(scene.eye.xyz-(start.xyz+end.xyz)*.5);let side=cross(direction,view);
   let fallback=cross(direction,select(vec3f(0,1,0),vec3f(1,0,0),abs(direction.y)>.9));
   let right=normalize(select(fallback,side,dot(side,side)>.0001));let uv=vec2f(p.x,(p.z+1.)*.5);var o:Out;
-  o.world=mix(start.xyz,end.xyz,uv.y)+right*uv.x*.075;o.clip=scene.vp*vec4f(o.world,1.);o.normal=view;o.color=tint.rgb;o.material=0.;o.local=vec3f(uv,tint.w);return o;
+  o.world=mix(start.xyz,end.xyz,uv.y)+right*uv.x*.24;o.clip=scene.vp*vec4f(o.world,1.);o.normal=view;o.color=tint.rgb;o.material=length(end.xyz-start.xyz);o.local=vec3f(uv,tint.w);return o;
+ }
+ fn arcNoise(x:f32,seed:f32)->f32{
+  let cell=floor(x);let a=fract(sin(cell*127.1+seed*311.7)*43758.5453)*2.-1.;let b=fract(sin((cell+1.)*127.1+seed*311.7)*43758.5453)*2.-1.;
+  return mix(a,b,fract(x));
  }
  @fragment fn beamFS(o:Out)->@location(0) vec4f{
-  let core=exp(-o.local.x*o.local.x*100.);let glow=exp(-o.local.x*o.local.x*6.);
-  let alpha=(core*.95+glow*.2)*o.local.z;return vec4f(mix(o.color*2.4,vec3f(3.),core*.65),alpha);
+  let uv=o.local.xy;let time=scene.options.z;let along=uv.y*o.material;let envelope=sin(uv.y*3.14159265);
+  // Piecewise linear noise forms travelling lightning kinks. Both endpoints
+  // stay attached to the emitter and the raycast hit, even on short beams.
+  let epoch=floor(time*11.);let blend=smoothstep(0.,1.,fract(time*11.));
+  let arc=mix(arcNoise(along*5.5,epoch),arcNoise(along*5.5,epoch+1.),blend)*.34*envelope;
+  let branch=arc+arcNoise(along*9.-time*3.,19.)*.42*envelope;
+  let distance=abs(uv.x-arc);let width=max(.08,fwidth(uv.x)*.7);let core=exp(-pow(distance/width,2.));
+  let glow=exp(-pow(distance/.36,2.));let filament=exp(-pow((uv.x-branch)/max(.018,fwidth(uv.x)*.5),2.));
+  let flow=.88+.12*sin(along*24.-time*17.);let ends=exp(-along*17.)+exp(-(o.material-along)*17.);
+  let flare=exp(-uv.x*uv.x*15.)*ends*.35;let alpha=(core*.95+glow*.23+filament*.3+flare)*o.local.z*flow;
+  return vec4f(mix(o.color*2.3,vec3f(3.),core*.7),alpha);
  }
  @vertex fn goalGlowVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
   let goal=scene.goals[instance];var o:Out;
@@ -479,6 +495,14 @@
   var distance=abs(length(p)-.29);
   for(var i=0;i<8;i++){let a=f32(i)*.785398;let axis=vec2f(cos(a),sin(a));distance=min(distance,runeSegment(p,axis*.43,axis*.61));}
   return distance;
+ }
+ @fragment fn crystalFS(o:Out)->@location(0) vec4f{
+  let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);
+  let fresnel=pow(1.-abs(dot(n,v)),3.);let reflection=environment(reflect(-v,n));let gloss=pow(abs(dot(n,normalize(v+l))),80.);
+  let uv=o.local.xz;let edge=min(min(uv.x,1.-uv.x),min(uv.y,1.-uv.y));let aa=max(.002,length(fwidth(uv))*.6);
+  let seam=1.-smoothstep(.008-aa,.016+aa,edge);let lit=.45+max(0.,dot(n,l))*.55;
+  let color=o.color*(lit+fresnel*.7)+reflection*(.12+fresnel*.28)+vec3f(1.4,1.65,1.9)*(gloss*.7+seam*.17);
+  return vec4f(color,.23+fresnel*.23+seam*.17);
  }
  @fragment fn phaseFS(o:Out)->@location(0) vec4f{
   let uv=o.local.xz;let aa=max(.002,length(fwidth(uv))*.6);
@@ -628,6 +652,9 @@
    this.opaque=pipeline('solidVS','solidFS');this.skin=pipeline('softVS','skinFS');this.back=pipeline('softVS','backFS','front',1,'greater');
    this.effectPipeline=pipeline('solidVS','effectFS','back',4,'less',false,{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}});
    this.phasePipeline=pipeline('solidVS','phaseFS','back',4,'less',false,{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}});
+   const crystalBlend={color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}};
+   this.crystalBackPipeline=pipeline('solidVS','crystalFS','front',4,'less',false,crystalBlend);
+   this.crystalPipeline=pipeline('solidVS','crystalFS','back',4,'less',false,crystalBlend);
    const additive={color:{srcFactor:'src-alpha',dstFactor:'one',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}};
    this.runePipeline=pipeline('runeVS','runeFS','none',4,'less',false,additive,[vertexBuffers[0],{arrayStride:48,stepMode:'instance',attributes:[{shaderLocation:4,offset:0,format:'float32x4'},{shaderLocation:5,offset:16,format:'float32x4'},{shaderLocation:6,offset:32,format:'float32x4'}]}]);
    this.runeData=new Float32Array(32*12);this.runeBuffer=d.createBuffer({size:this.runeData.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
@@ -726,7 +753,7 @@
    if(mesh.length){const data=new Float32Array(mesh);if(data.byteLength>this.bridgeBuffer.size){this.bridgeBuffer.destroy();this.bridgeBuffer=this.device.createBuffer({size:Math.ceil(data.byteLength/65536)*65536,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}this.device.queue.writeBuffer(this.bridgeBuffer,0,data);}return mesh.length/12;
   }
   buildProps(level,players){
-   const pieces=[],bone=[.88,.84,.65],dark=[.018,.035,.027],r=[1,0,0],front=[0,0,1],basis=[r,[0,1,0],front];
+   const pieces=[],crystals=[],bone=[.88,.84,.65],dark=[.018,.035,.027],r=[1,0,0],front=[0,0,1],basis=[r,[0,1,0],front];
    const append=(kind,index,mesh,extra={})=>pieces.push({kind,index,data:new Float32Array(mesh),...extra});
    for(let i=0;i<players.length;i++){
     const mesh=[],center=[0,0,0];
@@ -745,7 +772,7 @@
     for(let j=0;j<5;j++){const mesh=[],phase=j*2.4+i;const position=[Math.sin(phase)*.22,-.26+j*.097,Math.cos(phase)*.2];sphere(mesh,position,[.015,.015,.015],[[.55,.72,.23],[.25,.62,.7],[.9,.3,.12],[.7,.3,.9]][players[i].slot??i],1);append('bubble',i,mesh,{bubble:j});}
    }
    for(let i=0;i<(level.crates||[]).length;i++)append('crate',i,crateGeometry());
-   for(let i=0;i<(level.world.drones||[]).length;i++)append('drone',i,droneGeometry(beamColors[level.world.drones[i].color]));
+   for(let i=0;i<(level.world.drones||[]).length;i++){const geometry=droneGeometry(beamColors[level.world.drones[i].color]);append('drone',i,geometry.mesh);crystals.push(geometry.crystal);}
    const shield=shieldGeometry(),heldShield=shield.slice();
    rod(heldShield,[0,-.02,-.25],[-.045,-.07,-.11],.043,bone);rod(heldShield,[-.045,-.07,-.11],[0,-.04,-.012],.035,bone);sphere(heldShield,[0,-.04,-.012],[.044,.037,.035],bone);
    for(let i=0;i<players.length;i++)append('shield',i,heldShield);
@@ -782,6 +809,9 @@
     const mesh=[],trap=level.world.spikes[i],color=spikeTint(trap);
     for(const dx of [-.21,.21])for(const dz of [-.21,.21])spike(mesh,dx,0,dz,color);append('spikes',i,mesh);
    }
+   // Transparent shells occupy the tail of the same upload buffer. Opaque props
+   // stop before that range; shells join the depth-sorted glass/jelly layers.
+   crystals.forEach((mesh,i)=>append('droneCrystal',i,mesh));
    this.propPieces=pieces;this.propData=new Float32Array(pieces.reduce((sum,p)=>sum+p.data.length,0));
    if(this.propData.byteLength>this.propBuffer.size){this.propBuffer.destroy();this.propBuffer=this.device.createBuffer({size:this.propData.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}
   }
@@ -792,7 +822,7 @@
    const plateBodies=[...players,...(level.crates||[])],pressFade=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*14);
    level.plates.forEach((plate,i)=>{const target=level.world.active(i,plateBodies)?1:0;this.platePress[i]=(this.platePress[i]||0)+(target-(this.platePress[i]||0))*pressFade;});
    const data=this.propData,c=Math.cos(angle),s=Math.sin(angle),rx=(c-s)*.7071,rz=-(s+c)*.7071,fx=(c+s)*.7071,fz=(c-s)*.7071;
-   let cursor=0;
+   let cursor=0,opaqueCount=null;this.crystalPieces=[];
    // Reuse immutable local meshes and one upload array. No per-frame tessellation
    // or large JS number arrays for rigid decorations.
    for(const piece of this.propPieces){
@@ -801,8 +831,9 @@
      const p=players[i];if(p.state==='dead')continue;
      const core=level.soft.get(p).core;x=core[0];y=core[1];z=core[2];rotate=piece.kind==='jelly';
      if(piece.kind==='bubble')y+=(piece.bubble*.097+time*.018)%.51-piece.bubble*.097;
-    }else if(piece.kind==='drone'){
+    }else if(piece.kind==='drone'||piece.kind==='droneCrystal'){
      [x,y,z]=level.world.droneOrigin(level.world.drones[i]);const spin=level.reducedMotion?0:time*.35;matrix=[Math.cos(spin),0,Math.sin(spin),0,1,0,-Math.sin(spin),0,Math.cos(spin)];
+     if(piece.kind==='droneCrystal'){opaqueCount??=cursor/12;this.crystalPieces.push({kind:'crystal',center:[x,y,z],first:cursor/12,count:source.length/12});}
     }else if(piece.kind==='crate'){
      const p=level.crates[i];if(p.state==='dead')continue;x=p.x;y=(p.y||0)+.42;z=p.z;matrix=level.soft.get(p).r;
     }else if(piece.kind==='shield'||piece.kind==='shieldCrack'||piece.kind==='sword'){
@@ -838,7 +869,7 @@
     else{for(let n=0;n<source.length;n+=12){const k=cursor+n;data[k]=x+source[n];data[k+1]=y+source[n+1];data[k+2]=z+source[n+2];}}
     cursor+=source.length;
    }
-   const dynamicCount=cursor/12;this.device.queue.writeBuffer(this.propBuffer,0,data.buffer,0,cursor*4);
+   const dynamicCount=opaqueCount??cursor/12;this.device.queue.writeBuffer(this.propBuffer,0,data.buffer,0,cursor*4);
    const decorationKey=[level.goals.length,level.plates.length,level.world.spikes.length,level.world.portals.length,level.world.conveyors.length,JSON.stringify(level.world.torches||[])].join(',');
    if(this.decorationKey!==decorationKey){const mesh=[];
    level.goals.forEach((g,i)=>{
@@ -976,10 +1007,16 @@
    const opaque=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),clearValue:{r:.009,g:.011,b:.014,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
    opaque.setPipeline(this.opaque);opaque.setBindGroup(0,this.sceneGroup);opaque.setBindGroup(1,this.skinGroups[0]);opaque.setVertexBuffer(0,this.staticBuffer);opaque.draw(this.staticCount);if(bridgeCount){opaque.setVertexBuffer(0,this.bridgeBuffer);opaque.draw(bridgeCount);}opaque.setVertexBuffer(0,this.propBuffer);opaque.draw(propCount);opaque.setVertexBuffer(0,this.decorationBuffer);opaque.draw(this.decorationCount);opaque.end();
    const order=players.flatMap((p,i)=>p.state==='dead'?[]:[{kind:'jelly',i,center:[p.x,(p.y||0)+.42,p.z]}]);
+   order.push(...this.crystalPieces);
    for(const face of this.phaseFaces)if(dot(face.normal,eye.map((v,k)=>v-face.center[k]))>0)order.push(face);
    order.sort((a,b)=>dot(a.center,view)-dot(b.center,view));
    const layerPass=()=>encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});
    for(let layer=0;layer<order.length;layer++){
+    if(order[layer].kind==='crystal'){
+     const glass=layerPass(),crystal=order[layer];glass.setBindGroup(0,this.sceneGroup);glass.setBindGroup(1,this.skinGroups[0]);glass.setVertexBuffer(0,this.propBuffer);
+     glass.setPipeline(this.crystalBackPipeline);glass.draw(crystal.count,1,crystal.first);glass.setPipeline(this.crystalPipeline);glass.draw(crystal.count,1,crystal.first);
+     if(layer===order.length-1)this.drawEffects(glass,level,effectCount);glass.end();continue;
+    }
     if(order[layer].kind==='phase'){
      const glass=layerPass();glass.setPipeline(this.phasePipeline);glass.setBindGroup(0,this.sceneGroup);glass.setBindGroup(1,this.skinGroups[0]);glass.setVertexBuffer(0,this.phaseBuffer);
      do{const face=order[layer];glass.draw(face.count,1,face.first);layer++;}while(layer<order.length&&order[layer].kind==='phase');

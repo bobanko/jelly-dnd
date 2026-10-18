@@ -15,6 +15,8 @@
  const limits={blocks:4096,tiles:256,walls:256,torches:8,drones:8,plates:16,bridges:16,lifts:16,spikes:32,portals:64,conveyors:256,crates:4,archers:4,pickups:8};
  const wallFaces={north:[0,0,-1],east:[1,0,0],south:[0,0,1],west:[-1,0,0]};
  function torchFrame(p){const n=wallFaces[p.face]||wallFaces.south,origin=[p.x+n[0]*.49,p.y-.5,p.z+n[2]*.49];return {origin,n,u:[n[2],0,-n[0]],light:origin.map((v,k)=>v+n[k]*.25+(k===1?.32:0))};}
+ // Hover measures extra clearance above a crystal resting just clear of its tile.
+ function droneOrigin(p,base=0){return [p.x,(p.y??base)+.64+(p.hover??0),p.z];}
  function blank(){return {version:1,name:'Новое подземелье',size:16,blocks:[],tiles:[],walls:[],torches:[],drones:[],spawns:[null,null,null,null],goals:[null,null,null,null],plates:[],bridges:[],lifts:[],spikes:[],portals:[],conveyors:[],crates:[],archers:[],pickups:[]};}
  function surfaceY(map,x,z,ceiling=Infinity){const ys=[...map.tiles.filter(p=>p.x===x&&p.z===z).map(p=>p.height),...(map.blocks||[]).filter(p=>p.x===x&&p.z===z).map(p=>p.y)].filter(y=>y<=ceiling+.001);return ys.length?Math.max(...ys):null;}
  function voxelize(input){
@@ -44,7 +46,7 @@
   map.crates=[{x:7,z:9}];map.archers=[{x:10,z:5,dx:0,dz:1,interval:2.4,firstShot:1.6}];
   map.pickups=[{id:'oak-shield',kind:'shield',x:8,z:8},{id:'iron-sword',kind:'sword',x:8,z:7}];
   map.conveyors=[1,2,3].map(x=>({x,z:10,dx:1,dz:0,speed:.85}));
-  map.drones=[{x:2,y:0,z:6,hover:1.8,color:0,target:0}];
+  map.drones=[{x:2,y:0,z:6,hover:0,color:0,target:0}];
   return map;
  }
  function read(input){
@@ -91,7 +93,7 @@
   });
   list('portals',p=>{if(!portalColor(p.color))fail('Неизвестный цвет портала.');return {color:p.color};});
   list('crates',()=>({}));
-  list('drones',p=>{const color=p.color??3,target=p.target??-1;if(!Number.isInteger(color)||color<0||color>3)fail('Неизвестный цвет луча дрона.');if(!Number.isInteger(target)||target< -1||target>3)fail('Неизвестная цель дрона.');return {color,target,hover:number(p.hover,1.8,.6,6)};});
+  list('drones',p=>{const color=p.color??3,target=p.target??-1;if(!Number.isInteger(color)||color<0||color>3)fail('Неизвестный цвет луча дрона.');if(!Number.isInteger(target)||target< -1||target>3)fail('Неизвестная цель дрона.');return {color,target,hover:number(p.hover,0,0,6)};});
   list('conveyors',p=>{const dx=number(p.dx,0,-1,1),dz=number(p.dz,1,-1,1);if(Math.abs(dx)+Math.abs(dz)!==1||!Number.isInteger(dx)||!Number.isInteger(dz))fail('Конвейер должен двигаться вдоль сетки.');return {dx,dz,speed:number(p.speed,.85,.2,2.5)};});
   list('archers',p=>{const dx=number(p.dx,0,-1,1),dz=number(p.dz,1,-1,1);if(Math.abs(dx)+Math.abs(dz)!==1||!Number.isInteger(dx)||!Number.isInteger(dz))fail('Лучник должен смотреть вдоль сетки.');return {dx,dz,interval:number(p.interval,2.4,.6,10),firstShot:number(p.firstShot,1.6,.1,10)};});
   list('pickups',(p,i)=>{if(!['shield','sword'].includes(p.kind))fail('Неизвестный предмет.');return {id:id(p.id,`item-${i+1}`),kind:p.kind};});
@@ -128,8 +130,8 @@
   for(const p of map.torches||[])if(!map.blocks.some(b=>b.x===p.x&&b.z===p.z&&b.y===p.y&&b.color===undefined)&&!map.walls.some(w=>w.x===p.x&&w.z===p.z&&p.y-.5>=w.base&&p.y-.5<=w.base+w.height))result.push(`Факелу ${p.x}, ${p.y}, ${p.z} нужен каменный блок крепления.`);
   for(const p of map.drones||[]){
    if(p.target>=0&&!map.spawns[p.target])result.push(`Дрон ${p.x}, ${p.z}: выбранная цель не участвует в уровне.`);
-   const y=(p.y??surfaceY(map,p.x,p.z)??0)+p.hover;
-   if(map.blocks.some(b=>b.x===p.x&&b.z===p.z&&b.y>y-.55&&b.y-1<y+.55)||map.walls.some(w=>w.x===p.x&&w.z===p.z&&w.base<y+.55&&w.base+w.height>y-.55))result.push(`Дрон ${p.x}, ${p.z} находится внутри камня.`);
+   const y=droneOrigin(p,surfaceY(map,p.x,p.z)??0)[1];
+   if(map.blocks.some(b=>b.x===p.x&&b.z===p.z&&b.y>y-.56&&b.y-1<y+.56)||map.walls.some(w=>w.x===p.x&&w.z===p.z&&w.base<y+.56&&w.base+w.height>y-.56))result.push(`Дрон ${p.x}, ${p.z} находится внутри камня.`);
   }
   return [...new Set(result)];
  }
@@ -151,6 +153,6 @@
   const saved=storage?.getItem(PLAY_KEY);if(!saved)throw new Error('Тестовый уровень не найден. Откройте редактор и нажмите «Играть».');
   const map=read(saved),errors=issues(map);if(errors.length)throw new Error(errors.join('\n'));return map;
  }
- const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame};
+ const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame,droneOrigin};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyLevels=api;
 })(globalThis);

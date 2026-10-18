@@ -21,7 +21,7 @@
    if(tool==='drone'){
     const p=this.at('drones',x,z,y);if(p)return;
     if(this.map.drones.length>=L.limits.drones)throw new Error('На карте уже восемь дронов.');
-    this.map.drones.push({x,y,z,color:3,target:-1,hover:1.8});return;
+    this.map.drones.push({x,y,z,color:3,target:-1,hover:0});return;
    }
    if(tool==='torch'){
     const face=options.face||'south';if(!Object.hasOwn(L.wallFaces,face))throw new Error('Факел крепится к боковой грани.');
