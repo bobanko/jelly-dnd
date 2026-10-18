@@ -30,7 +30,7 @@
     const block=this.at('blocks',x,z,y);if(block?.color!==undefined)throw new Error('Факелу нужен обычный каменный блок.');
     this.cube(x,y,z);this.map.torches.push({x,y,z,face});return;
    }
-   const key={plate:'plates',bridge:'bridges',lift:'lifts',spikes:'spikes',conveyor:'conveyors','portal-violet':'portals','portal-amber':'portals',crate:'crates',archer:'archers',shield:'pickups',sword:'pickups'}[tool];if(!key)return;
+   const key=tool.startsWith('portal-')&&L.portalColor(tool.slice(7))?'portals':{plate:'plates',bridge:'bridges',lift:'lifts',spikes:'spikes',conveyor:'conveyors',crate:'crates',archer:'archers',shield:'pickups',sword:'pickups'}[tool];if(!key)return;
    if(key==='spikes'){
     const face=options.face||'top',same=p=>p.x===x&&p.z===z&&p.y===y,existing=this.map.spikes.find(p=>same(p)&&(p.face||'top')===face);
     if(!existing&&this.map.spikes.length>=L.limits.spikes)throw new Error('Достигнут лимит объектов.');
@@ -74,7 +74,7 @@
     const lift=this.at('lifts',x,z);if(lift){lift.base=height;lift.top=Math.min(3,Math.max(height+1,lift.top+height-old));}return;
    }
    if(/^(spawn|goal)-[0-3]$/.test(tool)){this.ensureFloor(x,z,height);this.map[tool.startsWith('spawn')?'spawns':'goals'][Number(tool.slice(-1))]={x,z};return;}
-   const key={wall:'walls',plate:'plates',bridge:'bridges',lift:'lifts',spikes:'spikes','portal-violet':'portals','portal-amber':'portals',conveyor:'conveyors',crate:'crates',archer:'archers',shield:'pickups',sword:'pickups'}[tool];
+   const key=tool.startsWith('portal-')&&L.portalColor(tool.slice(7))?'portals':{wall:'walls',plate:'plates',bridge:'bridges',lift:'lifts',spikes:'spikes',conveyor:'conveyors',crate:'crates',archer:'archers',shield:'pickups',sword:'pickups'}[tool];
    if(!key)return;
    if(!this.at(key,x,z)&&this.map[key].length>=L.limits[key])throw new Error(`Достигнут лимит объектов (${L.limits[key]}).`);
    const existing=this.at(key,x,z);

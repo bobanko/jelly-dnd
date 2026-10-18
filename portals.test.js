@@ -4,6 +4,28 @@ function chamber(count=4){
  const m=L.blank();m.size=10;for(let x=0;x<10;x++)for(let z=0;z<10;z++)m.blocks.push({x,y:0,z});
  m.spawns[0]={x:2,y:0,z:2};m.goals[0]={x:8,y:0,z:8};m.portals=[[2,2],[6,2],[6,6],[2,6]].slice(0,count).map(([x,z])=>({x,y:0,z,color:'violet'}));return L.instantiate(L.read(m),P,S);
 }
+
+test('all hero portal colours roundtrip through both editor placement paths and route only within their own chain',()=>{
+ for(const voxel of [false,true]){
+  const m=new Model(L.blank());m.change(()=>m.paint('spawn-0',15,15));m.change(()=>m.paint('goal-0',15,14));
+  L.portalColors.forEach((c,i)=>{
+   m.change(()=>m.paint('portal-'+c.id,i*2,2,{voxel,y:0}));
+   assert.ok(L.issues(m.map).some(s=>s.startsWith(c.name+' портал:')),'a lone new colour needs another endpoint');
+   m.change(()=>m.paint('portal-'+c.id,i*2,5,{voxel,y:0}));
+  });
+  assert.deepEqual(L.issues(m.map),[]);assert.deepEqual(L.read(JSON.stringify(m.map)),m.map);
+  const r=L.instantiate(m.map,P,S),w=r.world,p=r.players[0];
+  for(const c of L.portalColors){
+   const [a,b]=w.portals.filter(q=>q.color===c.id);
+   assert.equal(w.portalDestination(a),b);assert.equal(w.portalDestination(b),a);
+   Object.assign(p,{...a,vx:0,vz:0,vy:0,portalLock:null,portalCooldown:0});r.soft.reset();
+   const events=w.step(r.bodies,[{x:0,z:0}]);
+   assert.ok(events.some(e=>e.type==='portal'&&e.color===c.id));assert.equal(p.portalLock,c.id);
+   assert.ok(Math.hypot(p.x-b.x,p.z-b.z)<.01);assert.ok(w.portalInactive(a,r.bodies)&&w.portalInactive(b,r.bodies));
+  }
+ }
+ const bad=L.blank();bad.portals=[{x:1,z:1,color:'invalid'}];assert.throws(()=>L.read(bad));
+});
 test('three and four portals cycle in placement order, wrap, preserve height and wait for full departure',()=>{
  for(const count of [3,4]){
   const r=chamber(count),p=r.players[0],w=r.world;

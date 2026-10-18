@@ -12,6 +12,7 @@
     "test:torches:browser": "node browser-torches.cjs",
     "test:drones:browser": "node browser-drones.cjs",
     "test:portals:browser": "node browser-portals.cjs",
+    "test:palette:browser": "node browser-palette.cjs",
     "test:browser": "node browser-tests.cjs",
     "test:combat:browser": "node browser-combat.cjs",
     "test:editor:browser": "node browser-editor.cjs",

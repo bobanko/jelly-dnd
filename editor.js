@@ -7,12 +7,13 @@ const model=new M.Model(L.voxelize(initial));
 const phaseSymbols=['△','⊙','◇','☼'];
 const groups=[
  ['Основание',[['floor','▣','Каменный куб']]],
- ['Декор',[['torch','♨','Настенный факел']]],
+ ['Декор',[['torch','♨','Настенный факел','#f7ba60']]],
  ['Цветные блоки',L.characters.map((p,i)=>['color-'+i,phaseSymbols[i],p.name,p.color])],
  ['Персонажи',L.characters.map((p,i)=>['spawn-'+i,'▣',p.name,p.color])],
  ['Финиши',L.characters.map((p,i)=>['goal-'+i,p.glyph,p.name,p.color])],
- ['Механизмы',[['plate','⊙','Кнопка'],['bridge','≋','Мост'],['lift','↥','Лифт'],['conveyor','»','Конвейер','#d8bb72'],['spikes','♜','Шипы'],['portal-violet','◎','Портал','#c98cff'],['portal-amber','◎','Портал','#edb65b']]],
- ['Объекты',[['crate','⊠','Ящик'],['archer','☠','Лучник'],['drone','◈','Кристаллический дрон','#c98cff'],['shield','◈','Щит'],['sword','⚔','Меч']]]
+ ['Порталы',L.portalColors.map(p=>['portal-'+p.id,'◎',p.name,p.color])],
+ ['Механизмы',[['plate','⊙','Кнопка','#ef5346'],['bridge','≋','Мост','#cba778'],['lift','↥','Лифт','#cba778'],['conveyor','»','Конвейер','#d8bb72'],['spikes','♜','Шипы','#c2ced0']]],
+ ['Объекты',[['crate','⊠','Ящик','#cba778'],['archer','☠','Лучник','#ded3b2'],['drone','◈','Кристаллический дрон','#c98cff'],['shield','◈','Щит','#cba778'],['sword','⚔','Меч','#c2ced0']]]
 ];
 const tools=Object.fromEntries(groups.flatMap(g=>g[1]).map(([id,glyph,label,color])=>[id,{glyph,label,color}]));
 Object.assign(tools,{select:{glyph:'↖',label:'Выбор'},erase:{glyph:'⌫',label:'Ластик'},pan:{glyph:'✥',label:'Перемещение вида'},orbit:{glyph:'⟳',label:'Вращение камеры'}});
@@ -29,12 +30,23 @@ const panKeys=new Set(),panCodes=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp',
 const editingField=target=>target?.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"])');
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 function element(tag,text,className){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;}
+function toolIcon(id,glyph){
+ const icon=element('span',undefined,'glyph');icon.setAttribute('aria-hidden','true');
+ const cube='<path d="M16 3 29 10 16 17 3 10Z" fill="currentColor" fill-opacity=".55"/><path d="M3 10v14l13 7V17Z" fill="currentColor" fill-opacity=".3"/><path d="m16 17 13-7v14l-13 7Z" fill="currentColor" fill-opacity=".18"/><path d="m16 3 13 7v14l-13 7-13-7V10Zm0 14v14M3 10l13 7 13-7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>';
+ let drawing='';
+ if(id==='floor'||id.startsWith('color-'))drawing=cube+(id==='floor'?'':'<text x="22" y="25" fill="currentColor" font-size="12" text-anchor="middle">'+glyph+'</text>');
+ else if(id.startsWith('spawn-'))drawing=cube+'<path d="M8 15c-3-1-4 0-4 3 0 2 1 4 2 5v3l5 3v-3c2 0 3-1 3-3 0-3-2-6-6-8Z" fill="currentColor"/><path d="m6 19 2 1v3l-2-1Zm4 2 2 1v3l-2-1Z" fill="#142023"/>';
+ else if(id.startsWith('goal-'))drawing='<path d="m16 9 14 8-14 8-14-8Z" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.4"/><path d="M2 17v5l14 8 14-8v-5M16 25v5" fill="none" stroke="currentColor" stroke-opacity=".6"/><text x="16" y="19" fill="currentColor" font-size="15" text-anchor="middle">'+glyph+'</text>';
+ else if(id.startsWith('portal-'))drawing='<ellipse cx="16" cy="23" rx="13" ry="6" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.8"/><ellipse cx="16" cy="17" rx="9" ry="4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-opacity=".65"/><ellipse cx="16" cy="10" rx="6" ry="2.5" fill="none" stroke="currentColor" stroke-opacity=".35"/><path d="M13 23q6-5 10 0t-12 2" fill="none" stroke="currentColor" stroke-width="1.5"/>';
+ if(drawing)icon.innerHTML='<svg viewBox="0 0 32 34" focusable="false">'+drawing+'</svg>';else icon.textContent=glyph;
+ return icon;
+}
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,5000);}
 function save(){try{localStorage.setItem(L.DRAFT_KEY,JSON.stringify(model.map));$('save-status').textContent='● Сохранено';$('save-status').className='valid';return true;}catch(error){$('save-status').textContent='Не сохранено';$('save-status').className='invalid';toast('Не удалось сохранить в браузере. Используйте экспорт файла.');return false;}}
 function changed(){previewDirty=true;pickBounds=null;save();renderPanels();invalidate();}
 function edit(fn){try{if(model.change(fn))changed();else renderPanels();}catch(error){toast(error.message);renderPanels();}}
 function selectTool(value){finishGesture();tool=value;moveObject=null;for(const button of document.querySelectorAll('[data-tool]'))button.setAttribute('aria-pressed',String(button.dataset.tool===tool));$('active-tool').textContent=tools[tool]?.label||'Переместить';$('conveyor-brush').hidden=tool!=='conveyor';$('spike-brush').hidden=tool!=='spikes';$('torch-brush').hidden=tool!=='torch';refreshHover();invalidate();}
-for(const [name,items] of groups){const group=element('section',undefined,'tool-group');group.append(element('h2',name.toUpperCase()));const grid=element('div',undefined,'tool-grid');for(const [id,glyph,label,color] of items){const button=element('button',undefined,'tool');button.dataset.tool=id;button.title=label;button.style.setProperty('--tool-color',color||'#a7bba4');button.append(element('span',glyph,'glyph'),element('span',label));grid.append(button);}group.append(grid);$('palette').append(group);}
+for(const [name,items] of groups){const group=element('section',undefined,'tool-group');group.append(element('h2',name.toUpperCase()));const grid=element('div',undefined,'tool-grid');for(const [id,glyph,label,color] of items){const button=element('button',undefined,'tool'),description=name+' · '+label;button.dataset.tool=id;button.title=description;button.setAttribute('aria-label',description);button.style.setProperty('--tool-color',color||'#a7bba4');button.append(toolIcon(id,glyph));grid.append(button);}group.append(grid);$('palette').append(group);}
 const panButton=element('button','✥');panButton.dataset.tool='pan';panButton.title='Перемещение вида (M)';panButton.setAttribute('aria-label','Перемещение вида');document.querySelector('.basic-tools').append(panButton);
 const orbitButton=element('button','⟳');orbitButton.dataset.tool='orbit';orbitButton.title='Вращение камеры · правая кнопка мыши';orbitButton.setAttribute('aria-label','Вращение камеры');document.querySelector('.basic-tools').append(orbitButton);
 document.querySelectorAll('[data-tool]').forEach(button=>button.onclick=()=>selectTool(button.dataset.tool));
@@ -114,7 +126,7 @@ function renderProperties(){
    field(card,'Задержка, сек',p.offset,{min:0,max:5.8,step:.1},v=>set('offset',v));
   }
   if(key==='portals'){
-   field(card,'Цвет портала',p.color,{values:[['violet','Фиолетовый'],['amber','Янтарный']]},v=>set('color',v));
+   field(card,'Цвет портала',p.color,{values:L.portalColors.map(p=>[p.id,p.name])},v=>set('color',v));
    const chain=model.map.portals.filter(q=>q.color===p.color),order=chain.indexOf(p)+1;
    field(card,'Порядок в цепочке',order,{min:1,max:chain.length},v=>{try{if(model.orderPortal(index,v)){changed();document.querySelector('#properties [data-object^="portals-"] input')?.focus({preventScroll:true});}}catch(error){toast(error.message);renderPanels();}});
    card.append(element('p',chain.length>1?`Переход ${order} → ${order%chain.length+1}`:'Добавьте ещё портал этого цвета.','empty-state'));
@@ -212,7 +224,7 @@ function drawSpatialOverlay(){
  if($('connections').checked){
   ctx.lineWidth=1;const line=(a,b,color,arrow=false)=>{const ps=[a,b].map(p=>project([p.x,(p.y??floor(p.x,p.z))+.15,p.z]));if(ps.some(p=>!p.visible))return;ctx.beginPath();ctx.moveTo(ps[0].x,ps[0].y);ctx.lineTo(ps[1].x,ps[1].y);ctx.strokeStyle=color;ctx.setLineDash([4,5]);ctx.stroke();if(arrow){const angle=Math.atan2(ps[1].y-ps[0].y,ps[1].x-ps[0].x),x=ps[0].x+(ps[1].x-ps[0].x)*.65,y=ps[0].y+(ps[1].y-ps[0].y)*.65;ctx.setLineDash([]);ctx.beginPath();for(const side of [-1,1]){ctx.moveTo(x,y);ctx.lineTo(x-Math.cos(angle+side*.5)*8,y-Math.sin(angle+side*.5)*8);}ctx.stroke();}};
   for(const b of model.map.bridges){const p=model.map.plates.find(p=>p.id===b.plate);if(p)line(p,b,'#d4e9a88a');}
-  for(const color of ['violet','amber']){const chain=model.map.portals.filter(p=>p.color===color);chain.forEach((p,i)=>{if(chain.length>1)line(p,chain[(i+1)%chain.length],color==='violet'?'#cb95ff88':'#edb65b88',true);const q=project([p.x,(p.y??floor(p.x,p.z))+.2,p.z]);if(q.visible){ctx.fillStyle=color==='violet'?'#dab7ff':'#ffe1a0';ctx.font='12px Arial';ctx.fillText(`${i+1}→${chain.length>1?(i+1)%chain.length+1:'—'}`,q.x+8,q.y+14);}});}
+  for(const color of L.portalColors){const chain=model.map.portals.filter(p=>p.color===color.id);chain.forEach((p,i)=>{if(chain.length>1)line(p,chain[(i+1)%chain.length],color.color+'88',true);const q=project([p.x,(p.y??floor(p.x,p.z))+.2,p.z]);if(q.visible){ctx.fillStyle=color.color;ctx.font='12px Arial';ctx.fillText(`${i+1}→${chain.length>1?(i+1)%chain.length+1:'—'}`,q.x+8,q.y+14);}});}
  }
  ctx.lineWidth=2;
  if(selected)square(selected,(selected.y??floor(selected.x,selected.z))+.04,'#e2edb4','#d6eea714');

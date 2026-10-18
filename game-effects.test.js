@@ -34,6 +34,14 @@ test('teleport emits both endpoints at their own floor height and has a bounded 
  for(let i=0;i<8;i++)effects.step(.1,world);
  assert.equal(effects.rings.length+effects.particles.length,0);
 });
+
+test('teleport particles and rings match every portal colour',()=>{
+ for(const color of require('./levels.js').portalColors){
+  const effects=new System();effects.burst({...portal,color:color.id},players,soft);
+  assert.ok(effects.rings.length&&effects.particles.length);
+  for(const p of [...effects.rings,...effects.particles])assert.deepEqual(p.color,color.glow);
+ }
+});
 test('effects stay bounded during bursts and respect reduced motion',()=>{
  const effects=new System();
  for(let i=0;i<30;i++)effects.burst(portal,players,soft);

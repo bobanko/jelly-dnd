@@ -4,6 +4,14 @@
  const DRAFT_KEY='jelly-dnd.editor.v1',PLAY_KEY='jelly-dnd.play.v1';
  const copy=value=>JSON.parse(JSON.stringify(value));
  const characters=[{name:'Мох',color:'#9ddd56',glyph:'ᛉ',keys:'W A S D'},{name:'Иней',color:'#477bff',glyph:'ᛟ',keys:'↑ ← ↓ →'},{name:'Уголёк',color:'#ef5346',glyph:'ᛋ',keys:'I J K L'},{name:'Аметист',color:'#bb70ef',glyph:'ᛜ',keys:'T F G H'}];
+ const portalColors=[
+  {id:'green',name:'Зелёный',color:characters[0].color,glow:[.12,.9,.16]},
+  {id:'blue',name:'Синий',color:characters[1].color,glow:[.025,.17,1.]},
+  {id:'red',name:'Красный',color:characters[2].color,glow:[1.,.065,.035]},
+  {id:'violet',name:'Фиолетовый',color:characters[3].color,glow:[.7,.045,1.]},
+  {id:'amber',name:'Янтарный',color:'#edb65b',glow:[1.,.34,.025]}
+ ];
+ const portalColor=id=>portalColors.find(p=>p.id===id);
  const limits={blocks:4096,tiles:256,walls:256,torches:8,drones:8,plates:16,bridges:16,lifts:16,spikes:32,portals:64,conveyors:256,crates:4,archers:4,pickups:8};
  const wallFaces={north:[0,0,-1],east:[1,0,0],south:[0,0,1],west:[-1,0,0]};
  function torchFrame(p){const n=wallFaces[p.face]||wallFaces.south,origin=[p.x+n[0]*.49,p.y-.5,p.z+n[2]*.49];return {origin,n,u:[n[2],0,-n[0]],light:origin.map((v,k)=>v+n[k]*.25+(k===1?.32:0))};}
@@ -81,7 +89,7 @@
    if(p.face&&p.face!=='top'&&!Number.isInteger(p.y))fail('Для настенных шипов укажите целый Y блока крепления.');
    return {offset:number(p.offset,0,0,5.8),...(p.face&&p.face!=='top'?{face:p.face}:{}),...(p.color===undefined?{}:{color:p.color})};
   });
-  list('portals',p=>{if(!['violet','amber'].includes(p.color))fail('Неизвестный цвет портала.');return {color:p.color};});
+  list('portals',p=>{if(!portalColor(p.color))fail('Неизвестный цвет портала.');return {color:p.color};});
   list('crates',()=>({}));
   list('drones',p=>{const color=p.color??3,target=p.target??-1;if(!Number.isInteger(color)||color<0||color>3)fail('Неизвестный цвет луча дрона.');if(!Number.isInteger(target)||target< -1||target>3)fail('Неизвестная цель дрона.');return {color,target,hover:number(p.hover,1.8,.6,6)};});
   list('conveyors',p=>{const dx=number(p.dx,0,-1,1),dz=number(p.dz,1,-1,1);if(Math.abs(dx)+Math.abs(dz)!==1||!Number.isInteger(dx)||!Number.isInteger(dz))fail('Конвейер должен двигаться вдоль сетки.');return {dx,dz,speed:number(p.speed,.85,.2,2.5)};});
@@ -105,7 +113,7 @@
   });
   if(map.spawns.filter(Boolean).some((p,i,a)=>a.some((q,j)=>j!==i&&at([q],p))))result.push('Спавны персонажей должны находиться в разных клетках.');
   if(map.goals.filter(Boolean).some((p,i,a)=>a.some((q,j)=>j!==i&&at([q],p))))result.push('Финиши должны находиться в разных клетках.');
-  for(const color of ['violet','amber']){const count=map.portals.filter(p=>p.color===color).length;if(count===1)result.push(`${color==='violet'?'Фиолетовые':'Янтарные'} порталы: нужно минимум два.`);}
+  for(const color of portalColors){const count=map.portals.filter(p=>p.color===color.id).length;if(count===1)result.push(`${color.name} портал: нужно минимум два одного цвета.`);}
   for(const b of map.bridges)if(!map.plates.some(p=>p.id===b.plate))result.push(`Мост ${b.x}, ${b.z} не привязан к кнопке.`);
   for(const l of map.lifts)if(l.top<=l.base)result.push(`Верх лифта ${l.x}, ${l.z} должен быть выше основания.`);
   const features=['plates','lifts','spikes','portals','conveyors','crates','archers','pickups'];
@@ -143,6 +151,6 @@
   const saved=storage?.getItem(PLAY_KEY);if(!saved)throw new Error('Тестовый уровень не найден. Откройте редактор и нажмите «Играть».');
   const map=read(saved),errors=issues(map);if(errors.length)throw new Error(errors.join('\n'));return map;
  }
- const api={DRAFT_KEY,PLAY_KEY,characters,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame};
+ const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyLevels=api;
 })(globalThis);

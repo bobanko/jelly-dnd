@@ -1,6 +1,7 @@
 // Short-lived visual particles. They never become gameplay colliders.
 (function(root){
  'use strict';
+ const Levels=typeof module!=='undefined'&&module.exports?require('./levels.js'):root.JellyLevels;
  const palettes=[[.12,.9,.16],[.025,.17,1.],[1.,.065,.035],[.65,.1,1.]];
  const runeColors=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025],[.68,.12,1.]],RUNE_LIMIT=32;
  class System{
@@ -47,7 +48,7 @@
      this.particles.push({kind:'magic',position:[...event.position],velocity:[Math.cos(a)*.8,.3+random()*.7,Math.sin(a)*.8],size:.012+random()*.012,phase:a,color,age:0,life:.18+random()*.12});
     }
    }else if(event.type==='portal'){
-    const color=event.color==='violet'?[.75,.12,1.]:[1.,.48,.05];
+    const color=Levels.portalColor(event.color).glow;
     for(const center of [event.source,event.destination]){
      this.rings.push({center:[...center],color,age:0,life:this.reducedMotion ? .25 : .65});
      for(let i=0;i<(this.reducedMotion?0:14);i++){

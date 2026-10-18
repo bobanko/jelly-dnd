@@ -1,7 +1,7 @@
 (function(root){
  'use strict';
  const Levels=typeof module!=='undefined'&&module.exports?require('./levels.js'):root.JellyLevels;
- const PORTAL_LIMIT=Levels.limits.portals,GOALS_OFFSET=56+PORTAL_LIMIT*8,TORCHES_OFFSET=GOALS_OFFSET+32,BODY3_OFFSET=TORCHES_OFFSET+32,BODY_SLOTS_OFFSET=BODY3_OFFSET+4,FINISH_OFFSET=BODY_SLOTS_OFFSET+4,GOAL_SLOTS_OFFSET=FINISH_OFFSET+4,SCENE_FLOATS=GOAL_SLOTS_OFFSET+4;
+ const PORTAL_LIMIT=Levels.limits.portals,PORTAL_FLOATS=12,GOALS_OFFSET=56+PORTAL_LIMIT*PORTAL_FLOATS,TORCHES_OFFSET=GOALS_OFFSET+32,BODY3_OFFSET=TORCHES_OFFSET+32,BODY_SLOTS_OFFSET=BODY3_OFFSET+4,FINISH_OFFSET=BODY_SLOTS_OFFSET+4,GOAL_SLOTS_OFFSET=FINISH_OFFSET+4,SCENE_FLOATS=GOAL_SLOTS_OFFSET+4;
  const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
  const normalize=a=>{const l=Math.hypot(...a)||1;return a.map(v=>v/l);};
  function viewMatrix(center,view,width,height,offset=0){
@@ -284,7 +284,7 @@
   return {vertices:new Float32Array(vertices),indices:new Uint32Array(indices),count:vertices.length/12};
  }
  const shared=`
- struct Portal { position:vec4f, color:vec4f };
+ struct Portal { position:vec4f, color:vec4f, animation:vec4f };
  struct Goal { position:vec4f, color:vec4f };
  struct Scene { vp:mat4x4f, lightVP:mat4x4f, eye:vec4f, light:vec4f, body0:vec4f, body1:vec4f, body2:vec4f, options:vec4f, portals:array<Portal,${PORTAL_LIMIT}>, goals:array<Goal,4>, torches:array<vec4f,8>, body3:vec4f, bodySlots:vec4f, finish:vec4f, goalSlots:vec4f };
  @group(0) @binding(0) var<uniform> scene:Scene;
@@ -305,15 +305,15 @@
  }
  @vertex fn portalHaloVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
   let portal=scene.portals[instance];var o:Out;o.world=portal.position.xyz+vec3f(p.x*.78,.033,p.z*.78);o.clip=scene.vp*vec4f(o.world,1.);
-  o.normal=vec3f(0,1,0);o.color=select(portal.color.rgb,mix(vec3f(.2,.22,.25),portal.color.rgb,.16),portal.position.w<0.);o.material=9.;o.local=vec3f(p.x,select(.065+portal.position.w*.3,.035,portal.position.w<0.),p.z);return o;
+  let activation=portal.animation.x;o.normal=vec3f(0,1,0);o.color=mix(mix(vec3f(.2,.22,.25),portal.color.rgb,.16),portal.color.rgb,activation);o.material=9.;o.local=vec3f(p.x,mix(.035,.065+portal.position.w*.3,activation),p.z);return o;
  }
  @vertex fn portalRingVS(@location(0) p:vec3f,@location(1) n:vec3f,@builtin(instance_index) instance:u32)->Out{
   let portal=scene.portals[instance/3u];let phase=fract(scene.options.z*.42+f32(instance%3u)/3.+portal.color.w);let radius=.85+phase*.8;
   var o:Out;o.world=portal.position.xyz+vec3f(p.x*radius,.065+phase*.92+p.y*(1.-phase*.6),p.z*radius);o.clip=scene.vp*vec4f(o.world,1.);
-  let charge=max(0.,portal.position.w);
-  if(portal.position.w<0.){o.clip=vec4f(2,2,2,1);}
+  let charge=portal.position.w;let activation=portal.animation.x;
+  if(activation<.001){o.clip=vec4f(2,2,2,1);}
   o.normal=normalize(vec3f(n.x/radius,n.y/(1.-phase*.6),n.z/radius));o.color=portal.color.rgb*(1.+charge*1.15);o.material=10.;
-  o.local=vec3f(0.,smoothstep(0.,.1,phase)*pow(1.-phase,1.6)*(.22+charge*.38),0.);return o;
+  o.local=vec3f(0.,smoothstep(0.,.1,phase)*pow(1.-phase,1.6)*(.22+charge*.38)*activation,0.);return o;
  }
  @fragment fn portalFXFS(o:Out)->@location(0) vec4f{
   var alpha=o.local.y;var color=o.color*1.8;
@@ -455,8 +455,8 @@
   if(o.material>11.5&&o.material<12.5){result+=vec3f(.56,.4,.21)*pow(max(0.,dot(n,h)),45.);}
   if(o.material>13.5&&o.material<14.5){result+=color*.12+vec3f(.18)*pow(max(0.,dot(n,h)),80.);}
   if(o.material>23.5&&o.material<24.5){result+=color*.3+vec3f(.25)*pow(max(0.,dot(n,h)),65.);}
-  if(o.material>4.5&&o.material<5.5){let portal=scene.portals[u32(o.local.x)];let inactive=portal.position.w<0.;let charge=max(0.,portal.position.w);let delta=o.world.xz-portal.position.xz;let radius=length(delta);let swirl=.5+.5*sin(atan2(delta.y,delta.x)*3.-radius*35.+scene.options.z*select(3.,.35,inactive));let tint=select(color,mix(vec3f(.19,.21,.24),color,.16),inactive);result=(tint*(.55+swirl*select(1.8,.35,inactive))+vec3f(.06)*exp(-radius*12.))*select(.55+charge*1.9,.7,inactive);}
-  if(o.material>7.5&&o.material<8.5){let portal=scene.portals[u32(o.local.x)];result=select(color*(.65+max(0.,portal.position.w)*2.8),mix(vec3f(.16,.18,.2),color,.12),portal.position.w<0.);}
+  if(o.material>4.5&&o.material<5.5){let portal=scene.portals[u32(o.local.x)];let activation=portal.animation.x;let charge=portal.position.w;let delta=o.world.xz-portal.position.xz;let radius=length(delta);let swirl=.5+.5*sin(atan2(delta.y,delta.x)*3.-radius*35.+portal.animation.y);let tint=mix(mix(vec3f(.19,.21,.24),color,.16),color,activation);result=(tint*(.55+swirl*mix(.35,1.8,activation))+vec3f(.06)*exp(-radius*12.))*mix(.7,.55+charge*1.9,activation);}
+  if(o.material>7.5&&o.material<8.5){let portal=scene.portals[u32(o.local.x)];result=mix(mix(vec3f(.16,.18,.2),color,.12),color*(.65+portal.position.w*2.8),portal.animation.x);}
   if(o.material>9.5&&o.material<10.5){let goal=scene.goals[u32(o.local.x)];let charge=goal.position.w;
    result=mix(color*light,goal.color.rgb*.9,charge);
    if(o.local.z>.5){
@@ -585,7 +585,7 @@
  @fragment fn postFS(@builtin(position) p:vec4f)->@location(0) vec4f{let uv=p.xy/vec2f(textureDimensions(image));var hdr=textureSampleLevel(image,linearSampler,uv,0.).rgb;let vignette=1.-.12*smoothstep(.25,.76,length(uv-vec2f(.5)));hdr*=vignette;var c=tone(hdr);c=pow(max(c,vec3f(0)),vec3f(1./2.2));let noise=fract(sin(dot(p.xy,vec2f(12.9898,78.233)))*43758.5453)-.5;return vec4f(c+noise/255.,1);}
  `;
  const latticeShader=`
- struct Portal { position:vec4f, color:vec4f };
+ struct Portal { position:vec4f, color:vec4f, animation:vec4f };
  struct Goal { position:vec4f, color:vec4f };
  struct Scene { vp:mat4x4f, lightVP:mat4x4f, eye:vec4f, light:vec4f, body0:vec4f, body1:vec4f, body2:vec4f, options:vec4f, portals:array<Portal,${PORTAL_LIMIT}>, goals:array<Goal,4>, torches:array<vec4f,8>, body3:vec4f, bodySlots:vec4f, finish:vec4f, goalSlots:vec4f };
  @group(0) @binding(0) var<uniform> scene:Scene;
@@ -885,7 +885,7 @@
     }
     for(let k=from;k<mesh.length;k+=12)for(const offset of [0,3]){const x=mesh[k+offset],py=mesh[k+offset+1],z=mesh[k+offset+2];mesh[k+offset]=(offset?0:belt.x)+dz*x+dx*z;mesh[k+offset+1]=(offset?0:y)+py;mesh[k+offset+2]=(offset?0:belt.z)-dx*x+dz*z;}
    }
-   level.world.portals.forEach((portal,i)=>{const y=portal.y??level.world.heightAt(portal.x,portal.z)??0,color=portal.color==='violet'?[.7,.045,1.]:[1.,.34,.025];box(mesh,[portal.x,y+.012,portal.z],[.75,.024,.75],[.08,.075,.095],.05);const rim=mesh.length;portalRing(mesh,portal.x,y+.053,portal.z,color);for(let n=rim;n<mesh.length;n+=12){mesh[n+9]=8;mesh[n+10]=i;mesh[n+11]=0;}const from=mesh.length;sphere(mesh,[portal.x,y+.04,portal.z],[.267,.012,.267],color,5);for(let n=from;n<mesh.length;n+=12){mesh[n+10]=i;mesh[n+11]=0;}});
+   level.world.portals.forEach((portal,i)=>{const y=portal.y??level.world.heightAt(portal.x,portal.z)??0,color=Levels.portalColor(portal.color).glow;box(mesh,[portal.x,y+.012,portal.z],[.75,.024,.75],[.08,.075,.095],.05);const rim=mesh.length;portalRing(mesh,portal.x,y+.053,portal.z,color);for(let n=rim;n<mesh.length;n+=12){mesh[n+9]=8;mesh[n+10]=i;mesh[n+11]=0;}const from=mesh.length;sphere(mesh,[portal.x,y+.04,portal.z],[.267,.012,.267],color,5);for(let n=from;n<mesh.length;n+=12){mesh[n+10]=i;mesh[n+11]=0;}});
    const decorations=new Float32Array(mesh);
    if(decorations.byteLength>this.decorationBuffer.size){this.decorationBuffer.destroy();this.decorationBuffer=this.device.createBuffer({size:Math.ceil(decorations.byteLength/65536)*65536,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}
    this.decorationCount=mesh.length/12;this.device.queue.writeBuffer(this.decorationBuffer,0,decorations);this.decorationKey=decorationKey;
@@ -936,6 +936,23 @@
    if(count){pass.setPipeline(this.portalHaloPipeline);pass.setVertexBuffer(0,this.portalHaloBuffer);pass.draw(6,count);pass.setPipeline(this.portalRingPipeline);pass.setVertexBuffer(0,this.portalRingBuffer);pass.draw(this.portalRingCount,count*3);}
    if(level.goals.length){pass.setVertexBuffer(0,this.portalHaloBuffer);pass.setPipeline(this.goalGlowPipeline);pass.draw(6,Math.min(4,level.goals.length));if(level.finishProgress>0){pass.setPipeline(this.goalSealPipeline);pass.draw(6,Math.min(4,level.goals.length));}if(this.goalWinGlow>.001){pass.setPipeline(this.goalBeamPipeline);pass.draw(6,Math.min(4,level.goals.length));}}
   }
+  updatePortalVisuals(level,players,dt){
+   this.portalVisuals??=new Map();const keys=new Set(),elapsed=Math.max(0,Math.min(.1,dt)),blend=1-Math.exp(-8*elapsed),chargeBlend=1-Math.exp(-12*elapsed),bodies=level.bodies||[...players,...(level.crates||[])];
+   this.portalStates=level.world.portals.slice(0,PORTAL_LIMIT).map((p,i)=>{
+    const key=`${p.color}:${p.x}:${p.y??level.world.heightAt(p.x,p.z)??0}:${p.z}`,active=level.world.portalInactive(p,bodies)?0:1,charge=active?level.world.portalCharge(p,bodies,true):0;keys.add(key);
+    let state=this.portalVisuals.get(key);if(!state){state={active,charge,phase:0,offset:i*.23};this.portalVisuals.set(key,state);}
+    if(level.reducedMotion){state.active=active;state.charge=charge;}
+    else{
+     // Integrate the eased speed: changing modes never replaces time*speed and
+     // therefore cannot jump the vortex phase, including halfway reversals.
+     const activeTime=active*elapsed+(state.active-active)*blend/8;
+     state.phase=(state.phase+.35*elapsed+2.65*activeTime)%(Math.PI*2);
+     state.active+=(active-state.active)*blend;state.charge+=(charge-state.charge)*chargeBlend;
+    }
+    return state;
+   });
+   for(const key of this.portalVisuals.keys())if(!keys.has(key))this.portalVisuals.delete(key);
+  }
   render(level,players,camera,angle,time,scale,dt=1/60){
    if(!this.ready)return;this.resize();const d=this.device,w=this.canvas.width,h=this.canvas.height;
    const rect=this.canvas.getBoundingClientRect(),frame=this.cameraState=cameraFrame(camera,angle,rect.width,rect.height,scale),{vp,view,eye}=frame;
@@ -943,8 +960,8 @@
    const uniforms=new Float32Array(SCENE_FLOATS);uniforms.set(vp);uniforms.set(lightVP,16);uniforms.set([...eye,frame.perspective?1:0],32);uniforms.set([-2,12,9,1],36);uniforms[FINISH_OFFSET]=Math.max(0,Math.min(1,level.finishProgress||0));
    (level.world.torches||[]).slice(0,8).forEach((p,i)=>uniforms.set([...Levels.torchFrame(p).light,1],TORCHES_OFFSET+i*4));
    players.forEach((p,i)=>uniforms.set([p.x,(p.y||0)+.42,p.z,p.state==='dead'?0:4+(level.world.heightAt(p.x,p.z,(p.y||0)+.2,p)||0)],i===3?BODY3_OFFSET:40+i*4));uniforms.set([w,h,time,this.mesh?1:0],52);
-   const portalBodies=level.bodies||[...players,...(level.crates||[])];
-   level.world.portals.slice(0,PORTAL_LIMIT).forEach((p,i)=>{const charge=level.world.portalInactive(p,portalBodies)?-1:level.world.portalCharge(p,portalBodies,true);uniforms.set([p.x,p.y??level.world.heightAt(p.x,p.z)??0,p.z,charge],56+i*8);uniforms.set([...(p.color==='violet'?[.7,.045,1.]:[1.,.34,.025]),i*.23],60+i*8);});
+   this.updatePortalVisuals(level,players,dt);
+   level.world.portals.slice(0,PORTAL_LIMIT).forEach((p,i)=>{const state=this.portalStates[i],offset=56+i*PORTAL_FLOATS;uniforms.set([p.x,p.y??level.world.heightAt(p.x,p.z)??0,p.z,state.charge],offset);uniforms.set([...Levels.portalColor(p.color).glow,state.offset],offset+4);uniforms.set([state.active,state.phase,0,0],offset+8);});
    this.goalGlowStrength??=[];this.goalWinGlow??=0;
    const fade=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*8),celebrate=level.reducedMotion?1:1-Math.exp(-Math.min(dt,.1)*4);
    this.goalWinGlow+=((level.won?1:0)-this.goalWinGlow)*celebrate;
