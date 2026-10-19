@@ -803,7 +803,7 @@
     append('nockedArrow',i,arrow);
    }
    for(let i=0;i<level.plates.length;i++){
-    const mesh=[],plate=level.plates[i],palette={red:[.78,.026,.012],blue:[.018,.25,.78],amber:[.78,.36,.012],dark:[.12,.135,.14]},color=palette[plate.color]||[palette.red,palette.blue][i%2];
+    const mesh=[],plate=level.plates[i],palette={green:[.22,.65,.035],red:[.78,.026,.012],blue:[.018,.25,.78],violet:[.5,.07,.78],amber:[.78,.36,.012],dark:[.12,.135,.14]},color=palette[plate.color]||[palette.red,palette.blue][i%2];
     pressureSurface(mesh,[0,0,0],[[0,0],[.285,0],[.3,.009],[.3,.032],[.287,.045],[0,.045]],color,14,(i*7+2)%16);
     append('pressureButton',i,mesh);
    }

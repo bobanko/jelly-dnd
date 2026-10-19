@@ -8,11 +8,10 @@ try{const saved=localStorage.getItem(L.DRAFT_KEY);if(saved){initial=L.read(saved
 const model=new M.Model(L.voxelize(initial));
 const phaseSymbols=['△','⊙','◇','☼'];
 const groups=[
- ['Основание',[['floor','▣','Каменный куб']]],
- ['Декор',[['torch','♨','Настенный факел','#f7ba60']]],
- ['Цветные блоки',L.characters.map((p,i)=>['color-'+i,phaseSymbols[i],p.name,p.color])],
- ['Персонажи',L.characters.map((p,i)=>['spawn-'+i,'▣',p.name,p.color])],
+ ['Спавны',L.characters.map((p,i)=>['spawn-'+i,'▣',p.name,p.color])],
  ['Финиши',L.characters.map((p,i)=>['goal-'+i,p.glyph,p.name,p.color])],
+ ['Блоки',[['floor','▣','Каменный куб'],...L.characters.map((p,i)=>['color-'+i,phaseSymbols[i],p.name,p.color])]],
+ ['Декор',[['torch','♨','Настенный факел','#f7ba60']]],
  ['Порталы',L.portalColors.map(p=>['portal-'+p.id,'◎',p.name,p.color])],
  ['Механизмы',[['plate','⊙','Кнопка','#ef5346'],['bridge','≋','Мост','#cba778'],['lift','↥','Лифт','#cba778'],['conveyor','»','Конвейер','#d8bb72'],['spikes','♜','Шипы','#c2ced0']]],
  ['Объекты',[['crate','⊠','Ящик','#cba778'],['archer','☠','Лучник','#ded3b2'],['drone','◈','Кристаллический дрон','#c98cff'],['shield','◈','Щит','#cba778'],['sword','⚔','Меч','#c2ced0']]]
@@ -130,7 +129,7 @@ function renderProperties(){
    field(card,'Высота полёта',p.hover,{min:0,max:6,step:.1},v=>set('hover',v));
    for(const axis of ['x','y','z'])field(card,'Дрон · '+axis.toUpperCase(),p[axis],{min:axis==='y'?-2:0,max:axis==='y'?12:model.map.size-1},value=>{const q={...p,[axis]:value};try{if(model.move(key,index,q.x,q.z,q.y)){selected={x:q.x,y:q.y,z:q.z};changed();}}catch(error){toast(error.message);renderPanels();}});
   }
-  if(key==='plates'){colorRadios(card,'Цвет',p.color,[['red','Красный',colors[2]],['blue','Синий',colors[1]],['amber','Золотой','#edb65b'],['dark','Каменный','#777e78']],v=>set('color',v));card.append(element('p',`Канал ${index+1} · мостов: ${model.map.bridges.filter(b=>b.plate===p.id).length}`,'empty-state'));}
+  if(key==='plates'){colorRadios(card,'Цвет',p.color,[['green','Зелёный',colors[0]],['blue','Синий',colors[1]],['red','Красный',colors[2]],['violet','Фиолетовый',colors[3]],['amber','Золотой','#edb65b'],['dark','Каменный','#777e78']],v=>set('color',v));card.append(element('p',`Канал ${index+1} · мостов: ${model.map.bridges.filter(b=>b.plate===p.id).length}`,'empty-state'));}
   if(key==='bridges')field(card,'Кнопка',p.plate,{values:[['','Не выбрана'],...model.map.plates.map((b,i)=>[b.id,`К${i+1} · ${b.x}, ${b.z}`])]},v=>set('plate',v));
   if(key==='lifts'){field(card,'Нижний уровень',p.base,{min:-2,max:12},v=>edit(map=>{map.lifts[index].base=v;map.lifts[index].y=v;model.cube(p.x,v,p.z);}));field(card,'Верхний уровень',p.top,{min:-2,max:12},v=>set('top',v));}
   if(key==='spikes'){

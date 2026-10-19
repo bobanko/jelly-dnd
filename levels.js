@@ -69,7 +69,7 @@
   }
   if(map.torches.length>limits.torches)fail('На карте может быть не более восьми факелов.');
   for(const key of ['spawns','goals']){if(!Array.isArray(data[key])||data[key].length<1||data[key].length>4)fail('Допустимо от одного до четырёх слотов персонажей.');map[key]=Array.from({length:4},(_,i)=>data[key][i]==null?null:point(data[key][i]));}
-  list('plates',(p,i)=>({id:id(p.id,`plate-${i+1}`),color:['red','blue','amber','dark'].includes(p.color)?p.color:'red'}));
+  list('plates',(p,i)=>({id:id(p.id,`plate-${i+1}`),color:['green','blue','red','violet','amber','dark'].includes(p.color)?p.color:'red'}));
   if(new Set(map.plates.map(p=>p.id)).size!==map.plates.length)fail('Идентификаторы кнопок должны быть уникальными.');
   list('bridges',p=>({plate:typeof p.plate==='string'?p.plate:'',y:number(p.y,0,-2,12)}));
   list('lifts',p=>({base:number(p.base,0,-2,12),top:number(p.top,1,-2,12)}));

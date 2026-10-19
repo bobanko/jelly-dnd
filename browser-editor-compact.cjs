@@ -31,6 +31,10 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   await page.locator('input[name="target-drones-0"][value="1"]').check();assert.equal(await page.evaluate(()=>model.map.drones[0].target),1);
   assert.equal(await page.locator('input[name="color-drones-0"]:checked').inputValue(),'2');
   await page.locator('input[name="target-drones-0"][value="-1"]').check();assert.equal(await page.evaluate(()=>model.map.drones[0].target),-1);
+  for(const color of ['green','violet']){
+   await page.locator(`input[name="color-plates-0"][value="${color}"]`).check();
+   assert.equal(await page.evaluate(()=>L.read(JSON.stringify(model.map)).plates[0].color),color);
+  }
   assert.equal(await page.locator('#properties select[aria-label*="Цвет"]').count(),0);
   await page.locator('[data-tool=spikes]').click();await page.locator('#spike-brush input[type=radio][value="3"]').check();assert.equal(await page.evaluate(()=>spikeColor.value),'3');
   const swatch=await page.locator('#spike-brush .color-swatch').first().boundingBox();assert.ok(swatch.width>=27&&swatch.height>=27);
