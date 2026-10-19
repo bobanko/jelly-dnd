@@ -1,6 +1,9 @@
 {
   "version": 1,
   "name": "True Colors",
+  "names": {
+    "ru": "Свой цвет"
+  },
   "size": 8,
   "blocks": [
     {

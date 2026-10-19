@@ -1,6 +1,9 @@
 {
   "version": 1,
   "name": "Helping Hands",
+  "names": {
+    "ru": "Взаимопомощь"
+  },
   "size": 8,
   "blocks": [
     {

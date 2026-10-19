@@ -204,7 +204,7 @@ function updateGameCamera(dt,snap=false){
   autoZoom+=(target.zoom-autoZoom)*smoothing;
  scale=Math.min(W/16,H/12)*zoom*autoZoom;
 }
-function updateLoading(progress,stage){if(!globalThis.JellyI18n)return;loadingActive=true;loadingStage=stage;document.querySelector('#level-intro').hidden=false;document.querySelector('#level-intro').classList.add('loading');document.querySelector('#level-intro-title').textContent=tr(definition.name);document.querySelector('#level-loading').hidden=false;document.querySelector('#loading-status').textContent=tr(stage);document.querySelector('#loading-progress').value=progress;}
+function updateLoading(progress,stage){if(!globalThis.JellyI18n)return;loadingActive=true;loadingStage=stage;document.querySelector('#level-intro').hidden=false;document.querySelector('#level-intro').classList.add('loading');document.querySelector('#level-intro-title').textContent=JellyLevels.displayName(definition,globalThis.JellyI18n?.language);document.querySelector('#level-loading').hidden=false;document.querySelector('#loading-status').textContent=tr(stage);document.querySelector('#loading-progress').value=progress;}
 function gpuFailure(message){if(!globalThis.JellyI18n)return;loadingFailed=true;updateLoading(0,'loadingGraphics');document.querySelector('#loading-status').textContent=message;document.querySelector('#loading-progress').hidden=true;document.querySelector('#loading-retry').hidden=false;}
 sceneRenderer.onFailure=gpuFailure;
 sceneRenderer.onProgress=updateLoading;
@@ -251,15 +251,16 @@ function refreshLanguage(){
   const and=document.createElement('span');and.textContent=russian?' и':' &';title.append(word,and,document.createElement('br'),document.createTextNode(russian?'косточки':'Bones'));
   title.setAttribute('aria-label',russian?'Желейки и косточки':'Jelly & Bones');document.title=russian?'Желейки и косточки':'Jelly & Bones';
  }
- if(globalThis.JellyI18n)document.querySelector('#level-intro-title').textContent=tr(definition.name);
+ if(globalThis.JellyI18n)document.querySelector('#level-intro-title').textContent=JellyLevels.displayName(definition,globalThis.JellyI18n?.language);
  if(loadingActive&&!loadingFailed)document.querySelector('#loading-status').textContent=tr(loadingStage);
  const sound=document.querySelector('#sound');sound.title=tr(audioOn?'Выключить звук':'Включить звук');sound.setAttribute('aria-label',sound.title);
   if(globalThis.JellyI18n)document.querySelector('#play').textContent=tr(hasPlayed?'resume':'play');
+ document.querySelectorAll('[data-level-name]').forEach(node=>node.textContent=JellyLevels.displayName(JellyLevels.standardLevel(Number(node.dataset.levelName)),globalThis.JellyI18n?.language));
  updateUI();
  if(won&&globalThis.JellyI18n)refreshWin();
 }
 function currentStandardLevel(){const match=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(globalThis.location?.search||'');return match?Number(match[1]):0;}
-function refreshWin(){const id=currentStandardLevel();document.querySelector('#win-title').textContent=tr(id===JellyLevels.standardNames.length?'demoComplete':'levelComplete');document.querySelector('#win-level-name').textContent=tr(definition.name);document.querySelector('#win-next').textContent=tr(id&&id<JellyLevels.standardNames.length?'nextLevel':globalThis.location?.search?.includes('level=editor')?'editor':'levels');}
+function refreshWin(){const id=currentStandardLevel();document.querySelector('#win-title').textContent=tr(id===JellyLevels.standardNames.length?'demoComplete':'levelComplete');document.querySelector('#win-level-name').textContent=JellyLevels.displayName(definition,globalThis.JellyI18n?.language);document.querySelector('#win-next').textContent=tr(id&&id<JellyLevels.standardNames.length?'nextLevel':globalThis.location?.search?.includes('level=editor')?'editor':'levels');}
 function selectWinItem(index,focus=true){const buttons=[document.querySelector('#win-next'),document.querySelector('#again')];winSelected=(index+2)%2;buttons.forEach((button,i)=>button.classList.toggle('selected',i===winSelected));if(focus)buttons[winSelected].focus({preventScroll:true});}
 function handleWinKey(e){const k=e.code;if(['ArrowDown','ArrowRight','KeyS','KeyD','ArrowUp','ArrowLeft','KeyW','KeyA','Tab'].includes(k)){e.preventDefault();selectWinItem(winSelected+1);}else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)document.querySelector(winSelected===0?'#win-next':'#again').click();}else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(!e.repeat)setMenu(true);}}
 function updateLevelLocks(){document.querySelectorAll('[data-level]').forEach(button=>{const locked=globalThis.JellyProgress&&!JellyProgress.canPlay(Number(button.dataset.level));button.disabled=!!locked;button.classList.toggle('locked',!!locked);let icon=button.querySelector('.level-lock');if(!icon){icon=document.createElement('span');icon.className='level-lock';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';button.append(icon);}icon.hidden=!locked;});}

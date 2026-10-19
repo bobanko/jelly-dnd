@@ -4,7 +4,12 @@ const L=require('./levels'),{Model}=require('./editor-model'),Physics=require('.
 
 test('every catalog entry loads an independent valid JSON map and routes to the same level',()=>{
  const catalog=require('./levels/catalog.json');assert.equal(catalog.standard.length,5);assert.deepEqual(catalog.extra,[]);
- for(const entry of catalog.standard){const map=L.standardLevel(entry.id);assert.equal(map.name,entry.name);assert.deepEqual(L.issues(L.read(map)),[]);assert.deepEqual(L.forGame(undefined,'?level='+entry.id),L.read(map));map.name='Changed';assert.equal(L.standardLevel(entry.id).name,entry.name);}
+ for(const [index,file] of catalog.standard.entries()){const map=L.standardLevel(index+1);assert.equal(map.name,require('./levels/'+file).name);assert.deepEqual(L.issues(L.read(map)),[]);assert.deepEqual(L.forGame(undefined,'?level='+(index+1)),L.read(map));map.name='Changed';assert.notEqual(L.standardLevel(index+1).name,'Changed');assert.ok(L.displayName(map,'ru'));}
+});
+test('level title translations roundtrip through editor data and fall back to the primary name',()=>{
+ const map=L.standardLevel(1);map.name='A new title';map.names={ru:'Russian title',de:'German title'};
+ const restored=L.read(JSON.parse(JSON.stringify(new Model(map).map)));
+ assert.equal(L.displayName(restored,'en'),'A new title');assert.equal(L.displayName(restored,'ru'),'Russian title');assert.equal(L.displayName(restored,'de'),'German title');assert.equal(L.displayName(restored,'fr'),'A new title');
 });
 
 test('original map roundtrips without live state and produces the existing scene',()=>{

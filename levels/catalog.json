@@ -1,32 +1,12 @@
 {
   "version": 1,
-  "defaultLevel": 5,
+  "defaultLevel": "05-sunken-sanctum.json",
   "standard": [
-    {
-      "id": 1,
-      "name": "First Steps",
-      "file": "01-first-steps.json"
-    },
-    {
-      "id": 2,
-      "name": "Helping Hands",
-      "file": "02-helping-hands.json"
-    },
-    {
-      "id": 3,
-      "name": "True Colors",
-      "file": "03-true-colors.json"
-    },
-    {
-      "id": 4,
-      "name": "Through the Rift",
-      "file": "04-through-the-rift.json"
-    },
-    {
-      "id": 5,
-      "name": "The Sunken Sanctum",
-      "file": "05-sunken-sanctum.json"
-    }
+    "01-first-steps.json",
+    "02-helping-hands.json",
+    "03-true-colors.json",
+    "04-through-the-rift.json",
+    "05-sunken-sanctum.json"
   ],
   "extra": []
 }

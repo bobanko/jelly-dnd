@@ -2,7 +2,7 @@
 
 ## Сборка для itch.io
 
-Запустите `npm.cmd run build` (на macOS/Linux — `npm run build`). Команда проверяет синтаксис и карты, затем создаёт `dist/jelly-and-bones-itch.zip`. При следующей сборке этот архив обновляется.
+Запустите `npm.cmd run build` (на macOS/Linux — `npm run build`). Команда проверяет синтаксис и карты, затем создаёт `dist/jelly-and-bones-itch-YYYY-MM-DD_HH-MM-SS.zip`. Дата и время — по Киеву. Каждая сборка сохраняется отдельным архивом; при совпадении секунды добавляется числовой суффикс.
 
 Загрузите ZIP в проект itch.io с типом HTML и отметьте **This file will be played in the browser**. `index.html` уже находится в корне архива. После изменений кода или JSON-карт повторите команду и замените загруженный ZIP.
 

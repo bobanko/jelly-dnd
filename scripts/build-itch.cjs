@@ -14,11 +14,12 @@ for(const html of ['index.html','editor.html']){
 }
 add('levels/catalog.json');
 const catalog=JSON.parse(files.get('levels/catalog.json'));
+if(catalog.version!==1||!Array.isArray(catalog.standard)||!catalog.standard.length||new Set(catalog.standard).size!==catalog.standard.length||!catalog.standard.includes(catalog.defaultLevel)||!Array.isArray(catalog.extra))throw Error('Invalid level catalog');
 const Levels=require('../levels');
-for(const entry of [...catalog.standard,...catalog.extra]){
- if(!/^[a-z0-9-]+\.json$/i.test(entry.file))throw Error('Invalid level filename: '+entry.file);
- add('levels/'+entry.file);const map=Levels.read(JSON.parse(files.get('levels/'+entry.file)));
- const errors=Levels.issues(map);if(errors.length)throw Error(entry.file+': '+errors.join('\n'));
+for(const file of [...catalog.standard,...catalog.extra]){
+ if(!/^[a-z0-9-]+\.json$/i.test(file))throw Error('Invalid level filename: '+file);
+ add('levels/'+file);const map=Levels.read(JSON.parse(files.get('levels/'+file)));
+ const errors=Levels.issues(map);if(errors.length)throw Error(file+': '+errors.join('\n'));
 }
 function assets(folder){for(const entry of fs.readdirSync(path.join(root,folder),{withFileTypes:true})){const name=folder+'/'+entry.name;if(entry.isDirectory())assets(name);else if(/\.(?:png|jpg|jpeg|webp|gif|svg|ogg|mp3|wav|woff2?|ttf|json)$/i.test(name))add(name);}}
 assets('assets');
@@ -39,5 +40,9 @@ for(const [name,data] of [...files].sort(([a],[b])=>a.localeCompare(b))){
 if(files.size>65535)throw Error('Too many files for ZIP');
 const directory=Buffer.concat(central),end=Buffer.alloc(22);end.writeUInt32LE(0x06054b50,0);end.writeUInt16LE(files.size,8);end.writeUInt16LE(files.size,10);end.writeUInt32LE(directory.length,12);end.writeUInt32LE(offset,16);
 const archive=Buffer.concat([...local,directory,end]);fs.mkdirSync(path.join(root,'dist'),{recursive:true});
-const output=path.join(root,'dist','jelly-and-bones-itch.zip');fs.writeFileSync(output,archive);
+const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(now).map(part=>[part.type,part.value]));
+const stamp=parts.year+'-'+parts.month+'-'+parts.day+'_'+parts.hour+'-'+parts.minute+'-'+parts.second;
+let output=path.join(root,'dist','jelly-and-bones-itch-'+stamp+'.zip'),suffix=2;
+while(fs.existsSync(output))output=path.join(root,'dist','jelly-and-bones-itch-'+stamp+'-'+(suffix++)+'.zip');
+fs.writeFileSync(output,archive,{flag:'wx'});
 console.log('Built '+path.relative(root,output)+' — '+files.size+' files, '+(archive.length/1024/1024).toFixed(2)+' MiB');

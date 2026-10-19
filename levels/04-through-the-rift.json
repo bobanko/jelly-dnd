@@ -1,6 +1,9 @@
 {
   "version": 1,
   "name": "Through the Rift",
+  "names": {
+    "ru": "Через разлом"
+  },
   "size": 8,
   "blocks": [
     {

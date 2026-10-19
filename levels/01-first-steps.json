@@ -1,6 +1,9 @@
 {
   "version": 1,
   "name": "First Steps",
+  "names": {
+    "ru": "Первые шаги"
+  },
   "size": 8,
   "blocks": [
     {

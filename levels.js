@@ -30,17 +30,19 @@
  }
  function catalog(){return typeof module!=='undefined'&&module.exports?require('./levels/catalog.json'):root.JellyLevelCatalog;}
  function standardLevel(id){
-  const entry=catalog()?.standard.find(level=>level.id===id);if(!entry)throw Error('Unknown standard level: '+id);
-  const data=typeof module!=='undefined'&&module.exports?require('./levels/'+entry.file):root.JellyLevelMaps?.[id];
+  const file=catalog()?.standard[id-1];if(!file)throw Error('Unknown standard level: '+id);
+  const data=typeof module!=='undefined'&&module.exports?require('./levels/'+file):root.JellyLevelMaps?.[id];
   if(!data)throw Error('Level has not been loaded: '+id);return copy(data);
  }
- function defaultLevel(){return standardLevel(catalog().defaultLevel);}
+ function defaultLevel(){return standardLevel(catalog().standard.indexOf(catalog().defaultLevel)+1);}
+ function displayName(map,language='en'){return map.names?.[language]||map.name;}
  function read(input){
   const data=typeof input==='string'?JSON.parse(input):input;
   const fail=message=>{throw new Error(message);};
   if(!data||typeof data!=='object'||Array.isArray(data)||data.version!==1)fail('Нужен файл уровня Jelly & Bones версии 1.');
   if(!Number.isInteger(data.size)||data.size<8||data.size>16)fail('Размер карты должен быть от 8 до 16 клеток.');
   const map=blank();map.size=data.size;map.name=typeof data.name==='string'?data.name.trim().slice(0,80)||'Без названия':'Без названия';
+  if(data.names&&typeof data.names==='object'&&!Array.isArray(data.names))map.names=Object.fromEntries(Object.entries(data.names).filter(([lang,value])=>/^[a-z]{2,8}(?:-[a-z0-9]{2,8})?$/i.test(lang)&&typeof value==='string'&&value.trim()).map(([lang,value])=>[lang,value.trim().slice(0,80)]));
   const number=(value,fallback,min,max)=>{if(value===undefined)return fallback;if(typeof value!=='number'||!Number.isFinite(value)||value<min||value>max)fail('Недопустимое числовое свойство объекта.');return value;};
   const id=(value,fallback)=>{if(value===undefined)return fallback;if(typeof value!=='string'||!value.trim()||value.length>64)fail('Неверный идентификатор объекта.');return value;};
   const point=p=>{if(!p||!Number.isInteger(p.x)||!Number.isInteger(p.z)||p.x<0||p.z<0||p.x>=map.size||p.z>=map.size)fail('Объект находится за границами карты.');return {x:p.x,z:p.z,...(p.y===undefined?{}:{y:number(p.y,0,-2,12)})};};
@@ -141,6 +143,6 @@
   const saved=storage?.getItem(PLAY_KEY);if(!saved)throw new Error('Тестовый уровень не найден. Откройте редактор и нажмите «Играть».');
   const map=read(saved),errors=issues(map);if(errors.length)throw new Error(errors.join('\n'));return map;
  }
- const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame,droneOrigin,get standardNames(){return catalog()?.standard.map(level=>level.name)||[];},standardLevel};
+ const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame,droneOrigin,get standardNames(){return catalog()?.standard.map((_,i)=>standardLevel(i+1).name)||[];},standardLevel,displayName};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyLevels=api;
 })(globalThis);
