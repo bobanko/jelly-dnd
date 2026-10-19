@@ -6,7 +6,7 @@ function game(options={}){
  const noop=()=>{},ctx=new Proxy({createRadialGradient:()=>({addColorStop:noop})},{get:(o,k)=>o[k]??noop});
  const element=()=>({addEventListener:noop,getContext:()=>ctx,classList:{toggle:noop},setAttribute:noop,querySelector:()=>element()});
  const elements={},listeners={};
- const sandbox={innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellyLevels:require('./levels.js'),JellyEffects:require('./game-effects.js'),JellyPhysics:require('./physics.js'),JellySoftBody:require('./soft-body.js'),JellyGPU:{...require('./webgpu-renderer.js'),Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
+ const sandbox={innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellySharedCamera:require('./shared-camera'),JellyLevels:require('./levels.js'),JellyEffects:require('./game-effects.js'),JellyPhysics:require('./physics.js'),JellySoftBody:require('./soft-body.js'),JellyGPU:{...require('./webgpu-renderer.js'),Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
  if(options.map){sandbox.location={search:'?level=editor'};sandbox.localStorage={getItem:()=>JSON.stringify(options.map)};}
  vm.createContext(sandbox);vm.runInContext(fs.readFileSync('game.js','utf8'),sandbox);
  const codeFor=key=>({arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'}[key]||(/^\d$/.test(key)?'Digit'+key:'Key'+key.toUpperCase()));
@@ -17,7 +17,7 @@ function partyMap(slots){
  const map=require('./levels').blank();map.size=8;for(let x=0;x<8;x++)for(let z=0;z<8;z++)map.tiles.push({x,z,height:0});
  slots.forEach((slot,i)=>{map.spawns[slot]={x:1+i*2,z:4};map.goals[slot]={x:1+i*2,z:1};});return map;
 }
-test('solo and duo levels assign controls by active order, keeping camera keys, undo/reset and victory',()=>{
+test('solo and duo levels assign controls by active order, keeping undo/reset and victory',()=>{
  for(const slots of [[0],[1],[2],[3],[1,3]]){
   const g=game({map:partyMap(slots)});assert.equal(g.run('players.length'),slots.length);
   const slot=slots[slots.length-1],key=slots.length===1?'KeyW':'ArrowUp';g.key('layout independent',key);g.run('simulate(.05)');g.up('',key);
@@ -80,7 +80,7 @@ test('shortcuts follow physical positions and movement ignores repeat and modifi
  g.run('simulate(.05)');g.key('я','KeyZ');assert.equal(g.run('players[0].z'),8);
  g.key('й','KeyQ');assert.equal(g.run('targetAngle'),-Math.PI/2);
  g.key('у','KeyE');assert.equal(g.run('targetAngle'),0);
- g.key('@','Digit2');assert.equal(g.run('followedPlayer'),1);
+ g.key('@','Digit2');assert.equal(g.run('followedPlayer'),0);
  g.key('к','KeyR');assert.equal(g.run('followedPlayer'),0);
  for(const modifier of ['ctrlKey','metaKey','altKey'])g.key('ц','KeyW',{[modifier]:true});
  assert.equal(g.run('heldKeys.size'),0);
@@ -88,46 +88,18 @@ test('shortcuts follow physical positions and movement ignores repeat and modifi
  g.key('w','KeyP');assert.equal(g.run('heldKeys.size'),0);
 });
 
-test('red jelly uses physical IJKL positions on either keyboard layout and camera key 3',()=>{
+test('red jelly uses physical IJKL positions on either keyboard layout with shared camera',()=>{
  for(const [key,code,axis,sign] of [['ш','KeyI','z',-1],['о','KeyJ','x',-1],['л','KeyK','z',1],['д','KeyL','x',1]]){
   const g=game(),before=g.run('players[2].'+axis);g.key(key,code);g.run('simulate(.05)');g.up(key,code);
   assert.ok((g.run('players[2].'+axis)-before)*sign>0);assert.equal(g.run('followedPlayer'),2);
   assert.equal(g.run('heldKeys.size'),0);g.key('3');assert.equal(g.run('followedPlayer'),2);
  }
 });
-test('camera follows rendered position smoothly and centers either cube at all four angles',()=>{
- const g=game();g.key('2');
- assert.equal(g.run('followedPlayer'),1);
- g.run('frame(16)');
- assert.ok(g.run('camera.x>2&&camera.x<9'));
- g.run('for(let t=32;t<4000;t+=16)frame(t)');
- assert.ok(g.run('Math.abs(camera.x-players[1].rx)<.001'));
- for(let q=0;q<4;q++){
-  g.run(`angle=${q}*Math.PI/2`);
-  assert.ok(g.run('Math.abs(project(players[1].rx,0,players[1].rz).x-W*.5)<.1'));
-  assert.ok(g.run('Math.abs(project(players[1].rx,players[1].y,players[1].rz).y-H*.56)<.1'));
- }
- g.key('1');assert.equal(g.run('followedPlayer'),0);
- g.key('r');assert.equal(g.run('camera.x'),2);
-});
-test('camera follows height smoothly upwards and downwards, including negative floors and falling',()=>{
- const g=game();
- g.run('won=true;camera.fov=85;players[0].y=3;frame(16)');
- assert.ok(g.run('camera.targetY>0&&camera.targetY<3'));assert.equal(g.run('camera.focusHeight'),3.42);
- g.run('for(let t=32;t<=2400;t+=16)frame(t)');assert.ok(g.run('Math.abs(camera.targetY-3)<.001'));
- for(const mode of ['ortho','perspective'])for(let q=0;q<4;q++){
-  g.run(`camera.mode='${mode}';angle=${q}*Math.PI/2`);assert.ok(g.run('Math.abs(project(players[0].rx,3,players[0].rz).y-H*.56)<.1'));
- }
- g.run('players[0].y=-1;frame(2416)');assert.ok(g.run('camera.targetY>-1&&camera.targetY<3'));
- g.run('for(let t=2432;t<=4800;t+=16)frame(t)');assert.ok(g.run('Math.abs(camera.targetY+1)<.001'));
- g.run('players[0].y=-3;players[0].state="falling";frame(4816)');assert.ok(g.run('camera.targetY<-1&&camera.targetY>-3'));assert.equal(g.run('camera.focusHeight'),-2.58);
- g.run('players[0].state="alive";players[0].y=0;for(let t=4832;t<=7200;t+=16)frame(t)');assert.ok(g.run('Math.abs(camera.targetY)<.001'));
-});
-test('switching followed heroes eases to their height and reset immediately restores spawn height',()=>{
- const g=game();g.run('won=true;players[1].y=2');g.key('2');g.run('frame(16)');assert.ok(g.run('camera.targetY>0&&camera.targetY<2'));
- g.run('for(let t=32;t<=2400;t+=16)frame(t)');assert.ok(g.run('Math.abs(camera.targetY-2)<.001'));
- g.key('1');g.run('frame(2416)');assert.ok(g.run('camera.targetY>0&&camera.targetY<2'));
- g.key('r');assert.equal(g.run('camera.targetY'),0);assert.equal(g.run('camera.focusHeight'),.42);
+test('camera frames the group independently of the active input and resets to the group',()=>{
+ const g=game();g.run('updateGameCamera(0,true)');const before=g.run('({x:camera.x,z:camera.z,scale})');
+ g.run('focusPlayer(1);updateGameCamera(0,true)');assert.deepEqual(g.run('({x:camera.x,z:camera.z,scale})'),before);
+ g.run('players[1].x+=2;players[1].rx=players[1].x;updateGameCamera(0,true)');assert.ok(g.run('camera.x')>before.x);
+ g.key('r');assert.deepEqual(g.run('({x:camera.x,z:camera.z,scale})'),before);
 });
 
 test('continuous keyboard motion, release friction, undo and camera-relative input',()=>{
@@ -283,6 +255,6 @@ test('edited level preserves raised spawns and arbitrary crate start heights on 
  const g=game({map});assert.equal(g.run('definition.name'),'Custom chamber');assert.equal(g.run('players[0].y'),1);assert.equal(g.run('crates[0].y'),0);
  assert.equal(g.run('camera.targetY'),1);assert.equal(g.run('camera.focusHeight'),1.42);
  g.run('players[0].y=3;crates[0].y=4');g.key('r');assert.equal(g.run('players[0].y'),1);assert.equal(g.run('crates[0].y'),0);
- assert.equal(g.run('camera.targetY'),1);assert.equal(g.run('camera.focusHeight'),1.42);
+ assert.equal(g.run('camera.targetY'),.5);assert.ok(g.run('Math.abs(camera.focusHeight-.92)<1e-12'));
  assert.equal(g.run('mapError'),null);
 });

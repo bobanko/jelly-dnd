@@ -10,7 +10,11 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   assert.equal(await page.locator('#gpu-fallback').count(),0);assert.equal(await page.locator('#level-intro-title').textContent(),'First Steps');assert.equal(await page.locator('#level-loading').isVisible(),true);
   await page.screenshot({path:'artifacts/level-loading.png'});release();await page.waitForFunction(()=>sceneRenderer.ready&&!loadingActive);
   await page.keyboard.press('Enter');assert.equal(await page.locator('#level-loading').isVisible(),false);
-  assert.equal(await page.evaluate(()=>camera.tracking),'group');
+  assert.equal(await page.locator('header').count(),0);assert.equal(await page.locator('.intro').count(),0);assert.equal(await page.locator('aside').count(),0);assert.equal(await page.locator('#menu-button svg').count(),1);
+  await page.locator('.player-key-hint').first().waitFor({state:'visible'});assert.equal(await page.locator('.player-key-hint').first().textContent(),'WASD');assert.equal(await page.locator('.player-key-hint').nth(1).textContent(),'↑←↓→');
+  await page.screenshot({path:'artifacts/idle-key-hints.png'});
+  await page.keyboard.down('w');await page.waitForFunction(()=>playerHints[0].node.hidden);assert.equal(await page.locator('.player-key-hint').nth(1).isVisible(),true);await page.keyboard.up('w');
+  assert.equal(await page.locator('#camera-tracking').count(),0);
   const result=await page.evaluate(()=>{
    const place=(positions)=>{players.forEach((p,i)=>{soft.translate(p,positions[i][0]-p.x,0,positions[i][1]-p.z,true);p.rx=p.x;p.rz=p.z;});for(let i=0;i<300;i++)updateGameCamera(1/60);return autoZoom;};
    const near=place([[3,4],[4,4]]),far=place([[1,1],[6,6]]);
@@ -18,10 +22,10 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
    const before={x:camera.x,z:camera.z};focusPlayer(1);updateGameCamera(1/60);
    return {near,far,points,drift:Math.hypot(camera.x-before.x,camera.z-before.z)};
   });assert.ok(result.near>result.far);assert.ok(result.drift<.001);assert.ok(result.points.every(p=>p.visible&&p.x>0&&p.x<1280&&p.y>0&&p.y<800));
-  await page.locator('.jelly-settings summary').click();await page.locator('#camera-tracking').selectOption('player');assert.equal(await page.evaluate(()=>camera.tracking),'player');
-  await page.locator('#camera-tracking').selectOption('group');await page.locator('.jelly-settings summary').click();await page.keyboard.press('r');await page.waitForFunction(()=>restartTransition===null);await page.waitForTimeout(500);
+  await page.keyboard.press('r');await page.waitForFunction(()=>restartTransition===null);await page.waitForTimeout(500);
   await page.screenshot({path:'artifacts/shared-camera.png'});assert.deepEqual(errors,[]);
+  await page.locator('#menu-button').click();assert.equal(await page.locator('#main-menu').isVisible(),true);assert.equal(await page.locator('.player-key-hint').first().isVisible(),false);
   const unsupported=await browser.newPage();await unsupported.addInitScript(()=>Object.defineProperty(navigator,'gpu',{get:()=>undefined}));await unsupported.goto('http://localhost:3000/?level=1&play=1');await unsupported.locator('#loading-retry').waitFor({state:'visible'});assert.equal(await unsupported.locator('#level-intro').isVisible(),true);await unsupported.close();
-  console.log('PASS loading stages, title overlay, error retry, shared framing, zoom, stable focus and follow option');
+  console.log('PASS loading stages, title overlay, error retry, shared framing, zoom and stable focus');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
