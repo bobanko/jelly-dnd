@@ -73,3 +73,23 @@ html[lang=ru] .menu-panel h1{font-size:clamp(58px,7.5vw,100px);letter-spacing:-3
 .jelly-settings{left:auto;right:3%;top:78px;bottom:auto;width:290px;padding:0;z-index:5}.jelly-settings[open]{width:310px;max-width:calc(100vw - 30px);max-height:calc(100dvh - 105px);padding:0 16px 18px}.jelly-settings summary{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:60px;padding:12px 16px;font-size:13px;line-height:1.4}.jelly-settings[open] summary{margin:0 -16px;border-bottom:1px solid #bc995d29}.jelly-settings summary span{float:none;color:inherit}.jelly-settings summary svg{width:32px;height:32px;flex-shrink:0;fill:none;stroke:#d4b476;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}.jelly-settings summary::-webkit-details-marker{display:none}
 @media(max-width:600px){.jelly-settings{top:68px;right:15px;left:auto;bottom:auto;width:270px}.jelly-settings[open]{width:290px;max-height:calc(100dvh - 88px)}.jelly-settings input[type=range]{width:100px}}
 .game-tools #fps{display:block;position:absolute;right:56px;top:15px;font-size:11px;color:#b5a88c;font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none}
+
+/* Default itch.io embed: 960 × 640, with room for the game behind menus. */
+@media(min-width:601px) and (max-width:1024px) and (max-height:720px){
+ #main-menu{padding:24px 4% 64px}
+ .menu-panel{width:min(460px,100%);padding:0 0 8px}
+ .menu-panel h1{font-size:86px;margin-bottom:18px;letter-spacing:-3px}
+ html[lang=ru] .menu-panel h1{font-size:68px;letter-spacing:-2px}
+ .menu-items{max-width:430px;gap:2px}.menu-items button{font-size:30px;padding:8px 18px}
+ .languages{margin:14px 0 0 18px;gap:24px}.languages button{font-size:22px;padding:7px 0}
+ .menu-key-hints{left:4%;bottom:16px;gap:16px;font-size:11px}.menu-key-hints kbd{font-size:11px;padding:4px 6px}
+ .selecting-level .menu-panel h1,html[lang=ru] .selecting-level .menu-panel h1{font-size:60px;margin-bottom:16px}
+ #menu-levels h2{font-size:26px;margin-bottom:10px}.level-list{max-height:calc(100dvh - 300px);overflow-y:auto;overscroll-behavior:contain;padding:4px}
+ .level-list button{font-size:24px;padding:8px 14px}.level-list button span{margin-left:10px}#levels-back{font-size:23px;margin-top:8px}.level-lock svg{width:21px;height:21px}
+ #menu-help h2{font-size:30px;margin-bottom:12px}#menu-help p{font-size:14px;line-height:1.55;margin:12px 0}#menu-back{font-size:27px;margin-top:14px;padding:10px 18px}
+ #win{padding:28px 5%}#win h2{font-size:58px;margin-bottom:16px}#win p{font-size:25px;margin-bottom:24px}#win .menu-items button{font-size:34px;padding:12px 20px}.win-hints{margin-top:24px}
+ #level-intro{padding:6%}#level-intro h2{font-size:64px;letter-spacing:-1px}#level-loading{margin-top:26px}
+ .game-tools{inset:16px 20px auto}.jelly-settings{right:20px;top:70px}.jelly-settings[open]{max-height:calc(100dvh - 90px)}
+ footer{height:54px;margin:0 20px}.controls{gap:16px}.moves{gap:9px}
+ .player-key-hint{grid-template-columns:repeat(3,26px);grid-template-rows:repeat(2,26px)}.player-key-hint kbd{font-size:13px}
+}

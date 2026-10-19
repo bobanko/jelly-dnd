@@ -4,9 +4,9 @@ const staticRoot=path.resolve(process.env.STATIC_GAME_ROOT||__dirname);
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--use-angle=d3d11']});
  try{
-  const page=await browser.newPage({viewport:{width:1280,height:850}}),errors=[],missing=[];
+  const page=await browser.newPage({viewport:{width:1040,height:720}}),errors=[],missing=[];
   page.on('pageerror',e=>errors.push(e.message));
-  await page.route('https://portal.test/**',route=>route.fulfill({contentType:'text/html',body:'<iframe name="game" src="https://static-game.test/html/123/index.html" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-downloads" allow="autoplay; fullscreen" style="width:1200px;height:800px;border:0"></iframe>'}));
+  await page.route('https://portal.test/**',route=>route.fulfill({contentType:'text/html',body:'<iframe name="game" src="https://static-game.test/html/123/index.html" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-downloads" allow="autoplay; fullscreen" style="width:960px;height:640px;border:0"></iframe>'}));
   const scripts=new Set(['index.html','editor.html','style.css','editor.css']);
   for(const html of ['index.html','editor.html'])for(const match of fs.readFileSync(path.join(staticRoot,html),'utf8').matchAll(/(?:src|data-entry)="([^"]+\.js)"/g))scripts.add(match[1]);
   await page.route('https://static-game.test/**',async route=>{

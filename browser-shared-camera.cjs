@@ -17,6 +17,8 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   await page.screenshot({path:'artifacts/developer-settings.png'});
   await page.locator('.jelly-settings summary').click();assert.equal(await page.locator('.jelly-settings').getAttribute('open'),null);
   await page.locator('.jelly-settings summary').click();await page.locator('#softness').focus();await page.keyboard.press('Backquote');assert.equal(await page.locator('.jelly-settings').isVisible(),false);
+  const orbitZoom=await page.evaluate(()=>autoZoom);
+  for(let turn=0;turn<4;turn++){await page.keyboard.press('q');await page.waitForFunction(()=>Math.abs(angle-targetAngle)<.001);assert.ok(Math.abs(await page.evaluate(()=>autoZoom)-orbitZoom)<.02);}
   await page.keyboard.down('w');await page.waitForTimeout(100);await page.keyboard.up('w');assert.ok(await page.evaluate(()=>moves>0&&players[0].z<start[0].z));
   assert.equal(await page.locator('header').count(),0);assert.equal(await page.locator('.intro').count(),0);assert.equal(await page.locator('aside').count(),0);assert.equal(await page.locator('#menu-button svg').count(),1);
   await page.locator('.player-key-hint').first().waitFor({state:'visible'});assert.equal(await page.locator('.player-key-hint').first().textContent(),'WASD');assert.equal(await page.locator('.player-key-hint').nth(1).textContent(),'↑←↓→');

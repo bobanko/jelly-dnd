@@ -9,13 +9,16 @@
   const fx=floor.length?(Math.min(...floor.map(p=>p.x))+Math.max(...floor.map(p=>p.x)))/2:(x0+x1)/2;
   const fz=floor.length?(Math.min(...floor.map(p=>p.z))+Math.max(...floor.map(p=>p.z)))/2:(z0+z1)/2;
   const result={x:(x0+x1)*.45+fx*.1,z:(z0+z1)*.45+fz*.1,targetY:(y0+y1)/2,focusHeight:(y0+y1)/2+.42};
-  const corners=points.flatMap(p=>[-.65,.65].flatMap(dx=>[-.65,.65].flatMap(dz=>[0,1.15].map(dy=>[p.x+dx,p.y+dy,p.z+dz]))));
+  // A circular envelope fits every orbit angle. Fitting the current projection
+  // alone made quarter-turns alternate between close and distant zoom levels.
+  const radius=(Math.max(...points.map(p=>Math.hypot(p.x-result.x,p.z-result.z)))+.65*Math.SQRT2)*1.005;
+  const corners=Array.from({length:32},(_,i)=>i*Math.PI/16).flatMap(a=>[y0,y1+1.15].map(y=>[result.x+Math.cos(a)*radius,y,result.z+Math.sin(a)*radius]));
   const base=Math.min(width/16,height/12);
   let zoom=2.05;
   // Fit the whole roster with room for the HUD and nearby puzzle geometry.
   for(let attempt=0;attempt<40;attempt++){
-   const frame=GPU.cameraFrame({...camera,...result},angle,width,height,base*zoom);
-   if(corners.every(p=>{const q=GPU.projectPoint(frame,...p,width,height);return q.visible&&q.x>width*.14&&q.x<width*.86&&q.y>height*.22&&q.y<height*.82;}))break;
+   const frame=GPU.cameraFrame({...camera,...result},0,width,height,base*zoom);
+   if(corners.every(p=>{const q=GPU.projectPoint(frame,...p,width,height);return q.visible&&q.x>width*.12&&q.x<width*.88&&q.y>height*.15&&q.y<height*.86;}))break;
    zoom*=.92;
   }
   return {...result,zoom};
