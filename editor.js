@@ -67,12 +67,13 @@ const directionLabel=element('label','Лента '),beltDirection=element('selec
 for(const [value,text] of [['0,1','↓ Юг'],['0,-1','↑ Север'],['1,0','→ Восток'],['-1,0','← Запад']]){const option=element('option',text);option.value=value;beltDirection.append(option);}directionLabel.append(beltDirection);
 const speedLabel=element('label','кл/с '),beltSpeed=element('input');beltSpeed.id='belt-speed';beltSpeed.type='number';beltSpeed.min='.2';beltSpeed.max='2.5';beltSpeed.step='.1';beltSpeed.value='.85';beltSpeed.setAttribute('aria-label','Скорость конвейера');speedLabel.append(beltSpeed);conveyorBrush.append(directionLabel,speedLabel);document.querySelector('.viewport-toolbar').append(conveyorBrush);
 const spikeFaces=[['top','Пол · вверх'],['north','Стена · север −Z'],['east','Стена · восток +X'],['south','Стена · юг +Z'],['west','Стена · запад −X']];
-const spikeColors=[['','Нейтральный'],...L.characters.map((c,i)=>[String(i),c.name])];
+const spikeColors=[['','Нейтральный','#d4dbe5'],...L.characters.map((c,i)=>[String(i),c.name,c.color])];
 const spikeBrush=element('div',undefined,'conveyor-brush');spikeBrush.id='spike-brush';spikeBrush.hidden=true;
-const spikeFace=element('select'),spikeColor=element('select');spikeFace.id='spike-face';spikeColor.id='spike-color';
-for(const [control,label,values] of [[spikeFace,'Крепление шипов',[['auto','По грани'],...spikeFaces]],[spikeColor,'Цвет шипов',spikeColors]]){
+const spikeFace=element('select'),spikeColor={value:''};spikeFace.id='spike-face';
+for(const [control,label,values] of [[spikeFace,'Крепление шипов',[['auto','По грани'],...spikeFaces]]]){
  control.setAttribute('aria-label',label);for(const [value,text] of values){const option=element('option',text);option.value=value;control.append(option);}const row=element('label',label+' ');row.append(control);spikeBrush.append(row);control.onchange=()=>{refreshHover();invalidate();};
 }document.querySelector('.viewport-toolbar').append(spikeBrush);
+spikeBrush.dataset.object='spike-brush';colorRadios(spikeBrush,'Цвет шипов',spikeColor.value,spikeColors,v=>{spikeColor.value=v;refreshHover();invalidate();});
 const torchFaces=spikeFaces.filter(([face])=>face!=='top'),torchBrush=element('div',undefined,'conveyor-brush'),torchFace=element('select');torchBrush.id='torch-brush';torchBrush.hidden=true;torchFace.id='torch-face';torchFace.setAttribute('aria-label','Крепление факела');
 for(const [value,text] of [['auto','По боковой грани'],...torchFaces]){const option=element('option',text);option.value=value;torchFace.append(option);}const torchLabel=element('label','Крепление факела ');torchLabel.append(torchFace);torchBrush.append(torchLabel);document.querySelector('.viewport-toolbar').append(torchBrush);torchFace.onchange=()=>{refreshHover();invalidate();};
 const placementMode=element('select');placementMode.id='placement-mode';placementMode.setAttribute('aria-label','Способ размещения');for(const [value,text] of [['face','По грани'],['layer','На слое Y']]){const option=element('option',text);option.value=value;placementMode.append(option);}document.querySelector('.height-control').after(placementMode);
@@ -94,9 +95,9 @@ function field(card,label,value,options,onChange){
   if(focused)$(control.id)?.focus({preventScroll:true});
  };row.append(control);card.append(row);return control;
 }
-function colorRadios(card,title,value,choices,onChange){
+function colorRadios(card,title,value,choices,onChange,groupName='color-'+card.dataset.object){
  const group=element('fieldset',undefined,'block-colors'),options=element('div',undefined,'color-options');group.append(element('legend',title));
- for(const [v,name,color] of choices){const label=element('label',undefined,'color-swatch'),input=element('input');label.style.setProperty('--swatch',color);label.title=name;input.type='radio';input.name='color-'+card.dataset.object;input.value=String(v);input.checked=String(v)===String(value);input.setAttribute('aria-label',name);input.onchange=()=>{const focused=document.activeElement===input;const nextName=onChange(v)||input.name;if(focused)document.querySelector('#properties input[name="'+nextName+'"][value="'+v+'"]')?.focus({preventScroll:true});};label.append(input);options.append(label);}
+ for(const [v,name,color] of choices){const label=element('label',undefined,'color-swatch'),input=element('input');label.style.setProperty('--swatch',color);label.title=name;input.type='radio';input.name=groupName;input.value=String(v);input.checked=String(v)===String(value);input.setAttribute('aria-label',name);input.onchange=()=>{const focused=document.activeElement===input;const nextName=onChange(v)||input.name;if(focused)document.querySelector('input[name="'+nextName+'"][value="'+v+'"]')?.focus({preventScroll:true});};label.append(input);options.append(label);}
  group.append(options);card.append(group);
 }
 function renderProperties(){
@@ -124,16 +125,16 @@ function renderProperties(){
    for(const axis of ['x','y','z'])field(card,'Факел · '+axis.toUpperCase(),p[axis],{min:axis==='y'?-2:0,max:axis==='y'?12:model.map.size-1},value=>{const q={...p,[axis]:value};try{if(model.move(key,index,q.x,q.z,q.y)){selected={x:q.x,y:q.y,z:q.z};changed();}}catch(error){toast(error.message);renderPanels();}});
   }
   if(key==='drones'){
-   field(card,'Цвет луча',p.color,{values:L.characters.map((c,i)=>[String(i),c.name])},v=>set('color',Number(v)));
-   field(card,'Цель дрона',p.target,{values:[['-1','Ближайшая желейка'],...L.characters.map((c,i)=>[String(i),c.name])]},v=>set('target',Number(v)));
+   colorRadios(card,'Цвет луча',p.color,L.characters.map((c,i)=>[i,c.name,c.color]),v=>set('color',Number(v)));
+   colorRadios(card,'Цель дрона',p.target,[[-1,'Ближайшая желейка','#a5adb3'],...L.characters.map((c,i)=>[i,c.name,c.color])],v=>set('target',Number(v)),'target-'+card.dataset.object);
    field(card,'Высота полёта',p.hover,{min:0,max:6,step:.1},v=>set('hover',v));
    for(const axis of ['x','y','z'])field(card,'Дрон · '+axis.toUpperCase(),p[axis],{min:axis==='y'?-2:0,max:axis==='y'?12:model.map.size-1},value=>{const q={...p,[axis]:value};try{if(model.move(key,index,q.x,q.z,q.y)){selected={x:q.x,y:q.y,z:q.z};changed();}}catch(error){toast(error.message);renderPanels();}});
   }
-  if(key==='plates'){field(card,'Цвет',p.color,{values:[['red','Красный'],['blue','Синий'],['amber','Золотой'],['dark','Каменный']]},v=>set('color',v));card.append(element('p',`Канал ${index+1} · мостов: ${model.map.bridges.filter(b=>b.plate===p.id).length}`,'empty-state'));}
+  if(key==='plates'){colorRadios(card,'Цвет',p.color,[['red','Красный',colors[2]],['blue','Синий',colors[1]],['amber','Золотой','#edb65b'],['dark','Каменный','#777e78']],v=>set('color',v));card.append(element('p',`Канал ${index+1} · мостов: ${model.map.bridges.filter(b=>b.plate===p.id).length}`,'empty-state'));}
   if(key==='bridges')field(card,'Кнопка',p.plate,{values:[['','Не выбрана'],...model.map.plates.map((b,i)=>[b.id,`К${i+1} · ${b.x}, ${b.z}`])]},v=>set('plate',v));
   if(key==='lifts'){field(card,'Нижний уровень',p.base,{min:-2,max:12},v=>edit(map=>{map.lifts[index].base=v;map.lifts[index].y=v;model.cube(p.x,v,p.z);}));field(card,'Верхний уровень',p.top,{min:-2,max:12},v=>set('top',v));}
   if(key==='spikes'){
-   field(card,'Цвет шипов',p.color??'',{values:spikeColors},v=>edit(map=>{if(v==='')delete map.spikes[index].color;else map.spikes[index].color=Number(v);}));
+   colorRadios(card,'Цвет шипов',p.color??'',spikeColors,v=>edit(map=>{if(v==='')delete map.spikes[index].color;else map.spikes[index].color=Number(v);}));
    field(card,'Крепление шипов',p.face||'top',{values:spikeFaces},v=>edit(map=>{if(v==='top')delete map.spikes[index].face;else map.spikes[index].face=v;}));
    field(card,'Y крепления',p.y??L.surfaceY(model.map,p.x,p.z)??0,{min:-2,max:12},v=>{try{if(model.move('spikes',index,p.x,p.z,v)){selected={x:p.x,y:v,z:p.z};changed();}}catch(error){toast(error.message);renderPanels();}});
    field(card,'Задержка, сек',p.offset,{min:0,max:5.8,step:.1},v=>set('offset',v));

@@ -22,6 +22,19 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   await page.evaluate(()=>{selected={x:2,y:0,z:4};renderProperties();});await page.locator('[data-object="portals-0"] input[type=radio][value="amber"]').check();assert.equal(await page.evaluate(()=>model.map.portals[0].color),'amber');
   await page.evaluate(()=>{selected={x:2,y:0,z:2};renderProperties();});await page.locator('[data-object="spawns-0"] input[type=radio][value="1"]').click();assert.equal(await page.evaluate(()=>model.map.spawns[1].x),2);assert.equal(await page.evaluate(()=>model.map.spawns[0].x),5);
   await page.evaluate(()=>{selected={x:2,y:0,z:3};renderProperties();});await page.locator('[data-object="goals-0"] input[type=radio][value="3"]').click();assert.equal(await page.evaluate(()=>model.map.goals[3].x),2);assert.equal(await page.evaluate(()=>model.map.goals[0]),null);
+  await page.evaluate(()=>{model.change(map=>{map.drones=[{x:3,y:0,z:3,color:0,target:-1,hover:1}];map.plates=[{x:3,y:0,z:3,id:'test',color:'red'}];map.spikes=[{x:3,y:0,z:3,offset:0}];});selected={x:3,y:0,z:3};changed();});
+  for(const [key,value] of [['drones','2'],['plates','amber'],['spikes','1']]){
+   await page.locator(`[data-object="${key}-0"] input[name="color-${key}-0"][value="${value}"]`).check();
+   assert.equal(await page.evaluate(key=>model.map[key][0].color,key),key==='plates'?value:Number(value));
+  }
+  await page.locator('[data-object="spikes-0"] input[type=radio][value=""]').check();assert.equal(await page.evaluate(()=>model.map.spikes[0].color),undefined);
+  await page.locator('input[name="target-drones-0"][value="1"]').check();assert.equal(await page.evaluate(()=>model.map.drones[0].target),1);
+  assert.equal(await page.locator('input[name="color-drones-0"]:checked').inputValue(),'2');
+  await page.locator('input[name="target-drones-0"][value="-1"]').check();assert.equal(await page.evaluate(()=>model.map.drones[0].target),-1);
+  assert.equal(await page.locator('#properties select[aria-label*="Цвет"]').count(),0);
+  await page.locator('[data-tool=spikes]').click();await page.locator('#spike-brush input[type=radio][value="3"]').check();assert.equal(await page.evaluate(()=>spikeColor.value),'3');
+  const swatch=await page.locator('#spike-brush .color-swatch').first().boundingBox();assert.ok(swatch.width>=27&&swatch.height>=27);
+  await page.screenshot({path:'artifacts/editor-colors.png'});
   await page.locator('#level-name').fill('A different title');await page.locator('#level-name').press('Tab');
   const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#export').click()]);assert.equal(download.suggestedFilename(),'my-original-level.json');
   await page.reload();await page.waitForFunction(()=>typeof model!=='undefined');assert.equal(await page.evaluate(()=>sourceFilename),'my-original-level.json');
