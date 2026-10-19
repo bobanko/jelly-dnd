@@ -39,6 +39,18 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   await page.locator('[data-tool=spikes]').click();await page.locator('#spike-brush input[type=radio][value="3"]').check();assert.equal(await page.evaluate(()=>spikeColor.value),'3');
   const swatch=await page.locator('#spike-brush .color-swatch').first().boundingBox();assert.ok(swatch.width>=27&&swatch.height>=27);
   await page.screenshot({path:'artifacts/editor-colors.png'});
+  await page.evaluate(()=>{edit(map=>{map.conveyors=[{x:3,y:0,z:3,dx:0,dz:1,speed:.85}];});});
+  await page.locator('input[name="direction-conveyors-0"][value="-1,0"]').check();assert.deepEqual(await page.evaluate(()=>[model.map.conveyors[0].dx,model.map.conveyors[0].dz]),[-1,0]);
+  await page.locator('[data-tool=conveyor]').click();assert.equal(await page.locator('input[name="belt-direction"]:checked').inputValue(),'-1,0');
+  await page.locator('input[name="belt-direction"][value="0,-1"]').check();assert.equal(await page.evaluate(()=>beltDirection.value),'0,-1');
+  await page.evaluate(()=>{edit(map=>{map.archers=[{x:3,y:0,z:3,dx:0,dz:1}];map.torches=[{x:3,y:0,z:3,face:'south'}];});});
+  await page.locator('input[name="direction-archers-0"][value="1,0"]').check();assert.equal(await page.evaluate(()=>model.map.archers[0].dx),1);
+  await page.locator('input[name="face-torches-0"][value="north"]').check();assert.equal(await page.evaluate(()=>model.map.torches[0].face),'north');
+  await page.locator('input[name="face-spikes-0"][value="east"]').check();assert.equal(await page.evaluate(()=>model.map.spikes[0].face),'east');
+  await page.locator('input[name="face-spikes-0"][value="top"]').check();assert.equal(await page.evaluate(()=>model.map.spikes[0].face),undefined);
+  await page.locator('[data-tool=torch]').click();await page.locator('input[name="torch-face"][value="west"]').check();assert.equal(await page.evaluate(()=>torchFace.value),'west');
+  await page.locator('[data-tool=spikes]').click();await page.locator('input[name="spike-face"][value="north"]').check();assert.equal(await page.evaluate(()=>spikeFace.value),'north');
+  await page.locator('input[name="spike-face"][value="auto"]').check();assert.equal(await page.evaluate(()=>spikeFace.value),'auto');
   await page.locator('#level-name').fill('A different title');await page.locator('#level-name').press('Tab');
   const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#export').click()]);assert.equal(download.suggestedFilename(),'my-original-level.json');
   await page.reload();await page.waitForFunction(()=>typeof model!=='undefined');assert.equal(await page.evaluate(()=>sourceFilename),'my-original-level.json');

@@ -13,8 +13,8 @@ const groups=[
  ['Блоки',[['floor','▣','Каменный куб'],...L.characters.map((p,i)=>['color-'+i,phaseSymbols[i],p.name,p.color])]],
  ['Декор',[['torch','♨','Настенный факел','#f7ba60']]],
  ['Порталы',L.portalColors.map(p=>['portal-'+p.id,'◎',p.name,p.color])],
- ['Механизмы',[['plate','⊙','Кнопка','#ef5346'],['bridge','≋','Мост','#cba778'],['lift','↥','Лифт','#cba778'],['conveyor','»','Конвейер','#d8bb72'],['spikes','♜','Шипы','#c2ced0']]],
- ['Объекты',[['crate','⊠','Ящик','#cba778'],['archer','☠','Лучник','#ded3b2'],['drone','◈','Кристаллический дрон','#c98cff'],['shield','◈','Щит','#cba778'],['sword','⚔','Меч','#c2ced0']]]
+ ['Механизмы',[['plate','⊙','Кнопка','#ef5346'],['bridge','≋','Мост','#cba778'],['lift','↥','Лифт','#cba778'],['conveyor','»','Конвейер','#d8bb72'],['spikes','▲','Шипы','#c2ced0']]],
+ ['Объекты',[['crate','⊠','Ящик','#cba778'],['archer','☠','Лучник','#ded3b2'],['drone','♜','Кристаллический дрон','#c98cff'],['shield','◈','Щит','#cba778'],['sword','⚔','Меч','#c2ced0']]]
 ];
 const tools=Object.fromEntries(groups.flatMap(g=>g[1]).map(([id,glyph,label,color])=>[id,{glyph,label,color}]));
 Object.assign(tools,{select:{glyph:'↖',label:'Выбор'},erase:{glyph:'⌫',label:'Ластик'},pan:{glyph:'✥',label:'Перемещение вида'},orbit:{glyph:'⟳',label:'Вращение камеры'}});
@@ -35,6 +35,7 @@ function toolIcon(id,glyph){
  const icon=element('span',undefined,'glyph');icon.setAttribute('aria-hidden','true');
  const cube='<path d="M16 3 29 10 16 17 3 10Z" fill="currentColor" fill-opacity=".55"/><path d="M3 10v14l13 7V17Z" fill="currentColor" fill-opacity=".3"/><path d="m16 17 13-7v14l-13 7Z" fill="currentColor" fill-opacity=".18"/><path d="m16 3 13 7v14l-13 7-13-7V10Zm0 14v14M3 10l13 7 13-7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>';
  let drawing='';
+ if(id==='spikes')drawing='<path d="M3 27 7 9l4 18 5-23 5 23 4-18 4 18Z" fill="currentColor" fill-opacity=".8" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M3 28h26v4H3Z" fill="currentColor" fill-opacity=".4" stroke="currentColor" stroke-width="1.3"/>';
  if(id==='floor'||id.startsWith('color-'))drawing=cube+(id==='floor'?'':'<text x="22" y="25" fill="currentColor" font-size="12" text-anchor="middle">'+glyph+'</text>');
  else if(id.startsWith('spawn-'))drawing=cube+'<path d="M8 15c-3-1-4 0-4 3 0 2 1 4 2 5v3l5 3v-3c2 0 3-1 3-3 0-3-2-6-6-8Z" fill="currentColor"/><path d="m6 19 2 1v3l-2-1Zm4 2 2 1v3l-2-1Z" fill="#142023"/>';
  else if(id.startsWith('goal-'))drawing='<path d="m16 9 14 8-14 8-14-8Z" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.4"/><path d="M2 17v5l14 8 14-8v-5M16 25v5" fill="none" stroke="currentColor" stroke-opacity=".6"/><text x="16" y="19" fill="currentColor" font-size="15" text-anchor="middle">'+glyph+'</text>';
@@ -62,19 +63,17 @@ for(const [id,text,factor,label] of [['zoom-out','−',.8,'Уменьшить м
 }
 document.querySelector('.viewport-toolbar').insertBefore(zoomButtons,$('fit'));
 const conveyorBrush=element('div',undefined,'conveyor-brush');conveyorBrush.id='conveyor-brush';conveyorBrush.hidden=true;
-const directionLabel=element('label','Лента '),beltDirection=element('select');beltDirection.id='belt-direction';beltDirection.setAttribute('aria-label','Направление конвейера');
-for(const [value,text] of [['0,1','↓ Юг'],['0,-1','↑ Север'],['1,0','→ Восток'],['-1,0','← Запад']]){const option=element('option',text);option.value=value;beltDirection.append(option);}directionLabel.append(beltDirection);
-const speedLabel=element('label','кл/с '),beltSpeed=element('input');beltSpeed.id='belt-speed';beltSpeed.type='number';beltSpeed.min='.2';beltSpeed.max='2.5';beltSpeed.step='.1';beltSpeed.value='.85';beltSpeed.setAttribute('aria-label','Скорость конвейера');speedLabel.append(beltSpeed);conveyorBrush.append(directionLabel,speedLabel);document.querySelector('.viewport-toolbar').append(conveyorBrush);
-const spikeFaces=[['top','Пол · вверх'],['north','Стена · север −Z'],['east','Стена · восток +X'],['south','Стена · юг +Z'],['west','Стена · запад −X']];
+const beltDirection={value:'0,1'};
+directionRadios(conveyorBrush,'Лента',beltDirection.value,'belt-direction',v=>{beltDirection.value=v;refreshHover();invalidate();});
+const speedLabel=element('label','кл/с '),beltSpeed=element('input');beltSpeed.id='belt-speed';beltSpeed.type='number';beltSpeed.min='.2';beltSpeed.max='2.5';beltSpeed.step='.1';beltSpeed.value='.85';beltSpeed.setAttribute('aria-label','Скорость конвейера');speedLabel.append(beltSpeed);conveyorBrush.append(speedLabel);document.querySelector('.viewport-toolbar').append(conveyorBrush);
 const spikeColors=[['','Нейтральный','#d4dbe5'],...L.characters.map((c,i)=>[String(i),c.name,c.color])];
 const spikeBrush=element('div',undefined,'conveyor-brush');spikeBrush.id='spike-brush';spikeBrush.hidden=true;
-const spikeFace=element('select'),spikeColor={value:''};spikeFace.id='spike-face';
-for(const [control,label,values] of [[spikeFace,'Крепление шипов',[['auto','По грани'],...spikeFaces]]]){
- control.setAttribute('aria-label',label);for(const [value,text] of values){const option=element('option',text);option.value=value;control.append(option);}const row=element('label',label+' ');row.append(control);spikeBrush.append(row);control.onchange=()=>{refreshHover();invalidate();};
-}document.querySelector('.viewport-toolbar').append(spikeBrush);
+const spikeFace={value:'auto'},spikeColor={value:''};
+faceRadios(spikeBrush,'Крепление шипов',spikeFace.value,'spike-face',v=>{spikeFace.value=v;refreshHover();invalidate();},true,true);
+document.querySelector('.viewport-toolbar').append(spikeBrush);
 spikeBrush.dataset.object='spike-brush';colorRadios(spikeBrush,'Цвет шипов',spikeColor.value,spikeColors,v=>{spikeColor.value=v;refreshHover();invalidate();});
-const torchFaces=spikeFaces.filter(([face])=>face!=='top'),torchBrush=element('div',undefined,'conveyor-brush'),torchFace=element('select');torchBrush.id='torch-brush';torchBrush.hidden=true;torchFace.id='torch-face';torchFace.setAttribute('aria-label','Крепление факела');
-for(const [value,text] of [['auto','По боковой грани'],...torchFaces]){const option=element('option',text);option.value=value;torchFace.append(option);}const torchLabel=element('label','Крепление факела ');torchLabel.append(torchFace);torchBrush.append(torchLabel);document.querySelector('.viewport-toolbar').append(torchBrush);torchFace.onchange=()=>{refreshHover();invalidate();};
+const torchBrush=element('div',undefined,'conveyor-brush'),torchFace={value:'auto'};torchBrush.id='torch-brush';torchBrush.hidden=true;
+faceRadios(torchBrush,'Крепление факела',torchFace.value,'torch-face',v=>{torchFace.value=v;refreshHover();invalidate();},false,true);document.querySelector('.viewport-toolbar').append(torchBrush);
 const placementMode=element('select');placementMode.id='placement-mode';placementMode.setAttribute('aria-label','Способ размещения');for(const [value,text] of [['face','По грани'],['layer','На слое Y']]){const option=element('option',text);option.value=value;placementMode.append(option);}document.querySelector('.height-control').after(placementMode);
 $('brush-height').replaceChildren(...Array.from({length:15},(_,i)=>{const option=element('option',`Y ${i-2}`);option.value=i-2;return option;}));$('brush-height').value='0';
 const coordinateRoot=element('section',undefined,'coordinate-placement');coordinateRoot.append(element('div','КУБ ПО КООРДИНАТАМ','panel-heading'));
@@ -93,6 +92,18 @@ function field(card,label,value,options,onChange){
   // Property edits rebuild the inspector. Keep repeated key presses on the new input.
   if(focused)$(control.id)?.focus({preventScroll:true});
  };row.append(control);card.append(row);return control;
+}
+function faceRadios(card,title,value,name,onChange,top=false,auto=false){
+ const choices=[...(auto?[['auto','A','По грани автоматически']]:[]),...(top?[['top','⊥','Пол · вверх']]:[]),['north','↑','Север −Z'],['east','→','Восток +X'],['south','↓','Юг +Z'],['west','←','Запад −X']];
+ directionRadios(card,title,value,name,onChange,choices);
+}
+function directionRadios(card,title,value,name,onChange,choices=[['0,-1','↑','Север'],['1,0','→','Восток'],['0,1','↓','Юг'],['-1,0','←','Запад']]){
+ const group=element('fieldset',undefined,'block-colors direction-radios'),options=element('div',undefined,'direction-options');group.append(element('legend',title));
+ for(const [v,arrow,label] of choices){
+  const row=element('label'),input=element('input');input.type='radio';input.name=name;input.value=v;input.checked=v===value;input.setAttribute('aria-label',label);row.title=label;
+  input.onchange=()=>{const focused=document.activeElement===input;onChange(v);if(focused)document.querySelector('input[name="'+name+'"][value="'+v+'"]')?.focus({preventScroll:true});};
+  row.append(input,element('span',arrow));options.append(row);
+ }group.append(options);card.append(group);
 }
 function colorRadios(card,title,value,choices,onChange,groupName='color-'+card.dataset.object){
  const group=element('fieldset',undefined,'block-colors'),options=element('div',undefined,'color-options');group.append(element('legend',title));
@@ -120,7 +131,7 @@ function renderProperties(){
   }
   if(key==='tiles')field(card,'Высота пола',p.height,{min:0,max:3},value=>edit(()=>model.paint('floor',p.x,p.z,{height:value})));
   if(key==='torches'){
-   field(card,'Крепление факела',p.face,{values:torchFaces},v=>set('face',v));
+   faceRadios(card,'Крепление факела',p.face,'face-'+card.dataset.object,v=>set('face',v));
    for(const axis of ['x','y','z'])field(card,'Факел · '+axis.toUpperCase(),p[axis],{min:axis==='y'?-2:0,max:axis==='y'?12:model.map.size-1},value=>{const q={...p,[axis]:value};try{if(model.move(key,index,q.x,q.z,q.y)){selected={x:q.x,y:q.y,z:q.z};changed();}}catch(error){toast(error.message);renderPanels();}});
   }
   if(key==='drones'){
@@ -134,7 +145,7 @@ function renderProperties(){
   if(key==='lifts'){field(card,'Нижний уровень',p.base,{min:-2,max:12},v=>edit(map=>{map.lifts[index].base=v;map.lifts[index].y=v;model.cube(p.x,v,p.z);}));field(card,'Верхний уровень',p.top,{min:-2,max:12},v=>set('top',v));}
   if(key==='spikes'){
    colorRadios(card,'Цвет шипов',p.color??'',spikeColors,v=>edit(map=>{if(v==='')delete map.spikes[index].color;else map.spikes[index].color=Number(v);}));
-   field(card,'Крепление шипов',p.face||'top',{values:spikeFaces},v=>edit(map=>{if(v==='top')delete map.spikes[index].face;else map.spikes[index].face=v;}));
+   faceRadios(card,'Крепление шипов',p.face||'top','face-'+card.dataset.object,v=>edit(map=>{if(v==='top')delete map.spikes[index].face;else map.spikes[index].face=v;}),true);
    field(card,'Y крепления',p.y??L.surfaceY(model.map,p.x,p.z)??0,{min:-2,max:12},v=>{try{if(model.move('spikes',index,p.x,p.z,v)){selected={x:p.x,y:v,z:p.z};changed();}}catch(error){toast(error.message);renderPanels();}});
    field(card,'Задержка, сек',p.offset,{min:0,max:5.8,step:.1},v=>set('offset',v));
   }
@@ -145,11 +156,11 @@ function renderProperties(){
    card.append(element('p',chain.length>1?`Переход ${order} → ${order%chain.length+1}`:'Добавьте ещё портал этого цвета.','empty-state'));
   }
   if(key==='conveyors'){
-   field(card,'Направление ленты',`${p.dx},${p.dz}`,{values:[['0,-1','↑ Север'],['1,0','→ Восток'],['0,1','↓ Юг'],['-1,0','← Запад']]},v=>{beltDirection.value=v;edit(map=>{[map.conveyors[index].dx,map.conveyors[index].dz]=v.split(',').map(Number);});});
+   directionRadios(card,'Направление ленты',`${p.dx},${p.dz}`,'direction-'+card.dataset.object,v=>{beltDirection.value=v;document.querySelectorAll('input[name="belt-direction"]').forEach(input=>input.checked=input.value===v);edit(map=>{[map.conveyors[index].dx,map.conveyors[index].dz]=v.split(',').map(Number);});});
    field(card,'Скорость ленты, кл/с',p.speed,{min:.2,max:2.5,step:.1},v=>{beltSpeed.value=v;set('speed',v);});
   }
   if(key==='archers'){
-   field(card,'Направление',`${p.dx},${p.dz}`,{values:[['0,-1','↑ Север'],['1,0','→ Восток'],['0,1','↓ Юг'],['-1,0','← Запад']]},v=>edit(map=>{[map.archers[index].dx,map.archers[index].dz]=v.split(',').map(Number);}));
+   directionRadios(card,'Направление',`${p.dx},${p.dz}`,'direction-'+card.dataset.object,v=>edit(map=>{[map.archers[index].dx,map.archers[index].dz]=v.split(',').map(Number);}));
    field(card,'Выстрел каждые, с',p.interval,{min:.6,max:10,step:.1},v=>set('interval',v));field(card,'Первый выстрел, с',p.firstShot,{min:.1,max:10,step:.1},v=>set('firstShot',v));
   }
   const actions=element('div',undefined,'object-actions');
