@@ -17,6 +17,15 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   await page.locator('#undo').click();assert.equal(await page.evaluate(()=>model.map.torches.length),1);await page.locator('#redo').click();
   await clickWorld([3.21,1.15,3.21]);assert.equal(await page.evaluate(()=>model.map.spikes.length),0);assert.equal(await page.evaluate(()=>model.map.blocks.length),2);
   await page.locator('#undo').click();assert.equal(await page.evaluate(()=>model.map.spikes.length),1);
+  const map=await page.evaluate(()=>{const map=L.blank();map.size=8;for(let x=1;x<=6;x++)for(let z=1;z<=6;z++)map.blocks.push({x,y:0,z});map.spawns=[{x:2,y:0,z:2},{x:5,y:0,z:2},null,null];map.goals=[{x:2,y:0,z:3},{x:5,y:0,z:3},null,null];map.portals=[{x:2,y:0,z:4,color:'violet'},{x:5,y:0,z:4,color:'violet'}];return map;});
+  await page.locator('#file').setInputFiles({name:'my-original-level.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(map))});await page.waitForFunction(()=>sourceFilename==='my-original-level.json');
+  await page.evaluate(()=>{selected={x:2,y:0,z:4};renderProperties();});await page.locator('[data-object="portals-0"] input[type=radio][value="amber"]').check();assert.equal(await page.evaluate(()=>model.map.portals[0].color),'amber');
+  await page.evaluate(()=>{selected={x:2,y:0,z:2};renderProperties();});await page.locator('[data-object="spawns-0"] input[type=radio][value="1"]').click();assert.equal(await page.evaluate(()=>model.map.spawns[1].x),2);assert.equal(await page.evaluate(()=>model.map.spawns[0].x),5);
+  await page.evaluate(()=>{selected={x:2,y:0,z:3};renderProperties();});await page.locator('[data-object="goals-0"] input[type=radio][value="3"]').click();assert.equal(await page.evaluate(()=>model.map.goals[3].x),2);assert.equal(await page.evaluate(()=>model.map.goals[0]),null);
+  await page.locator('#level-name').fill('A different title');await page.locator('#level-name').press('Tab');
+  const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#export').click()]);assert.equal(download.suggestedFilename(),'my-original-level.json');
+  await page.reload();await page.waitForFunction(()=>typeof model!=='undefined');assert.equal(await page.evaluate(()=>sourceFilename),'my-original-level.json');
+  const [again]=await Promise.all([page.waitForEvent('download'),page.locator('#export').click()]);assert.equal(again.suggestedFilename(),'my-original-level.json');
   assert.deepEqual(errors,[]);console.log('PASS inline XYZ, colour radios, precise torch/spike erase, block preservation and undo/redo');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

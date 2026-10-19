@@ -1,8 +1,10 @@
 'use strict';
 const L=JellyLevels,M=JellyEditorModel,S=JellyEditorSpace,$=id=>document.getElementById(id);
 let startupError='';
+const filenameKey='jelly-dnd.editor.filename';
+let sourceFilename=globalThis.JellyLevelCatalog?.defaultLevel||null;
 let initial=L.defaultLevel();
-try{const saved=localStorage.getItem(L.DRAFT_KEY);if(saved)initial=L.read(saved);}catch(error){startupError='Черновик не удалось открыть: '+error.message;}
+try{const saved=localStorage.getItem(L.DRAFT_KEY);if(saved){initial=L.read(saved);sourceFilename=localStorage.getItem(filenameKey)||null;}}catch(error){startupError='Черновик не удалось открыть: '+error.message;}
 const model=new M.Model(L.voxelize(initial));
 const phaseSymbols=['△','⊙','◇','☼'];
 const groups=[
@@ -42,7 +44,7 @@ function toolIcon(id,glyph){
  return icon;
 }
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,5000);}
-function save(){try{localStorage.setItem(L.DRAFT_KEY,JSON.stringify(model.map));$('save-status').textContent='● Сохранено';$('save-status').className='valid';return true;}catch(error){$('save-status').textContent='Не сохранено';$('save-status').className='invalid';toast('Не удалось сохранить в браузере. Используйте экспорт файла.');return false;}}
+function save(){try{localStorage.setItem(L.DRAFT_KEY,JSON.stringify(model.map));if(sourceFilename)localStorage.setItem(filenameKey,sourceFilename);else localStorage.removeItem(filenameKey);$('save-status').textContent='● Сохранено';$('save-status').className='valid';return true;}catch(error){$('save-status').textContent='Не сохранено';$('save-status').className='invalid';toast('Не удалось сохранить в браузере. Используйте экспорт файла.');return false;}}
 function changed(){previewDirty=true;pickBounds=null;save();renderPanels();invalidate();}
 function edit(fn){try{if(model.change(fn))changed();else renderPanels();}catch(error){toast(error.message);renderPanels();}}
 function selectTool(value){finishGesture();tool=value;moveObject=null;for(const button of document.querySelectorAll('[data-tool]'))button.setAttribute('aria-pressed',String(button.dataset.tool===tool));$('active-tool').textContent=tools[tool]?.label||'Переместить';$('conveyor-brush').hidden=tool!=='conveyor';$('spike-brush').hidden=tool!=='spikes';$('torch-brush').hidden=tool!=='torch';refreshHover();invalidate();}
@@ -92,6 +94,11 @@ function field(card,label,value,options,onChange){
   if(focused)$(control.id)?.focus({preventScroll:true});
  };row.append(control);card.append(row);return control;
 }
+function colorRadios(card,title,value,choices,onChange){
+ const group=element('fieldset',undefined,'block-colors'),options=element('div',undefined,'color-options');group.append(element('legend',title));
+ for(const [v,name,color] of choices){const label=element('label',undefined,'color-swatch'),input=element('input');label.style.setProperty('--swatch',color);label.title=name;input.type='radio';input.name='color-'+card.dataset.object;input.value=String(v);input.checked=String(v)===String(value);input.setAttribute('aria-label',name);input.onchange=()=>{const focused=document.activeElement===input;const nextName=onChange(v)||input.name;if(focused)document.querySelector('#properties input[name="'+nextName+'"][value="'+v+'"]')?.focus({preventScroll:true});};label.append(input);options.append(label);}
+ group.append(options);card.append(group);
+}
 function renderProperties(){
  const root=$('properties');root.replaceChildren();$('selected-coords').textContent=selected?`${selected.x} / ${selected.y??0} / ${selected.z}`:'—';
  if(!selected){root.append(element('p','Выберите клетку на карте.','empty-state'));return;}
@@ -104,6 +111,7 @@ function renderProperties(){
   let label=labels[key];if(key==='blocks'&&p.color!==undefined)label='Энергетический блок';if(key==='spawns'||key==='goals')label+=` · ${names[index]}`;if(key==='pickups')label=p.kind==='shield'?'Деревянный щит':'Железный меч';if(key==='walls'&&p.half<.4)label='Факел';
   head.append(element('span',key==='goals'?L.characters[index].glyph:key==='spawns'?'▣':key==='archers'?'☠':key==='pickups'?(p.kind==='shield'?'◈':'⚔'):'◇','marker'),element('span',label));card.append(head);
   const set=(property,value)=>edit(map=>{map[key][index][property]=value;});
+  if(key==='spawns'||key==='goals')colorRadios(card,'Цвет',index,L.characters.map((c,i)=>[i,c.name,c.color]),v=>{edit(map=>{const target=Number(v);[map[key][index],map[key][target]]=[map[key][target],map[key][index]];});return 'color-'+key+'-'+v;});
   if(key==='blocks')for(const axis of ['x','y','z'])field(card,axis.toUpperCase(),p[axis],{min:axis==='y'?-2:0,max:axis==='y'?12:model.map.size-1},value=>{const q={...p,[axis]:value};try{if(model.move('blocks',index,q.x,q.z,q.y)){selected=q;changed();}}catch(error){toast(error.message);renderPanels();}});
   if(key==='blocks'){
    const palette=element('fieldset',undefined,'block-colors');palette.append(element('legend','Цвет блока'));const options=element('div',undefined,'color-options');
@@ -131,7 +139,7 @@ function renderProperties(){
    field(card,'Задержка, сек',p.offset,{min:0,max:5.8,step:.1},v=>set('offset',v));
   }
   if(key==='portals'){
-   field(card,'Цвет портала',p.color,{values:L.portalColors.map(p=>[p.id,p.name])},v=>set('color',v));
+   colorRadios(card,'Цвет портала',p.color,L.portalColors.map(p=>[p.id,p.name,p.color]),v=>set('color',v));
    const chain=model.map.portals.filter(q=>q.color===p.color),order=chain.indexOf(p)+1;
    field(card,'Порядок в цепочке',order,{min:1,max:chain.length},v=>{try{if(model.orderPortal(index,v)){changed();document.querySelector('#properties [data-object^="portals-"] input')?.focus({preventScroll:true});}}catch(error){toast(error.message);renderPanels();}});
    card.append(element('p',chain.length>1?`Переход ${order} → ${order%chain.length+1}`:'Добавьте ещё портал этого цвета.','empty-state'));
@@ -305,15 +313,15 @@ $('undo').onclick=()=>{finishGesture();if(model.undo()){moveObject=null;selected
 $('level-name').onchange=event=>edit(map=>{map.name=event.target.value.trim()||'Без названия';});
 $('map-size').replaceChildren(...Array.from({length:9},(_,i)=>{const option=element('option',`${i+8} × ${i+8}`);option.value=i+8;return option;}));
 $('map-size').onchange=event=>{if(model.resize(Number(event.target.value))){selected=null;changed();fit();}};
-function replaceMap(map){finishGesture();if(model.load(L.voxelize(map))){selected=null;moveObject=null;expandedIssues=false;changed();fit();}}
-$('new').onclick=()=>replaceMap(L.blank());$('original').onclick=()=>replaceMap(L.defaultLevel());
+function replaceMap(map,filename=sourceFilename){finishGesture();const changedMap=model.load(L.voxelize(map));sourceFilename=filename;if(changedMap){selected=null;moveObject=null;expandedIssues=false;changed();fit();}else save();}
+$('new').onclick=()=>replaceMap(L.blank(),null);$('original').onclick=()=>replaceMap(L.defaultLevel(),globalThis.JellyLevelCatalog?.defaultLevel||null);
 $('validate').onclick=()=>{expandedIssues=!expandedIssues;renderIssues();if(!L.issues(model.map).length)toast('Уровень готов к запуску.');};
 $('export').onclick=()=>{
- const blob=new Blob([JSON.stringify(model.map,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),link=element('a');link.href=url;link.download=(model.map.name.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').trim()||'level')+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);toast('Уровень экспортирован.');
+ const blob=new Blob([JSON.stringify(model.map,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),link=element('a');link.href=url;link.download=sourceFilename||(model.map.name.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').trim()||'level')+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);toast('Уровень экспортирован.');
 };
 $('import').onclick=()=>$('file').click();$('file').onchange=async event=>{
  const file=event.target.files[0];if(!file)return;
- try{if(file.size>1024*1024)throw new Error('Файл слишком большой (максимум 1 МБ).');const imported=L.read(await file.text());replaceMap(imported);toast('Уровень импортирован.');}catch(error){toast('Импорт не выполнен: '+error.message);}event.target.value='';
+ try{if(file.size>1024*1024)throw new Error('Файл слишком большой (максимум 1 МБ).');const imported=L.read(await file.text());replaceMap(imported,file.name);toast('Уровень импортирован.');}catch(error){toast('Импорт не выполнен: '+error.message);}event.target.value='';
 };
 $('play').onclick=()=>{
  finishGesture();const errors=L.issues(model.map);if(errors.length){expandedIssues=true;renderIssues();toast('Перед запуском исправьте замечания в панели уровня.');$('validate').focus();return;}
