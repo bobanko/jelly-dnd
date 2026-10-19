@@ -1,7 +1,6 @@
 {
   "version": 1,
   "name": "First Steps",
-  "xxname": "ds-1",
   "size": 16,
   "blocks": [
     {
@@ -68,16 +67,6 @@
       "x": 5,
       "z": 8,
       "y": 1
-    },
-    {
-      "x": 5,
-      "z": 7,
-      "y": 1
-    },
-    {
-      "x": 5,
-      "z": 7,
-      "y": 2
     },
     {
       "x": 5,
@@ -153,6 +142,16 @@
   "portals": [],
   "conveyors": [],
   "crates": [],
-  "archers": [],
+  "archers": [
+    {
+      "x": 5,
+      "z": 7,
+      "y": 0,
+      "dx": 1,
+      "dz": 0,
+      "interval": 1,
+      "firstShot": 0.1
+    }
+  ],
   "pickups": []
 }
