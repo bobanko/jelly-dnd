@@ -49,8 +49,8 @@ test('closed bridges cause a fall; powered bridges hold grounded cubes only',()=
  const make=()=>new World(floor,[{x:1,z:0,plate:0}],[{x:0,z:2}]);
  const closed=make(),a=[body(0,0)];for(let n=0;n<90&&a[0].state!=='falling';n++)closed.step(a,[{x:1,z:0}]);assert.equal(a[0].state,'falling');
  const w=make(),b=[body(0,0),body(.1,2.1)];advance(w,b,[{x:1,z:0}],45);assert.ok(b[0].x>.5);assert.equal(b[0].state,'alive');
- b[1].state='falling';w.refresh(b);assert.equal(w.active(0,b),false);assert.equal(w.held.has(0),true);
- advance(w,b,[{x:1,z:0}],60);assert.ok(b[0].x>1.9);assert.equal(w.held.has(0),false);
+ b[1].state='falling';w.refresh(b);assert.equal(w.active(0,b),false);assert.equal(w.held.has(0),false);
+ w.step(b,[]);assert.equal(b[0].state,'falling');
 });
 test('respawn finds a free nearby tile when the starting point is occupied',()=>{
  const w=arena(),a=body(2,2),b=body(2,2);Object.assign(a,{state:'dead',spawn:{x:2,z:2},respawnTimer:0,y:-4,deaths:1});

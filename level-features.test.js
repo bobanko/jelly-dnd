@@ -170,14 +170,13 @@ test('bridge motion is independent of step size and mid-motion snapshots preserv
  a.world.resetFeatures();assert.equal(a.world.bridges[0].progress,0);assert.equal(a.world.bridges[0].velocity,0);
 });
 
-test('a crossing jelly holds the bridge open until it reaches the opposite bank',()=>{
+test('releasing the button retracts an occupied bridge and the crossing jelly falls',()=>{
  const g=scene([[2,2,0],[6,5.1,0]]);g.world.plates.push({x:2,z:2});g.world.bridges.push({x:6,z:6,plate:0});
  g.step([],160);assert.equal(g.world.bridges[0].progress,1);
  g.step([{}, {x:0,z:1}],60);g.step([],35);
  assert.ok(Math.abs(g.players[1].z-6)<.5);assert.equal(g.players[1].state,'alive');
- g.soft.translate(g.players[0],1,0,0,true);g.step([],30);
- assert.equal(g.world.held.has(0),true);assert.equal(g.world.bridges[0].progress,1);
- g.step([{}, {x:0,z:1}],65);g.step([],180);
- assert.equal(g.players[1].state,'alive');assert.equal(g.players[1].deaths,0);
+ g.soft.translate(g.players[0],1,0,0,true);g.step([],1);
+ assert.equal(g.world.held.has(0),false);assert.ok(g.world.bridges[0].progress<1);
+ const events=g.step([],180);assert.ok(events.some(e=>e.type==='fall'&&e.player===1));
  assert.equal(g.world.bridges[0].progress,0);
 });

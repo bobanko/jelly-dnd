@@ -149,10 +149,36 @@
   return {definition:map,floor,world,soft,start,players,crates,bodies:[...players,...crates],plates,bridges,goals:map.goals.flatMap((p,slot)=>p?[{...p,slot}]:[])};
  }
  function forGame(storage,search=''){
+  const standard=/(?:^|[?&])level=([1-5])(?:&|$)/.exec(search);
+  if(standard)return read(standardLevel(Number(standard[1])));
   if(!/(?:^|[?&])level=editor(?:&|$)/.test(search))return read(defaultLevel());
   const saved=storage?.getItem(PLAY_KEY);if(!saved)throw new Error('Тестовый уровень не найден. Откройте редактор и нажмите «Играть».');
   const map=read(saved),errors=issues(map);if(errors.length)throw new Error(errors.join('\n'));return map;
  }
- const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame,droneOrigin};
+ const standardNames=['First Steps','Helping Hands','True Colors','Through the Rift','The Sunken Sanctum'];
+ function standardLevel(id){
+  if(id===5){const map=defaultLevel();map.name=standardNames[4];return map;}
+  const map=blank();map.size=8;map.name=standardNames[id-1]||standardNames[0];
+  for(let x=1;x<=6;x++)for(let z=1;z<=6;z++)map.blocks.push({x,y:0,z});
+  map.spawns=[{x:2,y:0,z:5},{x:5,y:0,z:5},null,null];
+  map.goals=[{x:2,y:0,z:2},{x:5,y:0,z:2},null,null];
+  if(id===2){
+   map.blocks=map.blocks.filter(p=>p.z!==3);
+   map.plates=[{id:'bridge',x:2,y:0,z:4,color:'green'}];
+   map.bridges=[{x:2,y:0,z:3,plate:'bridge'},{x:5,y:0,z:3,plate:'bridge'}];
+   map.blocks.push({x:2,y:0,z:3},{x:5,y:0,z:3});
+   map.crates=[{x:3,y:0,z:4}];
+  }
+  if(id===3){
+   for(let x=1;x<=6;x++)map.blocks.push({x,y:1,z:3,color:x<=3?0:1});
+  }
+  if(id===4){
+   map.blocks=map.blocks.filter(p=>p.z!==3);
+   map.portals=[{x:2,y:0,z:4,color:'violet'},{x:2,y:0,z:2,color:'violet'},{x:5,y:0,z:4,color:'amber'},{x:5,y:0,z:2,color:'amber'}];
+   map.goals=[{x:3,y:0,z:1},{x:4,y:0,z:1},null,null];
+  }
+  return map;
+ }
+ const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame,droneOrigin,standardNames,standardLevel};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyLevels=api;
 })(globalThis);

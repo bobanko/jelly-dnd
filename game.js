@@ -1,16 +1,17 @@
 'use strict';
 const tr=key=>globalThis.JellyI18n?.t(key)??key;
-let menuOpen=false,hasPlayed=false,menuHelp=false,menuSelected=0;
+let menuOpen=false,hasPlayed=false,menuHelp=false,menuLevelSelect=false,menuSelected=0;
 let levelIntroRemaining=0;
+let winShown=false,winSelected=0;
 const canvas=document.querySelector('#scene');
 const reducedMotion=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
 let W,H,DPR,scale,angle=0,targetAngle=0,last=0,time=0,moves=0,history=[],won=false,finishHold=0,audioOn=false,audio;
-const WIN_HOLD_SECONDS=3;
+const WIN_HOLD_SECONDS=1;
 const N=12, colors=JellyLevels.characters.map(p=>p.color),names=JellyLevels.characters.map(p=>p.name);
 let zoom=1,fpsTime=0,fpsFrames=0;
 let mapError=null,definition;
-try{const search=globalThis.location?.search||'';definition=JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.defaultLevel());}
+try{let search=globalThis.location?.search||'';const requested=/(?:^|[?&])level=([1-5])(?:&|$)/.exec(search);if(requested&&globalThis.JellyProgress&&!JellyProgress.canPlay(Number(requested[1]))){search='?level=1';globalThis.history.replaceState(null,'',search);}definition=JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.defaultLevel());}
 const runtime=JellyLevels.instantiate(definition,JellyPhysics,JellySoftBody);
 const {start,players,crates,bodies,plates,goals,bridges,floor,world,soft}=runtime;
 let followedPlayer=0;
@@ -50,6 +51,8 @@ function woodHit(broken=false){
 }
 function updateUI(){
  document.querySelector('#moves').textContent=String(moves).padStart(2,'0');document.querySelector('#win').hidden=!won;
+ document.body?.classList.toggle('level-won',won);
+ if(won&&!winShown&&globalThis.JellyI18n){refreshWin();selectWinItem(0);}winShown=won;
  const lost=players.findIndex(p=>!JellyPhysics.alive(p)),moving=world.lifts.some(l=>Math.abs(l.target-l.height)>.01&&players.some(p=>Math.abs(p.x-l.x)<.4&&Math.abs(p.z-l.z)<.4));
  document.querySelector('#status').textContent=won?tr('Все руны пробуждены'):lost>=0?`${tr(names[players[lost].slot])} ${players[lost].state==='falling'?tr('падает…'):players[lost].deathReason==='spikes'?tr('погиб на шипах. Возрождение…'):tr('возрождается…')}`:finishHold>0?tr('Рунические печати наполняются светом…'):players.some(p=>p.portalBlocked)?tr('Выход портала занят'):moving?tr('Лифт поднимается'):players.some(p=>p.portalFlash>0)?tr('Магический переход'):active(0)||active(1)?tr('Магический мост поднят'):tr('Святилище ждёт вас');
 }
@@ -100,7 +103,7 @@ function simulate(dt){
   }
   const allFinished=players.length>0&&players.every(p=>world.goalActive(goals.find(g=>g.slot===p.slot),p)&&Math.hypot(p.vx,p.vz)<.25);
   finishHold=allFinished?Math.min(WIN_HOLD_SECONDS,finishHold+JellyPhysics.STEP):0;
-  if(finishHold>=WIN_HOLD_SECONDS-1e-9){finishHold=WIN_HOLD_SECONDS;won=true;players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);}
+  if(finishHold>=WIN_HOLD_SECONDS-1e-9){finishHold=WIN_HOLD_SECONDS;won=true;players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);const current=/(?:^|[?&])level=([1-5])(?:&|$)/.exec(globalThis.location?.search||'');if(current&&globalThis.JellyProgress){JellyProgress.complete(Number(current[1]));updateLevelLocks();}}
   level.finishProgress=finishHold/WIN_HOLD_SECONDS;
   accumulator-=JellyPhysics.STEP;
  }
@@ -114,6 +117,7 @@ addEventListener('keydown',e=>{
  // Physical positions stay the same across layouts, Caps Lock and layout changes while held.
  const k=e.code;
  if(menuOpen){handleMenuKey(e);return;}
+ if(won&&globalThis.JellyI18n){handleWinKey(e);return;}
  if(k==='Escape'){e.preventDefault();setMenu(!menuOpen);return;}
  if(levelIntroRemaining>0){e.preventDefault();if((k==='Enter'||k==='KeyE')&&!e.repeat)finishLevelIntro();return;}
  if(movementKeys[k]){
@@ -133,7 +137,7 @@ addEventListener('keyup',e=>{const key=e.code;if(movementKeys[key]){e.preventDef
 addEventListener('blur',stopInput);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopInput();});
 
-document.querySelector('#reset').onclick=reset;document.querySelector('#again').onclick=reset;
+document.querySelector('#reset').onclick=reset;document.querySelector('#again').onclick=()=>{reset();if(globalThis.JellyI18n)showLevelIntro();};
 document.querySelector('#sound').onclick=e=>{
  audioOn=!audioOn;const button=e.currentTarget;
  button.setAttribute('aria-pressed',String(audioOn));button.setAttribute('aria-label',audioOn?tr('Выключить звук'):tr('Включить звук'));button.title=audioOn?tr('Выключить звук'):tr('Включить звук');tone(400);
@@ -191,22 +195,36 @@ function refreshLanguage(){
  const sound=document.querySelector('#sound');sound.title=tr(audioOn?'Выключить звук':'Включить звук');sound.setAttribute('aria-label',sound.title);
  if(globalThis.location?.search?.includes('level=editor')){document.querySelector('#editor-link').textContent=tr('← В редактор');document.querySelector('.chapter').textContent=tr('ТЕСТ УРОВНЯ');}
  if(globalThis.JellyI18n)document.querySelector('#play').textContent=tr(hasPlayed?'resume':'play');
+ if(globalThis.JellyI18n){const match=/(?:^|[?&])level=([1-5])(?:&|$)/.exec(globalThis.location?.search||'');if(match){document.querySelector('.chapter').textContent=String(match[1]).padStart(2,'0')+' / '+tr(definition.name);document.querySelector('.intro .eyebrow').textContent=String(match[1]).padStart(2,'0');}}
  updateUI();
+ if(won&&globalThis.JellyI18n)refreshWin();
 }
-function menuButtons(){return [...document.querySelectorAll(menuHelp?'#menu-back':'#menu-root button')];}
+function currentStandardLevel(){const match=/(?:^|[?&])level=([1-5])(?:&|$)/.exec(globalThis.location?.search||'');return match?Number(match[1]):0;}
+function refreshWin(){const id=currentStandardLevel();document.querySelector('#win-title').textContent=tr(id===5?'demoComplete':'levelComplete');document.querySelector('#win-level-name').textContent=tr(definition.name);document.querySelector('#win-next').textContent=tr(id&&id<5?'nextLevel':globalThis.location?.search?.includes('level=editor')?'editor':'levels');}
+function selectWinItem(index,focus=true){const buttons=[document.querySelector('#win-next'),document.querySelector('#again')];winSelected=(index+2)%2;buttons.forEach((button,i)=>button.classList.toggle('selected',i===winSelected));if(focus)buttons[winSelected].focus({preventScroll:true});}
+function handleWinKey(e){const k=e.code;if(['ArrowDown','ArrowRight','KeyS','KeyD','ArrowUp','ArrowLeft','KeyW','KeyA','Tab'].includes(k)){e.preventDefault();selectWinItem(winSelected+1);}else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)document.querySelector(winSelected===0?'#win-next':'#again').click();}else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(!e.repeat)setMenu(true);}}
+function updateLevelLocks(){document.querySelectorAll('[data-level]').forEach(button=>{const locked=globalThis.JellyProgress&&!JellyProgress.canPlay(Number(button.dataset.level));button.disabled=!!locked;button.classList.toggle('locked',!!locked);let icon=button.querySelector('.level-lock');if(!icon){icon=document.createElement('span');icon.className='level-lock';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';button.append(icon);}icon.hidden=!locked;});}
+function menuButtons(){return [...document.querySelectorAll(menuHelp?'#menu-back':menuLevelSelect?'#menu-levels button:not(:disabled)':'#menu-root button')];}
 function selectMenuItem(index,focus=true){const buttons=menuButtons();menuSelected=(index+buttons.length)%buttons.length;buttons.forEach((button,i)=>button.classList.toggle('selected',i===menuSelected));if(focus)buttons[menuSelected]?.focus({preventScroll:true});}
-function showMenuHelp(show){menuHelp=show;document.querySelector('#menu-root').hidden=show;document.querySelector('#menu-help').hidden=!show;selectMenuItem(0);}
+function showMenuScreen(screen){menuHelp=screen==='help';menuLevelSelect=screen==='levels';if(menuLevelSelect)updateLevelLocks();document.querySelector('#menu-root').hidden=menuHelp||menuLevelSelect;document.querySelector('#menu-help').hidden=!menuHelp;document.querySelector('#menu-levels').hidden=!menuLevelSelect;document.querySelector('#main-menu').classList.toggle('selecting-level',menuLevelSelect);selectMenuItem(0);}
+function showMenuHelp(show){showMenuScreen(show?'help':'root');}
 function handleMenuKey(e){
  const k=e.code;
  if(['ArrowDown','ArrowRight','KeyS','KeyD','ArrowUp','ArrowLeft','KeyW','KeyA'].includes(k)){e.preventDefault();selectMenuItem(menuSelected+(['ArrowUp','ArrowLeft','KeyW','KeyA'].includes(k)?-1:1));}
  else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)menuButtons()[menuSelected]?.click();}
- else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(e.repeat)return;if(menuHelp)showMenuHelp(false);else if(hasPlayed)setMenu(false);}
+ else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(e.repeat)return;if(menuHelp||menuLevelSelect)showMenuScreen('root');else if(hasPlayed)setMenu(false);}
 }
 function finishLevelIntro(){levelIntroRemaining=0;document.querySelector('#level-intro').hidden=true;document.body?.classList.toggle('level-starting',false);stopInput();}
 function showLevelIntro(){if(mapError)return;levelIntroRemaining=2.6;document.querySelector('#level-intro-title').textContent=tr(definition.name);document.querySelector('#level-intro').hidden=false;document.body.classList.toggle('level-starting',true);stopInput();}
 function setMenu(open){const firstStart=!open&&!hasPlayed&&!globalThis.location?.search?.includes('level=editor');if(menuOpen!==open){sceneRenderer.bridgeKey=undefined;sceneRenderer.propGeometryKey=undefined;sceneRenderer.decorationKey=undefined;}menuOpen=open;stopInput();document.querySelector('#main-menu').hidden=!open;document.body?.classList.toggle('menu-open',open);if(open){if(levelIntroRemaining>0)finishLevelIntro();refreshLanguage();if(globalThis.JellyI18n)showMenuHelp(false);}else{hasPlayed=true;if(firstStart)showLevelIntro();document.querySelector('#menu-button').focus?.({preventScroll:true});}}
 if(globalThis.JellyI18n){
- document.querySelector('#play').onclick=()=>setMenu(false);
+ document.querySelector('#win-next').onclick=()=>{const id=currentStandardLevel();if(id&&id<5)globalThis.location.href='?level='+(id+1)+'&play=1';else if(globalThis.location?.search?.includes('level=editor'))globalThis.location.href='editor.html';else{setMenu(true);showMenuScreen('levels');}};
+ [document.querySelector('#win-next'),document.querySelector('#again')].forEach((button,index)=>{button.addEventListener('pointerenter',()=>selectWinItem(index,false));button.addEventListener('focus',()=>selectWinItem(index,false));});
+ document.querySelector('#play').onclick=()=>hasPlayed?setMenu(false):showMenuScreen('levels');
+ document.querySelector('#show-levels').onclick=()=>showMenuScreen('levels');
+ document.querySelector('#levels-back').onclick=()=>showMenuScreen('root');
+ document.querySelector('#open-editor').onclick=()=>{globalThis.location.href='editor.html';};
+ document.querySelectorAll('[data-level]').forEach(button=>button.onclick=()=>{if(!globalThis.JellyProgress||JellyProgress.canPlay(Number(button.dataset.level)))globalThis.location.href='?level='+button.dataset.level+'&play=1';});
  document.querySelector('#menu-button').onclick=()=>setMenu(true);
  document.querySelector('#show-controls').onclick=()=>showMenuHelp(true);
  document.querySelector('#menu-back').onclick=()=>showMenuHelp(false);
@@ -215,5 +233,5 @@ if(globalThis.JellyI18n){
   button.addEventListener('focus',()=>{const index=menuButtons().indexOf(button);if(index>=0)selectMenuItem(index,false);});
  });
  addEventListener('languagechange',refreshLanguage);refreshLanguage();
- setMenu(!globalThis.location?.search?.includes('level=editor'));
+ setMenu(!globalThis.location?.search?.includes('level=editor')&&!/(?:^|[?&])play=1(?:&|$)/.test(globalThis.location?.search||''));
 }

@@ -169,29 +169,29 @@ test('continuous route activates both plates and finishes the puzzle',()=>{
  g.key('z');assert.equal(g.run('won'),false);
 });
 
-test('victory requires three continuous seconds for solo, duo, three and four active colours',()=>{
+test('victory requires one continuous second for solo, duo, three and four active colours',()=>{
  for(const slots of [[3],[1,3],[0,2,3],[0,1,2,3]]){
-  const g=game({map:partyMap(slots)});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<359;n++)simulate(JellyPhysics.STEP)');
-  assert.equal(g.run('won'),false);assert.ok(g.run('finishHold>2.98&&finishHold<3'));
+  const g=game({map:partyMap(slots)});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<119;n++)simulate(JellyPhysics.STEP)');
+  assert.equal(g.run('won'),false);assert.ok(g.run('finishHold>.98&&finishHold<1'));
   assert.match(g.run('document.querySelector("#status").textContent'),/Рунические печати/);
   assert.ok(g.run('level.finishProgress>.99&&level.finishProgress<1'));
-  g.run('simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),true);assert.equal(g.run('finishHold'),3);assert.equal(g.run('level.finishProgress'),1);assert.equal(g.run('document.querySelector("#win").hidden'),false);
+  g.run('simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),true);assert.equal(g.run('finishHold'),1);assert.equal(g.run('level.finishProgress'),1);assert.equal(g.run('document.querySelector("#win").hidden'),false);
  }
 });
-test('leaving any finish before the deadline cancels the timer and re-entry requires a full three seconds',()=>{
- const g=game({map:partyMap([1,3])});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<240;n++)simulate(JellyPhysics.STEP)');
- assert.ok(g.run('finishHold>1.99'));assert.equal(g.run('won'),false);
+test('leaving any finish before the deadline cancels the timer and re-entry requires a full second',()=>{
+ const g=game({map:partyMap([1,3])});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<60;n++)simulate(JellyPhysics.STEP)');
+ assert.ok(g.run('finishHold>.49'));assert.equal(g.run('won'),false);
  g.run('players[1].x+=.8;soft.reset();simulate(JellyPhysics.STEP)');assert.equal(g.run('finishHold'),0);assert.equal(g.run('level.finishProgress'),0);assert.equal(g.run('won'),false);
- g.run('Object.assign(players[1],goals.find(g=>g.slot===players[1].slot),{vx:0,vz:0});soft.reset();for(let n=0;n<359;n++)simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),false);
+ g.run('Object.assign(players[1],goals.find(g=>g.slot===players[1].slot),{vx:0,vz:0});soft.reset();for(let n=0;n<119;n++)simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),false);
  g.run('simulate(JellyPhysics.STEP)');assert.equal(g.run('won'),true);
 });
 test('death, reset and undo clear pending victory; wrong or unoccupied finishes never start it',()=>{
- const g=game({map:partyMap([0,2])});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<240;n++)simulate(JellyPhysics.STEP)');
- assert.ok(g.run('finishHold>1.99'));
+ const g=game({map:partyMap([0,2])});g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();for(let n=0;n<60;n++)simulate(JellyPhysics.STEP)');
+ assert.ok(g.run('finishHold>.49'));
  g.run('players[1].state="dead";players[1].respawnTimer=10;simulate(JellyPhysics.STEP)');assert.equal(g.run('finishHold'),0);assert.equal(g.run('won'),false);
  g.key('r');assert.equal(g.run('finishHold'),0);assert.equal(g.run('level.finishProgress'),0);
- g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();history.push(snapshot());moves++;for(let n=0;n<240;n++)simulate(JellyPhysics.STEP)');
- assert.ok(g.run('finishHold>1.99'));g.key('z');assert.equal(g.run('finishHold'),0);assert.equal(g.run('level.finishProgress'),0);assert.equal(g.run('won'),false);
+ g.run('players.forEach(p=>Object.assign(p,goals.find(g=>g.slot===p.slot),{vx:0,vz:0}));soft.reset();history.push(snapshot());moves++;for(let n=0;n<60;n++)simulate(JellyPhysics.STEP)');
+ assert.ok(g.run('finishHold>.49'));g.key('z');assert.equal(g.run('finishHold'),0);assert.equal(g.run('level.finishProgress'),0);assert.equal(g.run('won'),false);
  g.key('r');g.run('players.forEach((p,i)=>{const g=goals.find(g=>g.slot===[2,0][i]);p.x=g.x;p.z=g.z;});soft.reset();for(let n=0;n<720;n++)simulate(JellyPhysics.STEP)');assert.equal(g.run('finishHold'),0);assert.equal(g.run('won'),false);
 });
 
