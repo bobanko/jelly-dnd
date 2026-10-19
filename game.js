@@ -3,6 +3,8 @@ const tr=key=>globalThis.JellyI18n?.t(key)??key;
 let menuOpen=false,hasPlayed=false,menuHelp=false,menuLevelSelect=false,menuSelected=0;
 let levelIntroRemaining=0;
 let winShown=false,winSelected=0;
+let restartTransition=null;
+let loadingActive=false,loadingFailed=false,loadingStage='loadingGraphics',autoZoom=1;
 const canvas=document.querySelector('#scene');
 const reducedMotion=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
@@ -15,7 +17,7 @@ try{let search=globalThis.location?.search||'';const requested=/(?:^|[?&])level=
 const runtime=JellyLevels.instantiate(definition,JellyPhysics,JellySoftBody);
 const {start,players,crates,bodies,plates,goals,bridges,floor,world,soft}=runtime;
 let followedPlayer=0;
-const camera={x:start[0].x,z:start[0].z,targetY:start[0].y||0,focusHeight:(start[0].y||0)+.42,mode:'perspective',pitch:55,fov:45};
+const camera={x:start[0].x,z:start[0].z,targetY:start[0].y||0,focusHeight:(start[0].y||0)+.42,mode:'perspective',pitch:55,fov:45,tracking:'group'};
 const cameraPitches={ortho:30,perspective:55};
 const effects=new JellyEffects.System({reducedMotion});
 const level={...runtime,effects,won:false,finishProgress:0,reducedMotion};
@@ -34,7 +36,7 @@ document.querySelectorAll('.member').forEach((member,slot)=>{
  if(i>=0)member.querySelector('kbd').textContent=controlLabels.filter((_,set)=>controlOwners[set]===i).join(' / ');
 });
 let accumulator=0;
-function resize(){W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio,2);scale=Math.min(W/16,H/12)*zoom;}
+function resize(){W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio,2);scale=Math.min(W/16,H/12)*zoom*autoZoom;}
 addEventListener('resize',resize);resize();
 function project(x,y,z){return JellyGPU.projectPoint(JellyGPU.cameraFrame(camera,angle,W,H,scale),x,y,z,W,H);}
 function active(i){return world.active(i,players);}
@@ -65,7 +67,7 @@ function reset(){
  players.forEach(p=>Object.assign(p,{portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null}));
  clearGoalVisuals();
  sceneRenderer.platePress=[];
- focusPlayer(0);camera.x=start[0].x;camera.z=start[0].z;camera.targetY=start[0].y||0;camera.focusHeight=camera.targetY+.42;updateUI();
+ focusPlayer(0);camera.x=start[0].x;camera.z=start[0].z;camera.targetY=start[0].y||0;camera.focusHeight=camera.targetY+.42;if(camera.tracking==='group'&&globalThis.JellySharedCamera)updateGameCamera(0,true);updateUI();
 }
 function undo(){
  if(!history.length)return;
@@ -86,7 +88,7 @@ function inputs(){
  return result;
 }
 function simulate(dt){
- if(menuOpen||levelIntroRemaining>0||won||mapError)return;
+ if(loadingActive||menuOpen||restartTransition||levelIntroRemaining>0||won||mapError)return;
  accumulator+=Math.min(dt,.05);
  const input=inputs();
  while(accumulator>=JellyPhysics.STEP&&!won){
@@ -116,6 +118,8 @@ addEventListener('keydown',e=>{
  if(e.target?.closest?.('select,textarea,input:not([type=range]):not([type=checkbox])')||e.target?.matches?.('input[type=range]')&&/^(Arrow|Home|End|Page)/.test(e.code))return;
  // Physical positions stay the same across layouts, Caps Lock and layout changes while held.
  const k=e.code;
+ if(loadingActive){e.preventDefault();return;}
+ if(restartTransition){e.preventDefault();return;}
  if(menuOpen){handleMenuKey(e);return;}
  if(won&&globalThis.JellyI18n){handleWinKey(e);return;}
  if(k==='Escape'){e.preventDefault();setMenu(!menuOpen);return;}
@@ -129,7 +133,7 @@ addEventListener('keydown',e=>{
   if(/^Digit[1-4]$/.test(k)){e.preventDefault();focusPlayer(players.findIndex(p=>p.slot===Number(k.slice(-1))-1));}
   else if(k==='KeyQ')targetAngle-=Math.PI/2;
   else if(k==='KeyE')targetAngle+=Math.PI/2;
-  else if(k==='KeyR')reset();
+  else if(k==='KeyR')restartLevel();
   else if(k==='KeyZ')undo();
  }
 });
@@ -137,7 +141,21 @@ addEventListener('keyup',e=>{const key=e.code;if(movementKeys[key]){e.preventDef
 addEventListener('blur',stopInput);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopInput();});
 
-document.querySelector('#reset').onclick=reset;document.querySelector('#again').onclick=()=>{reset();if(globalThis.JellyI18n)showLevelIntro();};
+document.querySelector('#reset').onclick=()=>restartLevel();document.querySelector('#again').onclick=()=>restartLevel(true);
+function restartLevel(intro=false){
+ if(!globalThis.JellyI18n){reset();return;}
+ if(restartTransition)return;
+ stopInput();restartTransition={elapsed:0,reset:false,intro};
+ document.querySelector('#restart-fade').hidden=false;document.querySelector('#restart-fade').style.opacity='0';
+}
+function updateRestart(dt){
+ if(!restartTransition)return;
+ const state=restartTransition;state.elapsed+=dt;
+ if(state.elapsed>=.22&&!state.reset){state.reset=true;reset();if(state.intro)showLevelIntro();}
+ const opacity=state.elapsed<.22?state.elapsed/.22:1-(state.elapsed-.22)/.33;
+ document.querySelector('#restart-fade').style.opacity=String(Math.max(0,Math.min(1,opacity)));
+ if(state.elapsed>=.55){restartTransition=null;document.querySelector('#restart-fade').hidden=true;}
+}
 document.querySelector('#sound').onclick=e=>{
  audioOn=!audioOn;const button=e.currentTarget;
  button.setAttribute('aria-pressed',String(audioOn));button.setAttribute('aria-label',audioOn?tr('Выключить звук'):tr('Включить звук'));button.title=audioOn?tr('Выключить звук'):tr('Включить звук');tone(400);
@@ -145,14 +163,12 @@ document.querySelector('#sound').onclick=e=>{
 
 function frame(t){
  const elapsed=Math.max(0,(t-last)/1000),dt=Math.min(elapsed,.05);last=t;time=t/1000;
+ updateRestart(dt);
  if(levelIntroRemaining>0&&!menuOpen&&sceneRenderer.ready){levelIntroRemaining=Math.max(0,levelIntroRemaining-dt);if(levelIntroRemaining===0)finishLevelIntro();}
  angle=reducedMotion?targetAngle:angle+(targetAngle-angle)*(1-Math.exp(-dt*11));
  if(sceneRenderer.ready)simulate(dt);
  effects.step(dt,world,goals,players);
- const follow=players[followedPlayer],tracking=reducedMotion?1:1-Math.exp(-dt*5);
- camera.x+=(follow.rx-camera.x)*tracking;camera.z+=(follow.rz-camera.z)*tracking;
- camera.targetY+=((follow.y||0)-camera.targetY)*tracking;
- camera.focusHeight=(follow.y||0)+.42;
+ updateGameCamera(dt);
  level.won=won;
  if(menuOpen&&menuScene){
   menuScene.animate(dt);
@@ -162,9 +178,24 @@ function frame(t){
  fpsTime+=elapsed;fpsFrames++;if(fpsTime>.5){document.querySelector('#fps').textContent=Math.round(fpsFrames/fpsTime)+' FPS';fpsTime=0;fpsFrames=0;}
  requestAnimationFrame(frame);
 }
-function gpuFailure(message){document.querySelector('#gpu-fallback').hidden=false;document.querySelector('#gpu-status').textContent=message;}
+function updateGameCamera(dt,snap=false){
+ if(camera.tracking==='group'&&globalThis.JellySharedCamera){
+  const target=JellySharedCamera.target(players,definition,camera,angle,W,H),tracking=snap||reducedMotion?1:1-Math.exp(-dt*3);
+  camera.x+=(target.x-camera.x)*tracking;camera.z+=(target.z-camera.z)*tracking;camera.targetY+=(target.targetY-camera.targetY)*tracking;camera.focusHeight=target.focusHeight;
+  const smoothing=snap||reducedMotion?1:1-Math.exp(-dt*(target.zoom<autoZoom?6:1.8));
+  autoZoom+=(target.zoom-autoZoom)*smoothing;
+ }else{
+  const follow=players[followedPlayer],tracking=snap||reducedMotion?1:1-Math.exp(-dt*5);
+  camera.x+=(follow.rx-camera.x)*tracking;camera.z+=(follow.rz-camera.z)*tracking;camera.targetY+=((follow.y||0)-camera.targetY)*tracking;camera.focusHeight=(follow.y||0)+.42;autoZoom=1;
+ }
+ scale=Math.min(W/16,H/12)*zoom*autoZoom;
+}
+function updateLoading(progress,stage){if(!globalThis.JellyI18n)return;loadingActive=true;loadingStage=stage;document.querySelector('#level-intro').hidden=false;document.querySelector('#level-intro').classList.add('loading');document.querySelector('#level-intro-title').textContent=tr(definition.name);document.querySelector('#level-loading').hidden=false;document.querySelector('#loading-status').textContent=tr(stage);document.querySelector('#loading-progress').value=progress;}
+function gpuFailure(message){if(!globalThis.JellyI18n)return;loadingFailed=true;updateLoading(0,'loadingGraphics');document.querySelector('#loading-status').textContent=message;document.querySelector('#loading-progress').hidden=true;document.querySelector('#loading-retry').hidden=false;}
 sceneRenderer.onFailure=gpuFailure;
-sceneRenderer.init().then(()=>{if(mapError){document.querySelector('#gpu-fallback h2').textContent=tr('Не удалось открыть уровень');gpuFailure(mapError);}else document.querySelector('#gpu-fallback').hidden=true;}).catch(error=>gpuFailure(error.message));
+sceneRenderer.onProgress=updateLoading;
+if(globalThis.JellyI18n)updateLoading(0,'loadingGraphics');
+sceneRenderer.init().then(()=>{if(mapError){gpuFailure(mapError);return;}loadingActive=false;if(globalThis.JellyI18n){document.querySelector('#level-loading').hidden=true;document.querySelector('#level-intro').classList.remove('loading');if(levelIntroRemaining>0)showLevelIntro();else document.querySelector('#level-intro').hidden=true;}updateGameCamera(0,true);}).catch(error=>gpuFailure(error.message));
 document.querySelector('#softness').addEventListener('input',e=>{soft.softness=Number(e.target.value);players.forEach(p=>{soft.get(p).sleeping=false;soft.get(p).calm=0;});});
 document.querySelector('#decay').addEventListener('input',e=>soft.decay=Number(e.target.value));
 document.querySelector('#mesh').addEventListener('change',e=>sceneRenderer.mesh=e.target.checked);
@@ -176,12 +207,13 @@ function updateCameraUI(){
  document.querySelector('#camera-fov').disabled=camera.mode!=='perspective';
 }
 document.querySelector('#camera-mode').addEventListener('change',e=>{stopInput();camera.mode=e.target.value;camera.pitch=cameraPitches[camera.mode];updateCameraUI();});
+document.querySelector('#camera-tracking').addEventListener('change',e=>{stopInput();camera.tracking=e.target.value;zoom=1;});
 document.querySelector('#camera-pitch').addEventListener('input',e=>{camera.pitch=Number(e.target.value);cameraPitches[camera.mode]=camera.pitch;updateCameraUI();});
 document.querySelector('#camera-fov').addEventListener('input',e=>{camera.fov=Number(e.target.value);updateCameraUI();});
 updateCameraUI();
 canvas.addEventListener('wheel',e=>{e.preventDefault();if(menuOpen)return;zoom=Math.max(.65,Math.min(1.8,zoom*Math.exp(-e.deltaY*.001)));resize();},{passive:false});
 canvas.addEventListener('pointerdown',e=>{
- if(menuOpen||levelIntroRemaining>0)return;
+ if(menuOpen||restartTransition||levelIntroRemaining>0)return;
  let closest=null,distance=Infinity;
  players.forEach((p,i)=>{const q=project(p.x,.42+(p.y||0),p.z),d=Math.hypot(e.clientX-q.x,e.clientY-q.y);if(q.visible&&JellyPhysics.alive(p)&&d<q.scale*.7&&d<distance){closest=i;distance=d;}});
  if(closest!==null){history.push(snapshot());moves++;soft.poke(players[closest]);tone(240);}
@@ -189,8 +221,17 @@ canvas.addEventListener('pointerdown',e=>{
 requestAnimationFrame(frame);focusPlayer(0);updateUI();
 
 function refreshLanguage(){
+ if(globalThis.JellyI18n){
+  const russian=JellyI18n.language==='ru',title=document.querySelector('#menu-title');
+  title.replaceChildren();const word=document.createElement('span');word.className='jelly-word';
+  [...(russian?'Желейки':'Jelly')].forEach((letter,i)=>{const span=document.createElement('span');span.className='jelly-letter';span.style.color=colors[i%colors.length];span.textContent=letter;word.append(span);});
+  const and=document.createElement('span');and.textContent=russian?' и':' &';title.append(word,and,document.createElement('br'),document.createTextNode(russian?'косточки':'Bones'));
+  title.setAttribute('aria-label',russian?'Желейки и косточки':'Jelly & Bones');document.title=russian?'Желейки и косточки':'Jelly & Bones';
+  document.querySelector('.brand').innerHTML='<span class="brand-icon">✦</span> '+(russian?'ЖЕЛЕЙКИ <i>И</i> КОСТОЧКИ':'JELLY <i>&</i> BONES');
+ }
  document.querySelector('.intro h1').textContent=tr(definition.name);
  if(globalThis.JellyI18n)document.querySelector('#level-intro-title').textContent=tr(definition.name);
+ if(loadingActive&&!loadingFailed)document.querySelector('#loading-status').textContent=tr(loadingStage);
  document.querySelectorAll('.member').forEach((member,slot)=>{if(names[slot])member.querySelector('span').textContent=tr(names[slot]);});
  const sound=document.querySelector('#sound');sound.title=tr(audioOn?'Выключить звук':'Включить звук');sound.setAttribute('aria-label',sound.title);
  if(globalThis.location?.search?.includes('level=editor')){document.querySelector('#editor-link').textContent=tr('← В редактор');document.querySelector('.chapter').textContent=tr('ТЕСТ УРОВНЯ');}
@@ -214,7 +255,7 @@ function handleMenuKey(e){
  else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)menuButtons()[menuSelected]?.click();}
  else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(e.repeat)return;if(menuHelp||menuLevelSelect)showMenuScreen('root');else if(hasPlayed)setMenu(false);}
 }
-function finishLevelIntro(){levelIntroRemaining=0;document.querySelector('#level-intro').hidden=true;document.body?.classList.toggle('level-starting',false);stopInput();}
+function finishLevelIntro(){if(loadingActive)return;levelIntroRemaining=0;document.querySelector('#level-intro').hidden=true;document.body?.classList.toggle('level-starting',false);stopInput();}
 function showLevelIntro(){if(mapError)return;levelIntroRemaining=2.6;document.querySelector('#level-intro-title').textContent=tr(definition.name);document.querySelector('#level-intro').hidden=false;document.body.classList.toggle('level-starting',true);stopInput();}
 function setMenu(open){const firstStart=!open&&!hasPlayed&&!globalThis.location?.search?.includes('level=editor');if(menuOpen!==open){sceneRenderer.bridgeKey=undefined;sceneRenderer.propGeometryKey=undefined;sceneRenderer.decorationKey=undefined;}menuOpen=open;stopInput();document.querySelector('#main-menu').hidden=!open;document.body?.classList.toggle('menu-open',open);if(open){if(levelIntroRemaining>0)finishLevelIntro();refreshLanguage();if(globalThis.JellyI18n)showMenuHelp(false);}else{hasPlayed=true;if(firstStart)showLevelIntro();document.querySelector('#menu-button').focus?.({preventScroll:true});}}
 if(globalThis.JellyI18n){

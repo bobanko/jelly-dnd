@@ -635,14 +635,17 @@
  class Renderer{
   constructor(canvas,soft){this.canvas=canvas;this.soft=soft;this.ready=false;this.error=null;this.mesh=false;this.frames=0;this.errors=[];}
   async init(){
+   this.onProgress?.(.05,'loadingGraphics');
    if(!navigator.gpu)throw Error('В этом браузере нет WebGPU. Откройте игру в актуальном Chrome или Edge с аппаратным ускорением.');
    const adapter=await navigator.gpu.requestAdapter();if(!adapter)throw Error('Браузер не предоставил WebGPU-адаптер. Проверьте аппаратное ускорение.');
    const d=this.device=await adapter.requestDevice();this.adapterInfo=adapter.info;
+   this.onProgress?.(.18,'loadingShaders');
    d.addEventListener('uncapturederror',e=>{this.errors.push(e.error.message);console.error(e.error.message);});
    d.lost.then(info=>{this.ready=false;this.error=info.message||'Соединение с графическим устройством потеряно.';this.onFailure?.(this.error);});
    this.context=this.canvas.getContext('webgpu');this.format=navigator.gpu.getPreferredCanvasFormat();this.context.configure({device:d,format:this.format,alphaMode:'opaque'});
    const module=async(label,code)=>{const m=d.createShaderModule({label,code});const info=await m.getCompilationInfo();const errors=info.messages.filter(x=>x.type==='error');if(errors.length)throw Error(label+': '+errors.map(e=>e.message).join('\n'));return m;};
    const main=await module('Dungeon and candy',shared+skin),deform=await module('Cofactor deformation',compute),finish=await module('Khronos PBR Neutral',post),lattice=await module('XPBD lattice overlay',latticeShader),collider=await module('Level collision overlay',colliderShader);
+   this.onProgress?.(.4,'loadingScene');
    this.uniform=this.buffer(new Float32Array(SCENE_FLOATS),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
    const bindings=surfaceBindings(this.soft);this.bindingCount=bindings.count;
    this.bindBuffer=this.buffer(bindings.vertices,GPUBufferUsage.STORAGE);this.indexBuffer=this.buffer(bindings.indices,GPUBufferUsage.INDEX);this.indexCount=bindings.indices.length;
@@ -684,7 +687,9 @@
    this.colliderBuffer=d.createBuffer({size:256000,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
    this.shadowTexture=d.createTexture({size:[1024,1024],format:'depth32float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});
    this.sampler=d.createSampler({magFilter:'linear',minFilter:'linear'});this.compareSampler=d.createSampler({compare:'less',magFilter:'linear',minFilter:'linear'});
-   [this.stoneTexture,this.woodTexture]=await Promise.all(['dungeon-stone-atlas.png','crate-oak.png'].map(name=>this.loadMaterialTexture('assets/materials/'+name)));
+   this.onProgress?.(.65,'loadingTextures');
+   let texturesLoaded=0;
+   [this.stoneTexture,this.woodTexture]=await Promise.all(['dungeon-stone-atlas.png','crate-oak.png'].map(async name=>{const texture=await this.loadMaterialTexture('assets/materials/'+name);this.onProgress?.(.65+(++texturesLoaded)*.12,'loadingTextures');return texture;}));
    this.materialSampler=d.createSampler({magFilter:'linear',minFilter:'linear',mipmapFilter:'linear',maxAnisotropy:4});
    const materialEntries=[{binding:4,resource:this.stoneTexture.createView()},{binding:5,resource:this.woodTexture.createView()},{binding:6,resource:this.materialSampler}];
    this.sceneGroup=d.createBindGroup({layout:this.sceneLayout,entries:[{binding:0,resource:{buffer:this.uniform}},{binding:1,resource:{buffer:this.deformed}},{binding:2,resource:this.shadowTexture.createView()},{binding:3,resource:this.compareSampler},...materialEntries]});
@@ -697,7 +702,7 @@
    this.bridgeBuffer=d.createBuffer({size:1e6,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
    this.effectBuffer=d.createBuffer({size:4e6,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
    this.decorationBuffer=d.createBuffer({size:2e6,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
-   this.ready=true;return this;
+   this.ready=true;this.onProgress?.(1,'loadingReady');return this;
   }
   buffer(data,usage){const b=this.device.createBuffer({size:Math.max(4,data.byteLength),usage,mappedAtCreation:true});new Uint8Array(b.getMappedRange()).set(new Uint8Array(data.buffer,data.byteOffset,data.byteLength));b.unmap();return b;}
   async loadMaterialTexture(url){
