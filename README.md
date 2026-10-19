@@ -1,5 +1,15 @@
 # Jelly & Bones
 
+## Сборка для itch.io
+
+Запустите `npm.cmd run build` (на macOS/Linux — `npm run build`). Команда проверяет синтаксис и карты, затем создаёт `dist/jelly-and-bones-itch.zip`. При следующей сборке этот архив обновляется.
+
+Загрузите ZIP в проект itch.io с типом HTML и отметьте **This file will be played in the browser**. `index.html` уже находится в корне архива. После изменений кода или JSON-карт повторите команду и замените загруженный ZIP.
+
+В архив входят игра, редактор, каталог и карты из `levels/`, используемые ресурсы из `assets/`. Сервер, Node-зависимости, тесты, Git и локальные служебные файлы исключены. Сборка использует только встроенные возможности Node.js.
+
+Для локальной проверки распакованного билда можно запустить `browser-static-host.cjs` с переменной `STATIC_GAME_ROOT`, указывающей на папку распаковки (для этого теста нужны установленные dev-зависимости и Chrome). Игра требует браузер с WebGPU и рабочим аппаратным ускорением.
+
 A dungeon puzzle with one to four translucent jelly creatures and movable wooden crates. The original chamber uses three creatures; edited maps choose their own party. Version 0.2 replaces the projected Canvas/WebGL scene with a real 3D WebGPU scene and tetrahedral soft-body physics. The visual and physical requirements in jelly-dice.md are adapted to the existing game without dice rolling, dice scoring or table-demo mechanics.
 
 ## Run
