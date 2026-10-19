@@ -8,13 +8,36 @@ const assert=require('node:assert/strict');
  await page.goto('http://localhost:3000/');await page.waitForFunction(()=>sceneRenderer.ready);await page.waitForTimeout(300);
  assert.equal(await page.locator('html').getAttribute('lang'),'en');
  assert.equal(await page.locator('#play').textContent(),'Play');
+ assert.deepEqual(await page.evaluate(()=>menuScene.players.map(p=>p.slot)),[1,2]);
+ const animation=await page.evaluate(()=>{
+  const positions=[new Set(),new Set()];let arrows=false,impact=false;
+  for(let step=0;step<400;step++){
+   menuScene.animate(1/60);
+   menuScene.players.forEach((p,i)=>positions[i].add(p.x.toFixed(2)));
+   arrows ||= menuScene.world.arrows.length>0;
+   impact ||= menuScene.players.some(p=>p.menuImpact>0);
+  }
+  return {moving:positions.every(p=>p.size>10),arrows,impact};
+ });assert.deepEqual(animation,{moving:true,arrows:true,impact:true});
  const before=await page.evaluate(()=>players.map(p=>[p.x,p.z]));await page.keyboard.press('w');await page.waitForTimeout(150);assert.deepEqual(await page.evaluate(()=>players.map(p=>[p.x,p.z])),before);
- await page.screenshot({path:'artifacts/menu-en.png'});
+ await page.locator('#play').focus();await page.screenshot({path:'artifacts/menu-en.png'});
+ await page.keyboard.press('ArrowDown');assert.equal(await page.locator('#show-controls').evaluate(n=>n.classList.contains('selected')),true);
+ await page.keyboard.press('e');assert.equal(await page.locator('#menu-help').isVisible(),true);
+ await page.keyboard.press('q');assert.equal(await page.locator('#menu-help').isVisible(),false);
+ await page.keyboard.press('s');await page.keyboard.press('Enter');assert.equal(await page.locator('#menu-help').isVisible(),true);
+ await page.keyboard.press('Escape');assert.equal(await page.locator('#menu-root').isVisible(),true);
  await page.locator('[data-language=ru]').click();assert.equal(await page.locator('#play').textContent(),'Играть');
  await page.reload();assert.equal(await page.locator('html').getAttribute('lang'),'ru');
  await page.locator('[data-language=en]').click();await page.locator('#play').click();assert.equal(await page.locator('#main-menu').isVisible(),false);
+ assert.equal(await page.locator('#level-intro').isVisible(),true);
+ assert.equal(await page.locator('#level-intro-title').textContent(),'The Sunken Sanctum');
+ await page.keyboard.press('w');assert.equal(await page.evaluate(()=>moves),0);
+ await page.waitForTimeout(650);await page.screenshot({path:'artifacts/level-intro.png'});
+ await page.keyboard.press('Enter');assert.equal(await page.locator('#level-intro').isVisible(),false);
  await page.keyboard.down('w');await page.waitForTimeout(200);await page.keyboard.up('w');assert.ok(await page.evaluate(()=>moves>0));
  await page.keyboard.press('Escape');assert.equal(await page.locator('#play').textContent(),'Resume');
+ await page.keyboard.press('q');assert.equal(await page.locator('#main-menu').isVisible(),false);
+ await page.keyboard.press('Escape');
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'artifacts/menu-mobile.png'});assert.equal(await page.locator('#play').isVisible(),true);
  await page.goto('http://localhost:3000/?level=editor');assert.equal(await page.locator('#main-menu').isVisible(),false);
  assert.deepEqual(errors,[]);console.log('PASS menu, paused input, languages, persistence, resume, mobile and editor launch');

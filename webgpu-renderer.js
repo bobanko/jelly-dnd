@@ -299,7 +299,14 @@
  @group(0) @binding(6) var materialSampler:sampler;
  ${runeGlyphShader}
  @vertex fn solidVS(@location(0) p:vec3f,@location(1) n:vec3f,@location(2) color:vec3f,@location(3) material:vec3f)->Out{
-  var o:Out;o.clip=scene.vp*vec4f(p,1);o.world=p;o.normal=n;o.color=color;o.material=material.x;o.local=vec3f(material.y,0,material.z);return o;
+  var position=p;
+  if(material.x>3.5&&material.x<4.5){
+   let flicker=scene.options.z;
+   position.x+=sin(flicker*9.+p.y*8.)*.018;
+   position.y+=sin(flicker*13.+p.y*11.)*.025;
+   position.z+=cos(flicker*8.+p.y*9.)*.012;
+  }
+  var o:Out;o.clip=scene.vp*vec4f(position,1);o.world=position;o.normal=n;o.color=color;o.material=material.x;o.local=vec3f(material.y,0,material.z);return o;
  }
  @vertex fn softVS(@builtin(vertex_index) id:u32,@builtin(instance_index) instance:u32)->Out{
   let v=vertices[id+instance*1350u];var o:Out;o.clip=scene.vp*v.position;o.world=v.position.xyz;o.normal=v.normal.xyz;

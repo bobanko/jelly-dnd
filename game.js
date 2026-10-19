@@ -1,6 +1,7 @@
 'use strict';
 const tr=key=>globalThis.JellyI18n?.t(key)??key;
-let menuOpen=false,hasPlayed=false;
+let menuOpen=false,hasPlayed=false,menuHelp=false,menuSelected=0;
+let levelIntroRemaining=0;
 const canvas=document.querySelector('#scene');
 const reducedMotion=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
@@ -17,6 +18,7 @@ const camera={x:start[0].x,z:start[0].z,targetY:start[0].y||0,focusHeight:(start
 const cameraPitches={ortho:30,perspective:55};
 const effects=new JellyEffects.System({reducedMotion});
 const level={...runtime,effects,won:false,finishProgress:0,reducedMotion};
+const menuScene=typeof createMenuScene==='function'?createMenuScene():null;
 document.querySelector('.intro h1').textContent=definition.name;
 document.querySelectorAll('.camera-player').forEach((key,slot)=>key.hidden=!players.some(p=>p.slot===slot));
 if(globalThis.location?.search?.includes('level=editor')){document.querySelector('#editor-link').textContent=tr('← В редактор');document.querySelector('.chapter').textContent=tr('ТЕСТ УРОВНЯ');}
@@ -81,7 +83,7 @@ function inputs(){
  return result;
 }
 function simulate(dt){
- if(menuOpen||won||mapError)return;
+ if(menuOpen||levelIntroRemaining>0||won||mapError)return;
  accumulator+=Math.min(dt,.05);
  const input=inputs();
  while(accumulator>=JellyPhysics.STEP&&!won){
@@ -111,8 +113,9 @@ addEventListener('keydown',e=>{
  if(e.target?.closest?.('select,textarea,input:not([type=range]):not([type=checkbox])')||e.target?.matches?.('input[type=range]')&&/^(Arrow|Home|End|Page)/.test(e.code))return;
  // Physical positions stay the same across layouts, Caps Lock and layout changes while held.
  const k=e.code;
+ if(menuOpen){handleMenuKey(e);return;}
  if(k==='Escape'){e.preventDefault();setMenu(!menuOpen);return;}
- if(menuOpen)return;
+ if(levelIntroRemaining>0){e.preventDefault();if((k==='Enter'||k==='KeyE')&&!e.repeat)finishLevelIntro();return;}
  if(movementKeys[k]){
   e.preventDefault();if(won||e.repeat||heldKeys.has(k)||!JellyPhysics.alive(players[movementKeys[k][0]]))return;
   focusPlayer(movementKeys[k][0]);
@@ -138,6 +141,7 @@ document.querySelector('#sound').onclick=e=>{
 
 function frame(t){
  const elapsed=Math.max(0,(t-last)/1000),dt=Math.min(elapsed,.05);last=t;time=t/1000;
+ if(levelIntroRemaining>0&&!menuOpen&&sceneRenderer.ready){levelIntroRemaining=Math.max(0,levelIntroRemaining-dt);if(levelIntroRemaining===0)finishLevelIntro();}
  angle=reducedMotion?targetAngle:angle+(targetAngle-angle)*(1-Math.exp(-dt*11));
  if(sceneRenderer.ready)simulate(dt);
  effects.step(dt,world,goals,players);
@@ -145,7 +149,12 @@ function frame(t){
  camera.x+=(follow.rx-camera.x)*tracking;camera.z+=(follow.rz-camera.z)*tracking;
  camera.targetY+=((follow.y||0)-camera.targetY)*tracking;
  camera.focusHeight=(follow.y||0)+.42;
- level.won=won;sceneRenderer.render(level,players,camera,angle,reducedMotion?0:time,scale,dt);
+ level.won=won;
+ if(menuOpen&&menuScene){
+  menuScene.animate(dt);
+  const menuCamera={x:3.1,z:4.8,targetY:.2,focusHeight:.5,mode:'ortho',pitch:24,fov:45};
+  sceneRenderer.render(menuScene,menuScene.players,menuCamera,-.15,reducedMotion?0:time,Math.min(W/7.5,H/5),dt);
+ }else sceneRenderer.render(level,players,camera,angle,reducedMotion?0:time,scale,dt);
  fpsTime+=elapsed;fpsFrames++;if(fpsTime>.5){document.querySelector('#fps').textContent=Math.round(fpsFrames/fpsTime)+' FPS';fpsTime=0;fpsFrames=0;}
  requestAnimationFrame(frame);
 }
@@ -168,7 +177,7 @@ document.querySelector('#camera-fov').addEventListener('input',e=>{camera.fov=Nu
 updateCameraUI();
 canvas.addEventListener('wheel',e=>{e.preventDefault();if(menuOpen)return;zoom=Math.max(.65,Math.min(1.8,zoom*Math.exp(-e.deltaY*.001)));resize();},{passive:false});
 canvas.addEventListener('pointerdown',e=>{
- if(menuOpen)return;
+ if(menuOpen||levelIntroRemaining>0)return;
  let closest=null,distance=Infinity;
  players.forEach((p,i)=>{const q=project(p.x,.42+(p.y||0),p.z),d=Math.hypot(e.clientX-q.x,e.clientY-q.y);if(q.visible&&JellyPhysics.alive(p)&&d<q.scale*.7&&d<distance){closest=i;distance=d;}});
  if(closest!==null){history.push(snapshot());moves++;soft.poke(players[closest]);tone(240);}
@@ -177,16 +186,34 @@ requestAnimationFrame(frame);focusPlayer(0);updateUI();
 
 function refreshLanguage(){
  document.querySelector('.intro h1').textContent=tr(definition.name);
+ if(globalThis.JellyI18n)document.querySelector('#level-intro-title').textContent=tr(definition.name);
  document.querySelectorAll('.member').forEach((member,slot)=>{if(names[slot])member.querySelector('span').textContent=tr(names[slot]);});
  const sound=document.querySelector('#sound');sound.title=tr(audioOn?'Выключить звук':'Включить звук');sound.setAttribute('aria-label',sound.title);
  if(globalThis.location?.search?.includes('level=editor')){document.querySelector('#editor-link').textContent=tr('← В редактор');document.querySelector('.chapter').textContent=tr('ТЕСТ УРОВНЯ');}
  if(globalThis.JellyI18n)document.querySelector('#play').textContent=tr(hasPlayed?'resume':'play');
  updateUI();
 }
-function setMenu(open){menuOpen=open;stopInput();document.querySelector('#main-menu').hidden=!open;document.body?.classList.toggle('menu-open',open);if(open)refreshLanguage();else hasPlayed=true;}
+function menuButtons(){return [...document.querySelectorAll(menuHelp?'#menu-back':'#menu-root button')];}
+function selectMenuItem(index,focus=true){const buttons=menuButtons();menuSelected=(index+buttons.length)%buttons.length;buttons.forEach((button,i)=>button.classList.toggle('selected',i===menuSelected));if(focus)buttons[menuSelected]?.focus({preventScroll:true});}
+function showMenuHelp(show){menuHelp=show;document.querySelector('#menu-root').hidden=show;document.querySelector('#menu-help').hidden=!show;selectMenuItem(0);}
+function handleMenuKey(e){
+ const k=e.code;
+ if(['ArrowDown','ArrowRight','KeyS','KeyD','ArrowUp','ArrowLeft','KeyW','KeyA'].includes(k)){e.preventDefault();selectMenuItem(menuSelected+(['ArrowUp','ArrowLeft','KeyW','KeyA'].includes(k)?-1:1));}
+ else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)menuButtons()[menuSelected]?.click();}
+ else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(e.repeat)return;if(menuHelp)showMenuHelp(false);else if(hasPlayed)setMenu(false);}
+}
+function finishLevelIntro(){levelIntroRemaining=0;document.querySelector('#level-intro').hidden=true;document.body?.classList.toggle('level-starting',false);stopInput();}
+function showLevelIntro(){if(mapError)return;levelIntroRemaining=2.6;document.querySelector('#level-intro-title').textContent=tr(definition.name);document.querySelector('#level-intro').hidden=false;document.body.classList.toggle('level-starting',true);stopInput();}
+function setMenu(open){const firstStart=!open&&!hasPlayed&&!globalThis.location?.search?.includes('level=editor');if(menuOpen!==open){sceneRenderer.bridgeKey=undefined;sceneRenderer.propGeometryKey=undefined;sceneRenderer.decorationKey=undefined;}menuOpen=open;stopInput();document.querySelector('#main-menu').hidden=!open;document.body?.classList.toggle('menu-open',open);if(open){if(levelIntroRemaining>0)finishLevelIntro();refreshLanguage();if(globalThis.JellyI18n)showMenuHelp(false);}else{hasPlayed=true;if(firstStart)showLevelIntro();document.querySelector('#menu-button').focus?.({preventScroll:true});}}
 if(globalThis.JellyI18n){
  document.querySelector('#play').onclick=()=>setMenu(false);
  document.querySelector('#menu-button').onclick=()=>setMenu(true);
+ document.querySelector('#show-controls').onclick=()=>showMenuHelp(true);
+ document.querySelector('#menu-back').onclick=()=>showMenuHelp(false);
+ document.querySelectorAll('#main-menu button').forEach(button=>{
+  button.addEventListener('pointerenter',()=>{const index=menuButtons().indexOf(button);if(index>=0)selectMenuItem(index,false);});
+  button.addEventListener('focus',()=>{const index=menuButtons().indexOf(button);if(index>=0)selectMenuItem(index,false);});
+ });
  addEventListener('languagechange',refreshLanguage);refreshLanguage();
  setMenu(!globalThis.location?.search?.includes('level=editor'));
 }

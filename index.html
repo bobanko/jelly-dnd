@@ -15,11 +15,12 @@
 </fieldset></details>
 <section id="gpu-fallback" role="status"><span class="eyebrow">JELLY & BONES</span><h2>Пробуждаем подземелье</h2><p id="gpu-status">Подготавливаем свет и желе…</p><button onclick="location.reload()">Попробовать снова</button> <a class="editor-link" href="editor.html">Редактор</a></section>
 <footer><div class="controls"><span><kbd class="camera-player">1</kbd><kbd class="camera-player">2</kbd><kbd class="camera-player">3</kbd><kbd class="camera-player" hidden>4</kbd> Камера</span><span><kbd>Q</kbd><kbd>E</kbd> Поворот</span><span><kbd>Z</kbd> Отменить</span><span><kbd>R</kbd> Сначала</span></div><div class="moves"><b id="moves">00</b> ДВИЖЕНИЙ <span>•</span> <button id="reset">↻ Сбросить</button></div></footer>
+<section id="level-intro" hidden aria-labelledby="level-intro-title"><h2 id="level-intro-title"></h2></section>
 <section id="main-menu" aria-labelledby="menu-title"><div class="menu-panel">
-<div class="eyebrow">JELLY PHYSICS · CO-OP · ANCIENT CONTRAPTIONS</div>
 <h1 id="menu-title">Jelly <span>&</span><br>Bones</h1>
-<p data-t="description"></p><button id="play" class="play-button" data-t="play"></button>
-<div class="menu-controls"><h2 data-t="how"></h2><p data-t="instructions"></p><p data-t="cameraHelp"></p></div>
-<div class="languages" aria-label="Language"><button data-language="en" lang="en">English</button><button data-language="ru" lang="ru">русский</button></div>
-<div class="menu-note">LUDUM DARE · <span data-t="progress"></span></div></div></section>
-<script src="i18n.js"></script><script src="levels.js"></script><script src="soft-body.js"></script><script src="level-features.js"></script><script src="combat.js"></script><script src="physics.js"></script><script src="webgpu-renderer.js"></script><script src="game-effects.js"></script><script src="game.js"></script></body></html>
+<div id="menu-root"><nav class="menu-items" aria-label="Main menu"><button id="play" data-t="play"></button><button id="show-controls" data-t="how"></button></nav>
+<div class="languages" aria-label="Language"><button data-language="en" lang="en">English</button><button data-language="ru" lang="ru">русский</button></div></div>
+<div id="menu-help" hidden><h2 data-t="how"></h2><p data-t="instructions"></p><p data-t="cameraHelp"></p><button id="menu-back" data-t="back"></button></div>
+<div class="menu-key-hints"><span>↑↓ / WASD</span><span><kbd>Enter</kbd> / <kbd>E</kbd> <span data-t="select"></span></span><span><kbd>Esc</kbd> / <kbd>Q</kbd> <span data-t="back"></span></span></div>
+</div></section>
+<script src="i18n.js"></script><script src="levels.js"></script><script src="soft-body.js"></script><script src="level-features.js"></script><script src="combat.js"></script><script src="physics.js"></script><script src="webgpu-renderer.js"></script><script src="game-effects.js"></script><script src="menu-scene.js"></script><script src="game.js"></script></body></html>
