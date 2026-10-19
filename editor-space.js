@@ -38,17 +38,17 @@
  }
  function boxes(map){
   const result=[],heights=new Map(map.tiles.map(p=>[`${p.x},${p.z}`,p.height]));
-  const add=(p,key,half,lo,hi)=>result.push({x:p.x,y:p.y??(key==='tiles'?p.height:lo),z:p.z,key,min:[p.x-half,lo,p.z-half],max:[p.x+half,hi,p.z+half]});
-  for(const p of map.blocks||[])add(p,'blocks',.5,p.y-1,p.y);
-  for(const p of map.tiles)add(p,'tiles',.5,-.72,p.height);
-  for(const p of map.walls)add(p,'walls',p.half,p.base,p.base+p.height);
-  for(const p of map.drones||[]){const y=p.y??heights.get(`${p.x},${p.z}`)??Levels.surfaceY(map,p.x,p.z)??0;const center=Levels.droneOrigin({...p,y})[1];add({...p,y},'drones',.32,center-.56,center+.56);}
+  const add=(p,key,half,lo,hi)=>result.push({x:p.x,y:p.y??(key==='tiles'?p.height:lo),z:p.z,key,index:p.pickIndex??map[key].indexOf(p),min:[p.x-half,lo,p.z-half],max:[p.x+half,hi,p.z+half]});
+  for(const [pickIndex,p] of (map.blocks||[]).entries())add({...p,pickIndex},'blocks',.5,p.y-1,p.y);
+  for(const [pickIndex,p] of (map.tiles).entries())add({...p,pickIndex},'tiles',.5,-.72,p.height);
+  for(const [pickIndex,p] of (map.walls).entries())add({...p,pickIndex},'walls',p.half,p.base,p.base+p.height);
+  for(const [pickIndex,p] of (map.drones||[]).entries()){const y=p.y??heights.get(`${p.x},${p.z}`)??Levels.surfaceY(map,p.x,p.z)??0;const center=Levels.droneOrigin({...p,y})[1];add({...p,y,pickIndex},'drones',.32,center-.56,center+.56);}
   for(const [index,p] of (map.torches||[]).entries()){
    const f=Levels.torchFrame(p),center=f.origin.map((v,k)=>v+f.n[k]*.18),half=f.n.map((n,k)=>Math.abs(n)*.18+Math.abs(f.u[k])*.14+(k===1?.48:0));
    result.push({...p,key:'torches',index,min:center.map((v,k)=>v-half[k]),max:center.map((v,k)=>v+half[k])});
   }
-  for(const key of ['spawns','crates','archers'])for(const p of map[key])if(p){const y=p.y??heights.get(`${p.x},${p.z}`)??0;add({...p,y},key,key==='archers'?.26:.4,y,y+(key==='archers'?1.2:.84));}
-  for(const key of ['goals','plates','bridges','lifts','portals','conveyors','pickups'])for(const p of map[key])if(p){const y=p.y??p.base??heights.get(`${p.x},${p.z}`)??0;add({...p,y},key,key==='pickups'?.28:key==='plates'?.35:.46,y,y+(key==='pickups'?.35:key==='plates'?.065:.12));}
+  for(const key of ['spawns','crates','archers'])for(const [pickIndex,p] of map[key].entries())if(p){const y=p.y??heights.get(`${p.x},${p.z}`)??0;add({...p,y,pickIndex},key,key==='archers'?.26:.4,y,y+(key==='archers'?1.2:.84));}
+  for(const key of ['goals','plates','bridges','lifts','portals','conveyors','pickups'])for(const [pickIndex,p] of map[key].entries())if(p){const y=p.y??p.base??heights.get(`${p.x},${p.z}`)??0;add({...p,y,pickIndex},key,key==='pickups'?.28:key==='plates'?.35:.46,y,y+(key==='pickups'?.35:key==='plates'?.065:.12));}
   for(const [index,p] of map.spikes.entries()){
    const y=p.y??heights.get(`${p.x},${p.z}`)??Math.max(0,...(map.blocks||[]).filter(b=>b.x===p.x&&b.z===p.z).map(b=>b.y)),f=Features.spikeFrame(p,y);
    for(const b of Features.spikeBoxes(p,y)){const center=[b.x,(b.minY+b.maxY)*.5,b.z],half=[b.halfX,(b.maxY-b.minY)*.5,b.halfZ];result.push({x:p.x,y,z:p.z,key:'spikes',face:p.face||'top',index,min:center.map((v,k)=>v-Math.max(half[k],Math.abs(f.n[k])*.015)),max:center.map((v,k)=>v+Math.max(half[k],Math.abs(f.n[k])*.015))});}
@@ -59,7 +59,7 @@
   if(!ray)return null;
   if(lockedHeight!==null){const hit=plane(ray,lockedHeight);return hit?{x:Math.round(hit.position[0]),z:Math.round(hit.position[2]),height:lockedHeight,key:null,hit}:null;}
   let nearest=null;
-  for(const box of bounds){const hit=boxHit(ray,box);if(hit&&(!nearest||hit.distance<nearest.hit.distance))nearest={x:box.x,y:box.y,z:box.z,height:box.max[1],key:box.key,...(box.face?{face:box.face,index:box.index}:{}),hit};}
+  for(const box of bounds){const hit=boxHit(ray,box);if(hit&&(!nearest||hit.distance<nearest.hit.distance))nearest={x:box.x,y:box.y,z:box.z,height:box.max[1],key:box.key,index:box.index,...(box.face?{face:box.face}:{}),hit};}
   if(nearest)return nearest;
   const hit=plane(ray,height);if(!hit)return null;
   const x=Math.round(hit.position[0]),z=Math.round(hit.position[2]);

@@ -81,6 +81,7 @@ const placeCoordinate=element('button','Поставить куб');placeCoordin
 function cellObjects(x,z,y){const result=[];for(const key of ['blocks','tiles','walls','torches','drones','spawns','goals','plates','bridges','lifts','conveyors','spikes','portals','crates','archers','pickups'])model.map[key].forEach((p,index)=>{if(p&&p.x===x&&p.z===z&&(y===undefined||Math.abs((p.y??p.base??p.height??L.surfaceY(model.map,x,z)??0)-y)<.01))result.push({key,index,p});});return result;}
 function field(card,label,value,options,onChange){
  const row=element('label',label),control=element(options?.values?'select':'input');
+ if(/(?:^| · )[XYZ]$/.test(label)){row.className='coordinate-field';row.textContent=label.slice(-1);}
  if(options?.values)for(const [v,name] of options.values){const option=element('option',name);option.value=v;control.append(option);}
  else{control.type='number';control.min=options?.min??0;control.max=options?.max??3;control.step=options?.step??1;}
  control.id=`property-${card.dataset.object}-${card.querySelectorAll('input,select').length}`;
@@ -104,7 +105,11 @@ function renderProperties(){
   head.append(element('span',key==='goals'?L.characters[index].glyph:key==='spawns'?'▣':key==='archers'?'☠':key==='pickups'?(p.kind==='shield'?'◈':'⚔'):'◇','marker'),element('span',label));card.append(head);
   const set=(property,value)=>edit(map=>{map[key][index][property]=value;});
   if(key==='blocks')for(const axis of ['x','y','z'])field(card,axis.toUpperCase(),p[axis],{min:axis==='y'?-2:0,max:axis==='y'?12:model.map.size-1},value=>{const q={...p,[axis]:value};try{if(model.move('blocks',index,q.x,q.z,q.y)){selected=q;changed();}}catch(error){toast(error.message);renderPanels();}});
-  if(key==='blocks'){field(card,'Цвет блока',p.color??'',{values:[['','Обычный камень'],...L.characters.map((c,i)=>[String(i),c.name])]},v=>edit(map=>{if(v==='')delete map.blocks[index].color;else map.blocks[index].color=Number(v);}));if(p.color!==undefined)card.append(element('p',`Проходит только ${names[p.color]}. Ящики не проходят.`,'empty-state'));}
+  if(key==='blocks'){
+   const palette=element('fieldset',undefined,'block-colors');palette.append(element('legend','Цвет блока'));const options=element('div',undefined,'color-options');
+   for(const [value,name,color] of [['','Обычный камень','#918878'],...L.characters.map((c,i)=>[String(i),c.name,c.color])]){const label=element('label',undefined,'color-swatch'),radio=element('input');label.style.setProperty('--swatch',color);label.title=name;radio.type='radio';radio.name='block-color-'+index;radio.id='block-color-'+index+'-'+(value||'stone');radio.value=value;radio.checked=String(p.color??'')===value;radio.setAttribute('aria-label',name);radio.onchange=()=>{const focused=document.activeElement===radio;edit(map=>{if(value==='')delete map.blocks[index].color;else map.blocks[index].color=Number(value);});if(focused)$(radio.id)?.focus({preventScroll:true});};label.append(radio);options.append(label);}
+   palette.append(options);card.append(palette);if(p.color!==undefined)card.append(element('p',`Проходит только ${names[p.color]}. Ящики не проходят.`,'empty-state'));
+  }
   if(key==='tiles')field(card,'Высота пола',p.height,{min:0,max:3},value=>edit(()=>model.paint('floor',p.x,p.z,{height:value})));
   if(key==='torches'){
    field(card,'Крепление факела',p.face,{values:torchFaces},v=>set('face',v));
@@ -163,7 +168,8 @@ function point(event){
   if(gesture?.tool==='spikes'&&gesture.face&&gesture.face!=='top')return gesture.start;
   if(gesture?.tool==='torch')return gesture.start;
   if(!gesture&&painting&&placementMode.value==='layer'){const hit=S.plane(screenRay(event),layer);return hit?{x:Math.round(hit.position[0]),y:layer,z:Math.round(hit.position[2]),hit}:null;}
-  const p=S.pick(screenRay(event),pickBounds,model.map.size,layer,gesture?.planeY??null);if(!p)return null;
+  const p=S.pick(screenRay(event),pickBounds,model.map.size,layer,gesture?.tool==='erase'?null:gesture?.planeY??null);if(!p)return null;
+  if(gesture?.tool==='erase')return p;
   if(gesture){p.y=gesture.blockY;p.x+=gesture.offsetX||0;p.z+=gesture.offsetZ||0;return p;}
   p.y??=layer;
   if(painting&&tool==='spikes'){
@@ -176,7 +182,7 @@ function point(event){
 function refreshHover(){if(lastPointer&&!gesture?.pan&&!gesture?.orbit)hover=point(lastPointer);$('cell-info').textContent=inside(hover)?`X ${hover.x} / Y ${hover.y??0} / Z ${hover.z}`:'X — / Y — / Z —';}
 function inside(p){return p&&p.x>=0&&p.z>=0&&p.x<model.map.size&&p.z<model.map.size&&(p.y===undefined||p.y>=-2&&p.y<=12);}
 function invalidate(){if(previewRenderer?.ready)drawSpatialOverlay();}
-function paintCell(p,activeTool){const y=p.y??gesture?.blockY??Number($('brush-height').value);if(!inside({...p,y}))return;try{const [dx,dz]=beltDirection.value.split(',').map(Number),speed=Math.max(.2,Math.min(2.5,Number(beltSpeed.value)||.85));model.paint(activeTool,p.x,p.z,{height:y,y,voxel:true,dx,dz,speed,...(activeTool==='torch'?{face:gesture?.face||p.face||(torchFace.value==='auto'?'south':torchFace.value)}:{}),...(activeTool==='spikes'?{face:gesture?.face||p.face||(spikeFace.value==='auto'?'top':spikeFace.value),color:spikeColor.value===''?null:Number(spikeColor.value)}:{})});previewDirty=true;pickBounds=null;}catch(error){toast(error.message);}selected={x:p.x,y,z:p.z};}
+function paintCell(p,activeTool){if(activeTool==='erase'){if(p.key&&Number.isInteger(p.index)&&(!gesture?.eraseKey||p.key===gesture.eraseKey)&&model.eraseObject(p.key,p.index)){previewDirty=true;pickBounds=null;}selected={x:p.x,y:p.y??0,z:p.z};return;}const y=p.y??gesture?.blockY??Number($('brush-height').value);if(!inside({...p,y}))return;try{const [dx,dz]=beltDirection.value.split(',').map(Number),speed=Math.max(.2,Math.min(2.5,Number(beltSpeed.value)||.85));model.paint(activeTool,p.x,p.z,{height:y,y,voxel:true,dx,dz,speed,...(activeTool==='torch'?{face:gesture?.face||p.face||(torchFace.value==='auto'?'south':torchFace.value)}:{}),...(activeTool==='spikes'?{face:gesture?.face||p.face||(spikeFace.value==='auto'?'top':spikeFace.value),color:spikeColor.value===''?null:Number(spikeColor.value)}:{})});previewDirty=true;pickBounds=null;}catch(error){toast(error.message);}selected={x:p.x,y,z:p.z};}
 function finishGesture(){
  if(!gesture)return;
  if(gesture.pan||gesture.orbit){gesture=null;$('viewport').classList.remove('camera-drag');refreshHover();invalidate();return;}
@@ -192,7 +198,7 @@ $('viewport').addEventListener('pointerdown',event=>{
  selected={x:p.x,y:p.y,z:p.z};
  if(moveObject){try{if(model.move(moveObject.key,moveObject.index,p.x,p.z,p.y??Number($('brush-height').value)))changed();moveObject=null;selectTool('select');}catch(error){toast(error.message);}return;}
  const activeTool=event.button===2||event.shiftKey?'erase':tool;if(activeTool==='select'){renderProperties();invalidate();return;}
- model.begin();gesture={start:p,last:p,tool:activeTool,face:p.face,blockY:p.y??Number($('brush-height').value),planeY:p.hit?.position[1]??p.y,offsetX:p.hit?p.x-Math.round(p.hit.position[0]):0,offsetZ:p.hit?p.z-Math.round(p.hit.position[2]):0,rectangle:$('brush-shape').value==='rectangle'&&(cubeTool(activeTool)||['erase','conveyor'].includes(activeTool))};
+ model.begin();gesture={start:p,last:p,tool:activeTool,eraseKey:activeTool==='erase'?p.key:null,face:p.face,blockY:p.y??Number($('brush-height').value),planeY:p.hit?.position[1]??p.y,offsetX:p.hit?p.x-Math.round(p.hit.position[0]):0,offsetZ:p.hit?p.z-Math.round(p.hit.position[2]):0,rectangle:$('brush-shape').value==='rectangle'&&(cubeTool(activeTool)||['conveyor'].includes(activeTool))};
  if(!gesture.rectangle)paintCell(p,activeTool);$('viewport').setPointerCapture(event.pointerId);invalidate();
 });
 $('viewport').addEventListener('pointermove',event=>{
@@ -202,6 +208,7 @@ $('viewport').addEventListener('pointermove',event=>{
   panView(dx,dy,event.clientX,event.clientY);invalidate();return;
  }
  refreshHover();
+ if(gesture?.tool==='erase'){if(inside(hover))paintCell(hover,'erase');gesture.last=hover;invalidate();return;}
  if(gesture&&!gesture.rectangle&&inside(hover)){const a=gesture.last,b=hover,steps=Math.max(Math.abs(a.x-b.x),Math.abs(a.z-b.z));for(let i=1;i<=steps;i++)paintCell({x:Math.round(a.x+(b.x-a.x)*i/steps),z:Math.round(a.z+(b.z-a.z)*i/steps)},gesture.tool);gesture.last=hover;}
  invalidate();
 });
@@ -230,6 +237,9 @@ function drawSpatialOverlay(){
  if(selected)square(selected,(selected.y??floor(selected.x,selected.z))+.04,'#e2edb4','#d6eea714');
  if(gesture?.pan||gesture?.orbit||!inside(hover)||['pan','orbit'].includes(tool))return;
  const active=gesture?.tool||tool,isErase=active==='erase',color=isErase?'#f2a78b':tools[active]?.color||'#ceecaa',fill=isErase?'#ef8c732b':color+'24';
+ if(isErase&&hover.key){
+  for(const box of S.boxes(model.map).filter(b=>b.key===hover.key&&b.index===hover.index)){const [x,y,z]=box.min,[X,Y,Z]=box.max;for(const h of [y,Y])path([[x,h,z],[X,h,z],[X,h,Z],[x,h,Z]],color,null,true);for(const [a,b] of [[x,z],[x,Z],[X,z],[X,Z]])path([[a,y,b],[a,Y,b]],color,null,true);}return;
+ }
  if(active==='drone'||moveObject?.key==='drones'){
   const d=moveObject?model.map.drones[moveObject.index]:{hover:0,color:3},y=L.droneOrigin({...d,x:hover.x,y:hover.y??layer,z:hover.z})[1],x=hover.x,z=hover.z;
   path([[x,y-.56,z],[x-.22,y,z],[x,y+.56,z],[x+.22,y,z]],colors[d.color],fill,true);path([[x,y,z-.22],[x,y+.56,z],[x,y,z+.22],[x,y-.56,z]],colors[d.color],null,true);return;

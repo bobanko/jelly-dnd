@@ -2,6 +2,14 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const L=require('./levels'),{Model}=require('./editor-model'),Physics=require('./physics'),Soft=require('./soft-body');
 
+test('targeted erasing removes one attachment and keeps its host, neighbours and undo history',()=>{
+ const map=L.blank();map.blocks=[{x:2,y:1,z:2}];map.torches=[{x:2,y:1,z:2,face:'south'},{x:2,y:1,z:2,face:'east'}];map.spikes=[{x:2,y:1,z:2,offset:0}];
+ const model=new Model(map);model.begin();assert.equal(model.eraseObject('torches',1),true);assert.equal(model.commit(),true);
+ assert.equal(model.map.blocks.length,1);assert.equal(model.map.spikes.length,1);assert.equal(model.map.torches[0].face,'south');assert.equal(model.map.torches.length,1);
+ model.undo();assert.equal(model.map.torches.length,2);model.redo();assert.equal(model.map.torches.length,1);
+ assert.equal(model.eraseObject('torches',9),false);
+});
+
 test('every catalog entry loads an independent valid JSON map and routes to the same level',()=>{
  const catalog=require('./levels/catalog.json');assert.equal(catalog.standard.length,5);assert.deepEqual(catalog.extra,[]);
  for(const [index,file] of catalog.standard.entries()){const map=L.standardLevel(index+1);assert.equal(map.name,require('./levels/'+file).name);assert.deepEqual(L.issues(L.read(map)),[]);assert.deepEqual(L.forGame(undefined,'?level='+(index+1)),L.read(map));map.name='Changed';assert.notEqual(L.standardLevel(index+1).name,'Changed');assert.ok(L.displayName(map,'ru'));}

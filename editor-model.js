@@ -96,7 +96,8 @@
    if(key==='pickups')Object.assign(p,{id:this.id(tool),kind:tool});
    this.map[key].push(p);
   }
-  remove(key,index){return this.change(map=>{if(key==='spawns'||key==='goals')map[key][index]=null;else map[key].splice(index,1);});}
+  eraseObject(key,index){if(!Object.hasOwn(this.map,key)||!Array.isArray(this.map[key])||!Number.isInteger(index)||!this.map[key][index])return false;if(key==='spawns'||key==='goals')this.map[key][index]=null;else this.map[key].splice(index,1);return true;}
+  remove(key,index){return this.change(()=>this.eraseObject(key,index));}
   orderPortal(index,order){return this.change(map=>{
    const portal=map.portals[index],indices=map.portals.flatMap((p,i)=>p.color===portal.color?[i]:[]);
    if(!Number.isInteger(order)||order<1||order>indices.length)throw new Error('Проверьте номер портала в цепочке.');

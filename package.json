@@ -27,7 +27,8 @@
     "profile:compare": "node browser-performance.cjs",
     "test:menu:browser": "node browser-menu.cjs",
     "test:camera:browser": "node browser-shared-camera.cjs",
-    "test:layout:browser": "node browser-960.cjs"
+    "test:layout:browser": "node browser-960.cjs",
+    "test:editor:compact": "node browser-editor-compact.cjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1"
