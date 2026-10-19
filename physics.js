@@ -1,7 +1,7 @@
 // Fixed-step movement, collisions, gravity and independent fall/death/respawn lifecycles.
 // Rendering is independent: jelly deformation never changes the collision shape.
 (function(root){
- const HALF=.36, SIZE=HALF*2, STEP=1/120, SPEED=2.6, GRAVITY=15, DEATH_HEIGHT=-4, RESPAWN_DELAY=.55;
+ const HALF=.36, SIZE=HALF*2, STEP=1/120, SPEED=2.6, GRAVITY=15, DEATH_HEIGHT=-4, RESPAWN_DELAY=.55, SKY_MARGIN=8;
  const alive=p=>!p.state||p.state==='alive';
  const overlaps=(a,b,half=SIZE)=>Math.abs(a.x-b.x)<half&&Math.abs(a.z-b.z)<half;
  class World{
@@ -11,6 +11,22 @@
   solid(x,z){if(!this.floor.has(`${x},${z}`))return true;const i=this.bridges.findIndex(b=>b.x===x&&b.z===z);return i>=0&&!this.held.has(i);}
   supported(p){return !this.solid(Math.floor(p.x+.5),Math.floor(p.z+.5));}
   obstaclesNear(){return this.obstacles;}
+  enforceHeightLimit(bodies){
+   let top=0;
+   for(const b of this.blocks||[])top=Math.max(top,b.y||0);
+   for(const y of this.heights.values())top=Math.max(top,y);
+   for(const l of this.lifts)top=Math.max(top,l.top||0,l.height||0);
+   for(const o of this.obstacles)top=Math.max(top,o.maxY??o.height??0);
+   for(const p of bodies)top=Math.max(top,p.spawn?.y||0);
+   const events=[];
+   bodies.forEach((p,i)=>{
+    if(p.kind==='crate'||p.state==='dead'||!(p.y>top+SKY_MARGIN))return;
+    Object.assign(p,{state:'dead',deathReason:'sky',deaths:(p.deaths||0)+1,respawnTimer:RESPAWN_DELAY,vx:0,vy:0,vz:0,launchTimer:0,shield:null,shieldHP:0,sword:null});
+    if(this.soft){const b=this.soft.get(p);b.support=null;b.carryVelocity=[0,0,0];b.velocities.forEach(v=>v.fill(0));}
+    events.push({type:'death',reason:'sky',player:i});
+   });
+   return events;
+  }
   respawnPosition(p,bodies){
    const candidates=[{...p.spawn}];
    for(let radius=1;radius<=2;radius++)for(let x=-radius;x<=radius;x++)for(let z=-radius;z<=radius;z++)
@@ -28,9 +44,10 @@
    p[axis]+=allowed;return p[axis]-before;
   }
   step(bodies,inputs,dt=STEP){
+   const safetyEvents=this.enforceHeightLimit(bodies);
    this.beforeCombat(bodies,inputs,dt);
-   if(this.soft){this.beforeFeatures(bodies,this.soft,dt);const events=this.soft.step(this,bodies,inputs,dt);return [...events,...this.afterFeatures(bodies,this.soft),...this.afterCombat(bodies,this.soft,dt)];}
-   const events=[];
+   if(this.soft){this.beforeFeatures(bodies,this.soft,dt);const events=this.soft.step(this,bodies,inputs,dt);return [...safetyEvents,...events,...this.enforceHeightLimit(bodies),...this.afterFeatures(bodies,this.soft),...this.afterCombat(bodies,this.soft,dt)];}
+   const events=[...safetyEvents];
    bodies.forEach(p=>{p.spawn??={x:p.x,z:p.z};p.state??='alive';p.y??=0;p.vy??=0;p.deaths??=0;p.respawnFlash=Math.max(0,(p.respawnFlash||0)-dt);});
    this.refresh(bodies);
    bodies.forEach((p,i)=>{
@@ -75,11 +92,11 @@
     if(Math.hypot(p.vx,p.vz)<.001)p.vx=p.vz=0;
    });
    this.refresh(bodies);
-   return [...events,...this.afterCombat(bodies,null,dt)];
+   return [...events,...this.enforceHeightLimit(bodies),...this.afterCombat(bodies,null,dt)];
   }
  }
  if(typeof module!=='undefined'&&module.exports)require('./level-features.js').install(World);else root.JellyLevelFeatures.install(World);
  if(typeof module!=='undefined'&&module.exports)require('./combat.js').install(World);else root.JellyCombat.install(World);
- const api={World,HALF,SIZE,STEP,SPEED,GRAVITY,DEATH_HEIGHT,RESPAWN_DELAY,alive};
+ const api={World,HALF,SIZE,STEP,SPEED,GRAVITY,DEATH_HEIGHT,RESPAWN_DELAY,SKY_MARGIN,alive};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyPhysics=api;
 })(globalThis);

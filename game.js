@@ -12,6 +12,7 @@ let W,H,DPR,scale,angle=0,targetAngle=0,last=0,time=0,moves=0,history=[],won=fal
 const WIN_HOLD_SECONDS=1;
 const N=12, colors=JellyLevels.characters.map(p=>p.color),names=JellyLevels.characters.map(p=>p.name);
 let zoom=1;
+let fpsElapsed=0,fpsFrames=0;
 let mapError=null,definition;
 try{let search=globalThis.location?.search||'';const requested=/(?:^|[?&])level=([1-5])(?:&|$)/.exec(search);if(requested&&globalThis.JellyProgress&&!JellyProgress.canPlay(Number(requested[1]))){search='?level=1';globalThis.history.replaceState(null,'',search);}definition=JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.defaultLevel());}
 const runtime=JellyLevels.instantiate(definition,JellyPhysics,JellySoftBody);
@@ -107,6 +108,12 @@ function simulate(dt){
 function stopInput(){heldKeys.clear();players.forEach(p=>{if(p.launchTimer)return;p.vx=p.vz=0;const b=soft.get(p);b.velocities.forEach(v=>{v[0]=v[2]=0;});});accumulator=0;}
 addEventListener('keydown',e=>{
  if(e.ctrlKey||e.metaKey||e.altKey)return;
+ if(e.code==='Backquote'&&!menuOpen&&!won&&!loadingActive&&!restartTransition){
+  e.preventDefault();if(e.repeat)return;
+  const panel=document.querySelector('.jelly-settings');panel.hidden=!panel.hidden;panel.open=!panel.hidden;
+  if(panel.hidden&&panel.contains?.(document.activeElement))document.querySelector('#menu-button').focus?.({preventScroll:true});
+  return;
+ }
  if(e.target?.closest?.('select,textarea,input:not([type=range]):not([type=checkbox])')||e.target?.matches?.('input[type=range]')&&/^(Arrow|Home|End|Page)/.test(e.code))return;
  // Physical positions stay the same across layouts, Caps Lock and layout changes while held.
  const k=e.code;
@@ -174,6 +181,8 @@ function updatePlayerHints(dt){
 }
 function frame(t){
  const elapsed=Math.max(0,(t-last)/1000),dt=Math.min(elapsed,.05);last=t;time=t/1000;
+ fpsElapsed+=elapsed;fpsFrames++;
+ if(fpsElapsed>=.5){const counter=document.querySelector('#fps');if(counter)counter.textContent=Math.round(fpsFrames/fpsElapsed)+' FPS';fpsElapsed=0;fpsFrames=0;}
  updateRestart(dt);
  angle=reducedMotion?targetAngle:angle+(targetAngle-angle)*(1-Math.exp(-dt*11));
  if(sceneRenderer.ready)simulate(dt);

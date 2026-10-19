@@ -11,6 +11,12 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   await page.keyboard.press('w');assert.equal(await page.evaluate(()=>moves),0);
   await page.screenshot({path:'artifacts/level-loading.png'});release();await page.waitForFunction(()=>sceneRenderer.ready&&!loadingActive);
   assert.equal(await page.locator('#level-intro').isVisible(),false);assert.equal(await page.locator('#level-loading').isVisible(),false);assert.equal(await page.locator('#menu-button').isVisible(),true);
+  assert.equal(await page.locator('.jelly-settings').isVisible(),false);
+  await page.keyboard.press('Backquote');assert.equal(await page.locator('.jelly-settings').isVisible(),true);assert.equal(await page.locator('.jelly-settings').getAttribute('open'),'');
+  const settingsBox=await page.locator('.jelly-settings').boundingBox();assert.ok(settingsBox.x>800&&settingsBox.y<100);
+  await page.screenshot({path:'artifacts/developer-settings.png'});
+  await page.locator('.jelly-settings summary').click();assert.equal(await page.locator('.jelly-settings').getAttribute('open'),null);
+  await page.locator('.jelly-settings summary').click();await page.locator('#softness').focus();await page.keyboard.press('Backquote');assert.equal(await page.locator('.jelly-settings').isVisible(),false);
   await page.keyboard.down('w');await page.waitForTimeout(100);await page.keyboard.up('w');assert.ok(await page.evaluate(()=>moves>0&&players[0].z<start[0].z));
   assert.equal(await page.locator('header').count(),0);assert.equal(await page.locator('.intro').count(),0);assert.equal(await page.locator('aside').count(),0);assert.equal(await page.locator('#menu-button svg').count(),1);
   await page.locator('.player-key-hint').first().waitFor({state:'visible'});assert.equal(await page.locator('.player-key-hint').first().textContent(),'WASD');assert.equal(await page.locator('.player-key-hint').nth(1).textContent(),'↑←↓→');
