@@ -1,4 +1,6 @@
 'use strict';
+const tr=key=>globalThis.JellyI18n?.t(key)??key;
+let menuOpen=false,hasPlayed=false;
 const canvas=document.querySelector('#scene');
 const reducedMotion=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
@@ -17,7 +19,7 @@ const effects=new JellyEffects.System({reducedMotion});
 const level={...runtime,effects,won:false,finishProgress:0,reducedMotion};
 document.querySelector('.intro h1').textContent=definition.name;
 document.querySelectorAll('.camera-player').forEach((key,slot)=>key.hidden=!players.some(p=>p.slot===slot));
-if(globalThis.location?.search?.includes('level=editor')){document.querySelector('#editor-link').textContent='← В редактор';document.querySelector('.chapter').textContent='ТЕСТ УРОВНЯ';}
+if(globalThis.location?.search?.includes('level=editor')){document.querySelector('#editor-link').textContent=tr('← В редактор');document.querySelector('.chapter').textContent=tr('ТЕСТ УРОВНЯ');}
 const heldKeys=new Set();
 const keySets={KeyW:[0,0,-1],KeyS:[0,0,1],KeyA:[0,-1,0],KeyD:[0,1,0],ArrowUp:[1,0,-1],ArrowDown:[1,0,1],ArrowLeft:[1,-1,0],ArrowRight:[1,1,0],KeyI:[2,0,-1],KeyK:[2,0,1],KeyJ:[2,-1,0],KeyL:[2,1,0],KeyT:[3,0,-1],KeyG:[3,0,1],KeyF:[3,-1,0],KeyH:[3,1,0]};
 // Assign controls by the active roster's order, independently of character colour.
@@ -47,7 +49,7 @@ function woodHit(broken=false){
 function updateUI(){
  document.querySelector('#moves').textContent=String(moves).padStart(2,'0');document.querySelector('#win').hidden=!won;
  const lost=players.findIndex(p=>!JellyPhysics.alive(p)),moving=world.lifts.some(l=>Math.abs(l.target-l.height)>.01&&players.some(p=>Math.abs(p.x-l.x)<.4&&Math.abs(p.z-l.z)<.4));
- document.querySelector('#status').textContent=won?'Все руны пробуждены':lost>=0?`${names[players[lost].slot]} ${players[lost].state==='falling'?'падает…':players[lost].deathReason==='spikes'?'погиб на шипах. Возрождение…':'возрождается…'}`:finishHold>0?'Рунические печати наполняются светом…':players.some(p=>p.portalBlocked)?'Выход портала занят':moving?'Лифт поднимается':players.some(p=>p.portalFlash>0)?'Магический переход':active(0)||active(1)?'Магический мост поднят':'Святилище ждёт вас';
+ document.querySelector('#status').textContent=won?tr('Все руны пробуждены'):lost>=0?`${tr(names[players[lost].slot])} ${players[lost].state==='falling'?tr('падает…'):players[lost].deathReason==='spikes'?tr('погиб на шипах. Возрождение…'):tr('возрождается…')}`:finishHold>0?tr('Рунические печати наполняются светом…'):players.some(p=>p.portalBlocked)?tr('Выход портала занят'):moving?tr('Лифт поднимается'):players.some(p=>p.portalFlash>0)?tr('Магический переход'):active(0)||active(1)?tr('Магический мост поднят'):tr('Святилище ждёт вас');
 }
 function focusPlayer(i){if(!players[i])return;followedPlayer=i;document.querySelectorAll('.member').forEach((member,slot)=>{const current=players[i].slot===slot;member.classList.toggle('following',current);member.setAttribute('aria-current',current?'true':'false');});}
 function clearGoalVisuals(){level.won=false;level.finishProgress=0;sceneRenderer.goalGlowStrength=[];sceneRenderer.goalWinGlow=0;}
@@ -79,7 +81,7 @@ function inputs(){
  return result;
 }
 function simulate(dt){
- if(won||mapError)return;
+ if(menuOpen||won||mapError)return;
  accumulator+=Math.min(dt,.05);
  const input=inputs();
  while(accumulator>=JellyPhysics.STEP&&!won){
@@ -109,6 +111,8 @@ addEventListener('keydown',e=>{
  if(e.target?.closest?.('select,textarea,input:not([type=range]):not([type=checkbox])')||e.target?.matches?.('input[type=range]')&&/^(Arrow|Home|End|Page)/.test(e.code))return;
  // Physical positions stay the same across layouts, Caps Lock and layout changes while held.
  const k=e.code;
+ if(k==='Escape'){e.preventDefault();setMenu(!menuOpen);return;}
+ if(menuOpen)return;
  if(movementKeys[k]){
   e.preventDefault();if(won||e.repeat||heldKeys.has(k)||!JellyPhysics.alive(players[movementKeys[k][0]]))return;
   focusPlayer(movementKeys[k][0]);
@@ -129,7 +133,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)stopInput()
 document.querySelector('#reset').onclick=reset;document.querySelector('#again').onclick=reset;
 document.querySelector('#sound').onclick=e=>{
  audioOn=!audioOn;const button=e.currentTarget;
- button.setAttribute('aria-pressed',String(audioOn));button.setAttribute('aria-label',audioOn?'Выключить звук':'Включить звук');button.title=audioOn?'Выключить звук':'Включить звук';tone(400);
+ button.setAttribute('aria-pressed',String(audioOn));button.setAttribute('aria-label',audioOn?tr('Выключить звук'):tr('Включить звук'));button.title=audioOn?tr('Выключить звук'):tr('Включить звук');tone(400);
 };
 
 function frame(t){
@@ -147,7 +151,7 @@ function frame(t){
 }
 function gpuFailure(message){document.querySelector('#gpu-fallback').hidden=false;document.querySelector('#gpu-status').textContent=message;}
 sceneRenderer.onFailure=gpuFailure;
-sceneRenderer.init().then(()=>{if(mapError){document.querySelector('#gpu-fallback h2').textContent='Не удалось открыть уровень';gpuFailure(mapError);}else document.querySelector('#gpu-fallback').hidden=true;}).catch(error=>gpuFailure(error.message));
+sceneRenderer.init().then(()=>{if(mapError){document.querySelector('#gpu-fallback h2').textContent=tr('Не удалось открыть уровень');gpuFailure(mapError);}else document.querySelector('#gpu-fallback').hidden=true;}).catch(error=>gpuFailure(error.message));
 document.querySelector('#softness').addEventListener('input',e=>{soft.softness=Number(e.target.value);players.forEach(p=>{soft.get(p).sleeping=false;soft.get(p).calm=0;});});
 document.querySelector('#decay').addEventListener('input',e=>soft.decay=Number(e.target.value));
 document.querySelector('#mesh').addEventListener('change',e=>sceneRenderer.mesh=e.target.checked);
@@ -162,10 +166,27 @@ document.querySelector('#camera-mode').addEventListener('change',e=>{stopInput()
 document.querySelector('#camera-pitch').addEventListener('input',e=>{camera.pitch=Number(e.target.value);cameraPitches[camera.mode]=camera.pitch;updateCameraUI();});
 document.querySelector('#camera-fov').addEventListener('input',e=>{camera.fov=Number(e.target.value);updateCameraUI();});
 updateCameraUI();
-canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.65,Math.min(1.8,zoom*Math.exp(-e.deltaY*.001)));resize();},{passive:false});
+canvas.addEventListener('wheel',e=>{e.preventDefault();if(menuOpen)return;zoom=Math.max(.65,Math.min(1.8,zoom*Math.exp(-e.deltaY*.001)));resize();},{passive:false});
 canvas.addEventListener('pointerdown',e=>{
+ if(menuOpen)return;
  let closest=null,distance=Infinity;
  players.forEach((p,i)=>{const q=project(p.x,.42+(p.y||0),p.z),d=Math.hypot(e.clientX-q.x,e.clientY-q.y);if(q.visible&&JellyPhysics.alive(p)&&d<q.scale*.7&&d<distance){closest=i;distance=d;}});
  if(closest!==null){history.push(snapshot());moves++;soft.poke(players[closest]);tone(240);}
 });
 requestAnimationFrame(frame);focusPlayer(0);updateUI();
+
+function refreshLanguage(){
+ document.querySelector('.intro h1').textContent=tr(definition.name);
+ document.querySelectorAll('.member').forEach((member,slot)=>{if(names[slot])member.querySelector('span').textContent=tr(names[slot]);});
+ const sound=document.querySelector('#sound');sound.title=tr(audioOn?'Выключить звук':'Включить звук');sound.setAttribute('aria-label',sound.title);
+ if(globalThis.location?.search?.includes('level=editor')){document.querySelector('#editor-link').textContent=tr('← В редактор');document.querySelector('.chapter').textContent=tr('ТЕСТ УРОВНЯ');}
+ if(globalThis.JellyI18n)document.querySelector('#play').textContent=tr(hasPlayed?'resume':'play');
+ updateUI();
+}
+function setMenu(open){menuOpen=open;stopInput();document.querySelector('#main-menu').hidden=!open;document.body?.classList.toggle('menu-open',open);if(open)refreshLanguage();else hasPlayed=true;}
+if(globalThis.JellyI18n){
+ document.querySelector('#play').onclick=()=>setMenu(false);
+ document.querySelector('#menu-button').onclick=()=>setMenu(true);
+ addEventListener('languagechange',refreshLanguage);refreshLanguage();
+ setMenu(!globalThis.location?.search?.includes('level=editor'));
+}

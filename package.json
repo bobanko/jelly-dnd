@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "check": "node --check game.js && node --check physics.js && node --check soft-body.js && node --check level-features.js && node --check combat.js && node --check webgpu-renderer.js && node --check game-effects.js && node --check levels.js && node --check editor-model.js && node --check editor-space.js && node --check editor.js",
+    "check": "node --check game.js && node --check physics.js && node --check soft-body.js && node --check level-features.js && node --check combat.js && node --check webgpu-renderer.js && node --check game-effects.js && node --check levels.js && node --check editor-model.js && node --check editor-space.js && node --check editor.js && node --check i18n.js",
     "test": "node --test game.test.js physics.test.js soft-body.test.js level-features.test.js portals.test.js combat.test.js drones.test.js game-effects.test.js stacking.test.js camera.test.js levels.test.js conveyor.test.js editor-space.test.js voxel.test.js color-blocks.test.js spikes.test.js",
     "test:color-blocks:browser": "node browser-color-blocks.cjs",
     "test:glass-blocks:browser": "node browser-glass-blocks.cjs",
@@ -23,7 +23,8 @@
     "test:conveyor:browser": "node browser-conveyor.cjs",
     "test:dice": "node browser-dice.cjs",
     "profile:browser": "node browser-smoke.cjs",
-    "profile:compare": "node browser-performance.cjs"
+    "profile:compare": "node browser-performance.cjs",
+    "test:menu:browser": "node browser-menu.cjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1"

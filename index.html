@@ -1,7 +1,7 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>Jelly & Bones — The Sunken Sanctum</title><link rel="stylesheet" href="style.css"></head>
-<body><canvas id="scene" aria-label="Jelly & Bones"></canvas>
-<header><a class="brand" href="./"><span class="brand-icon">✦</span> JELLY <i>&</i> BONES</a><div class="chapter">THE SUNKEN SANCTUM <span>/</span> CHAMBER 01</div><div class="header-tools"><a id="editor-link" class="editor-link" href="editor.html">Редактор</a><span id="fps"></span><button id="sound" class="icon-button" title="Включить звук" aria-label="Включить звук" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4Z"/><path class="sound-on" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="sound-off" d="m16 9 6 6m0-6-6 6"/></svg></button></div></header>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>Jelly & Bones — The Sunken Sanctum</title><link rel="stylesheet" href="style.css"></head>
+<body class="menu-open"><canvas id="scene" aria-label="Jelly & Bones"></canvas>
+<header><a class="brand" href="./"><span class="brand-icon">✦</span> JELLY <i>&</i> BONES</a><div class="chapter">THE SUNKEN SANCTUM <span>/</span> CHAMBER 01</div><div class="header-tools"><a id="editor-link" class="editor-link" href="editor.html">Редактор</a><button id="menu-button">Menu</button><span id="fps"></span><button id="sound" class="icon-button" title="Включить звук" aria-label="Включить звук" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4Z"/><path class="sound-on" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="sound-off" d="m16 9 6 6m0-6-6 6"/></svg></button></div></header>
 <main><div class="intro"><div class="eyebrow">CHAMBER 01</div><h1>Затонувшее святилище</h1></div>
 <aside aria-label="Персонажи и управление"><div class="member"><b class="dot green"></b><span>Мох</span><kbd>W A S D</kbd></div><div class="member"><b class="dot blue"></b><span>Иней</span><kbd>↑ ← ↓ →</kbd></div><div class="member"><b class="dot red"></b><span>Уголёк</span><kbd>I J K L</kbd></div><div class="member" hidden><b class="dot" style="background:#bb70ef"></b><span>Аметист</span><kbd>T F G H</kbd></div></aside>
 <div id="status" class="sr-only" role="status" aria-live="polite"></div>
@@ -15,4 +15,11 @@
 </fieldset></details>
 <section id="gpu-fallback" role="status"><span class="eyebrow">JELLY & BONES</span><h2>Пробуждаем подземелье</h2><p id="gpu-status">Подготавливаем свет и желе…</p><button onclick="location.reload()">Попробовать снова</button> <a class="editor-link" href="editor.html">Редактор</a></section>
 <footer><div class="controls"><span><kbd class="camera-player">1</kbd><kbd class="camera-player">2</kbd><kbd class="camera-player">3</kbd><kbd class="camera-player" hidden>4</kbd> Камера</span><span><kbd>Q</kbd><kbd>E</kbd> Поворот</span><span><kbd>Z</kbd> Отменить</span><span><kbd>R</kbd> Сначала</span></div><div class="moves"><b id="moves">00</b> ДВИЖЕНИЙ <span>•</span> <button id="reset">↻ Сбросить</button></div></footer>
-<script src="levels.js"></script><script src="soft-body.js"></script><script src="level-features.js"></script><script src="combat.js"></script><script src="physics.js"></script><script src="webgpu-renderer.js"></script><script src="game-effects.js"></script><script src="game.js"></script></body></html>
+<section id="main-menu" aria-labelledby="menu-title"><div class="menu-panel">
+<div class="eyebrow">JELLY PHYSICS · CO-OP · ANCIENT CONTRAPTIONS</div>
+<h1 id="menu-title">Jelly <span>&</span><br>Bones</h1>
+<p data-t="description"></p><button id="play" class="play-button" data-t="play"></button>
+<div class="menu-controls"><h2 data-t="how"></h2><p data-t="instructions"></p><p data-t="cameraHelp"></p></div>
+<div class="languages" aria-label="Language"><button data-language="en" lang="en">English</button><button data-language="ru" lang="ru">русский</button></div>
+<div class="menu-note">LUDUM DARE · <span data-t="progress"></span></div></div></section>
+<script src="i18n.js"></script><script src="levels.js"></script><script src="soft-body.js"></script><script src="level-features.js"></script><script src="combat.js"></script><script src="physics.js"></script><script src="webgpu-renderer.js"></script><script src="game-effects.js"></script><script src="game.js"></script></body></html>
