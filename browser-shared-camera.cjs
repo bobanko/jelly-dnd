@@ -8,8 +8,10 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   await page.goto('http://localhost:3000/?level=1&play=1');
   await page.waitForFunction(()=>document.querySelector('#loading-progress').value>=.65);
   assert.equal(await page.locator('#gpu-fallback').count(),0);assert.equal(await page.locator('#level-intro-title').textContent(),'First Steps');assert.equal(await page.locator('#level-loading').isVisible(),true);
+  await page.keyboard.press('w');assert.equal(await page.evaluate(()=>moves),0);
   await page.screenshot({path:'artifacts/level-loading.png'});release();await page.waitForFunction(()=>sceneRenderer.ready&&!loadingActive);
-  await page.keyboard.press('Enter');assert.equal(await page.locator('#level-loading').isVisible(),false);
+  assert.equal(await page.locator('#level-intro').isVisible(),false);assert.equal(await page.locator('#level-loading').isVisible(),false);assert.equal(await page.locator('#menu-button').isVisible(),true);
+  await page.keyboard.down('w');await page.waitForTimeout(100);await page.keyboard.up('w');assert.ok(await page.evaluate(()=>moves>0&&players[0].z<start[0].z));
   assert.equal(await page.locator('header').count(),0);assert.equal(await page.locator('.intro').count(),0);assert.equal(await page.locator('aside').count(),0);assert.equal(await page.locator('#menu-button svg').count(),1);
   await page.locator('.player-key-hint').first().waitFor({state:'visible'});assert.equal(await page.locator('.player-key-hint').first().textContent(),'WASD');assert.equal(await page.locator('.player-key-hint').nth(1).textContent(),'↑←↓→');
   await page.screenshot({path:'artifacts/idle-key-hints.png'});

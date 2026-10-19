@@ -1,7 +1,6 @@
 'use strict';
 const tr=key=>globalThis.JellyI18n?.t(key)??key;
 let menuOpen=false,hasPlayed=false,menuHelp=false,menuLevelSelect=false,menuSelected=0;
-let levelIntroRemaining=0;
 let winShown=false,winSelected=0;
 let restartTransition=null;
 let loadingActive=false,loadingFailed=false,loadingStage='loadingGraphics',autoZoom=1;
@@ -81,7 +80,7 @@ function inputs(){
  return result;
 }
 function simulate(dt){
- if(loadingActive||menuOpen||restartTransition||levelIntroRemaining>0||won||mapError)return;
+ if(loadingActive||menuOpen||restartTransition||won||mapError)return;
  accumulator+=Math.min(dt,.05);
  const input=inputs();
  while(accumulator>=JellyPhysics.STEP&&!won){
@@ -116,7 +115,6 @@ addEventListener('keydown',e=>{
  if(menuOpen){handleMenuKey(e);return;}
  if(won&&globalThis.JellyI18n){handleWinKey(e);return;}
  if(k==='Escape'){e.preventDefault();setMenu(!menuOpen);return;}
- if(levelIntroRemaining>0){e.preventDefault();if((k==='Enter'||k==='KeyE')&&!e.repeat)finishLevelIntro();return;}
  if(movementKeys[k]){
   e.preventDefault();if(won||e.repeat||heldKeys.has(k)||!JellyPhysics.alive(players[movementKeys[k][0]]))return;
   focusPlayer(movementKeys[k][0]);
@@ -133,17 +131,17 @@ addEventListener('keyup',e=>{const key=e.code;if(movementKeys[key]){e.preventDef
 addEventListener('blur',stopInput);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopInput();});
 
-document.querySelector('#reset').onclick=()=>restartLevel();document.querySelector('#again').onclick=()=>restartLevel(true);
-function restartLevel(intro=false){
+document.querySelector('#reset').onclick=()=>restartLevel();document.querySelector('#again').onclick=()=>restartLevel();
+function restartLevel(){
  if(!globalThis.JellyI18n){reset();return;}
  if(restartTransition)return;
- stopInput();restartTransition={elapsed:0,reset:false,intro};
+ stopInput();restartTransition={elapsed:0,reset:false};
  document.querySelector('#restart-fade').hidden=false;document.querySelector('#restart-fade').style.opacity='0';
 }
 function updateRestart(dt){
  if(!restartTransition)return;
  const state=restartTransition;state.elapsed+=dt;
- if(state.elapsed>=.22&&!state.reset){state.reset=true;reset();if(state.intro)showLevelIntro();}
+ if(state.elapsed>=.22&&!state.reset){state.reset=true;reset();}
  const opacity=state.elapsed<.22?state.elapsed/.22:1-(state.elapsed-.22)/.33;
  document.querySelector('#restart-fade').style.opacity=String(Math.max(0,Math.min(1,opacity)));
  if(state.elapsed>=.55){restartTransition=null;document.querySelector('#restart-fade').hidden=true;}
@@ -162,7 +160,7 @@ function createPlayerHints(){
 }
 function updatePlayerHints(dt){
  if(!playerHints.length)return;
- const inactive=menuOpen||won||loadingActive||restartTransition||levelIntroRemaining>0;
+ const inactive=menuOpen||won||loadingActive||restartTransition;
  const boxes=[];
  playerHints.forEach((hint,i)=>{
   const p=players[i],moving=Math.hypot(p.vx||0,p.vz||0)>.08||[...heldKeys].some(key=>movementKeys[key][0]===i);
@@ -177,7 +175,6 @@ function updatePlayerHints(dt){
 function frame(t){
  const elapsed=Math.max(0,(t-last)/1000),dt=Math.min(elapsed,.05);last=t;time=t/1000;
  updateRestart(dt);
- if(levelIntroRemaining>0&&!menuOpen&&sceneRenderer.ready){levelIntroRemaining=Math.max(0,levelIntroRemaining-dt);if(levelIntroRemaining===0)finishLevelIntro();}
  angle=reducedMotion?targetAngle:angle+(targetAngle-angle)*(1-Math.exp(-dt*11));
  if(sceneRenderer.ready)simulate(dt);
  effects.step(dt,world,goals,players);
@@ -203,7 +200,17 @@ function gpuFailure(message){if(!globalThis.JellyI18n)return;loadingFailed=true;
 sceneRenderer.onFailure=gpuFailure;
 sceneRenderer.onProgress=updateLoading;
 if(globalThis.JellyI18n)updateLoading(0,'loadingGraphics');
-sceneRenderer.init().then(()=>{if(mapError){gpuFailure(mapError);return;}loadingActive=false;if(globalThis.JellyI18n){document.querySelector('#level-loading').hidden=true;document.querySelector('#level-intro').classList.remove('loading');if(levelIntroRemaining>0)showLevelIntro();else document.querySelector('#level-intro').hidden=true;}updateGameCamera(0,true);}).catch(error=>gpuFailure(error.message));
+sceneRenderer.init().then(async()=>{
+ if(mapError){gpuFailure(mapError);return;}
+ updateGameCamera(0,true);
+ // Build and submit the actual scene before revealing it or accepting input.
+ if(menuOpen&&menuScene){const menuCamera={x:3.1,z:4.8,targetY:.2,focusHeight:.5,mode:'ortho',pitch:24,fov:45};sceneRenderer.render(menuScene,menuScene.players,menuCamera,-.15,0,Math.min(W/7.5,H/5),0);}
+ else sceneRenderer.render(level,players,camera,angle,0,scale,0);
+ await sceneRenderer.device?.queue?.onSubmittedWorkDone();
+ if(loadingFailed)return;
+ if(globalThis.JellyI18n){document.querySelector('#level-loading').hidden=true;document.querySelector('#level-intro').hidden=true;document.querySelector('#level-intro').classList.remove('loading');}
+ loadingActive=false;
+}).catch(error=>gpuFailure(error.message));
 document.querySelector('#softness').addEventListener('input',e=>{soft.softness=Number(e.target.value);players.forEach(p=>{soft.get(p).sleeping=false;soft.get(p).calm=0;});});
 document.querySelector('#decay').addEventListener('input',e=>soft.decay=Number(e.target.value));
 document.querySelector('#mesh').addEventListener('change',e=>sceneRenderer.mesh=e.target.checked);
@@ -220,7 +227,7 @@ document.querySelector('#camera-fov').addEventListener('input',e=>{camera.fov=Nu
 updateCameraUI();
 canvas.addEventListener('wheel',e=>{e.preventDefault();if(menuOpen)return;zoom=Math.max(.65,Math.min(1.8,zoom*Math.exp(-e.deltaY*.001)));resize();},{passive:false});
 canvas.addEventListener('pointerdown',e=>{
- if(menuOpen||restartTransition||levelIntroRemaining>0)return;
+ if(menuOpen||restartTransition||loadingActive)return;
  let closest=null,distance=Infinity;
  players.forEach((p,i)=>{const q=project(p.x,.42+(p.y||0),p.z),d=Math.hypot(e.clientX-q.x,e.clientY-q.y);if(q.visible&&JellyPhysics.alive(p)&&d<q.scale*.7&&d<distance){closest=i;distance=d;}});
  if(closest!==null){history.push(snapshot());moves++;soft.poke(players[closest]);tone(240);}
@@ -257,9 +264,7 @@ function handleMenuKey(e){
  else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)menuButtons()[menuSelected]?.click();}
  else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(e.repeat)return;if(menuHelp||menuLevelSelect)showMenuScreen('root');else if(hasPlayed)setMenu(false);}
 }
-function finishLevelIntro(){if(loadingActive)return;levelIntroRemaining=0;document.querySelector('#level-intro').hidden=true;document.body?.classList.toggle('level-starting',false);stopInput();}
-function showLevelIntro(){if(mapError)return;levelIntroRemaining=2.6;document.querySelector('#level-intro-title').textContent=tr(definition.name);document.querySelector('#level-intro').hidden=false;document.body.classList.toggle('level-starting',true);stopInput();}
-function setMenu(open){const firstStart=!open&&!hasPlayed&&!globalThis.location?.search?.includes('level=editor');if(menuOpen!==open){sceneRenderer.bridgeKey=undefined;sceneRenderer.propGeometryKey=undefined;sceneRenderer.decorationKey=undefined;}menuOpen=open;stopInput();document.querySelector('#main-menu').hidden=!open;document.body?.classList.toggle('menu-open',open);if(open){if(levelIntroRemaining>0)finishLevelIntro();refreshLanguage();if(globalThis.JellyI18n)showMenuHelp(false);}else{hasPlayed=true;if(firstStart)showLevelIntro();document.querySelector('#menu-button').focus?.({preventScroll:true});}}
+function setMenu(open){if(menuOpen!==open){sceneRenderer.bridgeKey=undefined;sceneRenderer.propGeometryKey=undefined;sceneRenderer.decorationKey=undefined;}menuOpen=open;stopInput();document.querySelector('#main-menu').hidden=!open;document.body?.classList.toggle('menu-open',open);if(open){refreshLanguage();if(globalThis.JellyI18n)showMenuHelp(false);}else{hasPlayed=true;document.querySelector('#menu-button').focus?.({preventScroll:true});}}
 if(globalThis.JellyI18n){
  createPlayerHints();
  document.querySelector('#win-next').onclick=()=>{const id=currentStandardLevel();if(id&&id<5)globalThis.location.href='?level='+(id+1)+'&play=1';else if(globalThis.location?.search?.includes('level=editor'))globalThis.location.href='editor.html';else{setMenu(true);showMenuScreen('levels');}};
