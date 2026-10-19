@@ -28,27 +28,13 @@
   for(const p of map.walls)if(p.half>=.4)for(let y=Math.max(-2,Math.floor(p.base)+1);y<=Math.ceil(p.base+p.height);y++)add(p.x,y,p.z);
   map.tiles=[];map.walls=map.walls.filter(p=>p.half<.4).map(p=>({...p,y:p.base}));return read(map);
  }
- function defaultLevel(){
-  const map=blank();map.name='Затонувшее святилище';
-  for(let z=1;z<=10;z++)for(let x=1;x<=10;x++)if(z>=5||(z<=3&&x>=2&&x<=9)||(z===4&&(x===3||x===8)))map.tiles.push({x,z,height:0});
-  const holes=new Set(['5,5','6,5','5,6','6,6','1,5','10,5','1,6','10,6','4,8','7,8','4,9','7,9','5,10','6,10']);
-  map.tiles=map.tiles.filter(p=>!holes.has(`${p.x},${p.z}`));
-  for(const x of [5,6,7])for(const z of [8,9,10]){map.tiles=map.tiles.filter(p=>p.x!==x||p.z!==z);map.tiles.push({x,z,height:1});}
-  for(const z of [5,6])map.tiles.push({x:10,z,height:0});
-  for(const z of [2,9])for(const x of [0,11])map.torches.push({x,y:1,z,face:x===0?'east':'west'});
-  for(let x=1;x<=10;x++)for(const z of [0,11])if(x!==5&&x!==6)map.walls.push({x,z,half:.5,height:1.8,base:-.4});
-  for(const x of [0,11])for(let z=1;z<=10;z++)if(z!==7&&z!==8)map.walls.push({x,z,half:.5,height:1.8,base:-.4});
-  map.spawns=[{x:2,z:8},{x:9,z:8},{x:9,z:7},null];map.goals=[{x:3,z:2},{x:8,z:3},{x:9,z:2},null];
-  map.plates=[{id:'plate-1',x:2,z:5,color:'red'},{id:'plate-2',x:8,z:2,color:'blue'}];
-  map.bridges=[{x:8,z:4,plate:'plate-1'},{x:3,z:4,plate:'plate-2'}];
-  map.lifts=[{x:5,z:7,base:0,top:1}];map.spikes=[{x:3,z:9,offset:0},{x:9,z:6,offset:2.9}];
-  map.portals=[{x:3,z:6,color:'violet'},{x:6,z:9,color:'violet'},{x:9,z:9,color:'amber'},{x:7,z:2,color:'amber'}];
-  map.crates=[{x:7,z:9}];map.archers=[{x:10,z:5,dx:0,dz:1,interval:2.4,firstShot:1.6}];
-  map.pickups=[{id:'oak-shield',kind:'shield',x:8,z:8},{id:'iron-sword',kind:'sword',x:8,z:7}];
-  map.conveyors=[1,2,3].map(x=>({x,z:10,dx:1,dz:0,speed:.85}));
-  map.drones=[{x:2,y:0,z:6,hover:0,color:0,target:0}];
-  return map;
+ function catalog(){return typeof module!=='undefined'&&module.exports?require('./levels/catalog.json'):root.JellyLevelCatalog;}
+ function standardLevel(id){
+  const entry=catalog()?.standard.find(level=>level.id===id);if(!entry)throw Error('Unknown standard level: '+id);
+  const data=typeof module!=='undefined'&&module.exports?require('./levels/'+entry.file):root.JellyLevelMaps?.[id];
+  if(!data)throw Error('Level has not been loaded: '+id);return copy(data);
  }
+ function defaultLevel(){return standardLevel(catalog().defaultLevel);}
  function read(input){
   const data=typeof input==='string'?JSON.parse(input):input;
   const fail=message=>{throw new Error(message);};
@@ -149,36 +135,12 @@
   return {definition:map,floor,world,soft,start,players,crates,bodies:[...players,...crates],plates,bridges,goals:map.goals.flatMap((p,slot)=>p?[{...p,slot}]:[])};
  }
  function forGame(storage,search=''){
-  const standard=/(?:^|[?&])level=([1-5])(?:&|$)/.exec(search);
+  const standard=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(search);
   if(standard)return read(standardLevel(Number(standard[1])));
   if(!/(?:^|[?&])level=editor(?:&|$)/.test(search))return read(defaultLevel());
   const saved=storage?.getItem(PLAY_KEY);if(!saved)throw new Error('Тестовый уровень не найден. Откройте редактор и нажмите «Играть».');
   const map=read(saved),errors=issues(map);if(errors.length)throw new Error(errors.join('\n'));return map;
  }
- const standardNames=['First Steps','Helping Hands','True Colors','Through the Rift','The Sunken Sanctum'];
- function standardLevel(id){
-  if(id===5){const map=defaultLevel();map.name=standardNames[4];return map;}
-  const map=blank();map.size=8;map.name=standardNames[id-1]||standardNames[0];
-  for(let x=1;x<=6;x++)for(let z=1;z<=6;z++)map.blocks.push({x,y:0,z});
-  map.spawns=[{x:2,y:0,z:5},{x:5,y:0,z:5},null,null];
-  map.goals=[{x:2,y:0,z:2},{x:5,y:0,z:2},null,null];
-  if(id===2){
-   map.blocks=map.blocks.filter(p=>p.z!==3);
-   map.plates=[{id:'bridge',x:2,y:0,z:4,color:'green'}];
-   map.bridges=[{x:2,y:0,z:3,plate:'bridge'},{x:5,y:0,z:3,plate:'bridge'}];
-   map.blocks.push({x:2,y:0,z:3},{x:5,y:0,z:3});
-   map.crates=[{x:3,y:0,z:4}];
-  }
-  if(id===3){
-   for(let x=1;x<=6;x++)map.blocks.push({x,y:1,z:3,color:x<=3?0:1});
-  }
-  if(id===4){
-   map.blocks=map.blocks.filter(p=>p.z!==3);
-   map.portals=[{x:2,y:0,z:4,color:'violet'},{x:2,y:0,z:2,color:'violet'},{x:5,y:0,z:4,color:'amber'},{x:5,y:0,z:2,color:'amber'}];
-   map.goals=[{x:3,y:0,z:1},{x:4,y:0,z:1},null,null];
-  }
-  return map;
- }
- const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame,droneOrigin,standardNames,standardLevel};
+ const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame,droneOrigin,get standardNames(){return catalog()?.standard.map(level=>level.name)||[];},standardLevel};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyLevels=api;
 })(globalThis);

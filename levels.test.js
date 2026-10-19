@@ -2,6 +2,11 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const L=require('./levels'),{Model}=require('./editor-model'),Physics=require('./physics'),Soft=require('./soft-body');
 
+test('every catalog entry loads an independent valid JSON map and routes to the same level',()=>{
+ const catalog=require('./levels/catalog.json');assert.equal(catalog.standard.length,5);assert.deepEqual(catalog.extra,[]);
+ for(const entry of catalog.standard){const map=L.standardLevel(entry.id);assert.equal(map.name,entry.name);assert.deepEqual(L.issues(L.read(map)),[]);assert.deepEqual(L.forGame(undefined,'?level='+entry.id),L.read(map));map.name='Changed';assert.equal(L.standardLevel(entry.id).name,entry.name);}
+});
+
 test('original map roundtrips without live state and produces the existing scene',()=>{
  const map=L.read(JSON.stringify(L.defaultLevel()));assert.deepEqual(L.issues(map),[]);
  assert.deepEqual(L.read(JSON.stringify(map)),map);

@@ -5,7 +5,7 @@ const assert=require('node:assert/strict');
  try{
  const page=await browser.newPage({viewport:{width:1280,height:800}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
- await page.goto('http://localhost:3000/');await page.waitForFunction(()=>sceneRenderer.ready&&!loadingActive);await page.waitForTimeout(300);
+ await page.goto('http://localhost:3000/');await page.waitForFunction(()=>typeof sceneRenderer!=='undefined'&&sceneRenderer.ready&&!loadingActive);await page.waitForTimeout(300);
  assert.equal(await page.locator('html').getAttribute('lang'),'en');
  assert.equal(await page.locator('#play').textContent(),'Play');
  assert.deepEqual(await page.evaluate(()=>menuScene.players.map(p=>p.slot)),[1,2]);
@@ -32,8 +32,8 @@ const assert=require('node:assert/strict');
  await page.locator('[data-language=en]').click();await page.locator('#play').click();assert.equal(await page.locator('#menu-levels').isVisible(),true);
  assert.equal(await page.locator('[data-level="1"]').isEnabled(),true);assert.equal(await page.locator('[data-level="2"]').isDisabled(),true);
  await page.keyboard.press('ArrowDown');assert.equal(await page.locator('#levels-back').evaluate(n=>n.classList.contains('selected')),true);await page.keyboard.press('ArrowUp');
- await page.waitForFunction(()=>sceneRenderer.ready&&!loadingActive);await page.locator('#level-loading').waitFor({state:'hidden'});await page.screenshot({path:'artifacts/level-select.png'});
- await page.locator('[data-level="1"]').click();await page.waitForURL('**/?level=1&play=1');await page.waitForFunction(()=>sceneRenderer.ready&&!loadingActive);assert.equal(await page.locator('#main-menu').isVisible(),false);
+ await page.waitForFunction(()=>typeof sceneRenderer!=='undefined'&&sceneRenderer.ready&&!loadingActive);await page.locator('#level-loading').waitFor({state:'hidden'});await page.screenshot({path:'artifacts/level-select.png'});
+ await page.locator('[data-level="1"]').click();await page.waitForURL('**/?level=1&play=1');await page.waitForFunction(()=>typeof sceneRenderer!=='undefined'&&sceneRenderer.ready&&!loadingActive);assert.equal(await page.locator('#main-menu').isVisible(),false);
  assert.equal(await page.locator('#level-intro').isVisible(),false);
  assert.equal(await page.locator('#level-intro-title').textContent(),'First Steps');
  await page.keyboard.press('w');assert.ok(await page.evaluate(()=>moves)>0);
@@ -47,21 +47,21 @@ const assert=require('node:assert/strict');
  assert.equal(await page.locator('#win-next').textContent(),'Next level');
  await page.screenshot({path:'artifacts/level-complete.png'});
  await page.keyboard.press('s');await page.keyboard.press('e');await page.waitForFunction(()=>restartTransition===null);assert.equal(await page.evaluate(()=>won),false);assert.equal(await page.locator('#level-intro').isVisible(),false);
- await complete();await page.keyboard.press('Enter');await page.waitForURL('**/?level=2&play=1');await page.waitForFunction(()=>sceneRenderer.ready&&!loadingActive);assert.equal(await page.locator('#level-intro-title').textContent(),'Helping Hands');
+ await complete();await page.keyboard.press('Enter');await page.waitForURL('**/?level=2&play=1');await page.waitForFunction(()=>typeof sceneRenderer!=='undefined'&&sceneRenderer.ready&&!loadingActive);assert.equal(await page.locator('#level-intro-title').textContent(),'Helping Hands');
  await page.keyboard.press('Escape');assert.equal(await page.locator('#play').textContent(),'Resume');
  await page.keyboard.press('q');assert.equal(await page.locator('#main-menu').isVisible(),false);
  await page.keyboard.press('Escape');
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'artifacts/menu-mobile.png'});assert.equal(await page.locator('#play').isVisible(),true);
  await page.locator('#show-levels').click();await page.keyboard.press('q');assert.equal(await page.locator('#menu-root').isVisible(),true);
  for(let id=2;id<=5;id++){
-  await page.goto('http://localhost:3000/?level='+id+'&play=1');await page.waitForFunction(()=>sceneRenderer.ready&&!loadingActive);
+  await page.goto('http://localhost:3000/?level='+id+'&play=1');await page.waitForFunction(()=>typeof sceneRenderer!=='undefined'&&sceneRenderer.ready&&!loadingActive);
   assert.equal(await page.evaluate(()=>mapError),null);assert.equal(await page.evaluate(()=>definition.name),await page.evaluate(id=>JellyLevels.standardNames[id-1],id));
   await complete();assert.equal(await page.evaluate(()=>JellyProgress.unlocked),Math.min(5,id+1));
  }
  assert.equal(await page.locator('#win-title').textContent(),'Demo complete');assert.equal(await page.locator('#win-next').textContent(),'Levels');
  await page.locator('#win-next').click();assert.equal(await page.locator('#menu-levels').isVisible(),true);await page.keyboard.press('q');
- await page.locator('#open-editor').click();await page.waitForURL('**/editor.html');
- await page.goto('http://localhost:3000/?level=editor');assert.equal(await page.locator('#main-menu').isVisible(),false);
+ await page.locator('#open-editor').click();await page.waitForURL('**/editor.html');await page.waitForFunction(()=>typeof model!=='undefined'&&typeof previewRenderer!=='undefined'&&previewRenderer.ready);assert.equal(await page.evaluate(()=>model.map.name),'The Sunken Sanctum');
+ await page.goto('http://localhost:3000/?level=editor');await page.waitForFunction(()=>typeof sceneRenderer!=='undefined'&&sceneRenderer.ready);assert.equal(await page.locator('#main-menu').isVisible(),false);
  assert.deepEqual(errors,[]);console.log('PASS menu, paused input, languages, persistence, resume, mobile and editor launch');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

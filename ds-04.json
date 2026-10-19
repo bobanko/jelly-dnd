@@ -261,6 +261,33 @@
   ],
   "tiles": [],
   "walls": [],
+  "torches": [
+    {
+      "x": 5,
+      "y": 2,
+      "z": 7,
+      "face": "east"
+    },
+    {
+      "x": 7,
+      "y": 1,
+      "z": 4,
+      "face": "east"
+    },
+    {
+      "x": 7,
+      "y": 1,
+      "z": 10,
+      "face": "east"
+    },
+    {
+      "x": 7,
+      "y": 1,
+      "z": 7,
+      "face": "east"
+    }
+  ],
+  "drones": [],
   "spawns": [
     null,
     {

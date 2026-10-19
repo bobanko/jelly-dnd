@@ -14,7 +14,7 @@ const N=12, colors=JellyLevels.characters.map(p=>p.color),names=JellyLevels.char
 let zoom=1;
 let fpsElapsed=0,fpsFrames=0;
 let mapError=null,definition;
-try{let search=globalThis.location?.search||'';const requested=/(?:^|[?&])level=([1-5])(?:&|$)/.exec(search);if(requested&&globalThis.JellyProgress&&!JellyProgress.canPlay(Number(requested[1]))){search='?level=1';globalThis.history.replaceState(null,'',search);}definition=JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.defaultLevel());}
+try{let search=globalThis.location?.search||'';const requested=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(search);if(requested&&globalThis.JellyProgress&&!JellyProgress.canPlay(Number(requested[1]))){search='?level=1';globalThis.history.replaceState(null,'',search);}definition=JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.defaultLevel());}
 const runtime=JellyLevels.instantiate(definition,JellyPhysics,JellySoftBody);
 const {start,players,crates,bodies,plates,goals,bridges,floor,world,soft}=runtime;
 let followedPlayer=0;
@@ -98,7 +98,7 @@ function simulate(dt){
   }
   const allFinished=players.length>0&&players.every(p=>world.goalActive(goals.find(g=>g.slot===p.slot),p)&&Math.hypot(p.vx,p.vz)<.25);
   finishHold=allFinished?Math.min(WIN_HOLD_SECONDS,finishHold+JellyPhysics.STEP):0;
-  if(finishHold>=WIN_HOLD_SECONDS-1e-9){finishHold=WIN_HOLD_SECONDS;won=true;players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);const current=/(?:^|[?&])level=([1-5])(?:&|$)/.exec(globalThis.location?.search||'');if(current&&globalThis.JellyProgress){JellyProgress.complete(Number(current[1]));updateLevelLocks();}}
+  if(finishHold>=WIN_HOLD_SECONDS-1e-9){finishHold=WIN_HOLD_SECONDS;won=true;players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);const current=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(globalThis.location?.search||'');if(current&&globalThis.JellyProgress){JellyProgress.complete(Number(current[1]));updateLevelLocks();}}
   level.finishProgress=finishHold/WIN_HOLD_SECONDS;
   accumulator-=JellyPhysics.STEP;
  }
@@ -258,8 +258,8 @@ function refreshLanguage(){
  updateUI();
  if(won&&globalThis.JellyI18n)refreshWin();
 }
-function currentStandardLevel(){const match=/(?:^|[?&])level=([1-5])(?:&|$)/.exec(globalThis.location?.search||'');return match?Number(match[1]):0;}
-function refreshWin(){const id=currentStandardLevel();document.querySelector('#win-title').textContent=tr(id===5?'demoComplete':'levelComplete');document.querySelector('#win-level-name').textContent=tr(definition.name);document.querySelector('#win-next').textContent=tr(id&&id<5?'nextLevel':globalThis.location?.search?.includes('level=editor')?'editor':'levels');}
+function currentStandardLevel(){const match=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(globalThis.location?.search||'');return match?Number(match[1]):0;}
+function refreshWin(){const id=currentStandardLevel();document.querySelector('#win-title').textContent=tr(id===JellyLevels.standardNames.length?'demoComplete':'levelComplete');document.querySelector('#win-level-name').textContent=tr(definition.name);document.querySelector('#win-next').textContent=tr(id&&id<JellyLevels.standardNames.length?'nextLevel':globalThis.location?.search?.includes('level=editor')?'editor':'levels');}
 function selectWinItem(index,focus=true){const buttons=[document.querySelector('#win-next'),document.querySelector('#again')];winSelected=(index+2)%2;buttons.forEach((button,i)=>button.classList.toggle('selected',i===winSelected));if(focus)buttons[winSelected].focus({preventScroll:true});}
 function handleWinKey(e){const k=e.code;if(['ArrowDown','ArrowRight','KeyS','KeyD','ArrowUp','ArrowLeft','KeyW','KeyA','Tab'].includes(k)){e.preventDefault();selectWinItem(winSelected+1);}else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)document.querySelector(winSelected===0?'#win-next':'#again').click();}else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(!e.repeat)setMenu(true);}}
 function updateLevelLocks(){document.querySelectorAll('[data-level]').forEach(button=>{const locked=globalThis.JellyProgress&&!JellyProgress.canPlay(Number(button.dataset.level));button.disabled=!!locked;button.classList.toggle('locked',!!locked);let icon=button.querySelector('.level-lock');if(!icon){icon=document.createElement('span');icon.className='level-lock';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';button.append(icon);}icon.hidden=!locked;});}
@@ -276,7 +276,7 @@ function handleMenuKey(e){
 function setMenu(open){if(menuOpen!==open){sceneRenderer.bridgeKey=undefined;sceneRenderer.propGeometryKey=undefined;sceneRenderer.decorationKey=undefined;}menuOpen=open;stopInput();document.querySelector('#main-menu').hidden=!open;document.body?.classList.toggle('menu-open',open);if(open){refreshLanguage();if(globalThis.JellyI18n)showMenuHelp(false);}else{hasPlayed=true;document.querySelector('#menu-button').focus?.({preventScroll:true});}}
 if(globalThis.JellyI18n){
  createPlayerHints();
- document.querySelector('#win-next').onclick=()=>{const id=currentStandardLevel();if(id&&id<5)globalThis.location.href='?level='+(id+1)+'&play=1';else if(globalThis.location?.search?.includes('level=editor'))globalThis.location.href='editor.html';else{setMenu(true);showMenuScreen('levels');}};
+ document.querySelector('#win-next').onclick=()=>{const id=currentStandardLevel();if(id&&id<JellyLevels.standardNames.length)globalThis.location.href='?level='+(id+1)+'&play=1';else if(globalThis.location?.search?.includes('level=editor'))globalThis.location.href='editor.html';else{setMenu(true);showMenuScreen('levels');}};
  [document.querySelector('#win-next'),document.querySelector('#again')].forEach((button,index)=>{button.addEventListener('pointerenter',()=>selectWinItem(index,false));button.addEventListener('focus',()=>selectWinItem(index,false));});
  document.querySelector('#play').onclick=()=>hasPlayed?setMenu(false):showMenuScreen('levels');
  document.querySelector('#show-levels').onclick=()=>showMenuScreen('levels');
