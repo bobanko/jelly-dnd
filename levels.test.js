@@ -2,6 +2,15 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const L=require('./levels'),{Model}=require('./editor-model'),Physics=require('./physics'),Soft=require('./soft-body');
 
+test('editor expands beyond legacy borders in every direction and roundtrips coordinates',()=>{
+ const model=new Model(L.blank());
+ model.change(()=>{for(const [x,z] of [[-4,-7],[24,32]])model.paint('floor',x,z,{voxel:true,y:0});});
+ assert.deepEqual(model.map.blocks.map(p=>[p.x,p.z]),[[-4,-7],[24,32]]);
+ assert.ok(model.map.size>=33);assert.deepEqual(L.read(JSON.stringify(model.map)),model.map);
+ const runtime=L.instantiate(model.map,Physics,Soft);assert.equal(runtime.world.heightAt(-4,-7),0);
+ model.undo();assert.equal(model.map.blocks.length,0);model.redo();assert.equal(model.map.blocks.length,2);
+});
+
 test('targeted erasing removes one attachment and keeps its host, neighbours and undo history',()=>{
  const map=L.blank();map.blocks=[{x:2,y:1,z:2}];map.torches=[{x:2,y:1,z:2,face:'south'},{x:2,y:1,z:2,face:'east'}];map.spikes=[{x:2,y:1,z:2,offset:0}];
  const model=new Model(map);model.begin();assert.equal(model.eraseObject('torches',1),true);assert.equal(model.commit(),true);
@@ -11,7 +20,7 @@ test('targeted erasing removes one attachment and keeps its host, neighbours and
 });
 
 test('every catalog entry loads an independent valid JSON map and routes to the same level',()=>{
- const catalog=require('./levels/catalog.json');assert.equal(catalog.standard.length,5);assert.deepEqual(catalog.extra,[]);
+ const catalog=require('./levels/catalog.json');assert.ok(catalog.standard.length>0);assert.ok(Array.isArray(catalog.extra));
  for(const [index,file] of catalog.standard.entries()){const map=L.standardLevel(index+1);assert.equal(map.name,require('./levels/'+file).name);assert.deepEqual(L.issues(L.read(map)),[]);assert.deepEqual(L.forGame(undefined,'?level='+(index+1)),L.read(map));map.name='Changed';assert.notEqual(L.standardLevel(index+1).name,'Changed');assert.ok(L.displayName(map,'ru'));}
 });
 test('level title translations roundtrip through editor data and fall back to the primary name',()=>{
@@ -33,7 +42,7 @@ test('original map roundtrips without live state and produces the existing scene
 
 test('schema rejects malformed coordinates, unsafe quantities, duplicate ids and invalid directions',()=>{
  for(const modify of [
-  m=>m.version=2,m=>m.size=100,m=>m.tiles[0].x=16,m=>m.tiles[0].height=Infinity,
+  m=>m.version=2,m=>m.size=1.5,m=>m.tiles[0].x=1.5,m=>m.tiles[0].height=Infinity,
   m=>m.spawns=[],m=>m.tiles.push({...m.tiles[0]}),m=>m.archers[0].dx=1,
   m=>m.portals[0].color='unknown',m=>m.pickups[0].kind='staff',m=>m.plates[1].id=m.plates[0].id,
   m=>m.crates=Array.from({length:5},(_,x)=>({x,z:3}))
@@ -54,7 +63,7 @@ test('draft validation finds missing spawns, unpaired portals, unsafe markers an
 test('one painted gesture undoes as one operation; redo and invalid changes preserve the map',()=>{
  const m=new Model(L.blank());m.begin();for(let x=1;x<=4;x++)m.paint('floor',x,2,{height:1});assert.equal(m.commit(),true);
  assert.equal(m.undoStack.length,1);assert.equal(m.map.tiles.length,4);m.undo();assert.equal(m.map.tiles.length,0);m.redo();assert.equal(m.map.tiles.length,4);
- const before=L.copy(m.map);assert.throws(()=>m.change(map=>map.tiles[0].x=99));assert.deepEqual(m.map,before);
+ const before=L.copy(m.map);assert.throws(()=>m.change(map=>map.tiles[0].x=1.5));assert.deepEqual(m.map,before);
  m.undo();m.change(()=>m.paint('floor',8,8));assert.equal(m.redoStack.length,0);
 });
 

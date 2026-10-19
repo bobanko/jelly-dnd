@@ -55,6 +55,18 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#export').click()]);assert.equal(download.suggestedFilename(),'my-original-level.json');
   await page.reload();await page.waitForFunction(()=>typeof model!=='undefined');assert.equal(await page.evaluate(()=>sourceFilename),'my-original-level.json');
   const [again]=await Promise.all([page.waitForEvent('download'),page.locator('#export').click()]);assert.equal(again.suggestedFilename(),'my-original-level.json');
-  assert.deepEqual(errors,[]);console.log('PASS inline XYZ, colour radios, precise torch/spike erase, block preservation and undo/redo');
+  assert.equal(await page.locator('#map-size').count(),0);
+  await page.waitForFunction(()=>typeof previewRenderer!=='undefined'&&previewRenderer?.ready);
+  await page.evaluate(()=>{model.load(L.blank());changed();fit();selectTool('floor');});
+  for(const [x,z] of [[-5,-4],[25,21]]){
+   await page.locator('#coordinate-x').fill(String(x));await page.locator('#coordinate-z').fill(String(z));await page.locator('#coordinate-y').fill('0');await page.locator('#place-coordinate').click();
+  }
+  assert.deepEqual(await page.evaluate(()=>model.map.blocks.map(p=>[p.x,p.z])),[[-5,-4],[25,21]]);
+  await page.evaluate(()=>fit());assert.deepEqual(await page.evaluate(()=>[previewCamera.x,previewCamera.z]),[10,8.5]);
+  await page.evaluate(()=>{placementMode.value='layer';});await clickWorld([28,0,18]);assert.ok(await page.evaluate(()=>model.map.blocks.some(p=>p.x===28&&p.z===18)),JSON.stringify(await page.evaluate(()=>({blocks:model.map.blocks,hover,tool}))));
+  await page.evaluate(()=>fit());
+  await page.waitForFunction(()=>!previewDirty&&previewRuntime&&$('gpu-message').hidden);
+  await page.screenshot({path:'artifacts/editor-expanding-area.png'});
+  assert.deepEqual(errors,[]);console.log('PASS editor controls, expanding area, colours, directions and undo/redo');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

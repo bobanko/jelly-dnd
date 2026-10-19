@@ -62,7 +62,7 @@
   ensureFloor(x,z,height=0){let p=this.at('tiles',x,z);if(!p){p={x,z,height};this.map.tiles.push(p);}return p;}
   erase(x,z,y){const hit=p=>p&&p.x===x&&p.z===z&&(y===undefined||(p.y??p.height??0)===y);for(const key of Object.keys(L.limits))this.map[key]=this.map[key].filter(p=>!hit(p));for(const key of ['spawns','goals'])this.map[key]=this.map[key].map(p=>hit(p)?null:p);}
   paint(tool,x,z,options={}){
-   if(x<0||z<0||x>=this.map.size||z>=this.map.size||tool==='select')return;
+   if(!Number.isSafeInteger(x)||!Number.isSafeInteger(z)||tool==='select')return;
    if(tool==='torch'||tool==='drone'){this.paintVoxel(tool,x,options.y??options.height??0,z,options);return;}
    if(options.voxel||tool==='cube'||/^color-[0-3]$/.test(tool)){this.paintVoxel(tool,x,options.y??options.height??0,z,options);return;}
    const height=options.height??0;

@@ -63,7 +63,7 @@
   if(nearest)return nearest;
   const hit=plane(ray,height);if(!hit)return null;
   const x=Math.round(hit.position[0]),z=Math.round(hit.position[2]);
-  return x>=0&&z>=0&&x<size&&z<size?{x,z,height,key:null,hit}:null;
+  return size===null||(x>=0&&z>=0&&x<size&&z<size)?{x,z,height,key:null,hit}:null;
  }
  function frame(camera,angle,width,height,scale){return GPU.cameraFrame(camera,angle,width,height,scale);}
  const api={inverse,ray,plane,boxHit,boxes,pick,frame};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyEditorSpace=api;

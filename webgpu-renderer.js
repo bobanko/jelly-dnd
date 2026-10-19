@@ -4,10 +4,10 @@
  const PORTAL_LIMIT=Levels.limits.portals,PORTAL_FLOATS=12,GOALS_OFFSET=56+PORTAL_LIMIT*PORTAL_FLOATS,TORCHES_OFFSET=GOALS_OFFSET+32,BODY3_OFFSET=TORCHES_OFFSET+32,BODY_SLOTS_OFFSET=BODY3_OFFSET+4,FINISH_OFFSET=BODY_SLOTS_OFFSET+4,GOAL_SLOTS_OFFSET=FINISH_OFFSET+4,SCENE_FLOATS=GOAL_SLOTS_OFFSET+4;
  const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
  const normalize=a=>{const l=Math.hypot(...a)||1;return a.map(v=>v/l);};
- function viewMatrix(center,view,width,height,offset=0){
+ function viewMatrix(center,view,width,height,offset=0,depthRange=40){
   const right=normalize(cross([0,1,0],view)),up=normalize(cross(view,right)),m=new Float32Array(16);
-  for(let k=0;k<3;k++){m[k*4]=right[k]*2/width;m[k*4+1]=up[k]*2/height;m[k*4+2]=-view[k]/40;}
-  m[12]=-dot(right,center)*2/width;m[13]=-dot(up,center)*2/height+offset;m[14]=.5+dot(view,center)/40;m[15]=1;return m;
+  for(let k=0;k<3;k++){m[k*4]=right[k]*2/width;m[k*4+1]=up[k]*2/height;m[k*4+2]=-view[k]/depthRange;}
+  m[12]=-dot(right,center)*2/width;m[13]=-dot(up,center)*2/height+offset;m[14]=.5+dot(view,center)/depthRange;m[15]=1;return m;
  }
  function cameraFrame(camera,angle,width,height,scale){
   const perspective=camera.mode==='perspective',pitch=(camera.pitch??30)*Math.PI/180,azimuth=angle+Math.PI/4;
@@ -17,7 +17,7 @@
   // perspective strength while keeping that character's apparent size stable.
   const distance=perspective?focusDepth+(referenceDistance-focusDepth)*Math.tan(Math.PI/8)/Math.tan((camera.fov??45)*Math.PI/360):20;
   const eye=target.map((v,k)=>v+view[k]*distance);
-  if(!perspective)return {vp:viewMatrix(target,view,width/scale,height/scale,-.12),view,eye,perspective,distance};
+  if(!perspective)return {vp:viewMatrix(target,view,width/scale,height/scale,-.12,Math.max(40,width/scale*2,height/scale*2)),view,eye,perspective,distance};
   const right=normalize(cross([0,1,0],view)),up=normalize(cross(view,right)),f=1/Math.tan((camera.fov??45)*Math.PI/360);
   const near=.1,far=Math.max(120,distance+60),a=far/(far-near),b=near*a,offset=-.12,vp=new Float32Array(16),eyeDepth=distance+dot(view,target);
   // WebGPU uses a zero-to-one depth range. The offset keeps the followed cube

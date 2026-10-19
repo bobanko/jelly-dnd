@@ -40,12 +40,12 @@
   const data=typeof input==='string'?JSON.parse(input):input;
   const fail=message=>{throw new Error(message);};
   if(!data||typeof data!=='object'||Array.isArray(data)||data.version!==1)fail('Нужен файл уровня Jelly & Bones версии 1.');
-  if(!Number.isInteger(data.size)||data.size<8||data.size>16)fail('Размер карты должен быть от 8 до 16 клеток.');
+  if(!Number.isSafeInteger(data.size)||data.size<8)fail('Недопустимый размер карты.');
   const map=blank();map.size=data.size;map.name=typeof data.name==='string'?data.name.trim().slice(0,80)||'Без названия':'Без названия';
   if(data.names&&typeof data.names==='object'&&!Array.isArray(data.names))map.names=Object.fromEntries(Object.entries(data.names).filter(([lang,value])=>/^[a-z]{2,8}(?:-[a-z0-9]{2,8})?$/i.test(lang)&&typeof value==='string'&&value.trim()).map(([lang,value])=>[lang,value.trim().slice(0,80)]));
   const number=(value,fallback,min,max)=>{if(value===undefined)return fallback;if(typeof value!=='number'||!Number.isFinite(value)||value<min||value>max)fail('Недопустимое числовое свойство объекта.');return value;};
   const id=(value,fallback)=>{if(value===undefined)return fallback;if(typeof value!=='string'||!value.trim()||value.length>64)fail('Неверный идентификатор объекта.');return value;};
-  const point=p=>{if(!p||!Number.isInteger(p.x)||!Number.isInteger(p.z)||p.x<0||p.z<0||p.x>=map.size||p.z>=map.size)fail('Объект находится за границами карты.');return {x:p.x,z:p.z,...(p.y===undefined?{}:{y:number(p.y,0,-2,12)})};};
+  const point=p=>{if(!p||!Number.isSafeInteger(p.x)||!Number.isSafeInteger(p.z))fail('Координаты X и Z должны быть целыми.');map.size=Math.max(map.size,Math.abs(p.x)+1,Math.abs(p.z)+1);return {x:p.x,z:p.z,...(p.y===undefined?{}:{y:number(p.y,0,-2,12)})};};
   const list=(key,convert,max=limits[key])=>{
    const items=data[key]??[];if(!Array.isArray(items)||items.length>max)fail(`Слишком много объектов: ${key}.`);
    const cells=new Set();map[key]=items.map((p,i)=>{const q=point(p),cell=`${q.x},${q.y??''},${q.z}`+(key==='spikes'||key==='torches'?','+(p.face||'top'):'');if(cells.has(cell))fail(`Два объекта одного типа в одной клетке: ${key}.`);cells.add(cell);return {...q,...convert(p,i)};});
