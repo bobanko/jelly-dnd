@@ -13,9 +13,11 @@ const WIN_HOLD_SECONDS=1;
 const N=12, colors=JellyLevels.characters.map(p=>p.color),names=JellyLevels.characters.map(p=>p.name);
 let zoom=1;
 let fpsElapsed=0,fpsFrames=0;
+const menuOnly=globalThis.JellyMenuOnly===true;
+const menuScene=typeof createMenuScene==='function'?createMenuScene():null;
 let mapError=null,definition;
-try{let search=globalThis.location?.search||'';const requested=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(search);if(requested&&globalThis.JellyProgress&&!JellyProgress.canPlay(Number(requested[1]))){search='?level=1';globalThis.history.replaceState(null,'',search);}definition=JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.standardLevel(1));}
-const runtime=JellyLevels.instantiate(definition,JellyPhysics,JellySoftBody);
+try{let search=globalThis.location?.search||'';const requested=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(search);if(requested&&globalThis.JellyProgress&&!JellyProgress.canPlay(Number(requested[1]))){search='?level=1';globalThis.history.replaceState(null,'',search);}definition=menuOnly?JellyLevels.blank():JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.standardLevel(1));}
+const runtime=menuOnly?menuScene:JellyLevels.instantiate(definition,JellyPhysics,JellySoftBody);
 const {start,players,crates,bodies,plates,goals,bridges,floor,world,soft}=runtime;
 let followedPlayer=0;
 let runSeconds=0,runDeaths=players.map(()=>0);
@@ -23,7 +25,6 @@ const camera={x:start[0].x,z:start[0].z,targetY:start[0].y||0,focusHeight:(start
 const cameraPitches={ortho:30,perspective:55};
 const effects=new JellyEffects.System({reducedMotion});
 const level={...runtime,effects,won:false,finishProgress:0,reducedMotion};
-const menuScene=typeof createMenuScene==='function'?createMenuScene():null;
 const heldKeys=new Set();
 const keySets={KeyW:[0,0,-1],KeyS:[0,0,1],KeyA:[0,-1,0],KeyD:[0,1,0],ArrowUp:[1,0,-1],ArrowDown:[1,0,1],ArrowLeft:[1,-1,0],ArrowRight:[1,1,0],KeyI:[2,0,-1],KeyK:[2,0,1],KeyJ:[2,-1,0],KeyL:[2,1,0],KeyT:[3,0,-1],KeyG:[3,0,1],KeyF:[3,-1,0],KeyH:[3,1,0],Numpad8:[4,0,-1],Numpad5:[4,0,1],Numpad4:[4,-1,0],Numpad6:[4,1,0]};
 // Assign controls by the active roster's order, independently of character colour.
@@ -165,6 +166,7 @@ function createPlayerHints(){
  const layouts=[['W','A','S','D'],['↑','←','↓','→'],['I','J','K','L'],['T','F','G','H'],['8','4','5','6']];
  playerHints=players.map((p,i)=>{const node=document.createElement('div');node.className='player-key-hint';node.hidden=true;node.style.setProperty('--jelly-color',colors[p.slot]);
   const control=controlOwners.indexOf(i),keys=layouts[control];if(control===4)node.title='NumPad';keys.forEach(key=>{const kbd=document.createElement('kbd');kbd.textContent=key;node.append(kbd);});
+  const caption=document.createElement('span');caption.className='player-hint-action';caption.dataset.t='helpMove';caption.textContent=tr('helpMove');node.append(caption);
   document.querySelector('#player-hints').append(node);return {node,idle:0};
  });
 }
@@ -207,7 +209,7 @@ function updateGameCamera(dt,snap=false){
   autoZoom+=(target.zoom-autoZoom)*smoothing;
  scale=Math.min(W/16,H/12)*zoom*autoZoom;
 }
-function updateLoading(progress,stage){if(!globalThis.JellyI18n)return;loadingActive=true;loadingStage=stage;document.querySelector('#level-intro').hidden=false;document.querySelector('#level-intro').classList.add('loading');document.querySelector('#level-intro-title').textContent=currentLevelTitle();document.querySelector('#level-loading').hidden=false;document.querySelector('#loading-status').textContent=tr(stage);document.querySelector('#loading-progress').value=progress;}
+function updateLoading(progress,stage){if(!globalThis.JellyI18n)return;loadingActive=true;loadingStage=stage;if(menuOnly&&!loadingFailed)return;document.querySelector('#level-intro').hidden=false;document.querySelector('#level-intro').classList.add('loading');document.querySelector('#level-intro-title').textContent=currentLevelTitle();document.querySelector('#level-loading').hidden=false;document.querySelector('#loading-status').textContent=tr(stage);document.querySelector('#loading-progress').value=progress;}
 function gpuFailure(message){if(!globalThis.JellyI18n)return;loadingFailed=true;updateLoading(0,'loadingGraphics');document.querySelector('#loading-status').textContent=message;document.querySelector('#loading-progress').hidden=true;document.querySelector('#loading-retry').hidden=false;}
 sceneRenderer.onFailure=gpuFailure;
 sceneRenderer.onProgress=updateLoading;
@@ -247,6 +249,7 @@ canvas.addEventListener('pointerdown',e=>{
 requestAnimationFrame(frame);focusPlayer(0);updateUI();
 
 function refreshLanguage(){
+ document.querySelectorAll('.player-hint-action').forEach(node=>node.textContent=tr('helpMove'));
  if(globalThis.JellyI18n){
   const russian=JellyI18n.language==='ru',title=document.querySelector('#menu-title');
   title.replaceChildren();const word=document.createElement('span');word.className='jelly-word';
@@ -263,7 +266,7 @@ function refreshLanguage(){
   title.append(bones);
   title.setAttribute('aria-label',russian?'Желейки и косточки':'Jelly & Bones');document.title=russian?'Желейки и косточки':'Jelly & Bones';
  }
- if(globalThis.JellyI18n)document.querySelector('#level-intro-title').textContent=currentLevelTitle();
+ if(globalThis.JellyI18n&&!menuOnly)document.querySelector('#level-intro-title').textContent=currentLevelTitle();
  if(loadingActive&&!loadingFailed)document.querySelector('#loading-status').textContent=tr(loadingStage);
  const sound=document.querySelector('#sound');sound.title=tr(audioOn?'Выключить звук':'Включить звук');sound.setAttribute('aria-label',sound.title);
   if(globalThis.JellyI18n)document.querySelector('#play').textContent=tr(hasPlayed?'resume':'play');
@@ -272,7 +275,7 @@ function refreshLanguage(){
  if(won&&globalThis.JellyI18n)refreshWin();
 }
 function currentStandardLevel(){const match=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(globalThis.location?.search||'');return globalThis.location?.search?.includes('level=editor')?0:match?Number(match[1]):1;}
-function currentLevelTitle(){const id=currentStandardLevel(),name=JellyLevels.displayName(definition,globalThis.JellyI18n?.language);return id?`${id}. ${name}`:name;}
+function currentLevelTitle(){if(menuOnly)return '';const id=currentStandardLevel(),name=JellyLevels.displayName(definition,globalThis.JellyI18n?.language);return id?`${id}. ${name}`:name;}
 function formatRunTime(seconds){const n=Math.floor((seconds+1e-9)*100);return `${Math.floor(n/6000)}:${String(Math.floor(n/100)%60).padStart(2,'0')}.${String(n%100).padStart(2,'0')}`;}
 function statIcon(kind,slot){
  const icon=document.createElement('span');icon.className='stat-icon'+(kind==='jelly'?' stat-jelly':'');icon.setAttribute('aria-hidden','true');

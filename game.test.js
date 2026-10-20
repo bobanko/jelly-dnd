@@ -9,7 +9,7 @@ function game(options={}){
  const sandbox={innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellySharedCamera:require('./shared-camera'),JellyLevels:require('./levels.js'),JellyEffects:require('./game-effects.js'),JellyPhysics:require('./physics.js'),JellySoftBody:require('./soft-body.js'),JellyGPU:{...require('./webgpu-renderer.js'),Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
  if(!options.map)options.map=structuredClone(require('./levels/05-sunken-sanctum.json'));
  if(options.map){sandbox.location={search:'?level=editor'};sandbox.localStorage={getItem:()=>JSON.stringify(options.map)};}
- vm.createContext(sandbox);vm.runInContext(fs.readFileSync('game.js','utf8'),sandbox);
+ vm.createContext(sandbox);if(options.menuOnly){sandbox.JellyMenuOnly=true;vm.runInContext(fs.readFileSync('menu-scene.js','utf8'),sandbox);}vm.runInContext(fs.readFileSync('game.js','utf8'),sandbox);
  const codeFor=key=>({arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'}[key]||(/^\d$/.test(key)?'Digit'+key:'Key'+key.toUpperCase()));
  return {run:s=>vm.runInContext(s,sandbox),key:(key,code=codeFor(key),options={})=>listeners.keydown({key,code,preventDefault:noop,...options}),up:(key,code=codeFor(key))=>listeners.keyup({key,code,preventDefault:noop}),blur:()=>listeners.blur()};
 }
@@ -269,4 +269,8 @@ test('run statistics pause, survive undo, and reset for a new attempt',()=>{
  const elapsed=g.run('runSeconds');g.run('undo()');assert.equal(g.run('runDeaths[0]'),1);assert.equal(g.run('runSeconds'),elapsed);
  g.run('reset()');assert.equal(g.run('runSeconds'),0);assert.equal(g.run('runDeaths.reduce((a,b)=>a+b,0)'),0);
  assert.equal(g.run('formatRunTime(65.12)'), '1:05.12');
+});
+
+test('initial menu uses only its diorama instead of creating a playable level',()=>{
+ const g=game({menuOnly:true});assert.equal(g.run('runtime===menuScene'),true);assert.equal(g.run('definition.blocks.length'),0);assert.equal(g.run('definition.tiles.length'),0);assert.equal(g.run('currentLevelTitle()'),'');
 });

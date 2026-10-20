@@ -55,6 +55,14 @@ function selectTool(value){finishGesture();tool=value;moveObject=null;for(const 
 for(const [name,items] of groups){const group=element('section',undefined,'tool-group');group.append(element('h2',name.toUpperCase()));const grid=element('div',undefined,'tool-grid');for(const [id,glyph,label,color] of items){const button=element('button',undefined,'tool'),description=name+' · '+label;button.dataset.tool=id;button.title=description;button.setAttribute('aria-label',description);button.style.setProperty('--tool-color',color||'#a7bba4');button.append(toolIcon(id,glyph));grid.append(button);}group.append(grid);$('palette').append(group);}
 const panButton=element('button','✥');panButton.dataset.tool='pan';panButton.title='Перемещение вида (M)';panButton.setAttribute('aria-label','Перемещение вида');document.querySelector('.basic-tools').append(panButton);
 const orbitButton=element('button','⟳');orbitButton.dataset.tool='orbit';orbitButton.title='Вращение камеры · правая кнопка мыши';orbitButton.setAttribute('aria-label','Вращение камеры');document.querySelector('.basic-tools').append(orbitButton);
+// Native title tooltips cannot render keyboard keycaps.
+for(const [i,button] of [...document.querySelectorAll('button[title]')].entries()){
+ const match=/^(.*?) \((Ctrl\+[ZY]|[VXFM])\)$/.exec(button.title);if(!match)continue;
+ const tooltip=element('span',undefined,'shortcut-tooltip');tooltip.id='shortcut-tip-'+i;tooltip.setAttribute('role','tooltip');tooltip.append(document.createTextNode(match[1]+' '));
+ match[2].split('+').forEach((key,index)=>{if(index)tooltip.append('+');tooltip.append(element('kbd',key));});
+ button.removeAttribute('title');button.classList.add('has-shortcut');button.setAttribute('aria-describedby',tooltip.id);button.append(tooltip);
+}
+
 document.querySelectorAll('[data-tool]').forEach(button=>button.onclick=()=>selectTool(button.dataset.tool));
 const colliderLabel=element('label','Коллайдеры'),colliderToggle=element('input');colliderToggle.type='checkbox';colliderToggle.id='preview-colliders';colliderLabel.prepend(colliderToggle);document.querySelector('.camera-buttons').append(colliderLabel);
 const projection=element('select');projection.id='editor-projection';projection.setAttribute('aria-label','Проекция камеры');for(const [value,text] of [['ortho','Изометрия'],['perspective','Перспектива']]){const option=element('option',text);option.value=value;projection.append(option);}projection.onchange=()=>{previewCamera.mode=projection.value;refreshHover();};document.querySelector('.camera-buttons').prepend(projection);
@@ -173,7 +181,7 @@ function renderProperties(){
    field(card,'Выстрел каждые, с',p.interval,{min:.6,max:10,step:.1},v=>set('interval',v));field(card,'Первый выстрел, с',p.firstShot,{min:.1,max:10,step:.1},v=>set('firstShot',v));
   }
   const actions=element('div',undefined,'object-actions');
-  if(key!=='tiles'){const move=element('button','Перенести');move.onclick=()=>{selectTool('select');moveObject={key,index};$('active-tool').textContent='Выберите новую клетку · Esc — отмена';};actions.append(move);}
+  if(key!=='tiles'){const move=element('button','Перенести');move.onclick=()=>{selectTool('select');moveObject={key,index};$('active-tool').replaceChildren(document.createTextNode("Выберите новую клетку · "),element('kbd','Esc'),document.createTextNode(" — отмена"));};actions.append(move);}
   const remove=element('button',key==='tiles'?'Убрать пол':'Удалить','delete');remove.onclick=()=>{if(model.remove(key,index))changed();};actions.append(remove);card.append(actions);root.append(card);
  }
 }
