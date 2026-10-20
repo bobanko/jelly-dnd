@@ -7,11 +7,12 @@
  if(overlay){overlay.hidden=false;overlay.classList.add('loading');document.querySelector('#level-intro-title').textContent=t('loadingLevel');document.querySelector('#level-loading').hidden=false;document.querySelector('#loading-status').textContent=t('loadingLevel');document.querySelector('#loading-progress').value=.02;}
  try{
   const readJSON=async url=>{const response=await fetch(url);if(!response.ok)throw Error('Could not load '+url+' ('+response.status+')');return response.json();};
-  const catalog=await readJSON('levels/catalog.json');
-  if(catalog.version!==1||!Array.isArray(catalog.standard)||!catalog.standard.length||new Set(catalog.standard).size!==catalog.standard.length||!catalog.standard.includes(catalog.defaultLevel))throw Error('Invalid level catalog');
+  await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='levels/catalog.js';script.onload=resolve;script.onerror=()=>reject(Error('Could not load levels/catalog.js'));document.head.append(script);});
+  const catalog=globalThis.JellyLevelCatalog;
+  if(!catalog||catalog.version!==1||!Array.isArray(catalog.standard)||!catalog.standard.length||new Set(catalog.standard).size!==catalog.standard.length||!Array.isArray(catalog.extra))throw Error('Invalid level catalog');
   globalThis.JellyLevelCatalog=catalog;globalThis.JellyLevelMaps={};
   if(globalThis.JellyProgress)JellyProgress.configure(catalog.standard);
-  const params=new URLSearchParams(location.search);let selected=Number(params.get('level'))||catalog.standard.indexOf(catalog.defaultLevel)+1;
+  const params=new URLSearchParams(location.search);let selected=Number(params.get('level'))||1;
   if(params.get('level')!=='editor'&&params.has('level')&&globalThis.JellyProgress&&!JellyProgress.canPlay(selected)){selected=1;history.replaceState(null,'','?level=1');}
   if(!catalog.standard[selected-1])throw Error('Unknown level: '+selected);
   await Promise.all(catalog.standard.map(async(file,index)=>{if(!/^[a-z0-9-]+\.json$/i.test(file))throw Error('Invalid level file');const map=JellyLevels.read(await readJSON('levels/'+file));const errors=JellyLevels.issues(map);if(errors.length)throw Error(file+': '+errors.join('\n'));JellyLevelMaps[index+1]=map;}));

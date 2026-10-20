@@ -51,7 +51,7 @@ test('editor supports free hovering drones, settings, moving, history, picking, 
  assert.ok(L.issues(m.map).some(s=>s.includes('выбранная цель')));const b=E.boxes(m.map).find(b=>b.key==='drones');assert.ok(Math.abs(b.min[1]-5.58)<1e-9);assert.ok(Math.abs(b.max[1]-6.7)<1e-9);
  for(const bad of [{color:5},{target:5},{target:.5},{hover:-.1},{hover:Infinity}]){const map=L.copy(m.map);Object.assign(map.drones[0],bad);assert.throws(()=>L.read(map));}
  m.remove('drones',0);assert.equal(m.map.drones.length,0);m.undo();assert.equal(m.map.drones.length,1);
- const old=L.defaultLevel();delete old.drones;assert.deepEqual(L.read(old).drones,[]);
+ const old=L.copy(require('./levels/05-sunken-sanctum.json'));delete old.drones;assert.deepEqual(L.read(old).drones,[]);
 });
 
 test('zero hover leaves a small floor gap and shares its origin with aiming, picking and stone validation',()=>{

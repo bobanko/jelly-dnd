@@ -46,7 +46,7 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
    assert.deepEqual(await page.evaluate(()=>sceneRenderer.errors),[]);await page.locator('#editor-link').click();await page.waitForURL('**/editor.html');await page.waitForFunction(()=>previewRenderer?.ready&&previewRuntime);assert.deepEqual(await page.evaluate(()=>model.map.spawns.flatMap((p,i)=>p?[i]:[])),slots);
   }
   // Reducing an existing chamber only requires removing unwanted spawns.
-  await page.evaluate(()=>{const map=L.defaultLevel();map.spawns[1]=map.spawns[2]=null;replaceMap(map);});assert.deepEqual(await page.evaluate(()=>L.issues(model.map)),[]);
+  await page.evaluate(()=>{const map=L.standardLevel(JellyLevelCatalog.standard.indexOf('05-sunken-sanctum.json')+1);map.spawns[1]=map.spawns[2]=null;replaceMap(map);});assert.deepEqual(await page.evaluate(()=>L.issues(model.map)),[]);
   await page.locator('#play').click();await page.waitForURL('**/?level=editor');await page.waitForFunction(()=>sceneRenderer.ready);
   assert.equal(await page.locator('.member:visible').count(),1);assert.equal(await page.evaluate(()=>players.length),1);
   await page.evaluate(()=>{Object.assign(players[0],goals.find(g=>g.slot===0));soft.reset();});await page.waitForFunction(()=>won&&sceneRenderer.goalWinGlow>.5);

@@ -7,8 +7,10 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   async function fits(selector){for(const node of await page.locator(selector).all()){const b=await node.boundingBox();assert.ok(b&&b.x>=0&&b.y>=0&&b.x+b.width<=961&&b.y+b.height<=641,selector+' outside 960x640');}}
   for(const language of ['en','ru']){
    await page.goto('http://localhost:3000/');await ready();await page.locator('[data-language='+language+']').click();
+   assert.equal(await page.locator('#menu-title .title-skull').count(),language==='ru'?2:1);
+   assert.ok(await page.locator('#loading-progress').evaluate(node=>parseFloat(getComputedStyle(node).height)>=14));
    await fits('#menu-title,#menu-root button,.menu-key-hints');await page.screenshot({path:'artifacts/menu-960-'+language+'.png'});
-   await page.locator('#show-controls').click();await fits('#menu-help,#menu-back');await page.screenshot({path:'artifacts/controls-960-'+language+'.png'});await page.keyboard.press('q');
+   await page.locator('#show-controls').click();assert.equal(await page.locator('#menu-help kbd').count(),25);await fits('#menu-help,#menu-back');await page.screenshot({path:'artifacts/controls-960-'+language+'.png'});await page.keyboard.press('q');
    await page.locator('#show-levels').click();await fits('#menu-title,#menu-levels,#levels-back');await page.screenshot({path:'artifacts/levels-960-'+language+'.png'});
    await page.locator('[data-level="1"]').click();await page.waitForURL('**/?level=1&play=1');await ready();
    await fits('#menu-button,#sound,#fps,footer');await page.locator('.player-key-hint').first().waitFor({state:'visible'});await fits('.player-key-hint');

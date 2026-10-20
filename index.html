@@ -21,7 +21,14 @@
 <h1 id="menu-title" aria-label="Jelly & Bones"><span class="jelly-word"><span class="jelly-letter" style="color:#9ddd56">J</span><span class="jelly-letter" style="color:#477bff">e</span><span class="jelly-letter" style="color:#ef5346">l</span><span class="jelly-letter" style="color:#bb70ef">l</span><span class="jelly-letter" style="color:#9ddd56">y</span></span> <span>&</span><br>Bones</h1>
 <div id="menu-root"><nav class="menu-items" aria-label="Main menu"><button id="play" data-t="play"></button><button id="show-levels" data-t="levels"></button><button id="show-controls" data-t="how"></button><button id="open-editor" data-t="editor"></button></nav>
 <div class="languages" aria-label="Language"><button data-language="en" lang="en">English</button><button data-language="ru" lang="ru">русский</button></div></div>
-<div id="menu-help" hidden><h2 data-t="how"></h2><p data-t="instructions"></p><p data-t="cameraHelp"></p><button id="menu-back" data-t="back"></button></div>
+<div id="menu-help" hidden><h2 data-t="how"></h2><p class="help-goal" data-t="helpGoal"></p>
+<div class="help-controls">
+<div class="help-control"><span data-t="helpMove"></span><div class="help-keysets"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></span><span><kbd>I</kbd><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd></span><span><kbd>T</kbd><kbd>F</kbd><kbd>G</kbd><kbd>H</kbd></span><span><kbd>Num 8</kbd><kbd>4</kbd><kbd>5</kbd><kbd>6</kbd></span></div></div>
+<div class="help-control"><span data-t="helpRotate"></span><span><kbd>Q</kbd> <kbd>E</kbd></span></div>
+<div class="help-control"><span data-t="helpRestart"></span><kbd>R</kbd></div>
+<div class="help-control"><span data-t="helpUndo"></span><kbd>Z</kbd></div>
+<div class="help-control"><span data-t="helpMenu"></span><kbd>Esc</kbd></div>
+</div><p class="help-note" data-t="helpTogether"></p><button id="menu-back" data-t="back"></button></div>
 <div id="menu-levels" hidden><h2 data-t="levels"></h2><nav class="level-list" aria-label="Levels"></nav><button id="levels-back" data-t="back"></button></div>
 <div class="menu-key-hints"><span><kbd>↑</kbd> <kbd>↓</kbd> / <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <span data-t="navigate"></span></span><span><kbd>Enter</kbd> / <kbd>E</kbd> <span data-t="select"></span></span><span><kbd>Esc</kbd> / <kbd>Q</kbd> <span data-t="back"></span></span></div>
 </div></section>

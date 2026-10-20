@@ -7,6 +7,7 @@ function game(options={}){
  const element=()=>({addEventListener:noop,getContext:()=>ctx,classList:{toggle:noop},setAttribute:noop,querySelector:()=>element()});
  const elements={},listeners={};
  const sandbox={innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellySharedCamera:require('./shared-camera'),JellyLevels:require('./levels.js'),JellyEffects:require('./game-effects.js'),JellyPhysics:require('./physics.js'),JellySoftBody:require('./soft-body.js'),JellyGPU:{...require('./webgpu-renderer.js'),Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
+ if(!options.map)options.map=structuredClone(require('./levels/05-sunken-sanctum.json'));
  if(options.map){sandbox.location={search:'?level=editor'};sandbox.localStorage={getItem:()=>JSON.stringify(options.map)};}
  vm.createContext(sandbox);vm.runInContext(fs.readFileSync('game.js','utf8'),sandbox);
  const codeFor=key=>({arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'}[key]||(/^\d$/.test(key)?'Digit'+key:'Key'+key.toUpperCase()));
@@ -251,7 +252,7 @@ test('undo restores shield durability, sword inventory, skeleton recovery time a
 });
 
 test('edited level preserves raised spawns and arbitrary crate start heights on reset',()=>{
- const map=require('./levels').read(require('./levels').defaultLevel());map.spawns[0]={x:5,z:9};map.crates=[{x:6,z:7}];map.name='Custom chamber';
+ const map=require('./levels').read(require('./levels/05-sunken-sanctum.json'));map.spawns[0]={x:5,z:9};map.crates=[{x:6,z:7}];map.name='Custom chamber';
  const g=game({map});assert.equal(g.run('definition.name'),'Custom chamber');assert.equal(g.run('players[0].y'),1);assert.equal(g.run('crates[0].y'),0);
  assert.equal(g.run('camera.targetY'),1);assert.equal(g.run('camera.focusHeight'),1.42);
  g.run('players[0].y=3;crates[0].y=4');g.key('r');assert.equal(g.run('players[0].y'),1);assert.equal(g.run('crates[0].y'),0);

@@ -12,9 +12,9 @@ for(const html of ['index.html','editor.html']){
  for(const match of files.get(html).toString().matchAll(/(?:src|href|data-entry)="([^"]+)"/g))
   if(/^[\w./-]+\.(?:js|css|html)$/.test(match[1]))add(match[1]);
 }
-add('levels/catalog.json');
-const catalog=JSON.parse(files.get('levels/catalog.json'));
-if(catalog.version!==1||!Array.isArray(catalog.standard)||!catalog.standard.length||new Set(catalog.standard).size!==catalog.standard.length||!catalog.standard.includes(catalog.defaultLevel)||!Array.isArray(catalog.extra))throw Error('Invalid level catalog');
+add('levels/catalog.js');
+const catalog=require('../levels/catalog.js');
+if(catalog.version!==1||!Array.isArray(catalog.standard)||!catalog.standard.length||new Set(catalog.standard).size!==catalog.standard.length||!Array.isArray(catalog.extra))throw Error('Invalid level catalog');
 const Levels=require('../levels');
 for(const file of [...catalog.standard,...catalog.extra]){
  if(!/^[a-z0-9-]+\.json$/i.test(file))throw Error('Invalid level filename: '+file);

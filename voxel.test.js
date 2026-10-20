@@ -11,7 +11,7 @@ test('XYZ cubes serialize individually, migrate old geometry and retain sparse a
  const i=m.map.blocks.findIndex(b=>b.y===3);m.move('blocks',i,4,5,6);assert.deepEqual(m.map.blocks[i],{x:4,y:6,z:5});m.undo();assert.equal(m.map.blocks[i].y,3);
  for(const y of [13,-3,.5])assert.throws(()=>L.read({...m.map,blocks:[{x:1,y,z:1}]}));
  assert.throws(()=>L.read({...m.map,blocks:[{x:1,y:0,z:1},{x:1,y:0,z:1}]}));
- const migrated=L.voxelize(L.defaultLevel());assert.equal(migrated.tiles.length,0);assert.ok(migrated.walls.every(w=>w.half<.4));assert.ok(migrated.blocks.length>100);assert.deepEqual(L.issues(migrated),[]);assert.deepEqual(L.voxelize(migrated),migrated);
+ const migrated=L.voxelize(L.copy(require('./levels/05-sunken-sanctum.json')));assert.equal(migrated.tiles.length,0);assert.ok(migrated.walls.every(w=>w.half<.4));assert.ok(migrated.blocks.length>100);assert.deepEqual(L.issues(migrated),[]);assert.deepEqual(L.voxelize(migrated),migrated);
 });
 test('several surfaces in one column have distinct support, colliders, markers and selection',()=>{
  const map=room();map.blocks.push({x:3,y:3,z:3});map.spawns[1]={x:3,y:3,z:3};map.goals[1]={x:3,y:0,z:3};

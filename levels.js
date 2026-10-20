@@ -28,13 +28,12 @@
   for(const p of map.walls)if(p.half>=.4)for(let y=Math.max(-2,Math.floor(p.base)+1);y<=Math.ceil(p.base+p.height);y++)add(p.x,y,p.z);
   map.tiles=[];map.walls=map.walls.filter(p=>p.half<.4).map(p=>({...p,y:p.base}));return read(map);
  }
- function catalog(){return typeof module!=='undefined'&&module.exports?require('./levels/catalog.json'):root.JellyLevelCatalog;}
+ function catalog(){return typeof module!=='undefined'&&module.exports?require('./levels/catalog.js'):root.JellyLevelCatalog;}
  function standardLevel(id){
   const file=catalog()?.standard[id-1];if(!file)throw Error('Unknown standard level: '+id);
   const data=typeof module!=='undefined'&&module.exports?require('./levels/'+file):root.JellyLevelMaps?.[id];
   if(!data)throw Error('Level has not been loaded: '+id);return copy(data);
  }
- function defaultLevel(){return standardLevel(catalog().standard.indexOf(catalog().defaultLevel)+1);}
  function displayName(map,language='en'){return map.names?.[language]||map.name;}
  function read(input){
   const data=typeof input==='string'?JSON.parse(input):input;
@@ -143,10 +142,10 @@
  function forGame(storage,search=''){
   const standard=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(search);
   if(standard)return read(standardLevel(Number(standard[1])));
-  if(!/(?:^|[?&])level=editor(?:&|$)/.test(search))return read(defaultLevel());
+  if(!/(?:^|[?&])level=editor(?:&|$)/.test(search))return read(standardLevel(1));
   const saved=storage?.getItem(PLAY_KEY);if(!saved)throw new Error('Тестовый уровень не найден. Откройте редактор и нажмите «Играть».');
   const map=read(saved),errors=issues(map);if(errors.length)throw new Error(errors.join('\n'));return map;
  }
- const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,defaultLevel,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame,droneOrigin,get standardNames(){return catalog()?.standard.map((_,i)=>standardLevel(i+1).name)||[];},standardLevel,displayName};
+ const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame,droneOrigin,get standardNames(){return catalog()?.standard.map((_,i)=>standardLevel(i+1).name)||[];},standardLevel,displayName};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyLevels=api;
 })(globalThis);

@@ -14,7 +14,7 @@ const N=12, colors=JellyLevels.characters.map(p=>p.color),names=JellyLevels.char
 let zoom=1;
 let fpsElapsed=0,fpsFrames=0;
 let mapError=null,definition;
-try{let search=globalThis.location?.search||'';const requested=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(search);if(requested&&globalThis.JellyProgress&&!JellyProgress.canPlay(Number(requested[1]))){search='?level=1';globalThis.history.replaceState(null,'',search);}definition=JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.defaultLevel());}
+try{let search=globalThis.location?.search||'';const requested=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(search);if(requested&&globalThis.JellyProgress&&!JellyProgress.canPlay(Number(requested[1]))){search='?level=1';globalThis.history.replaceState(null,'',search);}definition=JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.standardLevel(1));}
 const runtime=JellyLevels.instantiate(definition,JellyPhysics,JellySoftBody);
 const {start,players,crates,bodies,plates,goals,bridges,floor,world,soft}=runtime;
 let followedPlayer=0;
@@ -248,7 +248,16 @@ function refreshLanguage(){
   const russian=JellyI18n.language==='ru',title=document.querySelector('#menu-title');
   title.replaceChildren();const word=document.createElement('span');word.className='jelly-word';
   [...(russian?'Желейки':'Jelly')].forEach((letter,i)=>{const span=document.createElement('span');span.className='jelly-letter';span.style.color=colors[i%colors.length];span.textContent=letter;word.append(span);});
-  const and=document.createElement('span');and.textContent=russian?' и':' &';title.append(word,and,document.createElement('br'),document.createTextNode(russian?'косточки':'Bones'));
+  const and=document.createElement('span');and.textContent=russian?' и':' &';title.append(word,and,document.createElement('br'));
+  const bones=document.createElement('span');bones.className='bones-word';bones.setAttribute('aria-hidden','true');
+  for(const letter of (russian?'косточки':'Bones')){
+   if(letter.toLowerCase()==='o'||letter==='о'){
+    const skull=document.createElement('span');skull.className='title-skull';
+    skull.innerHTML='<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path fill="currentColor" d="M32 2C14 2 3 14 3 31c0 12 5 20 14 24v13h30V55c9-4 14-12 14-24C61 14 50 2 32 2Z"/><g fill="#151819"><ellipse cx="20" cy="32" rx="9" ry="11" transform="rotate(-14 20 32)"/><ellipse cx="44" cy="32" rx="9" ry="11" transform="rotate(14 44 32)"/><path d="m32 42-5 10h10Z"/><path d="M24 59h3v11h-3zm13 0h3v11h-3z"/></g></svg>';
+    bones.append(skull);
+   }else bones.append(document.createTextNode(letter));
+  }
+  title.append(bones);
   title.setAttribute('aria-label',russian?'Желейки и косточки':'Jelly & Bones');document.title=russian?'Желейки и косточки':'Jelly & Bones';
  }
  if(globalThis.JellyI18n)document.querySelector('#level-intro-title').textContent=JellyLevels.displayName(definition,globalThis.JellyI18n?.language);

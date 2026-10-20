@@ -63,6 +63,6 @@ test('conveyor editing, directions, speed, height and old version-1 map files ro
  m.change(()=>m.paint('conveyor',2,2,{dx:0,dz:-1,speed:.5}));assert.equal(m.at('conveyors',2,2).dz,-1);
  m.move('conveyors',1,5,2);assert.equal(m.at('conveyors',5,2).speed,.5);
  m.change(()=>m.paint('lift',5,2));assert.equal(m.at('conveyors',5,2),undefined);
- const old=L.defaultLevel();delete old.conveyors;assert.deepEqual(L.read(old).conveyors,[]);
- for(const values of [{dx:1,dz:1,speed:1},{dx:0,dz:0,speed:1},{dx:1,dz:0,speed:0},{dx:1,dz:0,speed:10}]){const invalid=L.defaultLevel();invalid.conveyors=[{x:2,z:2,...values}];assert.throws(()=>L.read(invalid));}
+ const old=L.copy(require('./levels/05-sunken-sanctum.json'));delete old.conveyors;assert.deepEqual(L.read(old).conveyors,[]);
+ for(const values of [{dx:1,dz:1,speed:1},{dx:0,dz:0,speed:1},{dx:1,dz:0,speed:0},{dx:1,dz:0,speed:10}]){const invalid=L.copy(require('./levels/05-sunken-sanctum.json'));invalid.conveyors=[{x:2,z:2,...values}];assert.throws(()=>L.read(invalid));}
 });

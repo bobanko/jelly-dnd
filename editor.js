@@ -2,8 +2,8 @@
 const L=JellyLevels,M=JellyEditorModel,S=JellyEditorSpace,$=id=>document.getElementById(id);
 let startupError='';
 const filenameKey='jelly-dnd.editor.filename';
-let sourceFilename=globalThis.JellyLevelCatalog?.defaultLevel||null;
-let initial=L.defaultLevel();
+let sourceFilename=globalThis.JellyLevelCatalog?.standard[0]||null;
+let initial=L.standardLevel(1);
 try{const saved=localStorage.getItem(L.DRAFT_KEY);if(saved){initial=L.read(saved);sourceFilename=localStorage.getItem(filenameKey)||null;}}catch(error){startupError='Черновик не удалось открыть: '+error.message;}
 const model=new M.Model(L.voxelize(initial));
 const phaseSymbols=['△','⊙','◇','☼','ᛞ'];
@@ -337,7 +337,17 @@ $('connections').onchange=invalidate;$('brush-height').onchange=()=>{refreshHove
 $('undo').onclick=()=>{finishGesture();if(model.undo()){moveObject=null;selected=null;changed();}};$('redo').onclick=()=>{if(model.redo()){selected=null;changed();}};
 $('level-name').onchange=event=>edit(map=>{map.name=event.target.value.trim()||'Без названия';});
 function replaceMap(map,filename=sourceFilename){finishGesture();const changedMap=model.load(L.voxelize(map));sourceFilename=filename;if(changedMap){selected=null;moveObject=null;expandedIssues=false;changed();fit();}else save();}
-$('new').onclick=()=>replaceMap(L.blank(),null);$('original').onclick=()=>replaceMap(L.defaultLevel(),globalThis.JellyLevelCatalog?.defaultLevel||null);
+$('new').onclick=()=>replaceMap(L.blank(),null);
+const catalogPicker=element('label','Карта кампании'),catalogSelect=element('select');
+catalogSelect.id='catalog-map';catalogSelect.setAttribute('aria-label','Карта кампании');
+for(const [index,file] of JellyLevelCatalog.standard.entries()){
+ const option=element('option',`${index+1}. ${L.displayName(L.standardLevel(index+1),'ru')}`);option.value=file;catalogSelect.append(option);
+}
+catalogSelect.value=JellyLevelCatalog.standard.includes(sourceFilename)?sourceFilename:JellyLevelCatalog.standard[0];
+catalogPicker.append(catalogSelect);
+const openCatalogMap=element('button','Открыть карту');openCatalogMap.id='open-catalog-map';
+openCatalogMap.onclick=()=>replaceMap(L.standardLevel(JellyLevelCatalog.standard.indexOf(catalogSelect.value)+1),catalogSelect.value);
+$('new').parentElement.before(catalogPicker,openCatalogMap);
 $('validate').onclick=()=>{expandedIssues=!expandedIssues;renderIssues();if(!L.issues(model.map).length)toast('Уровень готов к запуску.');};
 $('export').onclick=()=>{
  const blob=new Blob([JSON.stringify(model.map,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),link=element('a');link.href=url;link.download=sourceFilename||(model.map.name.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').trim()||'level')+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);toast('Уровень экспортирован.');
