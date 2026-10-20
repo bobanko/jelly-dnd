@@ -18,6 +18,7 @@ try{let search=globalThis.location?.search||'';const requested=/(?:^|[?&])level=
 const runtime=JellyLevels.instantiate(definition,JellyPhysics,JellySoftBody);
 const {start,players,crates,bodies,plates,goals,bridges,floor,world,soft}=runtime;
 let followedPlayer=0;
+let runSeconds=0,runDeaths=players.map(()=>0);
 const camera={x:start[0].x,z:start[0].z,targetY:start[0].y||0,focusHeight:(start[0].y||0)+.42,mode:'perspective',pitch:55,fov:45};
 const cameraPitches={ortho:30,perspective:55};
 const effects=new JellyEffects.System({reducedMotion});
@@ -56,7 +57,7 @@ function clearGoalVisuals(){level.won=false;level.finishProgress=0;sceneRenderer
 function reset(){
  players.forEach((p,i)=>Object.assign(p,start[i],{spawn:{...start[i]},state:'alive',y:start[i].y||0,vy:0,deaths:0,respawnTimer:0,respawnFlash:0,rx:start[i].x,rz:start[i].z,bounce:0,vx:0,vz:0,impact:0,squish:0,squishVelocity:0,shield:null,shieldHP:0,sword:null,facingX:0,facingZ:1,launchTimer:0,bashCooldown:0,attackTime:0,attackCooldown:0}));
  crates.forEach(p=>Object.assign(p,p.spawn,{y:p.spawn.y||0,state:'alive',vx:0,vy:0,vz:0,deaths:0,respawnTimer:0}));
- history=[];moves=0;won=false;finishHold=0;heldKeys.clear();world.held.clear();world.resetFeatures();soft.reset();effects.clear();sceneRenderer.bridgeKey=undefined;accumulator=0;
+ runSeconds=0;runDeaths.fill(0);history=[];moves=0;won=false;finishHold=0;heldKeys.clear();world.held.clear();world.resetFeatures();soft.reset();effects.clear();sceneRenderer.bridgeKey=undefined;accumulator=0;
  players.forEach(p=>Object.assign(p,{portalLock:null,portalCooldown:0,portalFlash:0,portalBlocked:false,deathReason:null}));
  clearGoalVisuals();
  sceneRenderer.platePress=[];
@@ -80,8 +81,9 @@ function inputs(){
  for(const v of result)for(let k=0;k<quarter;k++)[v.x,v.z]=[v.z,-v.x];
  return result;
 }
-function simulate(dt){
- if(loadingActive||menuOpen||restartTransition||won||mapError)return;
+function simulate(dt,elapsed=dt){
+ if(loadingActive||menuOpen||restartTransition||won||mapError||document.hidden)return;
+ runSeconds+=Math.max(0,elapsed);
  accumulator+=Math.min(dt,.05);
  const input=inputs();
  while(accumulator>=JellyPhysics.STEP&&!won){
@@ -89,6 +91,7 @@ function simulate(dt){
   for(const event of events){
    if(event.player>=players.length)continue;
    effects.burst(event,players,soft);
+   if(event.type==='death')runDeaths[event.player]++;
    if(event.type==='fall'||event.type==='death'){
     for(const key of heldKeys)if(movementKeys[key][0]===event.player)heldKeys.delete(key);
     input[event.player]={x:0,z:0};tone(95);
@@ -98,7 +101,7 @@ function simulate(dt){
   }
   const allFinished=players.length>0&&players.every(p=>world.goalActive(goals.find(g=>g.slot===p.slot),p)&&Math.hypot(p.vx,p.vz)<.25);
   finishHold=allFinished?Math.min(WIN_HOLD_SECONDS,finishHold+JellyPhysics.STEP):0;
-  if(finishHold>=WIN_HOLD_SECONDS-1e-9){finishHold=WIN_HOLD_SECONDS;won=true;players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);const current=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(globalThis.location?.search||'');if(current&&globalThis.JellyProgress){JellyProgress.complete(Number(current[1]));updateLevelLocks();}}
+  if(finishHold>=WIN_HOLD_SECONDS-1e-9){finishHold=WIN_HOLD_SECONDS;won=true;players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);const current=currentStandardLevel();if(current&&globalThis.JellyProgress){JellyProgress.complete(current,runSeconds);updateLevelLocks();}}
   level.finishProgress=finishHold/WIN_HOLD_SECONDS;
   accumulator-=JellyPhysics.STEP;
  }
@@ -136,7 +139,7 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>{const key=e.code;if(movementKeys[key]){e.preventDefault();heldKeys.delete(key);}});
 addEventListener('blur',stopInput);
-document.addEventListener('visibilitychange',()=>{if(document.hidden)stopInput();});
+document.addEventListener('visibilitychange',()=>{last=0;if(document.hidden)stopInput();});
 
 document.querySelector('#reset').onclick=()=>restartLevel();document.querySelector('#again').onclick=()=>restartLevel();
 function restartLevel(){
@@ -180,12 +183,12 @@ function updatePlayerHints(dt){
  });
 }
 function frame(t){
- const elapsed=Math.max(0,(t-last)/1000),dt=Math.min(elapsed,.05);last=t;time=t/1000;
+ const elapsed=last?Math.max(0,(t-last)/1000):0,dt=Math.min(elapsed,.05);last=t;time=t/1000;
  fpsElapsed+=elapsed;fpsFrames++;
  if(fpsElapsed>=.5){const counter=document.querySelector('#fps');if(counter)counter.textContent=Math.round(fpsFrames/fpsElapsed)+' FPS';fpsElapsed=0;fpsFrames=0;}
  updateRestart(dt);
  angle=reducedMotion?targetAngle:angle+(targetAngle-angle)*(1-Math.exp(-dt*11));
- if(sceneRenderer.ready)simulate(dt);
+ if(sceneRenderer.ready)simulate(dt,elapsed);
  effects.step(dt,world,goals,players);
  updateGameCamera(dt);
  level.won=won;
@@ -204,7 +207,7 @@ function updateGameCamera(dt,snap=false){
   autoZoom+=(target.zoom-autoZoom)*smoothing;
  scale=Math.min(W/16,H/12)*zoom*autoZoom;
 }
-function updateLoading(progress,stage){if(!globalThis.JellyI18n)return;loadingActive=true;loadingStage=stage;document.querySelector('#level-intro').hidden=false;document.querySelector('#level-intro').classList.add('loading');document.querySelector('#level-intro-title').textContent=JellyLevels.displayName(definition,globalThis.JellyI18n?.language);document.querySelector('#level-loading').hidden=false;document.querySelector('#loading-status').textContent=tr(stage);document.querySelector('#loading-progress').value=progress;}
+function updateLoading(progress,stage){if(!globalThis.JellyI18n)return;loadingActive=true;loadingStage=stage;document.querySelector('#level-intro').hidden=false;document.querySelector('#level-intro').classList.add('loading');document.querySelector('#level-intro-title').textContent=currentLevelTitle();document.querySelector('#level-loading').hidden=false;document.querySelector('#loading-status').textContent=tr(stage);document.querySelector('#loading-progress').value=progress;}
 function gpuFailure(message){if(!globalThis.JellyI18n)return;loadingFailed=true;updateLoading(0,'loadingGraphics');document.querySelector('#loading-status').textContent=message;document.querySelector('#loading-progress').hidden=true;document.querySelector('#loading-retry').hidden=false;}
 sceneRenderer.onFailure=gpuFailure;
 sceneRenderer.onProgress=updateLoading;
@@ -260,19 +263,27 @@ function refreshLanguage(){
   title.append(bones);
   title.setAttribute('aria-label',russian?'Желейки и косточки':'Jelly & Bones');document.title=russian?'Желейки и косточки':'Jelly & Bones';
  }
- if(globalThis.JellyI18n)document.querySelector('#level-intro-title').textContent=JellyLevels.displayName(definition,globalThis.JellyI18n?.language);
+ if(globalThis.JellyI18n)document.querySelector('#level-intro-title').textContent=currentLevelTitle();
  if(loadingActive&&!loadingFailed)document.querySelector('#loading-status').textContent=tr(loadingStage);
  const sound=document.querySelector('#sound');sound.title=tr(audioOn?'Выключить звук':'Включить звук');sound.setAttribute('aria-label',sound.title);
   if(globalThis.JellyI18n)document.querySelector('#play').textContent=tr(hasPlayed?'resume':'play');
  document.querySelectorAll('[data-level-name]').forEach(node=>node.textContent=JellyLevels.displayName(JellyLevels.standardLevel(Number(node.dataset.levelName)),globalThis.JellyI18n?.language));
- updateUI();
+ updateLevelLocks();updateUI();
  if(won&&globalThis.JellyI18n)refreshWin();
 }
-function currentStandardLevel(){const match=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(globalThis.location?.search||'');return match?Number(match[1]):0;}
-function refreshWin(){const id=currentStandardLevel();document.querySelector('#win-title').textContent=tr(id===JellyLevels.standardNames.length?'demoComplete':'levelComplete');document.querySelector('#win-level-name').textContent=JellyLevels.displayName(definition,globalThis.JellyI18n?.language);document.querySelector('#win-next').textContent=tr(id&&id<JellyLevels.standardNames.length?'nextLevel':globalThis.location?.search?.includes('level=editor')?'editor':'levels');}
+function currentStandardLevel(){const match=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(globalThis.location?.search||'');return globalThis.location?.search?.includes('level=editor')?0:match?Number(match[1]):1;}
+function currentLevelTitle(){const id=currentStandardLevel(),name=JellyLevels.displayName(definition,globalThis.JellyI18n?.language);return id?`${id}. ${name}`:name;}
+function formatRunTime(seconds){const n=Math.floor((seconds+1e-9)*100);return `${Math.floor(n/6000)}:${String(Math.floor(n/100)%60).padStart(2,'0')}.${String(n%100).padStart(2,'0')}`;}
+function statIcon(kind,slot){
+ const icon=document.createElement('span');icon.className='stat-icon'+(kind==='jelly'?' stat-jelly':'');icon.setAttribute('aria-hidden','true');
+ if(kind==='jelly')icon.style.color=colors[slot];
+ const drawings={timer:'<path d="M9 2h6M12 2v3m6 1 2-2"/><circle cx="12" cy="14" r="8"/><path d="M12 9v5l3 2"/>',skull:'<path d="M12 3a8 8 0 0 0-8 8c0 3 1 5 4 6v4h8v-4c3-1 4-3 4-6a8 8 0 0 0-8-8Z"/><circle cx="9" cy="11" r="1"/><circle cx="15" cy="11" r="1"/><path d="m11 15 1-2 1 2m-3 3v3m4-3v3"/>',jelly:"<path d=\"M16 3 29 10 16 17 3 10Z\" fill=\"currentColor\" fill-opacity=\".55\"/><path d=\"M3 10v14l13 7V17Z\" fill=\"currentColor\" fill-opacity=\".3\"/><path d=\"m16 17 13-7v14l-13 7Z\" fill=\"currentColor\" fill-opacity=\".18\"/><path d=\"m16 3 13 7v14l-13 7-13-7V10Zm0 14v14M3 10l13 7 13-7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linejoin=\"round\"/><path d=\"M8 15c-3-1-4 0-4 3 0 2 1 4 2 5v3l5 3v-3c2 0 3-1 3-3 0-3-2-6-6-8Z\" fill=\"currentColor\"/><path d=\"m6 19 2 1v3l-2-1Zm4 2 2 1v3l-2-1Z\" fill=\"#142023\"/>"};
+ icon.innerHTML='<svg viewBox="'+(kind==='jelly'?'0 0 32 34':'0 0 24 24')+'" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false">'+drawings[kind]+'</svg>';return icon;
+}
+function refreshWin(){const time=document.querySelector('#win-time');time.replaceChildren(statIcon('timer'),document.createTextNode(formatRunTime(runSeconds)));time.setAttribute('aria-label',tr('completionTime')+': '+formatRunTime(runSeconds));const deaths=document.querySelector('#win-deaths');deaths.replaceChildren();players.forEach((p,i)=>{const row=document.createElement('div');row.className='death-stat';row.setAttribute('aria-label',tr(names[p.slot])+', '+tr('deaths')+': '+runDeaths[i]);row.append(statIcon('jelly',p.slot),statIcon('skull'),String(runDeaths[i]));deaths.append(row);});const id=currentStandardLevel();document.querySelector('#win-title').textContent=tr(id===JellyLevels.standardNames.length?'demoComplete':'levelComplete');document.querySelector('#win-level-name').textContent=currentLevelTitle();document.querySelector('#win-next').textContent=tr(id&&id<JellyLevels.standardNames.length?'nextLevel':globalThis.location?.search?.includes('level=editor')?'editor':'levels');}
 function selectWinItem(index,focus=true){const buttons=[document.querySelector('#win-next'),document.querySelector('#again')];winSelected=(index+2)%2;buttons.forEach((button,i)=>button.classList.toggle('selected',i===winSelected));if(focus)buttons[winSelected].focus({preventScroll:true});}
 function handleWinKey(e){const k=e.code;if(['ArrowDown','ArrowRight','KeyS','KeyD','ArrowUp','ArrowLeft','KeyW','KeyA','Tab'].includes(k)){e.preventDefault();selectWinItem(winSelected+1);}else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)document.querySelector(winSelected===0?'#win-next':'#again').click();}else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(!e.repeat)setMenu(true);}}
-function updateLevelLocks(){document.querySelectorAll('[data-level]').forEach(button=>{const locked=globalThis.JellyProgress&&!JellyProgress.canPlay(Number(button.dataset.level));button.disabled=!!locked;button.classList.toggle('locked',!!locked);let icon=button.querySelector('.level-lock');if(!icon){icon=document.createElement('span');icon.className='level-lock';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';button.append(icon);}icon.hidden=!locked;});}
+function updateLevelLocks(){document.querySelectorAll('[data-level]').forEach(button=>{const locked=globalThis.JellyProgress&&!JellyProgress.canPlay(Number(button.dataset.level));let best=button.querySelector('.level-best');if(!best){best=document.createElement('span');best.className='level-best';button.append(best);}const seconds=globalThis.JellyProgress?.bestTime(Number(button.dataset.level));const value=seconds==null?'\u2014':formatRunTime(seconds);best.replaceChildren(statIcon('timer'),document.createTextNode(value));best.setAttribute('aria-label',tr('bestTime')+': '+value);button.disabled=!!locked;button.classList.toggle('locked',!!locked);let icon=button.querySelector('.level-lock');if(!icon){icon=document.createElement('span');icon.className='level-lock';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';button.append(icon);}icon.hidden=!locked;});}
 function menuButtons(){return [...document.querySelectorAll(menuHelp?'#menu-back':menuLevelSelect?'#menu-levels button:not(:disabled)':'#menu-root button')];}
 function selectMenuItem(index,focus=true){const buttons=menuButtons();menuSelected=(index+buttons.length)%buttons.length;buttons.forEach((button,i)=>button.classList.toggle('selected',i===menuSelected));if(focus){const button=buttons[menuSelected];button?.focus({preventScroll:true});const list=menuLevelSelect&&button?.closest('.level-list');if(list){const item=button.getBoundingClientRect(),box=list.getBoundingClientRect();if(item.top<box.top)list.scrollTop+=item.top-box.top;else if(item.bottom>box.bottom)list.scrollTop+=item.bottom-box.bottom;}}}
 function showMenuScreen(screen){menuHelp=screen==='help';menuLevelSelect=screen==='levels';if(menuLevelSelect)updateLevelLocks();document.querySelector('#menu-root').hidden=menuHelp||menuLevelSelect;document.querySelector('#menu-help').hidden=!menuHelp;document.querySelector('#menu-levels').hidden=!menuLevelSelect;document.querySelector('#main-menu').classList.toggle('selecting-level',menuLevelSelect);selectMenuItem(0);}

@@ -259,3 +259,14 @@ test('edited level preserves raised spawns and arbitrary crate start heights on 
  assert.equal(g.run('camera.targetY'),.5);assert.ok(g.run('Math.abs(camera.focusHeight-.92)<1e-12'));
  assert.equal(g.run('mapError'),null);
 });
+
+test('run statistics pause, survive undo, and reset for a new attempt',()=>{
+ const g=game({map:partyMap([1,3])});
+ g.run('simulate(.05,1.25)');assert.equal(g.run('runSeconds'),1.25);
+ g.run('menuOpen=true;simulate(.05,10);menuOpen=false');assert.equal(g.run('runSeconds'),1.25);
+ g.key('', 'KeyW');g.run('players[0].x=30;soft.reset();for(let n=0;n<100;n++)simulate(.05)');
+ assert.equal(g.run('runDeaths[0]'),1);assert.equal(g.run('runDeaths[1]'),0);
+ const elapsed=g.run('runSeconds');g.run('undo()');assert.equal(g.run('runDeaths[0]'),1);assert.equal(g.run('runSeconds'),elapsed);
+ g.run('reset()');assert.equal(g.run('runSeconds'),0);assert.equal(g.run('runDeaths.reduce((a,b)=>a+b,0)'),0);
+ assert.equal(g.run('formatRunTime(65.12)'), '1:05.12');
+});

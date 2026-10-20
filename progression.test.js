@@ -24,3 +24,11 @@ test('invalid or unavailable storage falls back to the first level without block
  for(const value of ['NaN','99','0','2.5'])assert.equal(progress(store({[LEGACY_KEY]:value})).unlocked,1);
  const p=progress({getItem(){throw Error();},setItem(){throw Error();}});assert.equal(p.complete(1),2);
 });
+
+test('best times persist by map identity and only improve on valid completion',()=>{
+ const storage=store(),p=progress(storage);
+ p.complete(2,1);assert.equal(p.bestTime(2),null);
+ p.complete(1,12.34);p.complete(1,20);p.complete(1,NaN);p.complete(1,-1);
+ assert.equal(p.bestTime(1),12.34);p.complete(1,10);
+ const reordered=progress(storage,['b.json','a.json']);assert.equal(reordered.bestTime(2),10);assert.equal(reordered.bestTime(1),null);
+});
