@@ -1,0 +1,53 @@
+/* Shared keyboard hints: gameplay, menus, completion screen and editor. */
+.controls-footer{
+ --controls-line:#bc995d30;
+ display:flex;
+ align-items:center;
+ gap:16px 22px;
+ min-height:65px;
+ height:auto;
+ padding:14px 0;
+ border-top:1px solid var(--controls-line);
+ color:#a89e88;
+ font:10px Arial,sans-serif;
+ text-align:left;
+ flex-shrink:0;
+}
+.controls-footer.screen-controls{
+ position:fixed;
+ inset:auto 3% 0;
+ margin:0;
+ width:auto;
+ flex-wrap:wrap;
+ background:linear-gradient(transparent,#101214cc);
+}
+.controls-footer .controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px 22px}
+.controls-footer>span,.controls-footer .controls>span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;margin:0}
+.controls-footer>span>span{margin:0 0 0 3px}
+:is(.controls-footer,.help-controls,.shortcut-tooltip) kbd{
+ display:inline-grid;
+ place-items:center;
+ min-width:24px;
+ min-height:27px;
+ box-sizing:border-box;
+ padding:5px 7px;
+ margin:0;
+ border:1px solid #b5996733;
+ border-bottom-width:2px;
+ border-radius:4px;
+ background:#bdd3c007;
+ color:#c8bca6;
+ font:10px/1 Arial,sans-serif;
+ white-space:nowrap;
+}
+.viewport-footer.controls-footer{padding:10px 18px;flex-wrap:wrap;gap:8px 14px}
+.viewport-footer.controls-footer #mouse-hints{display:block;white-space:normal;line-height:2.8}
+.viewport-footer.controls-footer #active-tool{color:#c8bca6}
+#main-menu{padding-bottom:100px}
+#win{padding-bottom:110px}
+@media(max-width:600px){
+ .controls-footer.screen-controls{inset:auto 15px 0;gap:10px 16px;min-height:62px;padding:12px 0}
+ .controls-footer .controls{gap:10px 14px}
+ :is(.controls-footer,.help-controls,.shortcut-tooltip) kbd{min-width:22px;min-height:25px;padding:4px 5px;font-size:9px}
+ #main-menu,#win{padding-bottom:150px}
+}

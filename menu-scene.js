@@ -34,3 +34,12 @@ function createMenuScene(){
  };
  return scene;
 }
+
+// A source checkout supplies dev; packaged builds supply their generated version.
+fetch('build-version.json',{cache:'no-store'})
+ .then(response=>{if(!response.ok)throw Error('Build metadata unavailable');return response.json();})
+ .then(metadata=>{
+  const label=document.getElementById('build-version');
+  if(label&&typeof metadata.version==='string'&&metadata.version.trim())label.textContent=metadata.version;
+ })
+ .catch(()=>{}); // Keep the dev fallback if metadata cannot be loaded.

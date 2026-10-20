@@ -124,3 +124,5 @@ html[lang=ru] .menu-panel h1{font-size:clamp(58px,7.5vw,100px);letter-spacing:-3
 .win-hints{display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px}.win-hints span{margin-left:0;white-space:nowrap}.win-hints kbd{display:inline-grid;place-items:center;min-width:26px;min-height:27px;padding:3px 6px;box-sizing:border-box;background:#242729;border-bottom:3px solid #756343;color:#f1e4cb;font-size:11px;line-height:1}
 
 .win-hints>span{display:inline-flex;align-items:center;gap:4px}.win-hints>span>span{margin-left:4px}.player-hint-action{position:absolute;top:calc(100% + 5px);left:50%;transform:translateX(-50%);padding:3px 7px;border-radius:4px;background:#1c2021ed;color:#eee0c8;font:11px Arial,sans-serif;white-space:nowrap}
+
+.menu-key-hints .build-version{margin-left:auto;color:#a89e88;font:11px/1.4 monospace;overflow-wrap:anywhere}
