@@ -57,7 +57,7 @@ const panButton=element('button','✥');panButton.dataset.tool='pan';panButton.t
 const orbitButton=element('button','⟳');orbitButton.dataset.tool='orbit';orbitButton.title='Вращение камеры · правая кнопка мыши';orbitButton.setAttribute('aria-label','Вращение камеры');document.querySelector('.basic-tools').append(orbitButton);
 // Native title tooltips cannot render keyboard keycaps.
 for(const [i,button] of [...document.querySelectorAll('button[title]')].entries()){
- const match=/^(.*?) \((Ctrl\+[ZY]|[VXFM])\)$/.exec(button.title);if(!match)continue;
+ const match=/^(.*?) \((Ctrl\+[ZY]|[VXFM])\)$/.exec(JellyEditorI18n.source(button,'title'));if(!match)continue;
  const tooltip=element('span',undefined,'shortcut-tooltip');tooltip.id='shortcut-tip-'+i;tooltip.setAttribute('role','tooltip');tooltip.append(document.createTextNode(match[1]+' '));
  match[2].split('+').forEach((key,index)=>{if(index)tooltip.append('+');tooltip.append(element('kbd',key));});
  button.removeAttribute('title');button.classList.add('has-shortcut');button.setAttribute('aria-describedby',tooltip.id);button.append(tooltip);
@@ -349,10 +349,13 @@ $('new').onclick=()=>replaceMap(L.blank(),null);
 const catalogPicker=element('label','Карта кампании'),catalogSelect=element('select');
 catalogSelect.id='catalog-map';catalogSelect.setAttribute('aria-label','Карта кампании');
 for(const [index,file] of JellyLevelCatalog.standard.entries()){
- const option=element('option',`${index+1}. ${L.displayName(L.standardLevel(index+1),'ru')}`);option.value=file;catalogSelect.append(option);
+ const option=element('option',`${index+1}. ${L.displayName(L.standardLevel(index+1),JellyI18n.language)}`);option.dataset.levelName=String(index+1);option.value=file;catalogSelect.append(option);
 }
 catalogSelect.value=JellyLevelCatalog.standard.includes(sourceFilename)?sourceFilename:JellyLevelCatalog.standard[0];
 catalogPicker.append(catalogSelect);
+addEventListener('languagechange',()=>{
+ for(const option of catalogSelect.options){const index=Number(option.dataset.levelName);option.textContent=`${index}. ${L.displayName(L.standardLevel(index),JellyI18n.language)}`;}
+});
 const openCatalogMap=element('button','Открыть карту');openCatalogMap.id='open-catalog-map';
 openCatalogMap.onclick=()=>replaceMap(L.standardLevel(JellyLevelCatalog.standard.indexOf(catalogSelect.value)+1),catalogSelect.value);
 $('new').parentElement.before(catalogPicker,openCatalogMap);
