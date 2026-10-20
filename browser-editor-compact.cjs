@@ -31,6 +31,11 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   await page.locator('input[name="target-drones-0"][value="1"]').check();assert.equal(await page.evaluate(()=>model.map.drones[0].target),1);
   assert.equal(await page.locator('input[name="color-drones-0"]:checked').inputValue(),'2');
   await page.locator('input[name="target-drones-0"][value="-1"]').check();assert.equal(await page.evaluate(()=>model.map.drones[0].target),-1);
+  const spikeCard=page.locator('[data-object="spikes-0"]');
+  await spikeCard.getByLabel('Цикл, сек (0 — постоянно)',{exact:true}).fill('0');await spikeCard.getByLabel('Цикл, сек (0 — постоянно)',{exact:true}).press('Tab');
+  await spikeCard.getByLabel('Включены',{exact:true}).uncheck();assert.equal(await page.evaluate(()=>L.read(model.map).spikes[0].enabled),false);
+  await spikeCard.getByLabel('Кнопка',{exact:true}).selectOption('test');assert.equal(await page.evaluate(()=>model.map.spikes[0].plate),'test');assert.ok(await spikeCard.getByLabel('Включены',{exact:true}).isDisabled());
+  await spikeCard.getByLabel('Кнопка',{exact:true}).selectOption('');assert.ok(await spikeCard.getByLabel('Включены',{exact:true}).isEnabled());
   for(const color of ['green','violet']){
    await page.locator(`input[name="color-plates-0"][value="${color}"]`).check();
    assert.equal(await page.evaluate(()=>L.read(JSON.stringify(model.map)).plates[0].color),color);
@@ -66,6 +71,12 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
   await page.evaluate(()=>{placementMode.value='layer';});await clickWorld([28,0,18]);assert.ok(await page.evaluate(()=>model.map.blocks.some(p=>p.x===28&&p.z===18)),JSON.stringify(await page.evaluate(()=>({blocks:model.map.blocks,hover,tool}))));
   await page.evaluate(()=>fit());
   await page.waitForFunction(()=>!previewDirty&&previewRuntime&&$('gpu-message').hidden);
+  await page.evaluate(()=>edit(map=>{map.spikes=[{x:25,y:0,z:21,cycle:.4,offset:0}];}));
+  await page.waitForFunction(()=>!previewDirty&&previewRuntime.world.spikes[0]?.cycle===.4);
+  await page.waitForFunction(()=>previewRuntime.world.spikeState(previewRuntime.world.spikes[0]).stage==='hidden');
+  await page.waitForFunction(()=>previewRuntime.world.spikeState(previewRuntime.world.spikes[0]).stage==='raised');
+  const timeBefore=await page.evaluate(()=>previewRuntime.world.featureTime);await page.evaluate(()=>edit(map=>{map.spikes[0].color=2;}));
+  await page.waitForFunction(()=>!previewDirty&&previewRuntime.world.spikes[0]?.color===2);assert.ok(await page.evaluate(()=>previewRuntime.world.featureTime)>=timeBefore);
   await page.screenshot({path:'artifacts/editor-expanding-area.png'});
   assert.deepEqual(errors,[]);console.log('PASS editor controls, expanding area, colours, directions and undo/redo');
  }finally{await browser.close();}

@@ -16,8 +16,8 @@
   paintVoxel(tool,x,y,z,options={}){
    if(tool==='select')return;
    if(tool==='erase'){this.erase(x,z,y);return;}
-   if(tool==='floor'||tool==='cube'||tool==='wall'||/^color-[0-3]$/.test(tool)){const p=this.cube(x,y,z);if(tool.startsWith('color-'))p.color=Number(tool.slice(-1));else delete p.color;return;}
-   if(/^(spawn|goal)-[0-3]$/.test(tool)){this.cube(x,y,z);this.map[tool.startsWith('spawn')?'spawns':'goals'][Number(tool.slice(-1))]={x,y,z};return;}
+   if(tool==='floor'||tool==='cube'||tool==='wall'||/^color-[0-4]$/.test(tool)){const p=this.cube(x,y,z);if(tool.startsWith('color-'))p.color=Number(tool.slice(-1));else delete p.color;return;}
+   if(/^(spawn|goal)-[0-4]$/.test(tool)){this.cube(x,y,z);this.map[tool.startsWith('spawn')?'spawns':'goals'][Number(tool.slice(-1))]={x,y,z};return;}
    if(tool==='drone'){
     const p=this.at('drones',x,z,y);if(p)return;
     if(this.map.drones.length>=L.limits.drones)throw new Error('На карте уже восемь дронов.');
@@ -41,7 +41,7 @@
     }
     this.map.spikes=this.map.spikes.filter(p=>!same(p)||(p.face||'top')!==face);
     const color=options.color===null?undefined:options.color??existing?.color;
-    this.map.spikes.push({x,y,z,offset:existing?.offset||0,...(face==='top'?{}:{face}),...(color===undefined?{}:{color})});return;
+    this.map.spikes.push({...existing,x,y,z,offset:existing?.offset||0,...(face==='top'?{}:{face}),...(color===undefined?{}:{color})});if(face==='top')delete this.map.spikes.at(-1).face;if(color===undefined)delete this.map.spikes.at(-1).color;return;
    }
    const existing=this.at(key,x,z,y);if(!existing&&this.map[key].length>=L.limits[key])throw new Error('Достигнут лимит объектов.');
    if(key==='portals'&&existing?.color===tool.slice(7))return;
@@ -64,7 +64,7 @@
   paint(tool,x,z,options={}){
    if(!Number.isSafeInteger(x)||!Number.isSafeInteger(z)||tool==='select')return;
    if(tool==='torch'||tool==='drone'){this.paintVoxel(tool,x,options.y??options.height??0,z,options);return;}
-   if(options.voxel||tool==='cube'||/^color-[0-3]$/.test(tool)){this.paintVoxel(tool,x,options.y??options.height??0,z,options);return;}
+   if(options.voxel||tool==='cube'||/^color-[0-4]$/.test(tool)){this.paintVoxel(tool,x,options.y??options.height??0,z,options);return;}
    const height=options.height??0;
    if(tool==='erase'){this.erase(x,z);return;}
    if(tool==='floor'){
@@ -73,7 +73,7 @@
     const bridge=this.at('bridges',x,z);if(bridge)bridge.y=height;
     const lift=this.at('lifts',x,z);if(lift){lift.base=height;lift.top=Math.min(3,Math.max(height+1,lift.top+height-old));}return;
    }
-   if(/^(spawn|goal)-[0-3]$/.test(tool)){this.ensureFloor(x,z,height);this.map[tool.startsWith('spawn')?'spawns':'goals'][Number(tool.slice(-1))]={x,z};return;}
+   if(/^(spawn|goal)-[0-4]$/.test(tool)){this.ensureFloor(x,z,height);this.map[tool.startsWith('spawn')?'spawns':'goals'][Number(tool.slice(-1))]={x,z};return;}
    const key=tool.startsWith('portal-')&&L.portalColor(tool.slice(7))?'portals':{wall:'walls',plate:'plates',bridge:'bridges',lift:'lifts',spikes:'spikes',conveyor:'conveyors',crate:'crates',archer:'archers',shield:'pickups',sword:'pickups'}[tool];
    if(!key)return;
    if(!this.at(key,x,z)&&this.map[key].length>=L.limits[key])throw new Error(`Достигнут лимит объектов (${L.limits[key]}).`);

@@ -24,9 +24,9 @@ const effects=new JellyEffects.System({reducedMotion});
 const level={...runtime,effects,won:false,finishProgress:0,reducedMotion};
 const menuScene=typeof createMenuScene==='function'?createMenuScene():null;
 const heldKeys=new Set();
-const keySets={KeyW:[0,0,-1],KeyS:[0,0,1],KeyA:[0,-1,0],KeyD:[0,1,0],ArrowUp:[1,0,-1],ArrowDown:[1,0,1],ArrowLeft:[1,-1,0],ArrowRight:[1,1,0],KeyI:[2,0,-1],KeyK:[2,0,1],KeyJ:[2,-1,0],KeyL:[2,1,0],KeyT:[3,0,-1],KeyG:[3,0,1],KeyF:[3,-1,0],KeyH:[3,1,0]};
+const keySets={KeyW:[0,0,-1],KeyS:[0,0,1],KeyA:[0,-1,0],KeyD:[0,1,0],ArrowUp:[1,0,-1],ArrowDown:[1,0,1],ArrowLeft:[1,-1,0],ArrowRight:[1,1,0],KeyI:[2,0,-1],KeyK:[2,0,1],KeyJ:[2,-1,0],KeyL:[2,1,0],KeyT:[3,0,-1],KeyG:[3,0,1],KeyF:[3,-1,0],KeyH:[3,1,0],Numpad8:[4,0,-1],Numpad5:[4,0,1],Numpad4:[4,-1,0],Numpad6:[4,1,0]};
 // Assign controls by the active roster's order, independently of character colour.
-const controlOwners=players.length===1?[0,0,0,0]:players.length===2?[0,1,1,0]:[0,1,2,3].map(i=>i<players.length?i:-1);
+const controlOwners=players.length===1?[0,0,0,0,0]:players.length===2?[0,1,1,0,1]:[0,1,2,3,4].map(i=>i<players.length?i:-1);
 const movementKeys=Object.fromEntries(Object.entries(keySets).map(([key,[set,x,z]])=>[key,[controlOwners[set],x,z]]).filter(([,value])=>value[0]>=0));
 let accumulator=0;
 function resize(){W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio,2);scale=Math.min(W/16,H/12)*zoom*autoZoom;}
@@ -159,9 +159,9 @@ document.querySelector('#sound').onclick=e=>{
 };
 
 function createPlayerHints(){
- const layouts=[['W','A','S','D'],['↑','←','↓','→'],['I','J','K','L'],['T','F','G','H']];
+ const layouts=[['W','A','S','D'],['↑','←','↓','→'],['I','J','K','L'],['T','F','G','H'],['8','4','5','6']];
  playerHints=players.map((p,i)=>{const node=document.createElement('div');node.className='player-key-hint';node.hidden=true;node.style.setProperty('--jelly-color',colors[p.slot]);
-  const keys=layouts[controlOwners.indexOf(i)];keys.forEach(key=>{const kbd=document.createElement('kbd');kbd.textContent=key;node.append(kbd);});
+  const control=controlOwners.indexOf(i),keys=layouts[control];if(control===4)node.title='NumPad';keys.forEach(key=>{const kbd=document.createElement('kbd');kbd.textContent=key;node.append(kbd);});
   document.querySelector('#player-hints').append(node);return {node,idle:0};
  });
 }
@@ -265,7 +265,7 @@ function selectWinItem(index,focus=true){const buttons=[document.querySelector('
 function handleWinKey(e){const k=e.code;if(['ArrowDown','ArrowRight','KeyS','KeyD','ArrowUp','ArrowLeft','KeyW','KeyA','Tab'].includes(k)){e.preventDefault();selectWinItem(winSelected+1);}else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)document.querySelector(winSelected===0?'#win-next':'#again').click();}else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(!e.repeat)setMenu(true);}}
 function updateLevelLocks(){document.querySelectorAll('[data-level]').forEach(button=>{const locked=globalThis.JellyProgress&&!JellyProgress.canPlay(Number(button.dataset.level));button.disabled=!!locked;button.classList.toggle('locked',!!locked);let icon=button.querySelector('.level-lock');if(!icon){icon=document.createElement('span');icon.className='level-lock';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';button.append(icon);}icon.hidden=!locked;});}
 function menuButtons(){return [...document.querySelectorAll(menuHelp?'#menu-back':menuLevelSelect?'#menu-levels button:not(:disabled)':'#menu-root button')];}
-function selectMenuItem(index,focus=true){const buttons=menuButtons();menuSelected=(index+buttons.length)%buttons.length;buttons.forEach((button,i)=>button.classList.toggle('selected',i===menuSelected));if(focus){buttons[menuSelected]?.focus({preventScroll:true});if(menuLevelSelect)buttons[menuSelected]?.scrollIntoView({block:'nearest'});}}
+function selectMenuItem(index,focus=true){const buttons=menuButtons();menuSelected=(index+buttons.length)%buttons.length;buttons.forEach((button,i)=>button.classList.toggle('selected',i===menuSelected));if(focus){const button=buttons[menuSelected];button?.focus({preventScroll:true});const list=menuLevelSelect&&button?.closest('.level-list');if(list){const item=button.getBoundingClientRect(),box=list.getBoundingClientRect();if(item.top<box.top)list.scrollTop+=item.top-box.top;else if(item.bottom>box.bottom)list.scrollTop+=item.bottom-box.bottom;}}}
 function showMenuScreen(screen){menuHelp=screen==='help';menuLevelSelect=screen==='levels';if(menuLevelSelect)updateLevelLocks();document.querySelector('#menu-root').hidden=menuHelp||menuLevelSelect;document.querySelector('#menu-help').hidden=!menuHelp;document.querySelector('#menu-levels').hidden=!menuLevelSelect;document.querySelector('#main-menu').classList.toggle('selecting-level',menuLevelSelect);selectMenuItem(0);}
 function showMenuHelp(show){showMenuScreen(show?'help':'root');}
 function handleMenuKey(e){

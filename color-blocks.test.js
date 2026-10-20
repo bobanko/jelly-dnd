@@ -12,11 +12,11 @@ test('colour blocks serialize, repaint, move and undo without duplicate voxels',
  m.change(()=>m.paint('floor',3,3,{voxel:true,y:1}));assert.equal(m.at('blocks',3,3,1).color,undefined);m.undo();
  m.move('blocks',m.map.blocks.findIndex(b=>b.color===3),4,3,2);assert.equal(m.at('blocks',4,3,2).color,3);
  m.change(()=>m.paint('goal-1',4,3,{voxel:true,y:2}));assert.equal(m.at('blocks',4,3,2).color,3,'placing an object preserves the support pigment');
- for(const color of [-1,4,.5,'0',null])assert.throws(()=>L.read({...room(),blocks:[{x:3,y:1,z:3,color}]}));
+ for(const color of [-1,5,.5,'0',null])assert.throws(()=>L.read({...room(),blocks:[{x:3,y:1,z:3,color}]}));
 });
 
-test('all sixteen hero/block combinations use colour identity, including sparse parties',()=>{
- for(let slot=0;slot<4;slot++)for(let color=0;color<4;color++){
+test('all twenty-five hero/block combinations use colour identity, including sparse parties',()=>{
+ for(let slot=0;slot<L.characters.length;slot++)for(let color=0;color<L.characters.length;color++){
   const m=room(slot);for(let z=0;z<8;z++)m.blocks.push({x:3,y:1,z,color});const r=runtime(m),p=r.players[0];
   assert.equal(p.slot,slot);assert.equal(r.world.blockSolid(p,r.world.collisionBoxes().find(b=>b.color===color)),slot!==color);
   step(r,175,[{x:1,z:0}]);assert.equal(p.state,'alive');assert.ok(Math.abs(p.y)<.1);

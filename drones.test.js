@@ -11,8 +11,8 @@ test('laser tracks the selected identity in sparse rosters, including height and
  blue.state='dead';assert.equal(r.world.traceDrones(r.bodies,null).length,0);d.target=0;assert.equal(r.world.traceDrones(r.bodies,null).length,0);
  d.target=-1;purple.x=2;assert.equal(r.world.traceDrones(r.bodies,null)[0].target,3);
 });
-test('all sixteen colour pairs use colour immunity, death events, inventory cleanup and a short beam afterglow',()=>{
- for(let color=0;color<4;color++)for(let slot=0;slot<4;slot++){
+test('all twenty-five colour pairs use colour immunity, death events, inventory cleanup and a short beam afterglow',()=>{
+ for(let color=0;color<L.characters.length;color++)for(let slot=0;slot<L.characters.length;slot++){
   const r=scene([slot]),p=r.players[0];r.world.drones[0].color=color;p.shield='test';p.shieldHP=3;p.sword='sword';r.world.pickups=[{id:'test',holder:0}];
   const events=r.world.afterDrones(r.bodies,null);assert.equal(p.state,color===slot?'alive':'dead');
   if(color!==slot){assert.equal(p.deathReason,'beam');assert.equal(p.deaths,1);assert.equal(p.shield,null);assert.equal(p.sword,null);assert.equal(r.world.pickups[0].holder,null);assert.equal(events.length,1);
@@ -49,7 +49,7 @@ test('editor supports free hovering drones, settings, moving, history, picking, 
  m.change(map=>Object.assign(map.drones[0],{color:1,target:3,hover:2.5}));m.move('drones',0,5,4,3);assert.equal(m.map.blocks.length,0);assert.deepEqual(m.map.drones[0],{x:5,y:3,z:4,color:1,target:3,hover:2.5});
  m.undo();assert.equal(m.map.drones[0].x,3);m.redo();assert.equal(m.map.drones[0].x,5);assert.deepEqual(L.read(JSON.stringify(m.map)),m.map);
  assert.ok(L.issues(m.map).some(s=>s.includes('выбранная цель')));const b=E.boxes(m.map).find(b=>b.key==='drones');assert.ok(Math.abs(b.min[1]-5.58)<1e-9);assert.ok(Math.abs(b.max[1]-6.7)<1e-9);
- for(const bad of [{color:5},{target:4},{target:.5},{hover:-.1},{hover:Infinity}]){const map=L.copy(m.map);Object.assign(map.drones[0],bad);assert.throws(()=>L.read(map));}
+ for(const bad of [{color:5},{target:5},{target:.5},{hover:-.1},{hover:Infinity}]){const map=L.copy(m.map);Object.assign(map.drones[0],bad);assert.throws(()=>L.read(map));}
  m.remove('drones',0);assert.equal(m.map.drones.length,0);m.undo();assert.equal(m.map.drones.length,1);
  const old=L.defaultLevel();delete old.drones;assert.deepEqual(L.read(old).drones,[]);
 });

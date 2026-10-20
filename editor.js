@@ -6,7 +6,7 @@ let sourceFilename=globalThis.JellyLevelCatalog?.defaultLevel||null;
 let initial=L.defaultLevel();
 try{const saved=localStorage.getItem(L.DRAFT_KEY);if(saved){initial=L.read(saved);sourceFilename=localStorage.getItem(filenameKey)||null;}}catch(error){startupError='Черновик не удалось открыть: '+error.message;}
 const model=new M.Model(L.voxelize(initial));
-const phaseSymbols=['△','⊙','◇','☼'];
+const phaseSymbols=['△','⊙','◇','☼','ᛞ'];
 const groups=[
  ['Спавны',L.characters.map((p,i)=>['spawn-'+i,'▣',p.name,p.color])],
  ['Финиши',L.characters.map((p,i)=>['goal-'+i,p.glyph,p.name,p.color])],
@@ -19,7 +19,11 @@ const groups=[
 const tools=Object.fromEntries(groups.flatMap(g=>g[1]).map(([id,glyph,label,color])=>[id,{glyph,label,color}]));
 Object.assign(tools,{select:{glyph:'↖',label:'Выбор'},erase:{glyph:'⌫',label:'Ластик'},pan:{glyph:'✥',label:'Перемещение вида'},orbit:{glyph:'⟳',label:'Вращение камеры'}});
 const names=L.characters.map(p=>p.name),colors=L.characters.map(p=>p.color);
-const cubeTool=value=>value==='floor'||/^color-[0-3]$/.test(value);
+const plateGroupNames={green:'Зелёная',blue:'Синяя',red:'Красная',violet:'Фиолетовая',amber:'Золотая',dark:'Каменная'};
+const plateGroup=value=>model.map.plates.find(p=>p.id===value)?.color||value;
+const plateGroupValue=plateGroup;
+const plateGroupOptions=()=>model.map.plates.filter((p,i,all)=>all.findIndex(q=>q.color===p.color)===i).map(p=>[p.color,plateGroupNames[p.color]||p.color]);
+const cubeTool=value=>value==='floor'||/^color-[0-4]$/.test(value);
 const labels={blocks:'Каменный куб',tiles:'Камень',walls:'Стена',torches:'Настенный факел',drones:'Кристаллический дрон',spawns:'Спавн',goals:'Финиш',plates:'Кнопка',bridges:'Мост',lifts:'Лифт',conveyors:'Конвейер',spikes:'Шипы',portals:'Портал',crates:'Ящик',archers:'Скелет-лучник',pickups:'Предмет'};
 let tool='floor',selected=null,hover=null,moveObject=null,gesture=null,space=false,expandedIssues=false,toastTimer;
 const view3d=true;
@@ -140,14 +144,18 @@ function renderProperties(){
    field(card,'Высота полёта',p.hover,{min:0,max:6,step:.1},v=>set('hover',v));
    for(const axis of ['x','y','z'])field(card,'Дрон · '+axis.toUpperCase(),p[axis],{min:axis==='y'?-2:-Number.MAX_SAFE_INTEGER,max:axis==='y'?12:Number.MAX_SAFE_INTEGER},value=>{const q={...p,[axis]:value};try{if(model.move(key,index,q.x,q.z,q.y)){selected={x:q.x,y:q.y,z:q.z};changed();}}catch(error){toast(error.message);renderPanels();}});
   }
-  if(key==='plates'){colorRadios(card,'Цвет',p.color,[['green','Зелёный',colors[0]],['blue','Синий',colors[1]],['red','Красный',colors[2]],['violet','Фиолетовый',colors[3]],['amber','Золотой','#edb65b'],['dark','Каменный','#777e78']],v=>set('color',v));card.append(element('p',`Канал ${index+1} · мостов: ${model.map.bridges.filter(b=>b.plate===p.id).length}`,'empty-state'));}
-  if(key==='bridges')field(card,'Кнопка',p.plate,{values:[['','Не выбрана'],...model.map.plates.map((b,i)=>[b.id,`К${i+1} · ${b.x}, ${b.z}`])]},v=>set('plate',v));
+  if(key==='plates'){colorRadios(card,'Цвет',p.color,[['green','Зелёный',colors[0]],['blue','Синий',colors[1]],['red','Красный',colors[2]],['violet','Фиолетовый',colors[3]],['amber','Золотой','#edb65b'],['dark','Каменный','#777e78']],v=>set('color',v));card.append(element('p',`Группа: ${plateGroupNames[p.color]} · триггеров: ${[...model.map.bridges,...model.map.spikes].filter(b=>b.plate&&plateGroup(b.plate)===p.color).length}`,'empty-state'));}
+  if(key==='bridges')field(card,'Группа кнопок',plateGroupValue(p.plate),{values:[['','Не выбрана'],...plateGroupOptions()]},v=>set('plate',v));
   if(key==='lifts'){field(card,'Нижний уровень',p.base,{min:-2,max:12},v=>edit(map=>{map.lifts[index].base=v;map.lifts[index].y=v;model.cube(p.x,v,p.z);}));field(card,'Верхний уровень',p.top,{min:-2,max:12},v=>set('top',v));}
   if(key==='spikes'){
    colorRadios(card,'Цвет шипов',p.color??'',spikeColors,v=>edit(map=>{if(v==='')delete map.spikes[index].color;else map.spikes[index].color=Number(v);}));
    faceRadios(card,'Крепление шипов',p.face||'top','face-'+card.dataset.object,v=>edit(map=>{if(v==='top')delete map.spikes[index].face;else map.spikes[index].face=v;}),true);
    field(card,'Y крепления',p.y??L.surfaceY(model.map,p.x,p.z)??0,{min:-2,max:12},v=>{try{if(model.move('spikes',index,p.x,p.z,v)){selected={x:p.x,y:v,z:p.z};changed();}}catch(error){toast(error.message);renderPanels();}});
-   field(card,'Задержка, сек',p.offset,{min:0,max:5.8,step:.1},v=>set('offset',v));
+   field(card,'Группа кнопок',plateGroupValue(p.plate)||'',{values:[['','Без кнопки'],...plateGroupOptions(),...(p.plate&&!model.map.plates.some(b=>b.id===p.plate||b.color===p.plate)?[[p.plate,'Кнопка удалена']]:[])]},v=>edit(map=>{if(v)map.spikes[index].plate=v;else delete map.spikes[index].plate;}));
+   field(card,'Цикл, сек (0 — постоянно)',p.cycle??5.8,{min:0,max:3600,step:.1},v=>set('cycle',v)).disabled=!!p.plate;
+   const enabledRow=element('label','Включены'),enabled=element('input');enabled.type='checkbox';enabled.checked=p.enabled!==false;enabled.setAttribute('aria-label','Включены');enabled.disabled=!!p.plate;enabled.onchange=()=>{const focused=document.activeElement===enabled;set('enabled',enabled.checked);if(focused)document.querySelector('[data-object="spikes-'+index+'"] input[type="checkbox"]')?.focus({preventScroll:true});};enabledRow.append(enabled);card.append(enabledRow);
+   field(card,'Сдвиг цикла, сек',p.offset,{min:0,max:3600,step:.1},v=>set('offset',v)).disabled=!!p.plate||p.cycle===0;
+   card.append(element('p',p.plate?'Нажата кнопка — шипы выдвинуты.':p.cycle===0?'Постоянное состояние задаётся флажком.':'Флажок задаёт начальное состояние цикла.','empty-state'));
   }
   if(key==='portals'){
    colorRadios(card,'Цвет портала',p.color,L.portalColors.map(p=>[p.id,p.name,p.color]),v=>set('color',v));
@@ -253,7 +261,7 @@ function drawSpatialOverlay(){
  if(spatialGrid.checked){ctx.lineWidth=.7;for(const p of gridCells())if(!occupiedLayer.has(p.cell))square(p,layer,'#a7c9b124');}
  if($('connections').checked){
   ctx.lineWidth=1;const line=(a,b,color,arrow=false)=>{const ps=[a,b].map(p=>project([p.x,(p.y??floor(p.x,p.z))+.15,p.z]));if(ps.some(p=>!p.visible))return;ctx.beginPath();ctx.moveTo(ps[0].x,ps[0].y);ctx.lineTo(ps[1].x,ps[1].y);ctx.strokeStyle=color;ctx.setLineDash([4,5]);ctx.stroke();if(arrow){const angle=Math.atan2(ps[1].y-ps[0].y,ps[1].x-ps[0].x),x=ps[0].x+(ps[1].x-ps[0].x)*.65,y=ps[0].y+(ps[1].y-ps[0].y)*.65;ctx.setLineDash([]);ctx.beginPath();for(const side of [-1,1]){ctx.moveTo(x,y);ctx.lineTo(x-Math.cos(angle+side*.5)*8,y-Math.sin(angle+side*.5)*8);}ctx.stroke();}};
-  for(const b of model.map.bridges){const p=model.map.plates.find(p=>p.id===b.plate);if(p)line(p,b,'#d4e9a88a');}
+  for(const b of [...model.map.bridges,...model.map.spikes])for(const p of model.map.plates.filter(p=>b.plate&&p.color===plateGroup(b.plate)))line(p,b,'#d4e9a88a');
   for(const color of L.portalColors){const chain=model.map.portals.filter(p=>p.color===color.id);chain.forEach((p,i)=>{if(chain.length>1)line(p,chain[(i+1)%chain.length],color.color+'88',true);const q=project([p.x,(p.y??floor(p.x,p.z))+.2,p.z]);if(q.visible){ctx.fillStyle=color.color;ctx.font='12px Arial';ctx.fillText(`${i+1}→${chain.length>1?(i+1)%chain.length+1:'—'}`,q.x+8,q.y+14);}});}
  }
  ctx.lineWidth=2;
@@ -283,14 +291,15 @@ function drawSpatialOverlay(){
  if(height){const cube=cubeTool(active)||moveObject?.key==='blocks',top=cube?y+.045:y+height,base=cube?y-1:y;for(const dx of [-.46,.46])for(const dz of [-.46,.46])path([[hover.x+dx,base,hover.z+dz],[hover.x+dx,top,hover.z+dz]],color,null,true);square(hover,top,color,null,true);}
 }
 function rebuildPreview(){
+ const featureTime=previewRuntime?.world.featureTime??0;
  previewRuntime=L.instantiate(model.map,JellyPhysics,JellySoftBody);previewRuntime.effects=new JellyEffects.System({reducedMotion:true});previewRuntime.won=false;previewRuntime.reducedMotion=true;
- previewRuntime.world.featureTime=1;previewRuntime.bridges.forEach(b=>b.progress=1);
+ previewRuntime.world.featureTime=featureTime;previewRuntime.bridges.forEach(b=>b.progress=1);
  previewRuntime.world.droneBeams=previewRuntime.world.traceDrones(previewRuntime.bodies,previewRuntime.soft);
  previewRenderer.bridgeKey=undefined;previewRenderer.decorationKey=undefined;previewRenderer.propGeometryKey=undefined;previewRenderer.goalGlowStrength=[];previewRenderer.goalWinGlow=0;previewDirty=false;
 }
 function previewTick(t){
  previewFrame=0;if(!previewRenderer?.ready)return;const dt=Math.min(.05,(t-previewLast)/1000||.016);previewLast=t;
- if(previewDirty)rebuildPreview();previewRenderer.colliders=$('preview-colliders').checked;previewRenderer.render(previewRuntime,previewRuntime.players,previewCamera,previewAngle,reducedMotion?0:t/1000,previewScale(),dt);drawSpatialOverlay();previewFrame=requestAnimationFrame(previewTick);
+ if(previewDirty)rebuildPreview();previewRuntime.world.featureTime+=dt;previewRenderer.colliders=$('preview-colliders').checked;previewRenderer.render(previewRuntime,previewRuntime.players,previewCamera,previewAngle,reducedMotion?0:t/1000,previewScale(),dt);drawSpatialOverlay();previewFrame=requestAnimationFrame(previewTick);
 }
 function panView(dx,dy,clientX,clientY){
   const r=$('viewport').getBoundingClientRect();clientX??=r.left+r.width/2;clientY??=r.top+r.height/2;

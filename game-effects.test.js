@@ -58,6 +58,12 @@ const goals=[{x:2,z:2},{x:4,y:1,z:2},{x:6,z:2}];
 const goalWorld=new World(new Set(['2,2','4,2','6,2']),[],[]);
 const finishPlayers=()=>goals.map(g=>({...g,y:g.y||0,state:'alive'}));
 
+test('fifth yellow finish emits a distinct rune and yellow jelly death particles have a valid tint',()=>{
+ const effects=new System(),goal={x:2,z:2,slot:4},player={x:2,z:2,y:0,slot:4,state:'alive'};
+ effects.step(.01,goalWorld,[goal],[player]);assert.equal(effects.runes[0].glyph,4);assert.deepEqual(effects.runes[0].color,[1,.65,.025]);
+ effects.burst({type:'death',reason:'spikes',player:0},[player],soft);assert.ok(effects.particles.length>0);assert.ok(effects.particles.every(p=>Array.isArray(p.color)&&p.color.every(Number.isFinite)));
+});
+
 test('matching finishes emit their own coloured glyphs at floor height and keep rising',()=>{
  const effects=new System(),party=finishPlayers();
  effects.step(.01,goalWorld,goals,party);

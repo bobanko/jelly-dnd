@@ -9,7 +9,7 @@ const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'
    await page.goto('http://localhost:3000/');await ready();await page.locator('[data-language='+language+']').click();
    await fits('#menu-title,#menu-root button,.menu-key-hints');await page.screenshot({path:'artifacts/menu-960-'+language+'.png'});
    await page.locator('#show-controls').click();await fits('#menu-help,#menu-back');await page.screenshot({path:'artifacts/controls-960-'+language+'.png'});await page.keyboard.press('q');
-   await page.locator('#show-levels').click();await fits('#menu-levels,[data-level],#levels-back');await page.screenshot({path:'artifacts/levels-960-'+language+'.png'});
+   await page.locator('#show-levels').click();await fits('#menu-title,#menu-levels,#levels-back');await page.screenshot({path:'artifacts/levels-960-'+language+'.png'});
    await page.locator('[data-level="1"]').click();await page.waitForURL('**/?level=1&play=1');await ready();
    await fits('#menu-button,#sound,#fps,footer');await page.locator('.player-key-hint').first().waitFor({state:'visible'});await fits('.player-key-hint');
    assert.ok(await page.evaluate(()=>players.every(p=>{const q=project(p.x,(p.y||0)+.42,p.z);return q.visible&&q.x>0&&q.x<W&&q.y>0&&q.y<H;})));

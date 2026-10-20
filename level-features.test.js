@@ -8,6 +8,40 @@ function scene(positions=[[2,2,0]]){
  const players=positions.map(([x,z,y])=>({x,z,y,vx:0,vz:0,vy:0,state:'alive',deaths:0,spawn:{x,z}}));
  return {world,soft,players,step(input=[],count=1){const events=[];for(let n=0;n<count;n++)events.push(...world.step(players,input));return events;}};
 }
+
+test('same-color plates activate every linked bridge and spike from either plate',()=>{
+ const {world}=scene();
+ world.plates=[{id:'a',color:'red',x:2,z:2,y:0},{id:'b',color:'red',x:5,z:2,y:1},{id:'c',color:'blue',x:7,z:2,y:0}];
+ world.bridges=[{plate:0},{plate:1},{plate:2}];
+ for(const body of [{x:2,z:2,y:0},{x:5,z:2,y:1},{x:5,z:2,y:1,kind:'crate'}]){
+  world.refresh([body]);assert.deepEqual([...world.held],[0,1]);
+  for(const plate of ['a','b','red'])assert.equal(world.spikeState({plate}).dangerous,true);
+  assert.equal(world.spikeState({plate:'c'}).dangerous,false);
+ }
+ for(const body of [{x:5,z:2,y:0},{x:5,z:2,y:1,state:'dead'}]){
+  world.refresh([body]);assert.equal(world.held.size,0);
+ }
+ world.refresh([{x:2,z:2,y:0},{x:5,z:2,y:1}]);assert.equal(world.active(0,world.bodies),true);
+ world.refresh([{x:5,z:2,y:1}]);assert.equal(world.active(0,world.bodies),true);
+ world.refresh([]);assert.equal(world.active(0,world.bodies),false);
+});
+
+test('spikes support constant states and proportional custom cycles without changing legacy timing',()=>{
+ const g=scene();
+ for(const time of [0,2.8,100]){g.world.featureTime=time;assert.equal(g.world.spikeState({cycle:0}).dangerous,true);assert.deepEqual(g.world.spikeState({cycle:0,enabled:false}),{extension:0,stage:'hidden',dangerous:false,warning:false});}
+ for(const time of [0,2.15,3,4.8,5.65]){g.world.featureTime=time;const legacy=g.world.spikeState({});g.world.featureTime=time*2;const slower=g.world.spikeState({cycle:11.6});assert.equal(slower.stage,legacy.stage);assert.ok(Math.abs(slower.extension-legacy.extension)<1e-10);}
+ g.world.featureTime=0;assert.equal(g.world.spikeState({enabled:false,cycle:10}).stage,'hidden');
+});
+
+test('a bound pressure plate directly controls floor or wall spikes and ignores timer and flag',()=>{
+ const g=scene(),plate={id:'trigger',x:2,z:2,y:1},trap={plate:'trigger',cycle:0,enabled:false,face:'north'};g.world.plates.push(plate);g.world.refresh(g.players);
+ assert.equal(g.world.spikeState(trap).dangerous,false);
+ g.players[0].y=1;assert.equal(g.world.spikeState(trap).extension,1);
+ g.players[0].x=3;assert.equal(g.world.spikeState(trap).extension,0);
+ g.players[0].x=2;g.players[0].state='dead';assert.equal(g.world.spikeState(trap).extension,0);
+ const crate={x:2,z:2,y:1,kind:'crate',state:'alive'};g.world.refresh([crate]);assert.equal(g.world.spikeState(trap).dangerous,true);
+ assert.equal(g.world.spikeState({...trap,plate:'missing'}).extension,0);
+});
 test('goal activation requires a living jelly centred on the same floor',()=>{
  const g=scene(),goal={x:2,z:2},p=g.players[0];
  assert.equal(g.world.goalActive(goal,p),true);

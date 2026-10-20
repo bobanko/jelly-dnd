@@ -72,8 +72,12 @@
     return charge;
    },
    spikeState(spike){
+    if(spike.plate||spike.cycle===0){
+     const enabled=spike.plate?this.active(this.plates.findIndex(p=>p.id===spike.plate||p.color===spike.plate),this.bodies||[]):spike.enabled!==false;
+     return {extension:enabled?1:0,stage:enabled?'raised':'hidden',dangerous:enabled,warning:false};
+    }
     // A one-second warning beat shows harmless tips before the full rise.
-    const cycle=5.8,phase=(((this.featureTime||0)+(spike.offset||0))%cycle+cycle)%cycle,peek=.3;
+    const cycle=spike.cycle??5.8,time=(this.featureTime||0)+(spike.offset||0)+(spike.enabled===false?cycle*2.4/5.8:0),phase=((time%cycle+cycle)%cycle)*(5.8/cycle),peek=.3;
     const smooth=t=>t*t*(3-2*t);
     let extension=1,stage='raised';
     if(phase>=2&&phase<2.3){extension=1-smooth((phase-2)/.3);stage='retracting';}
@@ -115,7 +119,14 @@
    },
    supported(p){const height=this.heightAt(p.x,p.z,(p.y||0)+.2,p);return height!==null&&(this.blocks?.length?Math.abs((p.y||0)-height)<.23:(p.y||0)>=height-.2);},
    obstaclesNear(p){return this.blocks?.length?this.collisionBoxes().filter(b=>this.blockSolid(p,b)&&b.maxY>(p.y||0)+.05&&b.minY<(p.y||0)+.84):this.obstacles;},
-   active(i,bodies){const plate=this.plates[i];if(!plate)return false;const height=plate.y??this.heightAt(plate.x,plate.z)??0;return bodies.some(p=>alive(p)&&Math.abs((p.y||0)-height)<.15&&near(p,plate,.42));},
+   active(i,bodies){
+    const plate=this.plates[i];if(!plate)return false;
+    return this.plates.some(candidate=>{
+     if(candidate!==plate&&(!plate.color||candidate.color!==plate.color))return false;
+     const height=candidate.y??this.heightAt(candidate.x,candidate.z)??0;
+     return bodies.some(p=>alive(p)&&Math.abs((p.y||0)-height)<.15&&near(p,candidate,.42));
+    });
+   },
    collisionBoxes(){
     if(this._collisionCache)return this._collisionCache;
     const boxes=[],conveyorCells=new Set(this.conveyors.map(p=>`${p.x},${p.z}`));

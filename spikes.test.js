@@ -11,7 +11,7 @@ test('old traps remain neutral floor traps; all five mounts and colours roundtri
  const m=map();m.spikes=[{x:2,y:0,z:2,offset:1.2}];assert.deepEqual(L.read(m).spikes,m.spikes);
  m.spikes=faces.map((face,i)=>({x:3,y:1,z:3,offset:i*.2,...(face==='top'?{}:{face}),...(i===0?{}:{color:i-1})}));
  assert.deepEqual(L.read(JSON.stringify(m)).spikes,m.spikes);assert.deepEqual(L.issues(L.read(m)),[]);
- for(const override of [{face:'bottom'},{color:4},{color:-1},{color:.5},{face:'east',y:undefined},{face:'west',y:.5}])assert.throws(()=>L.read({...m,spikes:[{x:3,y:1,z:3,...override}]}));
+ for(const override of [{face:'bottom'},{color:5},{color:-1},{color:.5},{face:'east',y:undefined},{face:'west',y:.5}])assert.throws(()=>L.read({...m,spikes:[{x:3,y:1,z:3,...override}]}));
  assert.throws(()=>L.read({...m,spikes:[{x:3,y:1,z:3},{x:3,y:1,z:3,face:'top'}]}));
  const orphan=L.read({...m,blocks:m.blocks.filter(b=>b.y!==1)});assert.ok(L.issues(orphan).some(e=>e.includes('блок крепления')));
 });
@@ -25,8 +25,8 @@ test('editor preserves independent wall mounts, top mechanisms, colours, delay, 
  const index=model.map.spikes.findIndex(p=>p.face==='east');model.move('spikes',index,4,3,1);assert.equal(model.map.spikes[index].face,'east');assert.ok(model.at('blocks',4,3,1));model.undo();assert.equal(model.map.spikes[index].x,3);
  model.change(()=>model.erase(3,3,1));assert.equal(model.map.spikes.length,0);model.undo();assert.equal(model.map.spikes.length,5);
 });
-test('all four colours are immune only to their own spikes on every mount; neutral spikes kill everyone',()=>{
- for(const face of faces)for(const color of [undefined,0,1,2,3])for(let slot=0;slot<4;slot++){
+test('all five colours are immune only to their own spikes on every mount; neutral spikes kill everyone',()=>{
+ for(const face of faces)for(const color of [undefined,0,1,2,3,4])for(let slot=0;slot<L.characters.length;slot++){
   const trap={x:3,y:1,z:3,...(face==='top'?{}:{face}),...(color===undefined?{}:{color})},g=contact(trap,slot),events=g.step();
   assert.equal(g.player.state,color===slot?'alive':'dead',`${face}, trap ${color}, hero ${slot}`);assert.equal(events.length,color===slot?0:1);
   if(color!==slot)assert.equal(g.player.deathReason,'spikes');

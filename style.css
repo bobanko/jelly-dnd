@@ -93,3 +93,14 @@ html[lang=ru] .menu-panel h1{font-size:clamp(58px,7.5vw,100px);letter-spacing:-3
  footer{height:54px;margin:0 20px}.controls{gap:16px}.moves{gap:9px}
  .player-key-hint{grid-template-columns:repeat(3,26px);grid-template-rows:repeat(2,26px)}.player-key-hint kbd{font-size:13px}
 }
+/* Keep the title and back action outside the scrolling level list. */
+#main-menu.selecting-level{overflow:hidden;padding-bottom:76px}
+.selecting-level .menu-panel{display:flex;flex-direction:column;height:100%;min-height:0;max-height:100%}
+.selecting-level #menu-title{flex-shrink:0}
+#menu-levels{display:flex;flex-direction:column;flex:1;min-height:0}
+#menu-levels h2{flex-shrink:0}
+#menu-levels .level-list{flex:1;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#a88b58 #171d1c;padding:4px}
+.level-list button{flex-shrink:0}
+#levels-back{flex-shrink:0;align-self:stretch;text-align:left;border:0;border-radius:0;padding:10px 20px;background:transparent;color:#cdbfa5;font-family:Georgia,serif;line-height:1.2;text-transform:uppercase}
+#levels-back.selected{background:linear-gradient(90deg,#b48c4e55,#b48c4e12);color:#fff0ce;box-shadow:inset 4px 0 #e2bb75}
+@media(max-width:600px){#main-menu.selecting-level{padding-bottom:90px}}

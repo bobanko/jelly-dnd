@@ -2,8 +2,8 @@
 (function(root){
  'use strict';
  const Levels=typeof module!=='undefined'&&module.exports?require('./levels.js'):root.JellyLevels;
- const palettes=[[.12,.9,.16],[.025,.17,1.],[1.,.065,.035],[.65,.1,1.]];
- const runeColors=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025],[.68,.12,1.]],RUNE_LIMIT=32;
+ const palettes=[[.12,.9,.16],[.025,.17,1.],[1.,.065,.035],[.65,.1,1.],[1.,.65,.035]];
+ const runeColors=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025],[.68,.12,1.],[1.,.65,.025]],RUNE_LIMIT=32;
  class System{
   constructor({reducedMotion=false}={}){this.reducedMotion=reducedMotion;this.particles=[];this.rings=[];this.runes=[];this.bones=[];this.lasers=[];this.runeTimers=[];this.runeActive=[];this.seed=1;}
   random(){this.seed=(Math.imul(this.seed,1664525)+1013904223)>>>0;return this.seed/4294967296;}
@@ -101,7 +101,7 @@
    }
    for(const rune of this.runes){rune.age+=dt;for(let k=0;k<3;k++)rune.position[k]+=rune.velocity[k]*dt;}
    this.runes=this.runes.filter(r=>r.age<r.life);
-   if(!this.reducedMotion)goals.slice(0,4).forEach((goal,i)=>{
+   if(!this.reducedMotion)goals.slice(0,5).forEach((goal,i)=>{
     const slot=goal?.slot??i,charge=world.goalCharge(goal,players.find((p,j)=>(p.slot??j)===slot));
     if(charge<=.1){this.runeActive[i]=false;this.runeTimers[i]=0;return;}
     if(!this.runeActive[i]){this.runeActive[i]=true;this.runeTimers[i]=0;this.emitRune(goal,slot,world);}
