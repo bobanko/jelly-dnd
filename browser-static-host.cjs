@@ -7,8 +7,12 @@ const staticRoot=path.resolve(process.env.STATIC_GAME_ROOT||__dirname);
   const page=await browser.newPage({viewport:{width:1040,height:720}}),errors=[],missing=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('https://portal.test/**',route=>route.fulfill({contentType:'text/html',body:'<iframe name="game" src="https://static-game.test/html/123/index.html" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-downloads" allow="autoplay; fullscreen" style="width:960px;height:640px;border:0"></iframe>'}));
-  const scripts=new Set(['index.html','editor.html','style.css','editor.css']);
+  const scripts=new Set(['index.html','editor.html','style.css','editor.css','controls.css']);
   for(const html of ['index.html','editor.html'])for(const match of fs.readFileSync(path.join(staticRoot,html),'utf8').matchAll(/(?:src|data-entry)="([^"]+\.js)"/g))scripts.add(match[1]);
+  for(const script of scripts)if(script.endsWith('.js')){
+   for(const match of fs.readFileSync(path.join(staticRoot,script),'utf8').matchAll(/^import\s+(?:[^'"\n]+\s+from\s+)?['"](\.[^'"]+)['"]/gm))
+    scripts.add(path.posix.normalize(path.posix.join(path.posix.dirname(script),match[1])));
+  }
   await page.route('https://static-game.test/**',async route=>{
    const url=new URL(route.request().url()),relative=decodeURIComponent(url.pathname).replace(/^\/html\/123\//,'');
    const allowed=scripts.has(relative)||/^levels\/[a-z0-9-]+\.json$/i.test(relative)||/^assets\/materials\/[a-z0-9-]+\.png$/i.test(relative);

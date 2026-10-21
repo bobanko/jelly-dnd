@@ -1,12 +1,15 @@
 {
   "name": "jelly-dnd",
   "version": "0.2.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "private": true,
   "scripts": {
     "start": "node server.js",
     "build": "npm run check && node scripts/build-itch.cjs",
-    "check": "node --check game.js && node --check physics.js && node --check soft-body.js && node --check level-features.js && node --check combat.js && node --check webgpu-renderer.js && node --check game-effects.js && node --check levels.js && node --check editor-model.js && node --check editor-space.js && node --check editor.js && node --check i18n.js && node --check progression.js && node --check menu-scene.js && node --check shared-camera.js && node --check level-loader.js",
-    "test": "node --test sky-height.test.js shared-camera.test.js progression.test.js game.test.js physics.test.js soft-body.test.js level-features.test.js portals.test.js combat.test.js drones.test.js game-effects.test.js stacking.test.js camera.test.js levels.test.js conveyor.test.js editor-space.test.js voxel.test.js color-blocks.test.js spikes.test.js",
+    "check": "node --check game.js && node --check physics.js && node --check soft-body.js && node --check level-features.js && node --check combat.js && node --check webgpu-renderer.js && node --check game-effects.js && node --check levels.js && node --check editor-model.js && node --check editor-space.js && node --check editor.js && node --check i18n.js && node --check progression.js && node --check menu-scene.js && node --check shared-camera.js && node --check level-loader.js && node --check levels/catalog.js",
+    "test": "node --test level-loader.test.js sky-height.test.js shared-camera.test.js progression.test.js game.test.js physics.test.js soft-body.test.js level-features.test.js portals.test.js combat.test.js drones.test.js game-effects.test.js stacking.test.js camera.test.js levels.test.js conveyor.test.js editor-space.test.js voxel.test.js color-blocks.test.js spikes.test.js",
     "test:color-blocks:browser": "node browser-color-blocks.cjs",
     "test:glass-blocks:browser": "node browser-glass-blocks.cjs",
     "test:spikes:browser": "node browser-spikes.cjs",

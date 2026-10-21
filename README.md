@@ -16,6 +16,8 @@ A dungeon puzzle with one to five translucent jelly creatures and movable wooden
 
 ## Run
 
+Use Node.js 22.13 or newer for development, tests, and release packaging. Campaign configuration and progression use ES modules; the existing CommonJS tooling loads their synchronous exports through Node's `require(esm)` support. Browser runtime files are still served directly without bundling.
+
 Run npm start (or node server.js), then open http://localhost:3000 in Chrome or Edge with WebGPU enabled. No runtime packages, CDNs or external fonts are needed. Stone and oak textures are bundled in assets/materials/; their generation prompts and mapping details are documented there. Serve over localhost or HTTPS; opening a local HTML file is not the supported launch path.
 
 If the browser has no WebGPU adapter, an explanation appears instead of a blank scene. A lost GPU device also shows the fallback card. There is no silent return to the old 2D renderer.

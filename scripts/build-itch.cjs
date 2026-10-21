@@ -8,6 +8,11 @@ function add(name){
  name=name.replaceAll('\\','/');const file=path.resolve(root,name);
  if(!file.startsWith(root+path.sep)||!fs.statSync(file).isFile())throw Error('Invalid build file: '+name);
  files.set(name,fs.readFileSync(file));
+ // Include the static relative imports used by browser ES module entry points.
+ if(name.endsWith('.js'))for(const match of files.get(name).toString().matchAll(/^import\s+(?:[^'"\n]+\s+from\s+)?['"](\.[^'"]+)['"]/gm)){
+  const dependency=path.posix.normalize(path.posix.join(path.posix.dirname(name),match[1]));
+  if(!files.has(dependency))add(dependency);
+ }
 }
 // Explicit entry points and their client scripts/styles; no project-directory copy.
 for(const html of ['index.html','editor.html']){

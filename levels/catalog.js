@@ -1,6 +1,4 @@
 // Campaign order. Map files remain JSON.
-(function(root){
- 'use strict';
  const catalog={
   "version": 1,
   "standard": [
@@ -16,6 +14,4 @@
   ],
   "extra": []
 };
- if(typeof module!=='undefined'&&module.exports)module.exports=catalog;
- else root.JellyLevelCatalog=catalog;
-})(globalThis);
+export const {version,standard,extra}=catalog;

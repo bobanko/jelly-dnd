@@ -1,5 +1,3 @@
-(function(root){
- 'use strict';
  const KEY='jelly-dnd.progress.v2',LEGACY_KEY='jelly-dnd.unlocked-level';
  // Historical file identities, used only to migrate the original five-level saves.
  const LEGACY_FILES=['01-first-steps.json','02-helping-hands.json','03-true-colors.json','04-through-the-rift.json','05-sunken-sanctum.json'];
@@ -23,6 +21,4 @@
    complete(id,seconds){if(!this.canPlay(id))return this.unlocked;if(Number.isFinite(seconds)&&seconds>0){const file=order[id-1];bestTimes[file]=Math.min(bestTimes[file]??Infinity,seconds);}completed.add(order[id-1]);if(order[id])unlocked.add(order[id]);persist();return this.unlocked;}
   };
  }
- if(typeof module!=='undefined'&&module.exports)module.exports={create,KEY,LEGACY_KEY};
- else{let storage;try{storage=root.localStorage;}catch{}root.JellyProgress=create(storage);}
-})(globalThis);
+export {create,KEY,LEGACY_KEY};

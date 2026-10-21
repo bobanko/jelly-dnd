@@ -3,9 +3,9 @@ const {chromium}=require('@playwright/test'),fs=require('node:fs'),assert=requir
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--enable-unsafe-webgpu','--use-angle=d3d11']});
  try{
   const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  const catalog=structuredClone(require('./levels/catalog.js'));catalog.standard.reverse();
+  const catalog=structuredClone({...require('./levels/catalog.js')});catalog.standard.reverse();
   const first=catalog.standard[0],map=JSON.parse(fs.readFileSync('levels/'+first));map.name='Only in map';map.names={ru:'RU map title'};
-  await page.route('**/levels/catalog.js',route=>route.fulfill({contentType:'application/javascript',body:'globalThis.JellyLevelCatalog='+JSON.stringify(catalog)+';'}));await page.route('**/levels/'+first,route=>route.fulfill({json:map}));
+  await page.route('**/levels/catalog.js',route=>route.fulfill({contentType:'application/javascript',body:'export const {version,standard,extra}='+JSON.stringify(catalog)+';'}));await page.route('**/levels/'+first,route=>route.fulfill({json:map}));
   const ready=()=>page.waitForFunction(()=>typeof sceneRenderer!=='undefined'&&sceneRenderer.ready&&!loadingActive);
   await page.goto('http://localhost:3000/');await ready();assert.equal(await page.evaluate(()=>definition.name),'Only in map');await page.locator('#show-levels').click();
   assert.equal(await page.locator('[data-level-name="1"]').textContent(),'Only in map');assert.equal(await page.locator('[data-level="1"]').isEnabled(),true);assert.equal(await page.locator('[data-level="2"]').isDisabled(),true);

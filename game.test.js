@@ -6,7 +6,9 @@ function game(options={}){
  const noop=()=>{},ctx=new Proxy({createRadialGradient:()=>({addColorStop:noop})},{get:(o,k)=>o[k]??noop});
  const element=()=>({addEventListener:noop,getContext:()=>ctx,classList:{toggle:noop},setAttribute:noop,querySelector:()=>element()});
  const elements={},listeners={};
- const sandbox={innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellySharedCamera:require('./shared-camera'),JellyLevels:require('./levels.js'),JellyEffects:require('./game-effects.js'),JellyPhysics:require('./physics.js'),JellySoftBody:require('./soft-body.js'),JellyGPU:{...require('./webgpu-renderer.js'),Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
+ // Menu metadata is optional; keep this VM test independent of network access.
+ const fetch=async()=>({ok:false});
+ const sandbox={fetch,innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellySharedCamera:require('./shared-camera'),JellyLevels:require('./levels.js'),JellyEffects:require('./game-effects.js'),JellyPhysics:require('./physics.js'),JellySoftBody:require('./soft-body.js'),JellyGPU:{...require('./webgpu-renderer.js'),Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
  if(!options.map)options.map=structuredClone(require('./levels/05-sunken-sanctum.json'));
  if(options.map){sandbox.location={search:'?level=editor'};sandbox.localStorage={getItem:()=>JSON.stringify(options.map)};}
  vm.createContext(sandbox);if(options.menuOnly){sandbox.JellyMenuOnly=true;vm.runInContext(fs.readFileSync('menu-scene.js','utf8'),sandbox);}vm.runInContext(fs.readFileSync('game.js','utf8'),sandbox);
