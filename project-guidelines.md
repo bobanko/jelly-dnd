@@ -19,7 +19,10 @@
 
 ### Module structure
 
-- Use explicit ES module imports and exports for application dependencies.
+- Use explicit ES module imports and exports for both browser code and Node.js scripts, including tests, server code, and release tooling.
+- The development environment uses Node.js 26.7.0, which supports native ES modules and top-level `await`; no transpilation is needed for Node scripts.
+- Make the module format explicit: use `.mjs` during the mixed CommonJS/ES module migration, or `.js` under a package with `"type": "module"`. Keep `.cjs` only for code that still requires CommonJS compatibility.
+- Use `node:` imports for Node built-ins and explicit file extensions for relative ES module imports. Replace CommonJS-specific globals with module equivalents such as `import.meta.dirname` and `import.meta.url` when migrating scripts.
 - Pure utility functions use free-standing named exports in focused modules; avoid a catch-all utility module.
 - Stateful managers may use exported singleton objects or ES6 classes when multiple instances or instance lifecycle management are useful.
 - Each module has a focused responsibility and is imported where needed.
