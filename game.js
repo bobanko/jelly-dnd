@@ -242,16 +242,22 @@ document.querySelector('#decay').addEventListener('input',e=>soft.decay=Number(e
 document.querySelector('#mesh').addEventListener('change',e=>sceneRenderer.mesh=e.target.checked);
 document.querySelector('#colliders').addEventListener('change',e=>sceneRenderer.colliders=e.target.checked);
 function updateCameraUI(){
+ document.querySelector('#camera-zoom-value').textContent=Math.round(zoom*100)+'%';
  document.querySelector('#camera-pitch').value=targetPitch;
  document.querySelector('#camera-pitch-value').textContent=Math.round(targetPitch)+'°';
  document.querySelector('#camera-fov-value').textContent=camera.fov+'°';
  document.querySelector('#camera-fov').disabled=camera.mode!=='perspective';
 }
-document.querySelector('#camera-mode').addEventListener('change',e=>{stopInput();camera.mode=e.target.value;targetPitch=camera.pitch=cameraPitches[camera.mode];updateCameraUI();});
+document.querySelector('#camera-mode').addEventListener('change',e=>{if(e.target.type!=='radio')return;stopInput();camera.mode=e.target.value;targetPitch=camera.pitch=cameraPitches[camera.mode];updateCameraUI();});
+function setCameraZoom(value){zoom=Math.max(.65,Math.min(1.8,value));resize();updateCameraUI();}
+document.querySelector('#camera-zoom-out').addEventListener('click',()=>setCameraZoom(zoom*.8));
+document.querySelector('#camera-zoom-in').addEventListener('click',()=>setCameraZoom(zoom*1.25));
+document.querySelector('#camera-turn-left').addEventListener('click',()=>targetAngle-=Math.PI/4);
+document.querySelector('#camera-turn-right').addEventListener('click',()=>targetAngle+=Math.PI/4);
 document.querySelector('#camera-pitch').addEventListener('input',e=>{targetPitch=camera.pitch=Number(e.target.value);cameraPitches[camera.mode]=camera.pitch;updateCameraUI();});
 document.querySelector('#camera-fov').addEventListener('input',e=>{camera.fov=Number(e.target.value);updateCameraUI();});
 updateCameraUI();
-canvas.addEventListener('wheel',e=>{e.preventDefault();if(menuOpen)return;zoom=Math.max(.65,Math.min(1.8,zoom*Math.exp(-e.deltaY*.001)));resize();},{passive:false});
+canvas.addEventListener('wheel',e=>{e.preventDefault();if(menuOpen)return;setCameraZoom(zoom*Math.exp(-e.deltaY*.001));},{passive:false});
 function endOrbit(){
  if(!orbitGesture)return;
  const id=orbitGesture.id;orbitGesture=null;
