@@ -162,6 +162,11 @@ export function initEditorI18n(){
 Удалить|Delete
 Замечания:|Issues:
 Можно играть|Ready to play
+Добавлен хотя бы один персонаж|At least one character added
+У каждого персонажа есть финиш|Each character has a goal
+Размещение объектов и связи корректны|Object placement and connections are valid
+Не выполнено|Incomplete
+Выполнено|Complete
 Персонажей:|Characters:
 У каждого есть финиш. Связи настроены.|Each has a goal. Connections are configured.
 Ещё|More

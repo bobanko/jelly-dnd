@@ -42,6 +42,7 @@ let previewZoom=1,previewAngle=0,previewDirty=true,previewRuntime=null,previewRe
 let pickBounds=null,lastPointer=null,previewFitHeight=0,spatialCells=null;
 const previewCamera={x:(model.map.size-1)/2,z:(model.map.size-1)/2,mode:'ortho',pitch:50,fov:45};
 let previewTargetAngle=previewAngle,previewTargetPitch=previewCamera.pitch,cameraLast=0;
+let fpsLast=0,fpsElapsed=0,fpsFrames=0;
 const panKeys=new Set(),panCodes=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight']);
 const editingField=target=>target?.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"])');
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -76,7 +77,8 @@ for(const [i,button] of [...document.querySelectorAll('button[title]')].entries(
 
 document.querySelectorAll('[data-tool]').forEach(button=>button.onclick=()=>selectTool(button.dataset.tool));
 const colliderLabel=element('label','Коллайдеры'),colliderToggle=element('input');colliderToggle.type='checkbox';colliderToggle.id='preview-colliders';colliderLabel.prepend(colliderToggle);document.querySelector('.camera-buttons').append(colliderLabel);
-const projection=element('select');projection.id='editor-projection';projection.setAttribute('aria-label','Проекция камеры');for(const [value,text] of [['ortho','Изометрия'],['perspective','Перспектива']]){const option=element('option',text);option.value=value;projection.append(option);}projection.onchange=()=>{previewCamera.mode=projection.value;refreshHover();};document.querySelector('.camera-buttons').prepend(projection);
+const projection=element('fieldset',undefined,'projection-options');projection.id='editor-projection';projection.append(element('legend','Проекция камеры','visually-hidden'));
+for(const [value,text] of [['ortho','Изометрия'],['perspective','Перспектива']]){const label=element('label'),input=element('input');input.type='radio';input.name='camera-projection';input.value=value;input.checked=previewCamera.mode===value;input.onchange=()=>{previewCamera.mode=input.value;refreshHover();invalidate();};label.append(input,element('span',text));projection.append(label);}document.querySelector('.camera-buttons').prepend(projection);
 const spatialGridLabel=element('label','Сетка'),spatialGrid=element('input');spatialGrid.type='checkbox';spatialGrid.checked=true;spatialGrid.id='spatial-grid';spatialGridLabel.prepend(spatialGrid);document.querySelector('.camera-buttons').append(spatialGridLabel);
 const zoomButtons=element('div',undefined,'zoom-buttons');
 for(const [id,text,factor,label] of [['zoom-out','−',.8,'Уменьшить масштаб'],['zoom-in','+',1.25,'Увеличить масштаб']]){
@@ -194,7 +196,14 @@ function renderProperties(){
 }
 function renderIssues(){
  const errors=L.issues(model.map),root=$('issues');root.replaceChildren();$('validate').textContent=errors.length?`⚠ Замечания: ${errors.length}`:'✓ Можно играть';$('validate').className='validation-button '+(errors.length?'invalid':'valid');
- if(!errors.length){root.append(element('span',`Персонажей: ${model.map.spawns.filter(Boolean).length}. У каждого есть финиш. Связи настроены.`,'valid'));return;}
+ const checklist=element('ul',undefined,'readiness-checklist');
+ const checks=[
+  [model.map.spawns.some(Boolean),'Добавлен хотя бы один персонаж'],
+  [model.map.spawns.some(Boolean)&&model.map.spawns.every((p,i)=>!p||model.map.goals[i]),'У каждого персонажа есть финиш'],
+  [!errors.length,'Размещение объектов и связи корректны']
+ ];
+ for(const [passed,label] of checks){const item=element('li',undefined,passed?'valid':'invalid'),mark=element('span',passed?'☑':'☐','checklist-mark');mark.setAttribute('aria-hidden','true');item.append(mark,element('span',label));item.setAttribute('aria-label',label+' · '+(passed?'Выполнено':'Не выполнено'));checklist.append(item);}
+ root.append(checklist);if(!errors.length)return;
  const list=element('ul');for(const error of errors.slice(0,expandedIssues?100:3))list.append(element('li',error));root.append(list);
  if(errors.length>3&&!expandedIssues){const more=element('button',`Ещё ${errors.length-3}`);more.onclick=()=>{expandedIssues=true;renderIssues();};root.append(more);}
 }
@@ -315,6 +324,7 @@ function rebuildPreview(){
 }
 function previewTick(t){
  previewFrame=0;if(!previewRenderer?.ready)return;const dt=Math.min(.05,(t-previewLast)/1000||.016);previewLast=t;
+ if(fpsLast){fpsElapsed+=(t-fpsLast)/1000;fpsFrames++;if(fpsElapsed>=.5){$('editor-fps').textContent=Math.round(fpsFrames/fpsElapsed)+' FPS';fpsElapsed=0;fpsFrames=0;}}fpsLast=t;
  if(previewDirty)rebuildPreview();previewRuntime.world.featureTime+=dt;previewRenderer.colliders=$('preview-colliders').checked;previewRenderer.render(previewRuntime,previewRuntime.players,previewCamera,previewAngle,reducedMotion?0:t/1000,previewScale(),dt);drawSpatialOverlay();previewFrame=requestAnimationFrame(previewTick);
 }
 function panView(dx,dy,clientX,clientY){
@@ -353,7 +363,7 @@ $('undo').onclick=()=>{finishGesture();if(model.undo()){moveObject=null;selected
 $('level-name').onchange=event=>edit(map=>{map.name=event.target.value.trim()||'Без названия';});
 function replaceMap(map,filename=sourceFilename){finishGesture();const changedMap=model.load(L.voxelize(map));sourceFilename=filename;if(changedMap){selected=null;moveObject=null;expandedIssues=false;changed();fit();}else save();}
 $('new').onclick=()=>replaceMap(L.blank(),null);
-const catalogPicker=element('label','Карта кампании'),catalogSelect=element('select');
+const catalogPicker=element('label',undefined,'catalog-picker'),catalogSelect=element('select');
 catalogSelect.id='catalog-map';catalogSelect.setAttribute('aria-label','Карта кампании');
 for(const [index,file] of JellyLevelCatalog.standard.entries()){
  const option=element('option',`${index+1}. ${L.displayName(L.standardLevel(index+1),JellyI18n.language)}`);option.dataset.levelName=String(index+1);option.value=file;catalogSelect.append(option);
@@ -365,7 +375,7 @@ addEventListener('languagechange',()=>{
 });
 const openCatalogMap=element('button','Открыть карту');openCatalogMap.id='open-catalog-map';
 openCatalogMap.onclick=()=>replaceMap(L.standardLevel(JellyLevelCatalog.standard.indexOf(catalogSelect.value)+1),catalogSelect.value);
-$('new').parentElement.before(catalogPicker,openCatalogMap);
+const mapActions=element('div',undefined,'header-map-actions');mapActions.append(catalogPicker,openCatalogMap,$('new'));$('import').before(mapActions);
 $('validate').onclick=()=>{expandedIssues=!expandedIssues;renderIssues();if(!L.issues(model.map).length)toast('Уровень готов к запуску.');};
 $('export').onclick=()=>{
  const blob=new Blob([JSON.stringify(model.map,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),link=element('a');link.href=url;link.download=sourceFilename||(model.map.name.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').trim()||'level')+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);toast('Уровень экспортирован.');

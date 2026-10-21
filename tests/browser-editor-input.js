@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
   const before=await position();await hold('KeyW');const after=await position();assert.ok(distance(before,after)>.3,'W pans in 3D');
   await hold('ArrowRight');assert.ok(distance(after,await position())>.3,'arrow pans in 3D');
   const stopped=await position();await page.waitForTimeout(160);assert.deepEqual(await position(),stopped,'key release stops panning');
-  await page.selectOption('#editor-projection','perspective');await page.locator('#viewport').focus();const perspective=await position();await hold('KeyD');assert.ok(distance(perspective,await position())>.3,'perspective panning');
+  await page.locator('#editor-projection input[value=perspective]').check();await page.locator('#viewport').focus();const perspective=await position();await hold('KeyD');assert.ok(distance(perspective,await position())>.3,'perspective panning');
   await page.evaluate(()=>document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyA',key:'\u0444',bubbles:true})));
   await page.waitForFunction(()=>panKeys.has('KeyA'));const ru=await position();await page.waitForTimeout(180);assert.ok(distance(ru,await position())>.2,'Russian physical A pans');
   await page.evaluate(()=>dispatchEvent(new Event('blur')));const blurred=await position();await page.waitForTimeout(100);assert.deepEqual(await position(),blurred,'blur clears held keys');
