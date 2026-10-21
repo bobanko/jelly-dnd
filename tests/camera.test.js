@@ -60,3 +60,16 @@ test('narrow FOV remains visible at the furthest portrait zoom',()=>{
  const f=cameraFrame({x:5,z:6,mode:'perspective',pitch:55,fov:25},0,320,844,320/16*.65);
  assert.ok(f.distance>120);assert.equal(project(f,[5,.42,6],320,844).visible,true);
 });
+
+test('gameplay framing moves the party upwards in both projections without changing its size',()=>{
+ for(const mode of ['ortho','perspective'])for(const [w,h] of [[1280,800],[390,844]]){
+  const normal=frame(mode,{},0,w,h),raised=frame(mode,{frameY:.48},0,w,h);
+  for(const point of [[5,0,6],[5,1,6],[2,0,4]]){
+   const a=project(normal,point,w,h),b=project(raised,point,w,h);
+   assert.ok(Math.abs(a.y-b.y-h*.08)<.002);
+   assert.ok(Math.abs(a.x-b.x)<.002);
+   assert.ok(Math.abs(a.scale-b.scale)<.002);
+   assert.equal(b.visible,true);
+  }
+ }
+});

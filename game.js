@@ -216,7 +216,7 @@ function frame(t){
 }
 function updateGameCamera(dt,snap=false){
   const target=JellySharedCamera.target(players,definition,camera,angle,W,H),tracking=snap||reducedMotion?1:1-Math.exp(-dt*3);
-  camera.x+=(target.x-camera.x)*tracking;camera.z+=(target.z-camera.z)*tracking;camera.targetY+=(target.targetY-camera.targetY)*tracking;camera.focusHeight=target.focusHeight;
+  camera.x+=(target.x-camera.x)*tracking;camera.z+=(target.z-camera.z)*tracking;camera.targetY+=(target.targetY-camera.targetY)*tracking;camera.focusHeight+=(target.focusHeight-camera.focusHeight)*tracking;camera.frameY=(camera.frameY??target.frameY)+(target.frameY-(camera.frameY??target.frameY))*tracking;
   const smoothing=snap||reducedMotion?1:1-Math.exp(-dt*(target.zoom<autoZoom?6:1.8));
   autoZoom+=(target.zoom-autoZoom)*smoothing;
  scale=Math.min(W/16,H/12)*zoom*autoZoom;

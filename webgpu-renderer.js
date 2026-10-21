@@ -9,15 +9,15 @@ import Levels from './levels.js';
  }
  function cameraFrame(camera,angle,width,height,scale){
   const perspective=camera.mode==='perspective',pitch=(camera.pitch??30)*Math.PI/180,azimuth=angle+Math.PI/4;
-  const view=[Math.sin(azimuth)*Math.cos(pitch),Math.sin(pitch),Math.cos(azimuth)*Math.cos(pitch)],target=[camera.x,camera.targetY??0,camera.z];
+  const view=[Math.sin(azimuth)*Math.cos(pitch),Math.sin(pitch),Math.cos(azimuth)*Math.cos(pitch)],target=[camera.x,camera.targetY??0,camera.z],offset=1-2*(camera.frameY??.56);
   const referenceDistance=Math.max(5,height/scale/(2*Math.tan(Math.PI/8))),focusDepth=view[1]*((camera.focusHeight??.42)-(camera.targetY??0));
   // Compensate focal length at the followed jelly's centre: FOV changes
   // perspective strength while keeping that character's apparent size stable.
   const distance=perspective?focusDepth+(referenceDistance-focusDepth)*Math.tan(Math.PI/8)/Math.tan((camera.fov??45)*Math.PI/360):20;
   const eye=target.map((v,k)=>v+view[k]*distance);
-  if(!perspective)return {vp:viewMatrix(target,view,width/scale,height/scale,-.12,Math.max(40,width/scale*2,height/scale*2)),view,eye,perspective,distance};
+  if(!perspective)return {vp:viewMatrix(target,view,width/scale,height/scale,offset,Math.max(40,width/scale*2,height/scale*2)),view,eye,perspective,distance};
   const right=normalize(cross([0,1,0],view)),up=normalize(cross(view,right)),f=1/Math.tan((camera.fov??45)*Math.PI/360);
-  const near=.1,far=Math.max(120,distance+60),a=far/(far-near),b=near*a,offset=-.12,vp=new Float32Array(16),eyeDepth=distance+dot(view,target);
+  const near=.1,far=Math.max(120,distance+60),a=far/(far-near),b=near*a,vp=new Float32Array(16),eyeDepth=distance+dot(view,target);
   // WebGPU uses a zero-to-one depth range. The offset keeps the followed cube
   // at the same screen anchor in both projection modes.
   for(let k=0;k<3;k++){vp[k*4]=right[k]*f*height/width;vp[k*4+1]=up[k]*f-offset*view[k];vp[k*4+2]=-a*view[k];vp[k*4+3]=-view[k];}

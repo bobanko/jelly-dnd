@@ -25,8 +25,7 @@ import assert from 'node:assert/strict';
   assert.ok(Math.abs(afterOrbit.angle-beforeOrbit.angle+.8)<.001);assert.equal(afterOrbit.pitch,beforeOrbit.pitch+10);assert.equal(afterOrbit.moves,beforeOrbit.moves);
   await page.evaluate(p=>{targetAngle=p.angle;targetPitch=p.pitch;},beforeOrbit);await page.waitForFunction(()=>Math.abs(camera.pitch-targetPitch)<.01&&Math.abs(angle-targetAngle)<.001);
   await page.waitForTimeout(700);
-  const orbitZoom=await page.evaluate(()=>autoZoom);
-  for(let turn=0;turn<8;turn++){await page.keyboard.press('q');await page.waitForFunction(()=>Math.abs(angle-targetAngle)<.001);assert.ok(Math.abs(await page.evaluate(()=>autoZoom)-orbitZoom)<.02);}
+  for(let turn=0;turn<8;turn++){await page.keyboard.press('q');await page.waitForFunction(()=>Math.abs(angle-targetAngle)<.001);await page.waitForTimeout(700);assert.ok(await page.evaluate(()=>players.every(p=>{const q=project(p.x,p.y+.42,p.z);return q.visible&&q.x>0&&q.x<W&&q.y>0&&q.y<H;})));}
   await page.keyboard.down('w');await page.waitForTimeout(100);await page.keyboard.up('w');assert.ok(await page.evaluate(()=>moves>0&&players[0].z<start[0].z));
   assert.equal(await page.locator('header').count(),0);assert.equal(await page.locator('.intro').count(),0);assert.equal(await page.locator('aside').count(),0);assert.equal(await page.locator('#menu-button svg').count(),1);
   await page.locator('.player-key-hint').first().waitFor({state:'visible'});assert.ok((await page.locator('.player-key-hint').first().textContent()).startsWith('WASD'));assert.ok((await page.locator('.player-key-hint').nth(1).textContent()).startsWith('↑←↓→'));

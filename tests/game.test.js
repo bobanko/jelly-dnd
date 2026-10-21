@@ -283,9 +283,10 @@ test('undo restores shield durability, sword inventory, skeleton recovery time a
 test('edited level preserves raised spawns and arbitrary crate start heights on reset',async ()=>{
  const map=Levels.read(sunkenSanctum);map.spawns[0]={x:5,z:9};map.crates=[{x:6,z:7}];map.name='Custom chamber';
  const g=await game({map});assert.equal(g.run('definition.name'),'Custom chamber');assert.equal(g.run('players[0].y'),1);assert.equal(g.run('crates[0].y'),0);
- assert.equal(g.run('camera.targetY'),.5);assert.ok(g.run('Math.abs(camera.focusHeight-.92)<1e-12'));
+ const initialCamera=g.run('({...camera})');
+ assert.ok(g.run('players.every(p=>project(p.x,p.y+.42,p.z).visible)'));
  g.run('players[0].y=3;crates[0].y=4');g.key('r');assert.equal(g.run('players[0].y'),1);assert.equal(g.run('crates[0].y'),0);
- assert.equal(g.run('camera.targetY'),.5);assert.ok(g.run('Math.abs(camera.focusHeight-.92)<1e-12'));
+ assert.deepEqual(g.run('({...camera})'),initialCamera,'reset restores framing for the authored spawn heights');
  assert.equal(g.run('mapError'),null);
 });
 
@@ -325,4 +326,19 @@ test('single movement keys stay on grid axes at 45 degree and free orbit angles'
   }
  }
  g.run('targetAngle=Math.PI/2');g.key('w');assert.equal(g.run('inputs()[0].x'),-1);assert.ok(g.run('inputs()[0].z')===0);
+});
+
+test('camera frame correction and focal height advance with follow smoothing',async()=>{
+ const g=await game({map:Levels.standardLevel(1)});
+ g.run('updateGameCamera(0,true)');
+ const before=g.run('({...camera})');
+ g.run('players.forEach(p=>{p.x-=1;p.rx=p.x;p.y+=1;});updateGameCamera(0)');
+ const paused=g.run('({...camera})');
+ assert.deepEqual(paused,before,'zero elapsed time must not change framing or focal height');
+ const wanted=g.run('JellySharedCamera.target(players,definition,camera,angle,W,H)');
+ g.run('updateGameCamera(1/60)');
+ const next=g.run('({...camera})');
+ for(const key of ['x','z','targetY','focusHeight','frameY']){
+  assert.ok(Math.abs(next[key]-before[key])<=Math.abs(wanted[key]-before[key])*.051+1e-9,key+' must ease into the new frame');
+ }
 });
