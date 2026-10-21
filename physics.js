@@ -1,6 +1,7 @@
+import {install as installFeatures} from './level-features.js';
+import {install as installCombat} from './combat.js';
 // Fixed-step movement, collisions, gravity and independent fall/death/respawn lifecycles.
 // Rendering is independent: jelly deformation never changes the collision shape.
-(function(root){
  const HALF=.36, SIZE=HALF*2, STEP=1/120, SPEED=2.6, GRAVITY=15, DEATH_HEIGHT=-4, RESPAWN_DELAY=.55, SKY_MARGIN=8;
  const alive=p=>!p.state||p.state==='alive';
  const overlaps=(a,b,half=SIZE)=>Math.abs(a.x-b.x)<half&&Math.abs(a.z-b.z)<half;
@@ -95,8 +96,6 @@
    return [...events,...this.enforceHeightLimit(bodies),...this.afterCombat(bodies,null,dt)];
   }
  }
- if(typeof module!=='undefined'&&module.exports)require('./level-features.js').install(World);else root.JellyLevelFeatures.install(World);
- if(typeof module!=='undefined'&&module.exports)require('./combat.js').install(World);else root.JellyCombat.install(World);
- const api={World,HALF,SIZE,STEP,SPEED,GRAVITY,DEATH_HEIGHT,RESPAWN_DELAY,SKY_MARGIN,alive};
- if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyPhysics=api;
-})(globalThis);
+ installFeatures(World);
+ installCombat(World);
+export {World,HALF,SIZE,STEP,SPEED,GRAVITY,DEATH_HEIGHT,RESPAWN_DELAY,SKY_MARGIN,alive};

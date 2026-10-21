@@ -1,7 +1,10 @@
+import {chromium} from './browser-harness.js';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
 // Render the production WGSL inlay on six flat faces and count connected pips.
-const {chromium}=require('@playwright/test');
-const assert=require('node:assert/strict');
-const fs=require('node:fs');
+
+
+
 (async()=>{
  fs.mkdirSync('artifacts',{recursive:true});
  const inlay=fs.readFileSync('webgpu-renderer.js','utf8').match(/fn inlay\(p:vec3f\)[\s\S]*?(?=\s*@fragment fn backFS)/)?.[0];

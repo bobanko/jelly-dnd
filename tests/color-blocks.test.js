@@ -1,11 +1,15 @@
-const {test}=require('node:test'),assert=require('node:assert/strict');
-const L=require('../levels'),{Model}=require('../editor-model'),P=require('../physics'),S=require('../soft-body');
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import L from '../levels.js';
+import {Model} from '../editor-model.js';
+import * as P from '../physics.js';
+import * as S from '../soft-body.js';
 function room(slot=0){const m=L.blank();m.size=8;for(let x=0;x<8;x++)for(let z=0;z<8;z++)m.blocks.push({x,y:0,z});m.spawns[slot]={x:1,y:0,z:3};m.goals[slot]={x:6,y:0,z:3};return m;}
 const runtime=m=>L.instantiate(L.read(m),P,S);
 function step(r,n,input=[]){const events=[];for(let i=0;i<n;i++)events.push(...r.world.step(r.bodies,input));return events;}
 
 test('colour blocks serialize, repaint, move and undo without duplicate voxels',()=>{
- const m=new Model(L,room());for(let color=0;color<4;color++)m.change(()=>m.paint('color-'+color,3,3,{y:1}));
+ const m=new Model(room());for(let color=0;color<4;color++)m.change(()=>m.paint('color-'+color,3,3,{y:1}));
  assert.equal(m.map.blocks.filter(b=>b.x===3&&b.y===1&&b.z===3).length,1);assert.equal(m.at('blocks',3,3,1).color,3);
  assert.deepEqual(L.read(JSON.stringify(m.map)),m.map);assert.deepEqual(L.voxelize(m.map),m.map);
  m.undo();assert.equal(m.at('blocks',3,3,1).color,2);m.redo();assert.equal(m.at('blocks',3,3,1).color,3);

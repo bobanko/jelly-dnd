@@ -1,6 +1,4 @@
-(function(root){
- 'use strict';
- const GPU=typeof module!=='undefined'&&module.exports?require('./webgpu-renderer'):root.JellyGPU;
+import * as GPU from './webgpu-renderer.js';
  function target(players,definition,camera,angle,width,height){
   const points=players.map(p=>p.state==='alive'||!p.state?{x:p.rx??p.x,z:p.rz??p.z,y:p.y||0}:{x:p.spawn?.x??p.x,z:p.spawn?.z??p.z,y:p.spawn?.y||0});
   const bounds=axis=>[Math.min(...points.map(p=>p[axis])),Math.max(...points.map(p=>p[axis]))];
@@ -23,5 +21,4 @@
   }
   return {...result,zoom};
  }
- const api={target};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellySharedCamera=api;
-})(globalThis);
+export {target};

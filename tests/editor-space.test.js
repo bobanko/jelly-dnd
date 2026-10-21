@@ -1,5 +1,8 @@
-const {test}=require('node:test'),assert=require('node:assert/strict');
-const S=require('../editor-space'),GPU=require('../webgpu-renderer'),L=require('../levels');
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import * as S from '../editor-space.js';
+import * as GPU from '../webgpu-renderer.js';
+import L from '../levels.js';
 const make=(mode,angle,pitch=50)=>S.frame({x:4,z:4,mode,pitch,fov:55},angle,1100,800,60);
 const rayAt=(f,p)=>{const q=GPU.projectPoint(f,...p,1100,800);return S.ray(f,q.x,q.y,1100,800);};
 

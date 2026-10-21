@@ -1,6 +1,4 @@
 // CPU XPBD tetrahedral solids. No rendering code or graphics-library dependency.
-(function(root){
- 'use strict';
  const RES=3, WIDTH=.76, RADIUS=.085, NODE_COUNT=(RES+1)**3;
  const add=(a,b)=>a.map((x,i)=>x+b[i]),sub=(a,b)=>a.map((x,i)=>x-b[i]),mul=(a,s)=>a.map(x=>x*s);
  const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -206,6 +204,4 @@
    world.refresh(players);return events;
   }
  }
- const api={System,Lattice,rest,tets,edges,cells,RES,WIDTH,NODE_COUNT,rounded,det,rotation};
- if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellySoftBody=api;
-})(globalThis);
+export {System,Lattice,rest,tets,edges,cells,RES,WIDTH,NODE_COUNT,rounded,det,rotation};

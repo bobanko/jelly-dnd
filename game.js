@@ -1,5 +1,14 @@
-'use strict';
-const tr=key=>globalThis.JellyI18n?.t(key)??key;
+import JellyLevels from './levels.js';
+import {i18n as JellyI18n} from './i18n.js';
+import * as JellyGPU from './webgpu-renderer.js';
+import * as JellySoftBody from './soft-body.js';
+import * as JellyPhysics from './physics.js';
+import * as JellyEffects from './game-effects.js';
+import * as JellySharedCamera from './shared-camera.js';
+import {createMenuScene} from './menu-scene.js';
+import {menuOnly as JellyMenuOnly,progress as JellyProgress} from './runtime-context.js';
+
+const tr=key=>JellyI18n?.t(key)??key;
 let menuOpen=false,hasPlayed=false,menuHelp=false,menuLevelSelect=false,menuSelected=0;
 let winShown=false,winSelected=0;
 let restartTransition=null;
@@ -13,10 +22,10 @@ const WIN_HOLD_SECONDS=1;
 const N=12, colors=JellyLevels.characters.map(p=>p.color),names=JellyLevels.characters.map(p=>p.name);
 let zoom=1;
 let fpsElapsed=0,fpsFrames=0;
-const menuOnly=globalThis.JellyMenuOnly===true;
-const menuScene=typeof createMenuScene==='function'?createMenuScene():null;
+const menuOnly=JellyMenuOnly===true;
+const menuScene=createMenuScene(reducedMotion);
 let mapError=null,definition;
-try{let search=globalThis.location?.search||'';const requested=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(search);if(requested&&globalThis.JellyProgress&&!JellyProgress.canPlay(Number(requested[1]))){search='?level=1';globalThis.history.replaceState(null,'',search);}definition=menuOnly?JellyLevels.blank():JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.standardLevel(1));}
+try{let search=globalThis.location?.search||'';const requested=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(search);if(requested&&JellyProgress&&!JellyProgress.canPlay(Number(requested[1]))){search='?level=1';globalThis.history.replaceState(null,'',search);}definition=menuOnly?JellyLevels.blank():JellyLevels.forGame(search.includes('level=editor')?globalThis.localStorage:undefined,search);}catch(error){mapError=error.message;definition=JellyLevels.read(JellyLevels.standardLevel(1));}
 const runtime=menuOnly?menuScene:JellyLevels.instantiate(definition,JellyPhysics,JellySoftBody);
 const {start,players,crates,bodies,plates,goals,bridges,floor,world,soft}=runtime;
 let followedPlayer=0;
@@ -49,7 +58,7 @@ function woodHit(broken=false){
 function updateUI(){
  document.querySelector('#moves').textContent=String(moves).padStart(2,'0');document.querySelector('#win').hidden=!won;
  document.body?.classList.toggle('level-won',won);
- if(won&&!winShown&&globalThis.JellyI18n){refreshWin();selectWinItem(0);}winShown=won;
+ if(won&&!winShown&&JellyI18n){refreshWin();selectWinItem(0);}winShown=won;
  const lost=players.findIndex(p=>!JellyPhysics.alive(p)),moving=world.lifts.some(l=>Math.abs(l.target-l.height)>.01&&players.some(p=>Math.abs(p.x-l.x)<.4&&Math.abs(p.z-l.z)<.4));
  document.querySelector('#status').textContent=won?tr('Все руны пробуждены'):lost>=0?`${tr(names[players[lost].slot])} ${players[lost].state==='falling'?tr('падает…'):players[lost].deathReason==='spikes'?tr('погиб на шипах. Возрождение…'):tr('возрождается…')}`:finishHold>0?tr('Рунические печати наполняются светом…'):players.some(p=>p.portalBlocked)?tr('Выход портала занят'):moving?tr('Лифт поднимается'):players.some(p=>p.portalFlash>0)?tr('Магический переход'):active(0)||active(1)?tr('Магический мост поднят'):tr('Святилище ждёт вас');
 }
@@ -102,7 +111,7 @@ function simulate(dt,elapsed=dt){
   }
   const allFinished=players.length>0&&players.every(p=>world.goalActive(goals.find(g=>g.slot===p.slot),p)&&Math.hypot(p.vx,p.vz)<.25);
   finishHold=allFinished?Math.min(WIN_HOLD_SECONDS,finishHold+JellyPhysics.STEP):0;
-  if(finishHold>=WIN_HOLD_SECONDS-1e-9){finishHold=WIN_HOLD_SECONDS;won=true;players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);const current=currentStandardLevel();if(current&&globalThis.JellyProgress){JellyProgress.complete(current,runSeconds);updateLevelLocks();}}
+  if(finishHold>=WIN_HOLD_SECONDS-1e-9){finishHold=WIN_HOLD_SECONDS;won=true;players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);const current=currentStandardLevel();if(current&&JellyProgress){JellyProgress.complete(current,runSeconds);updateLevelLocks();}}
   level.finishProgress=finishHold/WIN_HOLD_SECONDS;
   accumulator-=JellyPhysics.STEP;
  }
@@ -124,7 +133,7 @@ addEventListener('keydown',e=>{
  if(loadingActive){e.preventDefault();return;}
  if(restartTransition){e.preventDefault();return;}
  if(menuOpen){handleMenuKey(e);return;}
- if(won&&globalThis.JellyI18n){handleWinKey(e);return;}
+ if(won&&JellyI18n){handleWinKey(e);return;}
  if(k==='Escape'){e.preventDefault();setMenu(!menuOpen);return;}
  if(movementKeys[k]){
   e.preventDefault();if(won||e.repeat||heldKeys.has(k)||!JellyPhysics.alive(players[movementKeys[k][0]]))return;
@@ -144,7 +153,7 @@ document.addEventListener('visibilitychange',()=>{last=0;if(document.hidden)stop
 
 document.querySelector('#reset').onclick=()=>restartLevel();document.querySelector('#again').onclick=()=>restartLevel();
 function restartLevel(){
- if(!globalThis.JellyI18n){reset();return;}
+ if(!JellyI18n){reset();return;}
  if(restartTransition)return;
  stopInput();restartTransition={elapsed:0,reset:false};
  document.querySelector('#restart-fade').hidden=false;document.querySelector('#restart-fade').style.opacity='0';
@@ -209,11 +218,11 @@ function updateGameCamera(dt,snap=false){
   autoZoom+=(target.zoom-autoZoom)*smoothing;
  scale=Math.min(W/16,H/12)*zoom*autoZoom;
 }
-function updateLoading(progress,stage){if(!globalThis.JellyI18n)return;loadingActive=true;loadingStage=stage;if(menuOnly&&!loadingFailed)return;document.querySelector('#level-intro').hidden=false;document.querySelector('#level-intro').classList.add('loading');document.querySelector('#level-intro-title').textContent=currentLevelTitle();document.querySelector('#level-loading').hidden=false;document.querySelector('#loading-status').textContent=tr(stage);document.querySelector('#loading-progress').value=progress;}
-function gpuFailure(message){if(!globalThis.JellyI18n)return;loadingFailed=true;updateLoading(0,'loadingGraphics');document.querySelector('#loading-status').textContent=message;document.querySelector('#loading-progress').hidden=true;document.querySelector('#loading-retry').hidden=false;}
+function updateLoading(progress,stage){if(!JellyI18n)return;loadingActive=true;loadingStage=stage;if(menuOnly&&!loadingFailed)return;document.querySelector('#level-intro').hidden=false;document.querySelector('#level-intro').classList.add('loading');document.querySelector('#level-intro-title').textContent=currentLevelTitle();document.querySelector('#level-loading').hidden=false;document.querySelector('#loading-status').textContent=tr(stage);document.querySelector('#loading-progress').value=progress;}
+function gpuFailure(message){if(!JellyI18n)return;loadingFailed=true;updateLoading(0,'loadingGraphics');document.querySelector('#loading-status').textContent=message;document.querySelector('#loading-progress').hidden=true;document.querySelector('#loading-retry').hidden=false;}
 sceneRenderer.onFailure=gpuFailure;
 sceneRenderer.onProgress=updateLoading;
-if(globalThis.JellyI18n)updateLoading(0,'loadingGraphics');
+if(JellyI18n)updateLoading(0,'loadingGraphics');
 sceneRenderer.init().then(async()=>{
  if(mapError){gpuFailure(mapError);return;}
  updateGameCamera(0,true);
@@ -222,7 +231,7 @@ sceneRenderer.init().then(async()=>{
  else sceneRenderer.render(level,players,camera,angle,0,scale,0);
  await sceneRenderer.device?.queue?.onSubmittedWorkDone();
  if(loadingFailed)return;
- if(globalThis.JellyI18n){document.querySelector('#level-loading').hidden=true;document.querySelector('#level-intro').hidden=true;document.querySelector('#level-intro').classList.remove('loading');}
+ if(JellyI18n){document.querySelector('#level-loading').hidden=true;document.querySelector('#level-intro').hidden=true;document.querySelector('#level-intro').classList.remove('loading');}
  loadingActive=false;
 }).catch(error=>gpuFailure(error.message));
 document.querySelector('#softness').addEventListener('input',e=>{soft.softness=Number(e.target.value);players.forEach(p=>{soft.get(p).sleeping=false;soft.get(p).calm=0;});});
@@ -250,7 +259,7 @@ requestAnimationFrame(frame);focusPlayer(0);updateUI();
 
 function refreshLanguage(){
  document.querySelectorAll('.player-hint-action').forEach(node=>node.textContent=tr('helpMove'));
- if(globalThis.JellyI18n){
+ if(JellyI18n){
   const russian=JellyI18n.language==='ru',title=document.querySelector('#menu-title');
   title.replaceChildren();const word=document.createElement('span');word.className='jelly-word';
   [...(russian?'Желейки':'Jelly')].forEach((letter,i)=>{const span=document.createElement('span');span.className='jelly-letter';span.style.color=colors[i%colors.length];span.textContent=letter;word.append(span);});
@@ -266,16 +275,16 @@ function refreshLanguage(){
   title.append(bones);
   title.setAttribute('aria-label',russian?'Желейки и косточки':'Jelly & Bones');document.title=russian?'Желейки и косточки':'Jelly & Bones';
  }
- if(globalThis.JellyI18n&&!menuOnly)document.querySelector('#level-intro-title').textContent=currentLevelTitle();
+ if(JellyI18n&&!menuOnly)document.querySelector('#level-intro-title').textContent=currentLevelTitle();
  if(loadingActive&&!loadingFailed)document.querySelector('#loading-status').textContent=tr(loadingStage);
  const sound=document.querySelector('#sound');sound.title=tr(audioOn?'Выключить звук':'Включить звук');sound.setAttribute('aria-label',sound.title);
-  if(globalThis.JellyI18n)document.querySelector('#play').textContent=tr(hasPlayed?'resume':'play');
- document.querySelectorAll('[data-level-name]').forEach(node=>node.textContent=JellyLevels.displayName(JellyLevels.standardLevel(Number(node.dataset.levelName)),globalThis.JellyI18n?.language));
+  if(JellyI18n)document.querySelector('#play').textContent=tr(hasPlayed?'resume':'play');
+ document.querySelectorAll('[data-level-name]').forEach(node=>node.textContent=JellyLevels.displayName(JellyLevels.standardLevel(Number(node.dataset.levelName)),JellyI18n?.language));
  updateLevelLocks();updateUI();
- if(won&&globalThis.JellyI18n)refreshWin();
+ if(won&&JellyI18n)refreshWin();
 }
 function currentStandardLevel(){const match=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(globalThis.location?.search||'');return globalThis.location?.search?.includes('level=editor')?0:match?Number(match[1]):1;}
-function currentLevelTitle(){if(menuOnly)return '';const id=currentStandardLevel(),name=JellyLevels.displayName(definition,globalThis.JellyI18n?.language);return id?`${id}. ${name}`:name;}
+function currentLevelTitle(){if(menuOnly)return '';const id=currentStandardLevel(),name=JellyLevels.displayName(definition,JellyI18n?.language);return id?`${id}. ${name}`:name;}
 function formatRunTime(seconds){const n=Math.floor((seconds+1e-9)*100);return `${Math.floor(n/6000)}:${String(Math.floor(n/100)%60).padStart(2,'0')}.${String(n%100).padStart(2,'0')}`;}
 function statIcon(kind,slot){
  const icon=document.createElement('span');icon.className='stat-icon'+(kind==='jelly'?' stat-jelly':'');icon.setAttribute('aria-hidden','true');
@@ -286,7 +295,7 @@ function statIcon(kind,slot){
 function refreshWin(){const time=document.querySelector('#win-time');time.replaceChildren(statIcon('timer'),document.createTextNode(formatRunTime(runSeconds)));time.setAttribute('aria-label',tr('completionTime')+': '+formatRunTime(runSeconds));const deaths=document.querySelector('#win-deaths');deaths.replaceChildren();players.forEach((p,i)=>{const row=document.createElement('div');row.className='death-stat';row.setAttribute('aria-label',tr(names[p.slot])+', '+tr('deaths')+': '+runDeaths[i]);row.append(statIcon('jelly',p.slot),statIcon('skull'),String(runDeaths[i]));deaths.append(row);});const id=currentStandardLevel();document.querySelector('#win-title').textContent=tr(id===JellyLevels.standardNames.length?'demoComplete':'levelComplete');document.querySelector('#win-level-name').textContent=currentLevelTitle();document.querySelector('#win-next').textContent=tr(id&&id<JellyLevels.standardNames.length?'nextLevel':globalThis.location?.search?.includes('level=editor')?'editor':'levels');}
 function selectWinItem(index,focus=true){const buttons=[document.querySelector('#win-next'),document.querySelector('#again')];winSelected=(index+2)%2;buttons.forEach((button,i)=>button.classList.toggle('selected',i===winSelected));if(focus)buttons[winSelected].focus({preventScroll:true});}
 function handleWinKey(e){const k=e.code;if(['ArrowDown','ArrowRight','KeyS','KeyD','ArrowUp','ArrowLeft','KeyW','KeyA','Tab'].includes(k)){e.preventDefault();selectWinItem(winSelected+1);}else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)document.querySelector(winSelected===0?'#win-next':'#again').click();}else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(!e.repeat)setMenu(true);}}
-function updateLevelLocks(){document.querySelectorAll('[data-level]').forEach(button=>{const locked=globalThis.JellyProgress&&!JellyProgress.canPlay(Number(button.dataset.level));let best=button.querySelector('.level-best');if(!best){best=document.createElement('span');best.className='level-best';button.append(best);}const seconds=globalThis.JellyProgress?.bestTime(Number(button.dataset.level));const value=seconds==null?'\u2014':formatRunTime(seconds);best.replaceChildren(statIcon('timer'),document.createTextNode(value));best.setAttribute('aria-label',tr('bestTime')+': '+value);button.disabled=!!locked;button.classList.toggle('locked',!!locked);let icon=button.querySelector('.level-lock');if(!icon){icon=document.createElement('span');icon.className='level-lock';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';button.append(icon);}icon.hidden=!locked;});}
+function updateLevelLocks(){document.querySelectorAll('[data-level]').forEach(button=>{const locked=JellyProgress&&!JellyProgress.canPlay(Number(button.dataset.level));let best=button.querySelector('.level-best');if(!best){best=document.createElement('span');best.className='level-best';button.append(best);}const seconds=JellyProgress?.bestTime(Number(button.dataset.level));const value=seconds==null?'\u2014':formatRunTime(seconds);best.replaceChildren(statIcon('timer'),document.createTextNode(value));best.setAttribute('aria-label',tr('bestTime')+': '+value);button.disabled=!!locked;button.classList.toggle('locked',!!locked);let icon=button.querySelector('.level-lock');if(!icon){icon=document.createElement('span');icon.className='level-lock';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';button.append(icon);}icon.hidden=!locked;});}
 function menuButtons(){return [...document.querySelectorAll(menuHelp?'#menu-back':menuLevelSelect?'#menu-levels button:not(:disabled)':'#menu-root button')];}
 function selectMenuItem(index,focus=true){const buttons=menuButtons();menuSelected=(index+buttons.length)%buttons.length;buttons.forEach((button,i)=>button.classList.toggle('selected',i===menuSelected));if(focus){const button=buttons[menuSelected];button?.focus({preventScroll:true});const list=menuLevelSelect&&button?.closest('.level-list');if(list){const item=button.getBoundingClientRect(),box=list.getBoundingClientRect();if(item.top<box.top)list.scrollTop+=item.top-box.top;else if(item.bottom>box.bottom)list.scrollTop+=item.bottom-box.bottom;}}}
 function showMenuScreen(screen){menuHelp=screen==='help';menuLevelSelect=screen==='levels';if(menuLevelSelect)updateLevelLocks();document.querySelector('#menu-root').hidden=menuHelp||menuLevelSelect;document.querySelector('#menu-help').hidden=!menuHelp;document.querySelector('#menu-levels').hidden=!menuLevelSelect;document.querySelector('#main-menu').classList.toggle('selecting-level',menuLevelSelect);selectMenuItem(0);}
@@ -297,8 +306,8 @@ function handleMenuKey(e){
  else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)menuButtons()[menuSelected]?.click();}
  else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(e.repeat)return;if(menuHelp||menuLevelSelect)showMenuScreen('root');else if(hasPlayed)setMenu(false);}
 }
-function setMenu(open){if(menuOpen!==open){sceneRenderer.bridgeKey=undefined;sceneRenderer.propGeometryKey=undefined;sceneRenderer.decorationKey=undefined;}menuOpen=open;stopInput();document.querySelector('#main-menu').hidden=!open;document.body?.classList.toggle('menu-open',open);if(open){refreshLanguage();if(globalThis.JellyI18n)showMenuHelp(false);}else{hasPlayed=true;document.querySelector('#menu-button').focus?.({preventScroll:true});}}
-if(globalThis.JellyI18n){
+function setMenu(open){if(menuOpen!==open){sceneRenderer.bridgeKey=undefined;sceneRenderer.propGeometryKey=undefined;sceneRenderer.decorationKey=undefined;}menuOpen=open;stopInput();document.querySelector('#main-menu').hidden=!open;document.body?.classList.toggle('menu-open',open);if(open){refreshLanguage();if(JellyI18n)showMenuHelp(false);}else{hasPlayed=true;document.querySelector('#menu-button').focus?.({preventScroll:true});}}
+if(JellyI18n){
  createPlayerHints();
  document.querySelector('#win-next').onclick=()=>{const id=currentStandardLevel();if(id&&id<JellyLevels.standardNames.length)globalThis.location.href='?level='+(id+1)+'&play=1';else if(globalThis.location?.search?.includes('level=editor'))globalThis.location.href='editor.html';else{setMenu(true);showMenuScreen('levels');}};
  [document.querySelector('#win-next'),document.querySelector('#again')].forEach((button,index)=>{button.addEventListener('pointerenter',()=>selectWinItem(index,false));button.addEventListener('focus',()=>selectWinItem(index,false));});
@@ -306,7 +315,7 @@ if(globalThis.JellyI18n){
  document.querySelector('#show-levels').onclick=()=>showMenuScreen('levels');
  document.querySelector('#levels-back').onclick=()=>showMenuScreen('root');
  document.querySelector('#open-editor').onclick=()=>{globalThis.location.href='editor.html';};
- document.querySelectorAll('[data-level]').forEach(button=>button.onclick=()=>{if(!globalThis.JellyProgress||JellyProgress.canPlay(Number(button.dataset.level)))globalThis.location.href='?level='+button.dataset.level+'&play=1';});
+ document.querySelectorAll('[data-level]').forEach(button=>button.onclick=()=>{if(!JellyProgress||JellyProgress.canPlay(Number(button.dataset.level)))globalThis.location.href='?level='+button.dataset.level+'&play=1';});
  document.querySelector('#menu-button').onclick=()=>setMenu(true);
  document.querySelector('#show-controls').onclick=()=>showMenuHelp(true);
  document.querySelector('#menu-back').onclick=()=>showMenuHelp(false);

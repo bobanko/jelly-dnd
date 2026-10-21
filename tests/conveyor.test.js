@@ -1,5 +1,12 @@
-const {test}=require('node:test'),assert=require('node:assert/strict');
-const {World}=require('../physics'),{System}=require('../soft-body'),L=require('../levels'),{Model}=require('../editor-model');
+import * as Physics from '../physics.js';
+import * as SoftBody from '../soft-body.js';
+import sunkenSanctum from '../levels/05-sunken-sanctum.json' with {type:'json'};
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {World} from '../physics.js';
+import {System} from '../soft-body.js';
+import L from '../levels.js';
+import {Model} from '../editor-model.js';
 function scene(positions=[[2,3,0]],rigid=false){
  const floor=new Set();for(let x=0;x<=10;x++)for(let z=0;z<=6;z++)floor.add(`${x},${z}`);
  const world=new World(floor,[],[]),soft=new System();world.soft=soft;
@@ -56,13 +63,13 @@ test('a conveyor can push a jelly off an open edge into the normal death and res
 });
 
 test('conveyor editing, directions, speed, height and old version-1 map files roundtrip',()=>{
- const m=new Model(L,L.blank());m.begin();for(let x=1;x<=4;x++)m.paint('conveyor',x,2,{height:1,dx:1,dz:0,speed:1.5});m.commit();
+ const m=new Model(L.blank());m.begin();for(let x=1;x<=4;x++)m.paint('conveyor',x,2,{height:1,dx:1,dz:0,speed:1.5});m.commit();
  assert.equal(m.map.conveyors.length,4);m.undo();assert.equal(m.map.conveyors.length,0);m.redo();
- const map=L.read(JSON.stringify(m.map)),runtime=L.instantiate(map,require('../physics'),require('../soft-body'));
+ const map=L.read(JSON.stringify(m.map)),runtime=L.instantiate(map,Physics,SoftBody);
  assert.deepEqual(runtime.world.conveyors,map.conveyors);assert.equal(runtime.world.heightAt(2,2),1);
  m.change(()=>m.paint('conveyor',2,2,{dx:0,dz:-1,speed:.5}));assert.equal(m.at('conveyors',2,2).dz,-1);
  m.move('conveyors',1,5,2);assert.equal(m.at('conveyors',5,2).speed,.5);
  m.change(()=>m.paint('lift',5,2));assert.equal(m.at('conveyors',5,2),undefined);
- const old=L.copy(require('../levels/05-sunken-sanctum.json'));delete old.conveyors;assert.deepEqual(L.read(old).conveyors,[]);
- for(const values of [{dx:1,dz:1,speed:1},{dx:0,dz:0,speed:1},{dx:1,dz:0,speed:0},{dx:1,dz:0,speed:10}]){const invalid=L.copy(require('../levels/05-sunken-sanctum.json'));invalid.conveyors=[{x:2,z:2,...values}];assert.throws(()=>L.read(invalid));}
+ const old=L.copy(sunkenSanctum);delete old.conveyors;assert.deepEqual(L.read(old).conveyors,[]);
+ for(const values of [{dx:1,dz:1,speed:1},{dx:0,dz:0,speed:1},{dx:1,dz:0,speed:0},{dx:1,dz:0,speed:10}]){const invalid=L.copy(sunkenSanctum);invalid.conveyors=[{x:2,z:2,...values}];assert.throws(()=>L.read(invalid));}
 });

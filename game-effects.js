@@ -1,7 +1,5 @@
+import Levels from './levels.js';
 // Short-lived visual particles. They never become gameplay colliders.
-(function(root){
- 'use strict';
- const Levels=typeof module!=='undefined'&&module.exports?require('./levels.js'):root.JellyLevels;
  const palettes=[[.12,.9,.16],[.025,.17,1.],[1.,.065,.035],[.65,.1,1.],[1.,.65,.035]];
  const runeColors=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025],[.68,.12,1.],[1.,.65,.025]],RUNE_LIMIT=32;
  class System{
@@ -110,5 +108,4 @@
    });
   }
  }
- const api={System};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyEffects=api;
-})(globalThis);
+export {System};

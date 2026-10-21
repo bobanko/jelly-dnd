@@ -1,6 +1,9 @@
-'use strict';
-const fs=require('node:fs'),path=require('node:path'),zlib=require('node:zlib');
-const root=path.resolve(__dirname,'..'),files=new Map();
+import fs from 'node:fs';
+import path from 'node:path';
+import zlib from 'node:zlib';
+import * as catalog from '../levels/catalog.js';
+import Levels from '../levels.js';
+const root=path.resolve(import.meta.dirname,'..'),files=new Map();
 const now=new Date();
 const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(now).map(part=>[part.type,part.value]));
 const buildVersion='build: '+parts.year+'-'+parts.month+'-'+parts.day+'_'+parts.hour+':'+parts.minute;
@@ -23,9 +26,9 @@ for(const html of ['index.html','editor.html']){
 // Generate metadata inside the archive without changing source files.
 files.set('build-version.json',Buffer.from(JSON.stringify({version:buildVersion})+'\n'));
 add('levels/catalog.js');
-const catalog=require('../levels/catalog.js');
+
 if(catalog.version!==1||!Array.isArray(catalog.standard)||!catalog.standard.length||new Set(catalog.standard).size!==catalog.standard.length||!Array.isArray(catalog.extra))throw Error('Invalid level catalog');
-const Levels=require('../levels');
+
 for(const file of [...catalog.standard,...catalog.extra]){
  if(!/^[a-z0-9-]+\.json$/i.test(file))throw Error('Invalid level filename: '+file);
  add('levels/'+file);const map=Levels.read(JSON.parse(files.get('levels/'+file)));

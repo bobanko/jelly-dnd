@@ -1,5 +1,10 @@
-const {test}=require('node:test'),assert=require('node:assert/strict');
-const L=require('../levels'),{Model}=require('../editor-model'),P=require('../physics'),Soft=require('../soft-body'),Features=require('../level-features');
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import L from '../levels.js';
+import {Model} from '../editor-model.js';
+import * as P from '../physics.js';
+import * as Soft from '../soft-body.js';
+import * as Features from '../level-features.js';
 const faces=['top','north','east','south','west'];
 function map(){const m=L.blank();m.size=8;for(let x=0;x<8;x++)for(let z=0;z<8;z++)m.blocks.push({x,y:0,z});m.blocks.push({x:3,y:1,z:3});m.spawns[2]={x:1,y:0,z:3};m.goals[2]={x:6,y:0,z:6};return m;}
 function contact(trap,slot,overrides={}){
@@ -16,7 +21,7 @@ test('old traps remain neutral floor traps; all five mounts and colours roundtri
  const orphan=L.read({...m,blocks:m.blocks.filter(b=>b.y!==1)});assert.ok(L.issues(orphan).some(e=>e.includes('блок крепления')));
 });
 test('editor preserves independent wall mounts, top mechanisms, colours, delay, move and history',()=>{
- const model=new Model(L,map());model.change(()=>model.paint('plate',3,3,{voxel:true,y:1}));
+ const model=new Model(map());model.change(()=>model.paint('plate',3,3,{voxel:true,y:1}));
  for(const face of faces.slice(1))model.change(()=>model.paint('spikes',3,3,{voxel:true,y:1,face,color:2}));
  assert.equal(model.map.plates.length,1);assert.equal(model.map.spikes.length,4);
  model.change(m=>{m.spikes[0].offset=1.5;});model.change(()=>model.paint('spikes',3,3,{voxel:true,y:1,face:'north',color:0}));

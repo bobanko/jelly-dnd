@@ -1,11 +1,22 @@
-'use strict';
+import JellyLevels from './levels.js';
+import {i18n as JellyI18n} from './i18n.js';
+import * as JellyGPU from './webgpu-renderer.js';
+import * as JellySoftBody from './soft-body.js';
+import * as JellyPhysics from './physics.js';
+import * as JellyEffects from './game-effects.js';
+import * as JellyEditorModel from './editor-model.js';
+import * as JellyEditorSpace from './editor-space.js';
+import * as JellyLevelFeatures from './level-features.js';
+import * as JellyLevelCatalog from './levels/catalog.js';
+import {editorI18n as JellyEditorI18n} from './editor-i18n.js';
+
 const L=JellyLevels,M=JellyEditorModel,S=JellyEditorSpace,$=id=>document.getElementById(id);
 let startupError='';
 const filenameKey='jelly-dnd.editor.filename';
-let sourceFilename=globalThis.JellyLevelCatalog?.standard[0]||null;
+let sourceFilename=JellyLevelCatalog?.standard[0]||null;
 let initial=L.standardLevel(1);
 try{const saved=localStorage.getItem(L.DRAFT_KEY);if(saved){initial=L.read(saved);sourceFilename=localStorage.getItem(filenameKey)||null;}}catch(error){startupError='Черновик не удалось открыть: '+error.message;}
-const model=new M.Model(L,L.voxelize(initial));
+const model=new M.Model(L.voxelize(initial));
 const phaseSymbols=['△','⊙','◇','☼','ᛞ'];
 const groups=[
  ['Спавны',L.characters.map((p,i)=>['spawn-'+i,'▣',p.name,p.color])],

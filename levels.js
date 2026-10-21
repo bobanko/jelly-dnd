@@ -1,6 +1,5 @@
+import * as campaign from './levels/catalog.js';
 // Shared editable map format. No live physics state is stored in level files.
-(function(root){
- 'use strict';
  const DRAFT_KEY='jelly-dnd.editor.v1',PLAY_KEY='jelly-dnd.play.v1';
  const copy=value=>JSON.parse(JSON.stringify(value));
  const characters=[{name:'Мох',color:'#9ddd56',glyph:'ᛉ',keys:'W A S D'},{name:'Иней',color:'#477bff',glyph:'ᛟ',keys:'↑ ← ↓ →'},{name:'Уголёк',color:'#ef5346',glyph:'ᛋ',keys:'I J K L'},{name:'Аметист',color:'#bb70ef',glyph:'ᛜ',keys:'T F G H'},{name:'Янтарь',color:'#edc34e',glyph:'ᛞ',keys:'8 4 5 6 (Num)'}];
@@ -28,10 +27,13 @@
   for(const p of map.walls)if(p.half>=.4)for(let y=Math.max(-2,Math.floor(p.base)+1);y<=Math.ceil(p.base+p.height);y++)add(p.x,y,p.z);
   map.tiles=[];map.walls=map.walls.filter(p=>p.half<.4).map(p=>({...p,y:p.base}));return read(map);
  }
- function catalog(){return typeof module!=='undefined'&&module.exports?require('./levels/catalog.js'):root.JellyLevelCatalog;}
+ const mapsByFile=new Map();
+ function configureMaps(maps){
+  for(const [id,map] of Object.entries(maps)){const file=campaign.standard[Number(id)-1];if(file)mapsByFile.set(file,copy(map));}
+ }
  function standardLevel(id){
-  const file=catalog()?.standard[id-1];if(!file)throw Error('Unknown standard level: '+id);
-  const data=typeof module!=='undefined'&&module.exports?require('./levels/'+file):root.JellyLevelMaps?.[id];
+  const file=campaign.standard[id-1];if(!file)throw Error('Unknown standard level: '+id);
+  const data=mapsByFile.get(file);
   if(!data)throw Error('Level has not been loaded: '+id);return copy(data);
  }
  function displayName(map,language='en'){return map.names?.[language]||map.name;}
@@ -146,6 +148,6 @@
   const saved=storage?.getItem(PLAY_KEY);if(!saved)throw new Error('Тестовый уровень не найден. Откройте редактор и нажмите «Играть».');
   const map=read(saved),errors=issues(map);if(errors.length)throw new Error(errors.join('\n'));return map;
  }
- const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame,droneOrigin,get standardNames(){return catalog()?.standard.map((_,i)=>standardLevel(i+1).name)||[];},standardLevel,displayName};
- if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyLevels=api;
-})(globalThis);
+ const api={DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame,droneOrigin,get standardNames(){return campaign.standard.map((_,i)=>standardLevel(i+1).name)||[];},standardLevel,displayName};
+export default api;
+export {DRAFT_KEY,PLAY_KEY,characters,portalColors,portalColor,limits,copy,blank,read,issues,instantiate,forGame,surfaceY,voxelize,wallFaces,torchFrame,droneOrigin,standardLevel,displayName,configureMaps};

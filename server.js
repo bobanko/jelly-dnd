@@ -1,7 +1,7 @@
-const http = require('node:http');
-const fs = require('node:fs');
-const path = require('node:path');
-const root = __dirname;
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+const root = import.meta.dirname;
 http.createServer((req,res)=>{
   const name = req.url.split('?')[0] === '/' ? '/index.html' : req.url.split('?')[0];
   const file = path.resolve(root, '.' + name);

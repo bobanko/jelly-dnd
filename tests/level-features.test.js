@@ -1,7 +1,7 @@
-const {test}=require('node:test');
-const assert=require('node:assert/strict');
-const {World}=require('../physics');
-const {System}=require('../soft-body');
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {World} from '../physics.js';
+import {System} from '../soft-body.js';
 function scene(positions=[[2,2,0]]){
  const floor=new Set();for(let x=0;x<=9;x++)for(let z=0;z<=9;z++)floor.add(`${x},${z}`);
  const world=new World(floor,[],[]),soft=new System();world.soft=soft;

@@ -10,7 +10,7 @@
 
 В архив входят игра, редактор, каталог и карты из `levels/`, используемые ресурсы из `assets/`. Сервер, Node-зависимости, тесты, Git и локальные служебные файлы исключены. Сборка использует только встроенные возможности Node.js.
 
-Для локальной проверки распакованного билда можно запустить `tests/browser-static-host.cjs` с переменной `STATIC_GAME_ROOT`, указывающей на папку распаковки (для этого теста нужны установленные dev-зависимости и Chrome). Игра требует браузер с WebGPU и рабочим аппаратным ускорением.
+Для локальной проверки распакованного билда можно запустить `tests/browser-static-host.js` с переменной `STATIC_GAME_ROOT`, указывающей на папку распаковки (для этого теста нужны установленные dev-зависимости и Chrome). Игра требует браузер с WebGPU и рабочим аппаратным ускорением.
 
 A dungeon puzzle with one to five translucent jelly creatures and movable wooden crates. The original chamber uses three creatures; edited maps choose their own party. Version 0.2 replaces the projected Canvas/WebGL scene with a real 3D WebGPU scene and tetrahedral soft-body physics. The visual and physical requirements in jelly-dice.md are adapted to the existing game without dice rolling, dice scoring or table-demo mechanics.
 
@@ -18,7 +18,7 @@ A dungeon puzzle with one to five translucent jelly creatures and movable wooden
 
 All unit tests, browser checks, and profiling scripts live in [`tests/`](tests/README.md). Run npm commands and individual test scripts from the project root; generated output stays in `artifacts/`.
 
-The development environment uses Node.js 26.7.0 (the current minimum is 22.13). Use native ES modules for Node scripts as well as browser code. During migration, existing CommonJS tooling can load synchronous ES module exports through Node's `require(esm)` support; migrated scripts use `import`/`export` directly. Browser runtime files are still served directly without bundling.
+The development environment uses Node.js 26.7.0 (the current minimum is 22.13). Browser code, tests, server code, and release tooling use native ES modules with `import`/`export`; `package.json` declares `type: module`. Browser runtime files are served directly without bundling.
 
 Run npm start (or node server.js), then open http://localhost:3000 in Chrome or Edge with WebGPU enabled. No runtime packages, CDNs or external fonts are needed. Stone and oak textures are bundled in assets/materials/; their generation prompts and mapping details are documented there. Serve over localhost or HTTPS; opening a local HTML file is not the supported launch path.
 

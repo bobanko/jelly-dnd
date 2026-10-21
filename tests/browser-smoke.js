@@ -1,5 +1,5 @@
-const {chromium}=require('@playwright/test');
-const fs=require('node:fs');
+import {chromium} from './browser-harness.js';
+import fs from 'node:fs';
 (async()=>{
  fs.mkdirSync('artifacts',{recursive:true});
  const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--enable-unsafe-webgpu','--use-angle=d3d11']});

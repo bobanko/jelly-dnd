@@ -1,7 +1,5 @@
+import Levels from './levels.js';
 // Cardinal archery, durable shields, ballistic bashes and automatic sword attacks.
-(function(root){
- 'use strict';
- const Levels=typeof module!=='undefined'&&module.exports?require('./levels.js'):root.JellyLevels;
  const alive=p=>!p.state||p.state==='alive';
  const carrying=p=>alive(p)||(p.state==='falling'&&(p.launchTimer||0)>0);
  function cardinal(x=0,z=1){return Math.abs(x)>Math.abs(z)?{x:Math.sign(x),z:0}:{x:0,z:Math.sign(z)||1};}
@@ -170,5 +168,4 @@
    });
   }
  });}
- const api={install,facing,segmentBox};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyCombat=api;
-})(globalThis);
+export {install,facing,segmentBox};

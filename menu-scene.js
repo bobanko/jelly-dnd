@@ -1,5 +1,10 @@
+import JellyLevels from './levels.js';
+import * as JellyPhysics from './physics.js';
+import * as JellySoftBody from './soft-body.js';
+import * as JellyEffects from './game-effects.js';
+
 /* A display diorama, independent of the playable level and its physics. */
-function createMenuScene(){
+export function createMenuScene(reducedMotion=false){
  const map=JellyLevels.blank();map.size=8;map.name='Menu diorama';
  for(let x=2;x<=6;x++)for(let z=2;z<=5;z++)map.blocks.push({x,y:0,z});
  map.blocks.push({x:5,y:1,z:2},{x:6,y:1,z:2},{x:6,y:2,z:2});
@@ -36,10 +41,12 @@ function createMenuScene(){
 }
 
 // A source checkout supplies dev; packaged builds supply their generated version.
-fetch('build-version.json',{cache:'no-store'})
+export function loadBuildVersion(){
+ return fetch('build-version.json',{cache:'no-store'})
  .then(response=>{if(!response.ok)throw Error('Build metadata unavailable');return response.json();})
  .then(metadata=>{
   const label=document.getElementById('build-version');
   if(label&&typeof metadata.version==='string'&&metadata.version.trim())label.textContent=metadata.version;
  })
  .catch(()=>{}); // Keep the dev fallback if metadata cannot be loaded.
+}

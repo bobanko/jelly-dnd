@@ -1,31 +1,32 @@
-﻿const {test}=require('node:test');
-const assert=require('node:assert/strict');
-const fs=require('node:fs');
-const Levels=require('../levels.js');
-const catalog=require('../levels/catalog.js');
-let run=0;
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import Levels from '../levels.js';
+import * as catalog from '../levels/catalog.js';
+import {loadLevels} from '../level-loader.js';
+import * as editorModel from '../editor-model.js';
+﻿
+
+
+
+
+
+
 
 async function boot({entry='game.js',search='',failure,deniedStorage=false}={}){
- const names=['document','location','history','fetch','localStorage','JellyLevels','JellyI18n','JellyMenuOnly','JellyProgress','JellyLevelCatalog','JellyLevelMaps','JellyEditorModel'];
- const original=new Map(names.map(name=>[name,Object.getOwnPropertyDescriptor(globalThis,name)]));
  const element=()=>({hidden:true,textContent:'',value:0,children:[],dataset:{},classList:{add(){}},append(...children){this.children.push(...children);},setAttribute(name,value){this[name]=value;},querySelectorAll(){return [];}});
  const elements=Object.fromEntries(['#level-intro','#level-intro-title','#level-loading','#loading-status','#loading-progress','#loading-retry','#menu-levels .level-list'].map(selector=>[selector,element()]));
  const entries=[],alerts=[],requests=[],saved=new Map();let redirected;
- try{
-  for(const name of names)delete globalThis[name];
-  Object.assign(globalThis,{
-   document:{querySelector:selector=>selector==='script[type="module"][data-entry]'?{dataset:{entry}}:elements[selector],createElement:element,body:{append($script){entries.push($script.src);$script.onload();},prepend($message){alerts.push($message);}}},
-   location:{search},history:{replaceState(a,b,url){redirected=url;}},
-   fetch:async url=>{requests.push(url);return {ok:url!==failure,status:url===failure?404:200,json:async()=>JSON.parse(fs.readFileSync(url,'utf8'))};},
-   JellyLevels:Levels,JellyI18n:{t:key=>key,language:'en'}
-  });
-  if(entry==='editor.js')delete elements['#level-intro'];
-  Object.defineProperty(globalThis,'localStorage',{configurable:true,get(){if(deniedStorage)throw Error('Storage denied');return {getItem:key=>saved.get(key),setItem:(key,value)=>saved.set(key,value)};}});
-  await import('../level-loader.js?test='+run++);
-  return {elements,entries,alerts,requests,redirected,maps:globalThis.JellyLevelMaps,menuOnly:globalThis.JellyMenuOnly,progress:globalThis.JellyProgress,editorModel:globalThis.JellyEditorModel};
- }finally{
-  for(const [name,descriptor] of original){delete globalThis[name];if(descriptor)Object.defineProperty(globalThis,name,descriptor);}
- }
+ const document={querySelector:selector=>elements[selector],createElement:element,body:{prepend($message){alerts.push($message);}}};
+ if(entry==='editor.js')delete elements['#level-intro'];
+ const result=await loadLevels({
+  entryScript:entry,document,location:{search},history:{replaceState(a,b,url){redirected=url;}},
+  i18n:{t:key=>key,language:'en'},
+  storage:deniedStorage?undefined:{getItem:key=>saved.get(key),setItem:(key,value)=>saved.set(key,value)},
+  fetch:async url=>{requests.push(url);return {ok:url!==failure,status:url===failure?404:200,json:async()=>JSON.parse(fs.readFileSync(url,'utf8'))};},
+  startEntry:async entry=>entries.push(entry)
+ });
+ return {...result,elements,entries,alerts,requests,redirected,editorModel};
 }
 
 test('module loader publishes validated campaign maps before launching the menu',async()=>{
@@ -61,9 +62,9 @@ test('failed campaign requests show an error without publishing partial maps or 
 test('editor startup loads maps without creating player progression',async()=>{
  const result=await boot({entry:'editor.js'});
  assert.deepEqual(result.entries,['editor.js']);
- assert.equal(result.progress,undefined);
+ assert.equal(result.progress,null);
  assert.equal(result.maps[1].name,Levels.standardLevel(1).name);
- const model=new result.editorModel.Model(Levels,result.maps[1]);
+ const model=new result.editorModel.Model(result.maps[1]);
  assert.deepEqual(model.map,Levels.read(result.maps[1]));
 });
 

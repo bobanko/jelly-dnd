@@ -1,9 +1,12 @@
-const {chromium}=require('@playwright/test'),fs=require('node:fs'),assert=require('node:assert/strict');
+import * as importedCatalog from '../levels/catalog.js';
+import {chromium} from './browser-harness.js';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--enable-unsafe-webgpu','--use-angle=d3d11']});
  try{
   const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  const catalog=structuredClone({...require('../levels/catalog.js')});catalog.standard.reverse();
+  const catalog=structuredClone({...importedCatalog});catalog.standard.reverse();
   const first=catalog.standard[0],map=JSON.parse(fs.readFileSync('levels/'+first));map.name='Only in map';map.names={ru:'RU map title'};
   await page.route('**/levels/catalog.js',route=>route.fulfill({contentType:'application/javascript',body:'export const {version,standard,extra}='+JSON.stringify(catalog)+';'}));await page.route('**/levels/'+first,route=>route.fulfill({json:map}));
   const ready=()=>page.waitForFunction(()=>typeof sceneRenderer!=='undefined'&&sceneRenderer.ready&&!loadingActive);

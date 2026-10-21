@@ -1,6 +1,13 @@
+import {chromium,instrumentModule} from './browser-harness.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
 // Exercise a static HTTPS deployment in a cross-origin iframe, without server.js.
-const {chromium}=require('@playwright/test'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const staticRoot=path.resolve(process.env.STATIC_GAME_ROOT||path.join(__dirname,'..'));
+
+
+
+
+const staticRoot=path.resolve(process.env.STATIC_GAME_ROOT||path.join(import.meta.dirname,'..'));
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--use-angle=d3d11']});
  try{
@@ -18,7 +25,7 @@ const staticRoot=path.resolve(process.env.STATIC_GAME_ROOT||path.join(__dirname,
    const allowed=scripts.has(relative)||/^levels\/[a-z0-9-]+\.json$/i.test(relative)||/^assets\/materials\/[a-z0-9-]+\.png$/i.test(relative);
    const file=path.resolve(staticRoot,relative);
    if(!allowed||!file.startsWith(staticRoot+path.sep)||!fs.existsSync(file)){missing.push(relative);return route.fulfill({status:404,body:'Not found'});}
-   return route.fulfill({body:fs.readFileSync(file),contentType:{'.html':'text/html','.css':'text/css','.js':'text/javascript','.json':'application/json','.png':'image/png'}[path.extname(file)]});
+   return route.fulfill({body:relative.endsWith('.js')?instrumentModule(fs.readFileSync(file,'utf8'),path.basename(relative)):fs.readFileSync(file),contentType:{'.html':'text/html','.css':'text/css','.js':'text/javascript','.json':'application/json','.png':'image/png'}[path.extname(file)]});
   });
   await page.goto('https://portal.test/');const frame=page.frame({name:'game'});
   await frame.waitForFunction(()=>typeof sceneRenderer!=='undefined'&&(sceneRenderer.ready||loadingFailed));

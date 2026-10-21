@@ -1,6 +1,4 @@
 // Height-aware level surfaces and triggers, shared by physics, rendering and debug overlays.
-(function(root){
- 'use strict';
  const alive=p=>!p.state||p.state==='alive';
  const near=(p,q,r)=>Math.abs(p.x-q.x)<r&&Math.abs(p.z-q.z)<r;
  const spikeNormals={top:[0,1,0],north:[0,0,-1],east:[1,0,0],south:[0,0,1],west:[-1,0,0]};
@@ -197,5 +195,4 @@
    }
   });
  }
- const api={install,spikeFrame,spikeBoxes};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyLevelFeatures=api;
-})(globalThis);
+export {install,spikeFrame,spikeBoxes};

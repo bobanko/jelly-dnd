@@ -1,6 +1,6 @@
-const {test}=require('node:test');
-const assert=require('node:assert/strict');
-const {create,KEY,LEGACY_KEY}=require('../progression');
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {create,KEY,LEGACY_KEY} from '../progression.js';
 function store(initial={}){const values=new Map(Object.entries(initial));return {getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};}
 const order=['a.json','b.json','c.json','d.json','e.json'];
 function progress(storage,files=order){const p=create(storage);p.configure(files);return p;}

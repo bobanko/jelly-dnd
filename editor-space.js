@@ -1,9 +1,7 @@
+import * as GPU from './webgpu-renderer.js';
+import * as Features from './level-features.js';
+import Levels from './levels.js';
 // Picking uses the same view-projection matrix as the game renderer.
-(function(root){
- 'use strict';
- const GPU=typeof module!=='undefined'&&module.exports?require('./webgpu-renderer'):root.JellyGPU;
- const Features=typeof module!=='undefined'&&module.exports?require('./level-features'):root.JellyLevelFeatures;
- const Levels=typeof module!=='undefined'&&module.exports?require('./levels'):root.JellyLevels;
  function inverse(matrix){
   const rows=Array.from({length:4},(_,r)=>Array.from({length:8},(_,c)=>c<4?matrix[c*4+r]:+(c-4===r)));
   for(let c=0;c<4;c++){
@@ -66,5 +64,4 @@
   return size===null||(x>=0&&z>=0&&x<size&&z<size)?{x,z,height,key:null,hit}:null;
  }
  function frame(camera,angle,width,height,scale){return GPU.cameraFrame(camera,angle,width,height,scale);}
- const api={inverse,ray,plane,boxHit,boxes,pick,frame};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyEditorSpace=api;
-})(globalThis);
+export {inverse,ray,plane,boxHit,boxes,pick,frame};

@@ -1,7 +1,7 @@
-const {test}=require('node:test');
-const assert=require('node:assert/strict');
-const Soft=require('../soft-body');
-const {World}=require('../physics');
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import * as Soft from '../soft-body.js';
+import {World} from '../physics.js';
 function setup(positions=[[3,3]]){const floor=new Set();for(let x=0;x<14;x++)for(let z=0;z<14;z++)floor.add(`${x},${z}`);const world=new World(floor,[],[]),soft=new Soft.System();world.soft=soft;const players=positions.map(([x,z])=>({x,z,y:0,vx:0,vz:0,vy:0,state:'alive',deaths:0}));return {world,soft,players,step:(input=[],count=1)=>{const events=[];for(let i=0;i<count;i++)events.push(...world.step(players,input));return events;}};}
 function volume(b,t){const [a,c,d,e]=t.ids.map(i=>b.positions[i]),u=c.map((v,k)=>v-a[k]),v=d.map((v,k)=>v-a[k]),w=e.map((v,k)=>v-a[k]);return (u[0]*(v[1]*w[2]-v[2]*w[1])+u[1]*(v[2]*w[0]-v[0]*w[2])+u[2]*(v[0]*w[1]-v[1]*w[0]))/6;}
 function metrics(b){let min=Infinity,max=-Infinity,total=0;for(const t of Soft.tets){const v=volume(b,t);min=Math.min(min,v/t.volume);max=Math.max(max,v/t.volume);total+=v;}return {min,max,total};}

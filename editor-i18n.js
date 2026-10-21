@@ -1,6 +1,9 @@
 /* Translate editor presentation only. Map data and editable input values stay untouched. */
-'use strict';
-globalThis.JellyEditorI18n=(()=>{
+import {i18n as JellyI18n} from './i18n.js';
+
+export let editorI18n=null;
+
+export function initEditorI18n(){
  const entries=`
 Редактор|Editor
 МАСТЕРСКАЯ|WORKSHOP
@@ -260,7 +263,7 @@ globalThis.JellyEditorI18n=(()=>{
   if(value!==result){if(attribute)node.setAttribute(attribute,result);else node.textContent=result;}
  }
  function apply(root=document.documentElement){
-  if(!globalThis.JellyI18n)return;
+  if(!JellyI18n)return;
   if(root.nodeType===Node.TEXT_NODE){if(!root.parentElement?.closest('script,style,textarea,[data-level-name]'))localizeValue(root);return;}
   if(root.nodeType!==Node.ELEMENT_NODE||root.closest('script,style,textarea,[data-level-name]'))return;
   for(const attr of ['title','aria-label','placeholder'])localizeValue(root,attr);
@@ -277,5 +280,5 @@ globalThis.JellyEditorI18n=(()=>{
  });
  function observe(){observer.observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['title','aria-label','placeholder']});}
  observe();document.addEventListener('DOMContentLoaded',()=>apply(),{once:true});
- return {apply,translate,source:(node,attribute)=>attributeRecords.get(node)?.[attribute]?.source??node.getAttribute(attribute)};
-})();
+ return editorI18n={apply,translate,source:(node,attribute)=>attributeRecords.get(node)?.[attribute]?.source??node.getAttribute(attribute)};
+}

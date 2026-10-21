@@ -1,6 +1,6 @@
-const {test}=require('node:test');
-const assert=require('node:assert/strict');
-const {World,SIZE,HALF,STEP}=require('../physics.js');
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {World,SIZE,HALF,STEP} from '../physics.js';
 const body=(x,z)=>({x,z,vx:0,vz:0,impact:0});
 function arena(){const floor=new Set();for(let x=0;x<12;x++)for(let z=0;z<12;z++)floor.add(`${x},${z}`);return new World(floor,[],[]);}
 function advance(w,b,input,n=120){for(let i=0;i<n;i++)w.step(b,input);}

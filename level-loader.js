@@ -1,11 +1,11 @@
 ﻿/* Load authored JSON maps before starting either the game or the editor. */
 import * as catalog from './levels/catalog.js';
-import * as editorModel from './editor-model.js';
+import Levels,{configureMaps} from './levels.js';
+import {configureRuntime} from './runtime-context.js';
 import {create as createProgress} from './progression.js';
 
-const $entry=document.querySelector('script[type="module"][data-entry]');
-const entryScript=$entry.dataset.entry;
-const t=key=>globalThis.JellyI18n?.t(key)||key;
+export async function loadLevels({entryScript,document,location,history,i18n,storage,startEntry,fetch=globalThis.fetch}){
+const t=key=>i18n?.t(key)||key;
 const $overlay=document.querySelector('#level-intro');
 const $title=document.querySelector('#level-intro-title');
 const $loading=document.querySelector('#level-loading');
@@ -14,14 +14,8 @@ const $progress=document.querySelector('#loading-progress');
 const $retry=document.querySelector('#loading-retry');
 const menuOnly=entryScript==='game.js'&&!location.search.includes('level=editor')&&!/(?:^|[?&])play=1(?:&|$)/.test(location.search);
 
-// Temporary bridge while the game/editor entry points still use classic scripts.
-let storage;
-try{storage=globalThis.localStorage;}catch{}
 const progress=entryScript==='game.js'?createProgress(storage):null;
-globalThis.JellyMenuOnly=menuOnly;
-globalThis.JellyLevelCatalog=catalog;
-if(entryScript==='editor.js')globalThis.JellyEditorModel=editorModel;
-if(progress)globalThis.JellyProgress=progress;
+configureRuntime({menuOnly,progress});
 
 async function readJSON(url){
  const response=await fetch(url);
@@ -45,17 +39,8 @@ function renderLevelList(maps){
   $button.dataset.level=String(index+1);$button.append(String(index+1).padStart(2,'0')+' ');
   const $name=document.createElement('span');
   $name.dataset.levelName=String(index+1);
-  $name.textContent=JellyLevels.displayName(maps[index+1],globalThis.JellyI18n?.language);
+  $name.textContent=Levels.displayName(maps[index+1],i18n?.language);
   $button.append($name);$list.append($button);
- });
-}
-
-function startEntry(){
- return new Promise((resolve,reject)=>{
-  const $script=document.createElement('script');
-  $script.src=entryScript;$script.onload=resolve;
-  $script.onerror=()=>reject(Error('Could not load '+entryScript));
-  document.body.append($script);
  });
 }
 
@@ -84,16 +69,18 @@ async function start(){
   const maps={};
   await Promise.all(catalog.standard.map(async(file,index)=>{
    if(!/^[a-z0-9-]+\.json$/i.test(file))throw Error('Invalid level file');
-   const map=JellyLevels.read(await readJSON('levels/'+file));
-   const errors=JellyLevels.issues(map);
+   const map=Levels.read(await readJSON('levels/'+file));
+   const errors=Levels.issues(map);
    if(errors.length)throw Error(file+': '+errors.join('\n'));
    maps[index+1]=map;
   }));
-  globalThis.JellyLevelMaps=maps;
-  if($overlay&&!menuOnly)$title.textContent=selected+'. '+JellyLevels.displayName(maps[selected],globalThis.JellyI18n?.language);
+  configureMaps(maps);
+  if($overlay&&!menuOnly)$title.textContent=selected+'. '+Levels.displayName(maps[selected],i18n?.language);
   renderLevelList(maps);
-  await startEntry();
- }catch(error){showError(error);}
+  await startEntry(entryScript);
+  return {maps,progress,menuOnly};
+ }catch(error){showError(error);return {error};}
 }
 
-await start();
+return start();
+}

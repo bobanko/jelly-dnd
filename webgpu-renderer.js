@@ -1,6 +1,4 @@
-(function(root){
- 'use strict';
- const Levels=typeof module!=='undefined'&&module.exports?require('./levels.js'):root.JellyLevels;
+import Levels from './levels.js';
  const PORTAL_LIMIT=Levels.limits.portals,PORTAL_FLOATS=12,GOALS_OFFSET=56+PORTAL_LIMIT*PORTAL_FLOATS,TORCHES_OFFSET=GOALS_OFFSET+40,BODY3_OFFSET=TORCHES_OFFSET+32,BODY4_OFFSET=BODY3_OFFSET+4,BODY_SLOTS_OFFSET=BODY4_OFFSET+4,FINISH_OFFSET=BODY_SLOTS_OFFSET+8,GOAL_SLOTS_OFFSET=FINISH_OFFSET+4,SCENE_FLOATS=GOAL_SLOTS_OFFSET+8;
  const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
  const normalize=a=>{const l=Math.hypot(...a)||1;return a.map(v=>v/l);};
@@ -1051,5 +1049,4 @@
    d.queue.submit([encoder.finish()]);this.frames++;
   }
  }
- const api={Renderer,viewMatrix,cameraFrame,projectPoint,surfaceBindings};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.JellyGPU=api;
-})(globalThis);
+export {Renderer,viewMatrix,cameraFrame,projectPoint,surfaceBindings};
