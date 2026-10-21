@@ -16,7 +16,7 @@ test('old traps remain neutral floor traps; all five mounts and colours roundtri
  const orphan=L.read({...m,blocks:m.blocks.filter(b=>b.y!==1)});assert.ok(L.issues(orphan).some(e=>e.includes('блок крепления')));
 });
 test('editor preserves independent wall mounts, top mechanisms, colours, delay, move and history',()=>{
- const model=new Model(map());model.change(()=>model.paint('plate',3,3,{voxel:true,y:1}));
+ const model=new Model(L,map());model.change(()=>model.paint('plate',3,3,{voxel:true,y:1}));
  for(const face of faces.slice(1))model.change(()=>model.paint('spikes',3,3,{voxel:true,y:1,face,color:2}));
  assert.equal(model.map.plates.length,1);assert.equal(model.map.spikes.length,4);
  model.change(m=>{m.spikes[0].offset=1.5;});model.change(()=>model.paint('spikes',3,3,{voxel:true,y:1,face:'north',color:0}));

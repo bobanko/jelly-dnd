@@ -14,7 +14,7 @@ test('color group bindings roundtrip and survive removing one of the same-color 
 });
 
 test('spike control settings roundtrip, survive repaint and reject malformed values',()=>{
- const model=new Model(L.blank());model.change(()=>model.paint('spikes',2,2,{voxel:true,y:0}));model.change(map=>Object.assign(map.spikes[0],{cycle:0,enabled:false,plate:'switch',offset:20}));
+ const model=new Model(L,L.blank());model.change(()=>model.paint('spikes',2,2,{voxel:true,y:0}));model.change(map=>Object.assign(map.spikes[0],{cycle:0,enabled:false,plate:'switch',offset:20}));
  model.change(()=>model.paint('spikes',2,2,{voxel:true,y:0,color:1}));
  const spike=L.read(JSON.stringify(model.map)).spikes[0];assert.equal(spike.cycle,0);assert.equal(spike.enabled,false);assert.equal(spike.plate,'switch');assert.equal(spike.offset,20);
  assert.ok(L.issues(model.map).some(issue=>issue.includes('связанная кнопка')));
@@ -22,7 +22,7 @@ test('spike control settings roundtrip, survive repaint and reject malformed val
 });
 
 test('editor expands beyond legacy borders in every direction and roundtrips coordinates',()=>{
- const model=new Model(L.blank());
+ const model=new Model(L,L.blank());
  model.change(()=>{for(const [x,z] of [[-4,-7],[24,32]])model.paint('floor',x,z,{voxel:true,y:0});});
  assert.deepEqual(model.map.blocks.map(p=>[p.x,p.z]),[[-4,-7],[24,32]]);
  assert.ok(model.map.size>=33);assert.deepEqual(L.read(JSON.stringify(model.map)),model.map);
@@ -32,7 +32,7 @@ test('editor expands beyond legacy borders in every direction and roundtrips coo
 
 test('targeted erasing removes one attachment and keeps its host, neighbours and undo history',()=>{
  const map=L.blank();map.blocks=[{x:2,y:1,z:2}];map.torches=[{x:2,y:1,z:2,face:'south'},{x:2,y:1,z:2,face:'east'}];map.spikes=[{x:2,y:1,z:2,offset:0}];
- const model=new Model(map);model.begin();assert.equal(model.eraseObject('torches',1),true);assert.equal(model.commit(),true);
+ const model=new Model(L,map);model.begin();assert.equal(model.eraseObject('torches',1),true);assert.equal(model.commit(),true);
  assert.equal(model.map.blocks.length,1);assert.equal(model.map.spikes.length,1);assert.equal(model.map.torches[0].face,'south');assert.equal(model.map.torches.length,1);
  model.undo();assert.equal(model.map.torches.length,2);model.redo();assert.equal(model.map.torches.length,1);
  assert.equal(model.eraseObject('torches',9),false);
@@ -52,7 +52,7 @@ test('ordinary game starts with the first catalog map and follows reordering',()
 });
 test('level title translations roundtrip through editor data and fall back to the primary name',()=>{
  const map=L.standardLevel(1);map.name='A new title';map.names={ru:'Russian title',de:'German title'};
- const restored=L.read(JSON.parse(JSON.stringify(new Model(map).map)));
+ const restored=L.read(JSON.parse(JSON.stringify(new Model(L,map).map)));
  assert.equal(L.displayName(restored,'en'),'A new title');assert.equal(L.displayName(restored,'ru'),'Russian title');assert.equal(L.displayName(restored,'de'),'German title');assert.equal(L.displayName(restored,'fr'),'A new title');
 });
 
@@ -88,14 +88,14 @@ test('draft validation finds missing spawns, unpaired portals, unsafe markers an
 });
 
 test('one painted gesture undoes as one operation; redo and invalid changes preserve the map',()=>{
- const m=new Model(L.blank());m.begin();for(let x=1;x<=4;x++)m.paint('floor',x,2,{height:1});assert.equal(m.commit(),true);
+ const m=new Model(L,L.blank());m.begin();for(let x=1;x<=4;x++)m.paint('floor',x,2,{height:1});assert.equal(m.commit(),true);
  assert.equal(m.undoStack.length,1);assert.equal(m.map.tiles.length,4);m.undo();assert.equal(m.map.tiles.length,0);m.redo();assert.equal(m.map.tiles.length,4);
  const before=L.copy(m.map);assert.throws(()=>m.change(map=>map.tiles[0].x=1.5));assert.deepEqual(m.map,before);
  m.undo();m.change(()=>m.paint('floor',8,8));assert.equal(m.redoStack.length,0);
 });
 
 test('editor places the full arsenal, preserves floor height and relinks buttons by stable id',()=>{
- const m=new Model(L.blank());
+ const m=new Model(L,L.blank());
  const catalog=['floor','wall','torch','spawn-0','spawn-1','spawn-2','spawn-3','spawn-4','goal-0','goal-1','goal-2','goal-3','goal-4','plate','bridge','lift','spikes','portal-violet','portal-amber','crate','archer','shield','sword'];
  catalog.forEach((tool,i)=>m.change(()=>m.paint(tool,i%8,Math.floor(i/8),{height:1})));
  assert.equal(m.map.archers.length,1);assert.equal(m.map.pickups.length,2);assert.equal(m.map.walls.length,1);assert.equal(m.map.torches.length,1);assert.ok(m.map.spawns.every(Boolean));
@@ -107,7 +107,7 @@ test('editor places the full arsenal, preserves floor height and relinks buttons
 });
 
 test('eraser, resize, entity move and map replacement are reversible and enforce limits',()=>{
- const m=new Model(L.copy(require('../levels/05-sunken-sanctum.json'))),initial=L.copy(m.map);
+ const m=new Model(L,L.copy(require('../levels/05-sunken-sanctum.json'))),initial=L.copy(m.map);
  m.change(()=>m.erase(9,7));assert.equal(m.map.spawns[2],null);m.undo();assert.deepEqual(m.map,initial);
  m.resize(8);assert.equal(m.map.spawns[1],null);assert.ok(m.map.tiles.every(p=>p.x<8&&p.z<8));m.undo();assert.deepEqual(m.map,initial);
  m.move('pickups',0,12,12);assert.equal(m.map.pickups[0].x,12);m.undo();assert.deepEqual(m.map,initial);
@@ -123,7 +123,7 @@ test('raised spawns, ground crates, elevated bridges and lifts use the same heig
 });
 
 test('wall torch limits and moving a mounted light preserve its face and real light height without colliders',()=>{
- const m=new Model(L.blank());
+ const m=new Model(L,L.blank());
  for(let x=0;x<8;x++)m.change(()=>m.paint('torch',x,1));
  assert.throws(()=>m.change(()=>m.paint('torch',9,1)));assert.equal(m.map.torches.length,8);
  m.move('torches',0,9,2,3);
@@ -134,7 +134,7 @@ test('wall torch limits and moving a mounted light preserve its face and real li
 });
 
 test('torches on four wall faces coexist with mechanisms, roundtrip and remain selectable outside their host',()=>{
- const S=require('../editor-space'),m=new Model(L.blank());
+ const S=require('../editor-space'),m=new Model(L,L.blank());
  for(const face of ['north','east','south','west'])m.change(()=>m.paint('torch',3,3,{voxel:true,y:2,face}));
  m.change(()=>m.paint('plate',3,3,{voxel:true,y:2}));assert.equal(m.map.torches.length,4);assert.equal(m.map.plates.length,1);
  assert.deepEqual(L.read(JSON.stringify(m.map)),m.map);
@@ -154,7 +154,7 @@ test('legacy narrow torch obstacles migrate to masonry mounts once and missing h
 
 test('any one to five colours form a valid party, and only their matching markers are required',()=>{
  for(const slots of [[0],[1],[2],[3],[4],[0,1],[1,3],[3,4],[0,1,2],[0,1,2,3],[0,1,2,3,4]]){
-  const m=new Model(L.blank());for(const slot of slots){m.change(()=>m.paint('spawn-'+slot,slot*2+1,2));m.change(()=>m.paint('goal-'+slot,slot*2+1,4));}
+  const m=new Model(L,L.blank());for(const slot of slots){m.change(()=>m.paint('spawn-'+slot,slot*2+1,2));m.change(()=>m.paint('goal-'+slot,slot*2+1,4));}
   assert.deepEqual(L.issues(m.map),[]);const r=L.instantiate(m.map,Physics,Soft);
   assert.deepEqual(r.players.map(p=>p.slot),slots);assert.equal(r.bodies.length,slots.length);assert.equal(r.goals.length,slots.length);
   r.world.step(r.bodies,[]);assert.ok(r.players.every(p=>p.state==='alive'));

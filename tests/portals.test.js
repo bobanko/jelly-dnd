@@ -7,7 +7,7 @@ function chamber(count=4){
 
 test('all hero portal colours roundtrip through both editor placement paths and route only within their own chain',()=>{
  for(const voxel of [false,true]){
-  const m=new Model(L.blank());m.change(()=>m.paint('spawn-0',15,15));m.change(()=>m.paint('goal-0',15,14));
+  const m=new Model(L,L.blank());m.change(()=>m.paint('spawn-0',15,15));m.change(()=>m.paint('goal-0',15,14));
   L.portalColors.forEach((c,i)=>{
    m.change(()=>m.paint('portal-'+c.id,i*2,2,{voxel,y:0}));
    assert.ok(L.issues(m.map).some(s=>s.startsWith(c.name+' портал:')),'a lone new colour needs another endpoint');
@@ -64,7 +64,7 @@ test('chains of different colours and portals on different floors stay independe
  const lone={x:3,y:0,z:3,color:'amber'};w.portals=[lone];assert.equal(w.portalInactive(lone,r.bodies),true);assert.equal(w.portalCharge(lone,r.bodies),0);
 });
 test('editor accepts large chains, preserves order on repaint, allows ordering and moving, and roundtrips with history',()=>{
- const m=new Model(L.blank());m.change(()=>m.paint('spawn-0',15,15));m.change(()=>m.paint('goal-0',15,14));
+ const m=new Model(L,L.blank());m.change(()=>m.paint('spawn-0',15,15));m.change(()=>m.paint('goal-0',15,14));
  for(let n=0;n<20;n++)m.change(()=>m.paint('portal-violet',n%10,Math.floor(n/10),{voxel:true,y:0}));
  for(let n=0;n<3;n++)m.change(()=>m.paint('portal-amber',n,4,{voxel:true,y:0}));
  assert.equal(m.map.portals.length,23);assert.deepEqual(L.issues(m.map),[]);const before=L.copy(m.map);

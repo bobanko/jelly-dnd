@@ -1,5 +1,6 @@
 ﻿/* Load authored JSON maps before starting either the game or the editor. */
 import * as catalog from './levels/catalog.js';
+import * as editorModel from './editor-model.js';
 import {create as createProgress} from './progression.js';
 
 const $entry=document.querySelector('script[type="module"][data-entry]');
@@ -19,6 +20,7 @@ try{storage=globalThis.localStorage;}catch{}
 const progress=entryScript==='game.js'?createProgress(storage):null;
 globalThis.JellyMenuOnly=menuOnly;
 globalThis.JellyLevelCatalog=catalog;
+if(entryScript==='editor.js')globalThis.JellyEditorModel=editorModel;
 if(progress)globalThis.JellyProgress=progress;
 
 async function readJSON(url){

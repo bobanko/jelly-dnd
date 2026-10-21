@@ -56,7 +56,7 @@ test('a conveyor can push a jelly off an open edge into the normal death and res
 });
 
 test('conveyor editing, directions, speed, height and old version-1 map files roundtrip',()=>{
- const m=new Model(L.blank());m.begin();for(let x=1;x<=4;x++)m.paint('conveyor',x,2,{height:1,dx:1,dz:0,speed:1.5});m.commit();
+ const m=new Model(L,L.blank());m.begin();for(let x=1;x<=4;x++)m.paint('conveyor',x,2,{height:1,dx:1,dz:0,speed:1.5});m.commit();
  assert.equal(m.map.conveyors.length,4);m.undo();assert.equal(m.map.conveyors.length,0);m.redo();
  const map=L.read(JSON.stringify(m.map)),runtime=L.instantiate(map,require('../physics'),require('../soft-body'));
  assert.deepEqual(runtime.world.conveyors,map.conveyors);assert.equal(runtime.world.heightAt(2,2),1);

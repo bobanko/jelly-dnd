@@ -5,7 +5,7 @@ const runtime=m=>L.instantiate(L.read(m),P,S);
 function step(r,n,input=[]){const events=[];for(let i=0;i<n;i++)events.push(...r.world.step(r.bodies,input));return events;}
 
 test('colour blocks serialize, repaint, move and undo without duplicate voxels',()=>{
- const m=new Model(room());for(let color=0;color<4;color++)m.change(()=>m.paint('color-'+color,3,3,{y:1}));
+ const m=new Model(L,room());for(let color=0;color<4;color++)m.change(()=>m.paint('color-'+color,3,3,{y:1}));
  assert.equal(m.map.blocks.filter(b=>b.x===3&&b.y===1&&b.z===3).length,1);assert.equal(m.at('blocks',3,3,1).color,3);
  assert.deepEqual(L.read(JSON.stringify(m.map)),m.map);assert.deepEqual(L.voxelize(m.map),m.map);
  m.undo();assert.equal(m.at('blocks',3,3,1).color,2);m.redo();assert.equal(m.at('blocks',3,3,1).color,3);

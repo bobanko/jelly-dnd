@@ -5,7 +5,7 @@ const filenameKey='jelly-dnd.editor.filename';
 let sourceFilename=globalThis.JellyLevelCatalog?.standard[0]||null;
 let initial=L.standardLevel(1);
 try{const saved=localStorage.getItem(L.DRAFT_KEY);if(saved){initial=L.read(saved);sourceFilename=localStorage.getItem(filenameKey)||null;}}catch(error){startupError='Черновик не удалось открыть: '+error.message;}
-const model=new M.Model(L.voxelize(initial));
+const model=new M.Model(L,L.voxelize(initial));
 const phaseSymbols=['△','⊙','◇','☼','ᛞ'];
 const groups=[
  ['Спавны',L.characters.map((p,i)=>['spawn-'+i,'▣',p.name,p.color])],

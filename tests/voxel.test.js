@@ -5,7 +5,7 @@ function room(){const m=L.blank();m.size=8;for(let x=0;x<8;x++)for(let z=0;z<8;z
 function step(r,n,input=[]){const events=[];for(let i=0;i<n;i++)events.push(...r.world.step(r.bodies,input));return events;}
 
 test('XYZ cubes serialize individually, migrate old geometry and retain sparse air gaps',()=>{
- const m=new Model(L.blank());for(const y of [-2,0,3,12])m.change(()=>m.paint('cube',2,3,{y}));assert.equal(m.map.blocks.length,4);
+ const m=new Model(L,L.blank());for(const y of [-2,0,3,12])m.change(()=>m.paint('cube',2,3,{y}));assert.equal(m.map.blocks.length,4);
  assert.equal(m.map.tiles.length,0);assert.deepEqual(L.read(JSON.stringify(m.map)),m.map);
  m.change(()=>m.erase(2,3,3));assert.deepEqual(m.map.blocks.map(b=>b.y),[-2,0,12]);m.undo();assert.equal(m.map.blocks.length,4);
  const i=m.map.blocks.findIndex(b=>b.y===3);m.move('blocks',i,4,5,6);assert.deepEqual(m.map.blocks[i],{x:4,y:6,z:5});m.undo();assert.equal(m.map.blocks[i].y,3);
@@ -37,7 +37,7 @@ test('upward motion collides with cube undersides instead of embedding in a ceil
  assert.ok(Math.max(...b.positions.map(n=>n[1]))<1.05);assert.ok(p.y<.12);assert.equal(p.deaths,0);
 });
 test('lift and portal support their selected XYZ layer, with an independent lower tunnel',()=>{
- const m=new Model(room());m.change(()=>m.paint('lift',3,3,{voxel:true,y:3}));const r=runtime(m.map);assert.equal(r.world.heightAt(3,3,.2),0);assert.equal(r.world.heightAt(3,3),3);
+ const m=new Model(L,room());m.change(()=>m.paint('lift',3,3,{voxel:true,y:3}));const r=runtime(m.map);assert.equal(r.world.heightAt(3,3,.2),0);assert.equal(r.world.heightAt(3,3),3);
  m.change(()=>m.paint('portal-violet',2,3,{voxel:true,y:0}));m.change(()=>m.paint('portal-violet',2,3,{voxel:true,y:3}));assert.equal(m.map.portals.length,2);assert.deepEqual(m.map.portals.map(p=>p.y),[0,3]);
  assert.deepEqual(L.issues(m.map),[]);
 });
