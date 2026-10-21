@@ -12,12 +12,20 @@ import * as GPU from './webgpu-renderer.js';
   const radius=(Math.max(...points.map(p=>Math.hypot(p.x-result.x,p.z-result.z)))+.65*Math.SQRT2)*1.005;
   const corners=Array.from({length:32},(_,i)=>i*Math.PI/16).flatMap(a=>[y0,y1+1.15].map(y=>[result.x+Math.cos(a)*radius,y,result.z+Math.sin(a)*radius]));
   const base=Math.min(width/16,height/12);
-  let zoom=2.05;
   // Fit the whole roster with room for the HUD and nearby puzzle geometry.
-  for(let attempt=0;attempt<40;attempt++){
+  const fits=zoom=>{
    const frame=GPU.cameraFrame({...camera,...result},0,width,height,base*zoom);
-   if(corners.every(p=>{const q=GPU.projectPoint(frame,...p,width,height);return q.visible&&q.x>width*.12&&q.x<width*.88&&q.y>height*.15&&q.y<height*.86;}))break;
-   zoom*=.92;
+   return corners.every(p=>{const q=GPU.projectPoint(frame,...p,width,height);return q.visible&&q.x>width*.12&&q.x<width*.88&&q.y>height*.15&&q.y<height*.86;});
+  };
+  let zoom=2.05;
+  if(!fits(zoom)){
+   let lower=zoom*.92**40,upper=zoom;
+   // Resolve the fit continuously instead of jumping between 8% zoom steps.
+   for(let attempt=0;attempt<14;attempt++){
+    const middle=(lower+upper)/2;
+    if(fits(middle))lower=middle;else upper=middle;
+   }
+   zoom=lower;
   }
   return {...result,zoom};
  }

@@ -30,6 +30,20 @@ test('on a landscape display, spreading out widens the camera',()=>{
  const camera={mode:'perspective',pitch:55,fov:45};
  assert.ok(target([p(3,4),p(4,4)],map,camera,0,1280,800).zoom>target([p(1,1),p(6,6)],map,camera,0,1280,800).zoom);
 });
+
+test('zoom changes continuously as heroes spread apart',()=>{
+ for(const mode of ['perspective','ortho'])for(const [width,height] of [[1280,800],[390,844]]){
+  const camera={mode,pitch:55,fov:45};
+  let previous=target([p(3,4),p(4,4)],map,camera,0,width,height).zoom;
+  for(let step=1;step<=1000;step++){
+   const distance=step*.005;
+   const current=target([p(3-distance,4),p(4+distance,4)],map,camera,0,width,height).zoom;
+   assert.ok(current<=previous+.0002,'spreading out never zooms in');
+   assert.ok(previous-current<.01,'small movements never trigger a zoom step');
+   previous=current;
+  }
+ }
+});
 test('shared camera uses height of the group and respawn positions instead of following a fall into the void',()=>{
  const camera={mode:'perspective',pitch:55,fov:45};
  const high=target([p(2,2),p(4,4,3)],map,camera,0,1280,800);assert.equal(high.targetY,1.5);
