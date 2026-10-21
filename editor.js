@@ -84,7 +84,7 @@ const zoomButtons=element('div',undefined,'zoom-buttons');
 for(const [id,text,factor,label] of [['zoom-out','−',.8,'Уменьшить масштаб'],['zoom-in','+',1.25,'Увеличить масштаб']]){
  const button=element('button',text);button.id=id;button.title=label;button.setAttribute('aria-label',label);button.onclick=()=>{
   previewZoom=Math.max(.5,Math.min(3,previewZoom*factor));$('zoom-label').textContent=Math.round(previewZoom*100)+'%';refreshHover();
- };zoomButtons.append(button);
+ };zoomButtons.append(button);if(id==='zoom-out'){const zoomLabel=element('span','100%');zoomLabel.id='zoom-label';zoomButtons.append(zoomLabel);}
 }
 document.querySelector('.viewport-toolbar').insertBefore(zoomButtons,$('fit'));
 const conveyorBrush=element('div',undefined,'conveyor-brush');conveyorBrush.id='conveyor-brush';conveyorBrush.hidden=true;

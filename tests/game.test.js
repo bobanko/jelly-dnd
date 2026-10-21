@@ -312,6 +312,17 @@ test('initial menu uses only its diorama instead of creating a playable level',a
  g.pointer('pointermove',{clientY:-1000});assert.equal(g.run('targetPitch'),20);
  g.pointer('pointercancel');const angle=g.run('targetAngle');g.pointer('pointermove',{clientX:400});assert.equal(g.run('targetAngle'),angle);
  g.pointer('pointerdown');g.blur();assert.equal(g.run('orbitGesture'),null);
- g.run('targetAngle=Math.PI/4');g.key('d');const input=g.run('inputs()[0]');
- assert.ok(Math.abs(input.x-Math.SQRT1_2)<1e-9);assert.ok(Math.abs(input.z+Math.SQRT1_2)<1e-9);
  });
+
+test('single movement keys stay on grid axes at 45 degree and free orbit angles',async()=>{
+ const g=await game();
+ for(const angle of [0,Math.PI/4,-Math.PI/4,Math.PI/2,3*Math.PI/4,Math.PI,5*Math.PI/4,3*Math.PI/2,7*Math.PI/4,.37,-.83,8.2]){
+  g.run(`targetAngle=${angle}`);
+  for(const key of ['w','a','s','d']){
+   g.key(key);const input=g.run('inputs()[0]');
+   assert.equal(Math.abs(input.x)+Math.abs(input.z),1,`${key} at ${angle} stays on one grid axis`);
+   assert.ok(input.x===0||input.z===0);g.up(key);
+  }
+ }
+ g.run('targetAngle=Math.PI/2');g.key('w');assert.equal(g.run('inputs()[0].x'),-1);assert.ok(g.run('inputs()[0].z')===0);
+});

@@ -88,8 +88,9 @@ function snapshot(){return {players:players.map(p=>({...p,spawn:{...p.spawn}})),
 function inputs(){
  const result=players.map(()=>({x:0,z:0}));
  for(const key of heldKeys){const [i,x,z]=movementKeys[key];result[i].x+=x;result[i].z+=z;}
- const c=Math.cos(targetAngle),s=Math.sin(targetAngle);
- for(const v of result)[v.x,v.z]=[v.x*c+v.z*s,v.z*c-v.x*s];
+ // Keep each movement key on a grid axis, including between camera quarter-turns.
+ const quarter=((Math.round(targetAngle/(Math.PI/2))%4)+4)%4;
+ for(const v of result)for(let k=0;k<quarter;k++)[v.x,v.z]=[v.z,-v.x];
  return result;
 }
 function simulate(dt,elapsed=dt){

@@ -33,6 +33,8 @@ export function initEditorI18n(){
 Выбор|Selection
 ЛКМ|LMB
 ПКМ|RMB
+Левая кнопка мыши|Left mouse button
+Правая кнопка мыши|Right mouse button
 кисть|paint
 стереть|erase
 вращать|rotate

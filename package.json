@@ -6,6 +6,8 @@
   },
   "private": true,
   "scripts": {
+    "format": "prettier --write \"**/*.{js,mjs,cjs,json,html,css}\"",
+    "format:check": "prettier --check \"**/*.{js,mjs,cjs,json,html,css}\"",
     "start": "node server.js",
     "build": "npm run check && node scripts/build-itch.js",
     "check": "node --check game.js && node --check physics.js && node --check soft-body.js && node --check level-features.js && node --check combat.js && node --check webgpu-renderer.js && node --check game-effects.js && node --check levels.js && node --check editor-model.js && node --check editor-space.js && node --check editor.js && node --check i18n.js && node --check progression.js && node --check menu-scene.js && node --check shared-camera.js && node --check level-loader.js && node --check levels/catalog.js && node --check bootstrap.js && node --check runtime-context.js && node --check editor-i18n.js && node --check server.js && node --check scripts/build-itch.js",
@@ -34,7 +36,8 @@
     "test:editor:compact": "node tests/browser-editor-compact.js"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.1"
+    "@playwright/test": "^1.64.1",
+    "prettier": "3.9.10"
   },
   "type": "module"
 }
