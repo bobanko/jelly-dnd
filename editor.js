@@ -99,9 +99,6 @@ const torchBrush=element('div',undefined,'conveyor-brush'),torchFace={value:'aut
 faceRadios(torchBrush,'Крепление факела',torchFace.value,'torch-face',v=>{torchFace.value=v;refreshHover();invalidate();},false,true);document.querySelector('.viewport-toolbar').append(torchBrush);
 const placementMode=element('select');placementMode.id='placement-mode';placementMode.setAttribute('aria-label','Способ размещения');for(const [value,text] of [['face','По грани'],['layer','На слое Y']]){const option=element('option',text);option.value=value;placementMode.append(option);}document.querySelector('.height-control').after(placementMode);
 $('brush-height').replaceChildren(...Array.from({length:15},(_,i)=>{const option=element('option',`Y ${i-2}`);option.value=i-2;return option;}));$('brush-height').value='0';
-const coordinateRoot=element('section',undefined,'coordinate-placement');coordinateRoot.append(element('div','КУБ ПО КООРДИНАТАМ','panel-heading'));
-for(const axis of ['x','y','z']){const row=element('label',axis.toUpperCase()),input=element('input');input.type='number';input.id='coordinate-'+axis;input.setAttribute('aria-label','Координата '+axis.toUpperCase());if(axis==='y'){input.min=-2;input.max=12;}input.step=1;input.value=0;row.append(input);coordinateRoot.append(row);}
-const placeCoordinate=element('button','Поставить куб');placeCoordinate.id='place-coordinate';placeCoordinate.onclick=()=>{const p={x:Number($('coordinate-x').value),y:Number($('coordinate-y').value),z:Number($('coordinate-z').value)};if(!inside(p)||!Number.isInteger(p.x)||!Number.isInteger(p.z)||!Number.isInteger(p.y)||p.y< -2||p.y>12){toast('Проверьте целые координаты X / Y / Z.');return;}edit(()=>paintCell(p,cubeTool(tool)?tool:'floor'));};coordinateRoot.append(placeCoordinate);document.querySelector('.inspector').prepend(coordinateRoot);
 function cellObjects(x,z,y){const result=[];for(const key of ['blocks','tiles','walls','torches','drones','spawns','goals','plates','bridges','lifts','conveyors','spikes','portals','crates','archers','pickups'])model.map[key].forEach((p,index)=>{if(p&&p.x===x&&p.z===z&&(y===undefined||Math.abs((p.y??p.base??p.height??L.surfaceY(model.map,x,z)??0)-y)<.01))result.push({key,index,p});});return result;}
 function field(card,label,value,options,onChange){
  const row=element('label',label),control=element(options?.values?'select':'input');
@@ -137,7 +134,6 @@ function renderProperties(){
  const root=$('properties');root.replaceChildren();$('selected-coords').textContent=selected?`${selected.x} / ${selected.y??0} / ${selected.z}`:'—';
  if(!selected){root.append(element('p','Выберите клетку на карте.','empty-state'));return;}
  const items=cellObjects(selected.x,selected.z,selected.y);
- for(const axis of ['x','y','z'])$('coordinate-'+axis).value=selected[axis]??0;
  if(!items.length){root.append(element('p','Пустота','empty-state'));return;}
  for(const {key,index,p} of items){
   const card=element('div',undefined,'object-card'),head=element('div',undefined,'object-head');
@@ -351,7 +347,7 @@ async function initPreview(){
  }catch(error){$('gpu-message').hidden=false;$('gpu-message').textContent=error.message;}
 }
 function turnCamera(delta){previewTargetAngle+=delta;}
-$('fit').onclick=fit;$('rotate-left').onclick=()=>turnCamera(-Math.PI/2);$('rotate-right').onclick=()=>turnCamera(Math.PI/2);
+$('fit').onclick=fit;$('rotate-left').onclick=()=>turnCamera(-Math.PI/4);$('rotate-right').onclick=()=>turnCamera(Math.PI/4);
 $('connections').onchange=invalidate;$('brush-height').onchange=()=>{refreshHover();invalidate();};
 $('undo').onclick=()=>{finishGesture();if(model.undo()){moveObject=null;selected=null;changed();}};$('redo').onclick=()=>{if(model.redo()){selected=null;changed();}};
 $('level-name').onchange=event=>edit(map=>{map.name=event.target.value.trim()||'Без названия';});
@@ -400,7 +396,7 @@ addEventListener('keydown',event=>{
  if(event.code==='Escape'){moveObject=null;selectTool('select');}
  if(event.code==='KeyF'){event.preventDefault();fit();}
  if(event.code==='KeyV')selectTool('select');if(event.code==='KeyB')selectTool('floor');if(event.code==='KeyX')selectTool('erase');if(event.code==='KeyM')selectTool('pan');
- if(!event.repeat&&event.code==='KeyQ')turnCamera(-Math.PI/2);if(!event.repeat&&event.code==='KeyE')turnCamera(Math.PI/2);
+ if(!event.repeat&&event.code==='KeyQ')turnCamera(-Math.PI/4);if(!event.repeat&&event.code==='KeyE')turnCamera(Math.PI/4);
  if(event.code==='Delete'&&selected){edit(()=>model.erase(selected.x,selected.z,selected.y));}
 });
 addEventListener('keyup',event=>{panKeys.delete(event.code);if(event.code==='Space')space=false;});

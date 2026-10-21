@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
   const page=await browser.newPage({viewport:{width:1280,height:800}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('http://localhost:3000/editor.html');await page.waitForFunction(()=>typeof model!=='undefined'&&typeof previewRenderer!=='undefined'&&previewRenderer.ready);
   await page.evaluate(()=>{const map=L.blank();map.size=8;map.blocks=[{x:3,y:0,z:3},{x:3,y:1,z:3}];map.torches=[{x:3,y:1,z:3,face:'south'}];map.spikes=[{x:3,y:1,z:3,offset:0}];map.spawns=[{x:1,y:0,z:1},null,null,null];model.load(map);selected={x:3,y:1,z:3};changed();fit();});
-  const row=await page.locator('.coordinate-placement>label').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().top));assert.ok(Math.max(...row)-Math.min(...row)<2);
+  assert.equal(await page.locator('.coordinate-placement, #place-coordinate').count(),0);
   const props=await page.locator('[data-object="blocks-1"] .coordinate-field').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().top));assert.equal(props.length,3);assert.ok(Math.max(...props)-Math.min(...props)<2);
   const radio=page.locator('[data-object="blocks-1"] input[type=radio][value="2"]');await radio.check();assert.equal(await page.evaluate(()=>model.map.blocks[1].color),2);assert.equal(await page.locator('[data-object="blocks-1"] select').count(),0);
   await page.screenshot({path:'artifacts/editor-compact.png'});
@@ -65,7 +65,7 @@ import assert from 'node:assert/strict';
   await page.waitForFunction(()=>typeof previewRenderer!=='undefined'&&previewRenderer?.ready);
   await page.evaluate(()=>{model.load(L.blank());changed();fit();selectTool('floor');});
   for(const [x,z] of [[-5,-4],[25,21]]){
-   await page.locator('#coordinate-x').fill(String(x));await page.locator('#coordinate-z').fill(String(z));await page.locator('#coordinate-y').fill('0');await page.locator('#place-coordinate').click();
+   await page.evaluate(p=>edit(()=>paintCell(p,'floor')),{x,y:0,z});
   }
   assert.deepEqual(await page.evaluate(()=>model.map.blocks.map(p=>[p.x,p.z])),[[-5,-4],[25,21]]);
   await page.evaluate(()=>fit());assert.deepEqual(await page.evaluate(()=>[previewCamera.x,previewCamera.z]),[10,8.5]);

@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 async function game(options={}){
  const noop=()=>{},ctx=new Proxy({createRadialGradient:()=>({addColorStop:noop})},{get:(o,k)=>o[k]??noop});
- const element=()=>({addEventListener:noop,getContext:()=>ctx,classList:{toggle:noop},setAttribute:noop,querySelector:()=>element()});
+ const element=()=>({listeners:{},addEventListener(type,fn){this.listeners[type]=fn;},setPointerCapture:noop,getContext:()=>ctx,classList:{toggle:noop},setAttribute:noop,querySelector:()=>element()});
  const elements={},listeners={};
  // Menu metadata is optional; keep this VM test independent of network access.
  const fetch=async()=>({ok:false});
@@ -40,7 +40,7 @@ async function game(options={}){
  });
  await entry.evaluate();
  const codeFor=key=>({arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'}[key]||(/^\d$/.test(key)?'Digit'+key:'Key'+key.toUpperCase()));
- return {run:s=>entry.namespace.evaluateTest(s),key:(key,code=codeFor(key),options={})=>listeners.keydown({key,code,preventDefault:noop,...options}),up:(key,code=codeFor(key))=>listeners.keyup({key,code,preventDefault:noop}),blur:()=>listeners.blur()};
+ return {pointer:(type,options={})=>elements['#scene'].listeners[type]({pointerId:1,button:2,buttons:2,clientX:100,clientY:100,preventDefault:noop,...options}),run:s=>entry.namespace.evaluateTest(s),key:(key,code=codeFor(key),options={})=>listeners.keydown({key,code,preventDefault:noop,...options}),up:(key,code=codeFor(key))=>listeners.keyup({key,code,preventDefault:noop}),blur:()=>listeners.blur()};
 }
 
 function partyMap(slots){
@@ -108,7 +108,7 @@ test('shortcuts follow physical positions and movement ignores repeat and modifi
  const g=await game();g.key('Ц','KeyW');g.key('Ц','KeyW',{repeat:true});
  assert.equal(g.run('moves'),1);
  g.run('simulate(.05)');g.key('я','KeyZ');assert.equal(g.run('players[0].z'),8);
- g.key('й','KeyQ');assert.equal(g.run('targetAngle'),-Math.PI/2);
+ g.key('й','KeyQ');assert.equal(g.run('targetAngle'),-Math.PI/4);
  g.key('у','KeyE');assert.equal(g.run('targetAngle'),0);
  g.key('@','Digit2');assert.equal(g.run('followedPlayer'),0);
  g.key('к','KeyR');assert.equal(g.run('followedPlayer'),0);
@@ -303,3 +303,15 @@ test('run statistics pause, survive undo, and reset for a new attempt',async ()=
 test('initial menu uses only its diorama instead of creating a playable level',async ()=>{
  const g=await game({menuOnly:true});assert.equal(g.run('runtime===menuScene'),true);assert.equal(g.run('definition.blocks.length'),0);assert.equal(g.run('definition.tiles.length'),0);assert.equal(g.run('currentLevelTitle()'),'');
 });
+
+ test('right drag orbits without poking players and releases on cancellation or blur',async()=>{
+ const g=await game();
+ const moves=g.run('moves');g.pointer('pointerdown');g.pointer('pointermove',{clientX:200,clientY:140});
+ assert.ok(Math.abs(g.run('targetAngle')+.8)<1e-9);assert.equal(g.run('targetPitch'),65);assert.equal(g.run('moves'),moves);
+ g.pointer('pointermove',{clientY:1000});assert.equal(g.run('targetPitch'),85);
+ g.pointer('pointermove',{clientY:-1000});assert.equal(g.run('targetPitch'),20);
+ g.pointer('pointercancel');const angle=g.run('targetAngle');g.pointer('pointermove',{clientX:400});assert.equal(g.run('targetAngle'),angle);
+ g.pointer('pointerdown');g.blur();assert.equal(g.run('orbitGesture'),null);
+ g.run('targetAngle=Math.PI/4');g.key('d');const input=g.run('inputs()[0]');
+ assert.ok(Math.abs(input.x-Math.SQRT1_2)<1e-9);assert.ok(Math.abs(input.z+Math.SQRT1_2)<1e-9);
+ });

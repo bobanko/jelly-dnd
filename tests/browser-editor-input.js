@@ -43,7 +43,6 @@ import assert from 'node:assert/strict';
   const cameraState=await page.evaluate(()=>JSON.stringify([previewCamera,previewTargetAngle,tool]));await page.keyboard.press('KeyW');await page.keyboard.press('KeyM');await page.keyboard.press('KeyQ');await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>JSON.stringify([previewCamera,previewTargetAngle,tool])),cameraState,'camera shortcuts ignored in a field');
   await page.evaluate(()=>{selected={x:3,y:0,z:3};renderPanels();});
   const delay=page.getByLabel('\u0417\u0430\u0434\u0435\u0440\u0436\u043a\u0430, \u0441\u0435\u043a',{exact:true});await delay.focus();await page.keyboard.press('ArrowUp');assert.equal(await delay.inputValue(),'1.3');await page.keyboard.press('ArrowDown');assert.equal(await delay.inputValue(),'1.2');assert.ok(await delay.evaluate(e=>e===document.activeElement));
-  const coord=page.locator('#coordinate-y');await coord.fill('4');await coord.press('ArrowDown');assert.equal(await coord.inputValue(),'3');assert.ok(await coord.evaluate(e=>e===document.activeElement));
   assert.deepEqual(await page.evaluate(()=>previewRenderer.errors),[]);assert.deepEqual(errors,[]);
   console.log('PASS: 3D-only editor, M pan mode, language-independent WASD/arrows in isometric/perspective views, key release/blur, smooth orbit/quarter turns, unchanged map, integer/fractional steps, repeated inspector edits retain focus, limits and input shortcut isolation.');
  }finally{await browser.close();}

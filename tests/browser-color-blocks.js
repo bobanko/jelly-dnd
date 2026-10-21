@@ -11,7 +11,7 @@ import fs from 'node:fs';
   const screen=async(x,y,z)=>page.evaluate(p=>{const r=document.getElementById('viewport').getBoundingClientRect(),v=JellyGPU.projectPoint(screenFrame(),...p,r.width,r.height);return {x:r.left+v.x,y:r.top+v.y};},[x,y,z]);
   const click=async(x,y,z)=>{const p=await screen(x,y,z);await page.mouse.click(p.x,p.y);};
   for(let color=0;color<4;color++){
-   await tool('color-'+color);for(const [axis,value] of Object.entries({x:3,y:1,z:color*2+1}))await page.locator('#coordinate-'+axis).fill(String(value));await page.locator('#place-coordinate').click();
+   await tool('color-'+color);await page.evaluate(c=>edit(()=>paintCell({x:3,y:1,z:c*2+1},tool)),color);
    assert.equal(await page.evaluate(c=>model.at('blocks',3,c*2+1,1).color,color),color);
   }
   await page.getByLabel('\u0426\u0432\u0435\u0442 \u0431\u043b\u043e\u043a\u0430',{exact:true}).selectOption('1');assert.equal(await page.evaluate(()=>model.at('blocks',3,7,1).color),1);await page.locator('#undo').click();assert.equal(await page.evaluate(()=>model.at('blocks',3,7,1).color),3);

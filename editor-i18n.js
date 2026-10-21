@@ -108,10 +108,7 @@ export function initEditorI18n(){
 По грани автоматически|Automatic face
 По грани|On face
 На слое|On layer
-КУБ ПО КООРДИНАТАМ|PLACE CUBE AT COORDINATES
 Координата|Coordinate
-Поставить куб|Place cube
-Проверьте целые координаты|Check integer coordinates
 Пол · вверх|Floor · up
 Север|North
 Восток|East
