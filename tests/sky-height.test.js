@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const L=require('./levels'),P=require('./physics'),S=require('./soft-body');
+const L=require('../levels'),P=require('../physics'),S=require('../soft-body');
 function scene(height=0){const map=L.blank();map.size=8;for(let x=1;x<=6;x++)for(let z=1;z<=6;z++)map.blocks.push({x,y:height,z});map.spawns=[{x:2,y:height,z:2},{x:5,y:height,z:5},null,null];return L.instantiate(L.read(map),P,S);}
 test('a runaway jelly dies once and respawns with a reset lattice and no launch velocity',()=>{
  const g=scene(),p=g.players[0];p.y=P.SKY_MARGIN+1;p.vy=100;p.launchTimer=2;

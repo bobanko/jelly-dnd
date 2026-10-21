@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const L=require('./levels'),{Model}=require('./editor-model'),P=require('./physics'),S=require('./soft-body');
+const L=require('../levels'),{Model}=require('../editor-model'),P=require('../physics'),S=require('../soft-body');
 function room(slot=0){const m=L.blank();m.size=8;for(let x=0;x<8;x++)for(let z=0;z<8;z++)m.blocks.push({x,y:0,z});m.spawns[slot]={x:1,y:0,z:3};m.goals[slot]={x:6,y:0,z:3};return m;}
 const runtime=m=>L.instantiate(L.read(m),P,S);
 function step(r,n,input=[]){const events=[];for(let i=0;i<n;i++)events.push(...r.world.step(r.bodies,input));return events;}

@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const L=require('./levels'),{Model}=require('./editor-model'),P=require('./physics'),Soft=require('./soft-body'),Features=require('./level-features');
+const L=require('../levels'),{Model}=require('../editor-model'),P=require('../physics'),Soft=require('../soft-body'),Features=require('../level-features');
 const faces=['top','north','east','south','west'];
 function map(){const m=L.blank();m.size=8;for(let x=0;x<8;x++)for(let z=0;z<8;z++)m.blocks.push({x,y:0,z});m.blocks.push({x:3,y:1,z:3});m.spawns[2]={x:1,y:0,z:3};m.goals[2]={x:6,y:0,z:6};return m;}
 function contact(trap,slot,overrides={}){

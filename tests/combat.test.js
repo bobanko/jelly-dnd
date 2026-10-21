@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {World}=require('./physics');
-const {System}=require('./soft-body');
+const {World}=require('../physics');
+const {System}=require('../soft-body');
 function scene(){
  const floor=new Set();for(let x=0;x<12;x++)for(let z=0;z<12;z++)floor.add(`${x},${z}`);
  const world=new World(floor,[],[]);

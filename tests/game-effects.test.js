@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {System}=require('./game-effects.js');
-const {World}=require('./physics.js');
+const {System}=require('../game-effects.js');
+const {World}=require('../physics.js');
 const world={heightAt:()=>0},players=[{}],soft={get:()=>({positions:[[2,.05,3],[2.2,.7,3.1]]})};
 const death={type:'death',reason:'spikes',player:0};
 const portal={type:'portal',color:'violet',source:[3,0,6],destination:[6,1,9]};
@@ -36,7 +36,7 @@ test('teleport emits both endpoints at their own floor height and has a bounded 
 });
 
 test('teleport particles and rings match every portal colour',()=>{
- for(const color of require('./levels.js').portalColors){
+ for(const color of require('../levels.js').portalColors){
   const effects=new System();effects.burst({...portal,color:color.id},players,soft);
   assert.ok(effects.rings.length&&effects.particles.length);
   for(const p of [...effects.rings,...effects.particles])assert.deepEqual(p.color,color.glow);

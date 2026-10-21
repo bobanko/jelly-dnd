@@ -1,6 +1,6 @@
 // Exercise a static HTTPS deployment in a cross-origin iframe, without server.js.
 const {chromium}=require('@playwright/test'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const staticRoot=path.resolve(process.env.STATIC_GAME_ROOT||__dirname);
+const staticRoot=path.resolve(process.env.STATIC_GAME_ROOT||path.join(__dirname,'..'));
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--use-angle=d3d11']});
  try{

@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {target}=require('./shared-camera');
-const GPU=require('./webgpu-renderer');
+const {target}=require('../shared-camera');
+const GPU=require('../webgpu-renderer');
 const map={blocks:[{x:1,z:1},{x:6,z:6}]};
 const p=(x,z,y=0)=>({x,z,y,state:'alive'});
 test('shared camera widens for separated heroes and fits the full roster at every angle and aspect',()=>{
@@ -15,7 +15,7 @@ test('shared camera widens for separated heroes and fits the full roster at ever
  }
 });
 test('first-level camera zoom stays identical throughout a complete orbit',()=>{
- const L=require('./levels'),level=L.standardLevel(1),players=level.spawns.filter(Boolean).map(p=>({...p,state:'alive'}));
+ const L=require('../levels'),level=L.standardLevel(1),players=level.spawns.filter(Boolean).map(p=>({...p,state:'alive'}));
  for(const mode of ['perspective','ortho'])for(const [w,h] of [[1280,800],[390,844]]){
   const camera={mode,pitch:55,fov:45},initial=target(players,level,camera,0,w,h);
   for(let step=0;step<64;step++){

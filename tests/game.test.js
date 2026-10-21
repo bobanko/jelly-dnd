@@ -8,8 +8,8 @@ function game(options={}){
  const elements={},listeners={};
  // Menu metadata is optional; keep this VM test independent of network access.
  const fetch=async()=>({ok:false});
- const sandbox={fetch,innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellySharedCamera:require('./shared-camera'),JellyLevels:require('./levels.js'),JellyEffects:require('./game-effects.js'),JellyPhysics:require('./physics.js'),JellySoftBody:require('./soft-body.js'),JellyGPU:{...require('./webgpu-renderer.js'),Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
- if(!options.map)options.map=structuredClone(require('./levels/05-sunken-sanctum.json'));
+ const sandbox={fetch,innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellySharedCamera:require('../shared-camera'),JellyLevels:require('../levels.js'),JellyEffects:require('../game-effects.js'),JellyPhysics:require('../physics.js'),JellySoftBody:require('../soft-body.js'),JellyGPU:{...require('../webgpu-renderer.js'),Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
+ if(!options.map)options.map=structuredClone(require('../levels/05-sunken-sanctum.json'));
  if(options.map){sandbox.location={search:'?level=editor'};sandbox.localStorage={getItem:()=>JSON.stringify(options.map)};}
  vm.createContext(sandbox);if(options.menuOnly){sandbox.JellyMenuOnly=true;vm.runInContext(fs.readFileSync('menu-scene.js','utf8'),sandbox);}vm.runInContext(fs.readFileSync('game.js','utf8'),sandbox);
  const codeFor=key=>({arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'}[key]||(/^\d$/.test(key)?'Digit'+key:'Key'+key.toUpperCase()));
@@ -17,7 +17,7 @@ function game(options={}){
 }
 
 function partyMap(slots){
- const map=require('./levels').blank();map.size=8;for(let x=0;x<8;x++)for(let z=0;z<8;z++)map.tiles.push({x,z,height:0});
+ const map=require('../levels').blank();map.size=8;for(let x=0;x<8;x++)for(let z=0;z<8;z++)map.tiles.push({x,z,height:0});
  slots.forEach((slot,i)=>{map.spawns[slot]={x:1+i*2,z:4};map.goals[slot]={x:1+i*2,z:1};});return map;
 }
 test('solo and duo levels assign controls by active order, keeping undo/reset and victory',()=>{
@@ -254,7 +254,7 @@ test('undo restores shield durability, sword inventory, skeleton recovery time a
 });
 
 test('edited level preserves raised spawns and arbitrary crate start heights on reset',()=>{
- const map=require('./levels').read(require('./levels/05-sunken-sanctum.json'));map.spawns[0]={x:5,z:9};map.crates=[{x:6,z:7}];map.name='Custom chamber';
+ const map=require('../levels').read(require('../levels/05-sunken-sanctum.json'));map.spawns[0]={x:5,z:9};map.crates=[{x:6,z:7}];map.name='Custom chamber';
  const g=game({map});assert.equal(g.run('definition.name'),'Custom chamber');assert.equal(g.run('players[0].y'),1);assert.equal(g.run('crates[0].y'),0);
  assert.equal(g.run('camera.targetY'),1);assert.equal(g.run('camera.focusHeight'),1.42);
  g.run('players[0].y=3;crates[0].y=4');g.key('r');assert.equal(g.run('players[0].y'),1);assert.equal(g.run('crates[0].y'),0);

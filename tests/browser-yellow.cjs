@@ -1,4 +1,4 @@
-const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'),L=require('./levels');
+const {chromium}=require('@playwright/test'),assert=require('node:assert/strict'),L=require('../levels');
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--enable-unsafe-webgpu','--use-angle=d3d11']});
  try{

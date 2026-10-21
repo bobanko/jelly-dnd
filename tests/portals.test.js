@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const L=require('./levels'),P=require('./physics'),S=require('./soft-body'),{Model}=require('./editor-model');
+const L=require('../levels'),P=require('../physics'),S=require('../soft-body'),{Model}=require('../editor-model');
 function chamber(count=4){
  const m=L.blank();m.size=10;for(let x=0;x<10;x++)for(let z=0;z<10;z++)m.blocks.push({x,y:0,z});
  m.spawns[0]={x:2,y:0,z:2};m.goals[0]={x:8,y:0,z:8};m.portals=[[2,2],[6,2],[6,6],[2,6]].slice(0,count).map(([x,z])=>({x,y:0,z,color:'violet'}));return L.instantiate(L.read(m),P,S);

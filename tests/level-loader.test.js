@@ -1,8 +1,8 @@
 ﻿const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
-const Levels=require('./levels.js');
-const catalog=require('./levels/catalog.js');
+const Levels=require('../levels.js');
+const catalog=require('../levels/catalog.js');
 let run=0;
 
 async function boot({entry='game.js',search='',failure,deniedStorage=false}={}){
@@ -21,7 +21,7 @@ async function boot({entry='game.js',search='',failure,deniedStorage=false}={}){
   });
   if(entry==='editor.js')delete elements['#level-intro'];
   Object.defineProperty(globalThis,'localStorage',{configurable:true,get(){if(deniedStorage)throw Error('Storage denied');return {getItem:key=>saved.get(key),setItem:(key,value)=>saved.set(key,value)};}});
-  await import('./level-loader.js?test='+run++);
+  await import('../level-loader.js?test='+run++);
   return {elements,entries,alerts,requests,redirected,maps:globalThis.JellyLevelMaps,menuOnly:globalThis.JellyMenuOnly,progress:globalThis.JellyProgress};
  }finally{
   for(const [name,descriptor] of original){delete globalThis[name];if(descriptor)Object.defineProperty(globalThis,name,descriptor);}
