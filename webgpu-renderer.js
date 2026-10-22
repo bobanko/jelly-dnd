@@ -28,24 +28,33 @@ import Levels from './levels.js';
   const m=frame.vp,w=m[3]*x+m[7]*y+m[11]*z+m[15],depth=(m[2]*x+m[6]*y+m[10]*z+m[14])/w;
   return {x:((m[0]*x+m[4]*y+m[8]*z+m[12])/w*.5+.5)*width,y:(.5-(m[1]*x+m[5]*y+m[9]*z+m[13])/w*.5)*height,depth,visible:w>0&&depth>=0&&depth<=1,scale:Math.hypot(m[0],m[4],m[8])*width*.5/w};
  }
- function box(mesh,center,size,color,bevel=.04,material=0,steps=4){
-  const h=size.map(v=>v*.5),radius=Math.min(bevel,...h);
+ // Stone stays below material id .5, so its fraction can carry the baked moss amount.
+ const STONE_DETAIL=.45;
+ // Broad moss patches, evaluated per vertex: smooth enough to interpolate across a face.
+ const mossAt=([x,y,z])=>Math.sin(x*1.9+z*.7+Math.sin(z*1.3))*Math.sin(z*2.3-y*1.4+x*.5)*.45+.42;
+ // crisp: flat faces with narrow rounded bevels (grid lines at the bevel start).
+ // shade(axis,sign,s,t): per-vertex brightness, used for baked contact occlusion.
+ // detail(position): per-vertex value 0..1 stored in the material's fraction (stone moss).
+ function box(mesh,center,size,color,bevel=.04,material=0,steps=4,{crisp=false,shade=null,detail=null}={}){
+  const h=size.map(v=>v*.5),radius=Math.min(bevel,...h);if(crisp)steps=3;
   const faces=[[0,1,2,1],[0,1,2,-1],[1,2,0,1],[1,2,0,-1],[2,0,1,1],[2,0,1,-1]];
   for(const [axis,u,v,sign] of faces){const verts=[];
    for(let j=0;j<=steps;j++)for(let i=0;i<=steps;i++){
     const p=[0,0,0];p[axis]=h[axis]*sign;p[u]=(i/steps*2-1)*h[u];p[v]=(j/steps*2-1)*h[v];
     if(material===17){const samples=half=>[-half,-half+radius*.5,-half+radius,0,half-radius,half-radius*.5,half];p[u]=samples(h[u])[i];p[v]=samples(h[v])[j];}
+    else if(crisp){const samples=half=>[-half,-half+radius,half-radius,half];p[u]=samples(h[u])[i];p[v]=samples(h[v])[j];}
     const core=p.map((x,k)=>Math.max(-h[k]+radius,Math.min(h[k]-radius,x))),d=p.map((x,k)=>x-core[k]),n=normalize(d);
-    const position=core.map((x,k)=>x+n[k]*radius+center[k]);let uv=[0,0];
+    const position=core.map((x,k)=>x+n[k]*radius+center[k]),s=(p[u]/h[u]+1)/2,t=(p[v]/h[v]+1)/2;let uv=[0,0];
     if(material===17){uv=[p[u]/h[u],p[v]/h[v]];}
     else if(material<.5){
      const tile=Math.abs(Math.round(center[0]*73+center[1]*41+center[2]*137)+axis*5+(sign>0?3:0))%16;
-     const a=(tile%2?j:i)/steps,b=(tile%2?i:j)/steps;uv=[(tile%4+.02+a*.96)/4,(Math.floor(tile/4)+.02+b*.96)/4];
+     const a=tile%2?t:s,b=tile%2?s:t;uv=[(tile%4+.02+a*.96)/4,(Math.floor(tile/4)+.02+b*.96)/4];
     }else if(material===11){
      const seed=Math.abs(Math.sin(dot(center,[19.7,31.1,47.3]))),a=(size[u]>size[v]?j:i)/steps,b=(size[u]>size[v]?i:j)/steps;
      uv=[seed*.72+a*.2,.04+b*.92];
     }
-    verts.push([...position,...n,...color,material,...uv]);
+    const brightness=shade?shade(axis,sign,s,t):1;
+    verts.push([...position,...n,...color.map(c=>c*brightness),material+(detail?Math.max(0,Math.min(1,detail(position)))*STONE_DETAIL:0),...uv]);
    }
    for(let j=0;j<steps;j++)for(let i=0;i<steps;i++){
     const a=j*(steps+1)+i,b=a+1,c=a+steps+1,d=c+1;
@@ -87,9 +96,17 @@ import Levels from './levels.js';
    result.push(...vertex(u,v),...vertex(u+du,v),...vertex(u+du,v+dv),...vertex(u,v),...vertex(u+du,v+dv),...vertex(u,v+dv));
   }return new Float32Array(result);
  })();
- function sphere(mesh,center,size,color,material=1,basis=null){
-  for(let i=0;i<unitSphere.length;i+=3){
-   const x=unitSphere[i],y=unitSphere[i+1],z=unitSphere[i+2],px=x*size[0],py=y*size[1],pz=z*size[2];
+ // Coarse sphere for small props (bubbles, decor pebbles and bones).
+ const lowSphere=(()=>{
+  const result=[],vertex=(u,v)=>[Math.cos(u)*Math.sin(v),Math.cos(v),Math.sin(u)*Math.sin(v)];
+  for(let j=0;j<4;j++)for(let i=0;i<7;i++){
+   const u=i/7*Math.PI*2,v=j/4*Math.PI,du=Math.PI*2/7,dv=Math.PI/4;
+   result.push(...vertex(u,v),...vertex(u+du,v),...vertex(u+du,v+dv),...vertex(u,v),...vertex(u+du,v+dv),...vertex(u,v+dv));
+  }return new Float32Array(result);
+ })();
+ function sphere(mesh,center,size,color,material=1,basis=null,shape=unitSphere){
+  for(let i=0;i<shape.length;i+=3){
+   const x=shape[i],y=shape[i+1],z=shape[i+2],px=x*size[0],py=y*size[1],pz=z*size[2];
    if(basis){const a=basis[0],b=basis[1],c=basis[2];mesh.push(center[0]+a[0]*px+b[0]*py+c[0]*pz,center[1]+a[1]*px+b[1]*py+c[1]*pz,center[2]+a[2]*px+b[2]*py+c[2]*pz,a[0]*x+b[0]*y+c[0]*z,a[1]*x+b[1]*y+c[1]*z,a[2]*x+b[2]*y+c[2]*z,...color,material,0,0);}
    else mesh.push(center[0]+px,center[1]+py,center[2]+pz,x,y,z,...color,material,0,0);
   }
@@ -114,6 +131,8 @@ import Levels from './levels.js';
   return mesh;
  }
  const beamColors=[[.12,1.,.16],[.035,.22,1.],[1.,.065,.035],[.72,.12,1.],[1.,.68,.035]];
+ // Bubbles rise through a .51-unit column inside each jelly and wrap around.
+ const BUBBLES=7,BUBBLE_SPACING=.51/BUBBLES;
  function droneGeometry(color){
   const mesh=[],crystal=[],rings=[[-.56,0],[-.22,.255],[.19,.28],[.36,.19],[.56,0]],bronze=[.38,.24,.1];
   for(let r=0;r<rings.length-1;r++)for(let i=0;i<8;i++){
@@ -266,6 +285,77 @@ import Levels from './levels.js';
   for(const [x,z] of [[-1,-1],[1,1],[1,-1],[-1,-1],[-1,1],[1,1]])mesh.push(center[0]+x*.9,center[1],center[2]+z*.9,0,1,0,...color,25,x,z);
   faces.push({kind:'phase',center,normal:[0,1,0],first,count:6});
  }
+ // ===== Decor =====
+ // Faceted pebble: a jittered octahedron, flat-shaded.
+ function pebble(mesh,center,size,color,seed,angle){
+  const jitter=k=>{const s=Math.sin(seed*91.7+k*37.3)*43758.5453;return .72+.56*(s-Math.floor(s));},c=Math.cos(angle),s=Math.sin(angle);
+  const axes=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].map((a,k)=>{const p=a.map((v,j)=>v*size[j]*jitter(k));return [p[0]*c-p[2]*s,p[1],p[0]*s+p[2]*c];});
+  for(const face of [[0,2,4],[4,2,1],[1,2,5],[5,2,0],[4,3,0],[1,3,4],[5,3,1],[0,3,5]]){
+   const p=face.map(i=>axes[i]),n=normalize(cross(p[1].map((v,k)=>v-p[0][k]),p[2].map((v,k)=>v-p[0][k])));
+   for(const q of p)mesh.push(center[0]+q[0],center[1]+q[1],center[2]+q[2],...n,...color,13,0,0);
+  }
+ }
+ function decorBone(mesh,center,length,angle,color){
+  const d=[Math.cos(angle)*length*.5,0,Math.sin(angle)*length*.5],side=[-d[2]/length*.034,0,d[0]/length*.034];
+  rod(mesh,center.map((v,k)=>v-d[k]),center.map((v,k)=>v+d[k]),.026,color,13);
+  for(const end of [-1,1])for(const knob of [-1,1])sphere(mesh,center.map((v,k)=>v+d[k]*end+side[k]*knob),[.023,.019,.023],color,13,null,lowSphere);
+ }
+ function decorSkull(mesh,center,angle,bone){
+  const s=1.3,f=[Math.sin(angle),0,Math.cos(angle)],r=[f[2],0,-f[0]],at=(a,b,c)=>center.map((v,k)=>v+(r[k]*a+f[k]*c+(k===1?b:0))*s),dark=[.02,.018,.014],size=v=>v.map(x=>x*s);
+  sphere(mesh,at(0,.07,0),size([.075,.068,.082]),bone,1,null,lowSphere);sphere(mesh,at(0,.028,.045),size([.05,.026,.045]),bone,13,null,lowSphere);
+  for(const side of [-1,1])sphere(mesh,at(side*.03,.078,.068),size([.021,.023,.016]),dark,13,null,lowSphere);
+  sphere(mesh,at(0,.052,.079),size([.01,.012,.008]),dark,13,null,lowSphere);
+ }
+ function decorArrow(mesh,center,angle){
+  const from=mesh.length,c=Math.cos(angle),s=Math.sin(angle),tilt=.06;mesh.push(...arrowGeometry());
+  for(let k=from;k<mesh.length;k+=12)for(const offset of [0,3]){
+   const x=mesh[k+offset],y0=mesh[k+offset+1],z0=mesh[k+offset+2],y=y0*Math.cos(tilt)+z0*Math.sin(tilt),z=-y0*Math.sin(tilt)+z0*Math.cos(tilt);
+   mesh[k+offset]=(offset?0:center[0])+x*c+z*s;mesh[k+offset+1]=(offset?0:center[1]+.022)+y;mesh[k+offset+2]=(offset?0:center[2])-x*s+z*c;
+  }
+ }
+ // A corner web: radial silk strands between two walls, linked by sagging threads.
+ function decorWeb(mesh,corner,a,b){
+  const up=[0,1,0],silk=[.5,.52,.54],point=(t,h,reach)=>{const dir=normalize(a.map((v,k)=>v*(1-t)+b[k]*t));return corner.map((v,k)=>v-dir[k]*reach*(1-Math.abs(t-.5)*.5)+up[k]*h);};
+  const hub=corner.map((v,k)=>v+up[k]*.3),spokes=[0,.25,.5,.75,1].map(t=>point(t,.12+Math.abs(t-.5)*.5,.42));
+  for(const end of spokes)rod(mesh,hub,end,.007,silk,13);
+  for(const ring of [.35,.62,.86])for(let i=0;i<spokes.length-1;i++){
+   const p=hub.map((v,k)=>v+(spokes[i][k]-v)*ring),q=hub.map((v,k)=>v+(spokes[i+1][k]-v)*ring);rod(mesh,p,q,.005,silk,13);
+  }
+ }
+ function scatterDecor(mesh,level,occupied){
+  const map=level.definition||{},random=(x,y,z,k)=>{const s=Math.sin(x*127.1+y*311.7+z*74.7+k*19.19)*43758.5453;return s-Math.floor(s);};
+  const taken=new Set(),archers=new Set();
+  for(const key of ['spawns','goals','plates','bridges','lifts','spikes','portals','conveyors','crates','pickups','drones'])for(const p of map[key]||[])if(p&&!(key==='spikes'&&p.face))taken.add(p.x+','+p.z);
+  for(const p of map.archers||[])archers.add(p.x+','+p.z);
+  const bone=[.5,.46,.34];let skulls=0,arrows=0,webs=0;
+  const sides=[[1,0],[0,1],[-1,0],[0,-1]];
+  for(const b of (level.world.blocks||[]).filter(b=>b.color===undefined)){
+   const key=b.x+','+b.z,y=b.y;
+   if(occupied.has([b.x,y+1,b.z].join(','))||taken.has(key))continue;
+   const archer=archers.has(key),walls=sides.filter(([dx,dz])=>occupied.has([b.x+dx,y+1,b.z+dz].join(',')));
+   const r=k=>random(b.x,y,b.z,k),at=(dx,dz,lift=0)=>[b.x+dx,y+lift,b.z+dz];
+   const stone=k=>[.33,.29,.24].map(v=>v*(.7+.6*r(k)));
+   // Rubble gathers against walls; open floor keeps a few stray pebbles near its edges.
+   for(const [dx,dz] of walls)if(r(1+dx*3+dz*5)<.65)for(let i=0,count=2+Math.floor(r(9+dx+dz*2)*3);i<count;i++){
+    const along=(r(20+i*3+dx+dz*2)-.5)*.8,size=.025+r(30+i)*.035,p=at(dx*(.38-size)+dz*along,dz*(.38-size)+dx*along,size*.3);
+    pebble(mesh,p,[size,size*.62,size*.85],stone(40+i),b.x*7+b.z*13+i,r(50+i)*6.28);
+   }
+   if(!walls.length&&r(2)<.55)for(let i=0;i<1+Math.floor(r(3)*2.2);i++){
+    const a=r(60+i)*6.28,reach=.27+r(70+i)*.15,size=.022+r(80+i)*.03,p=at(Math.cos(a)*reach,Math.sin(a)*reach,size*.3);
+    pebble(mesh,p,[size,size*.6,size*.8],stone(90+i),b.x*5+b.z*11+i,a);
+   }
+   if(r(4)<(walls.length||archer?.16:.07)){const a=r(5)*6.28,reach=archer?.36:.2;decorBone(mesh,at(Math.cos(a*1.7)*reach,Math.sin(a*1.7)*reach,.02),.16+r(6)*.06,a,bone);}
+   if(skulls<2&&(walls.length||archer)&&r(7)<.12){skulls++;const [dx,dz]=walls[0]||[1,0];decorSkull(mesh,at(dx*.3+dz*.18,dz*.3-dx*.18),Math.atan2(-dx,-dz)+(r(8)-.5),bone);}
+   // Spent arrows lie near the archers that loosed them.
+   if(arrows<2&&!archer&&(map.archers||[]).some(p=>Math.abs(p.x-b.x)+Math.abs(p.z-b.z)<=3&&(p.y??y)===y)&&r(10)<.4){arrows++;const a=r(11)*6.28;decorArrow(mesh,at(Math.cos(a)*.16,Math.sin(a)*.16),a);}
+   // Inner corners, where two perpendicular walls meet over this cell, may hold a web.
+   for(let i=0;i<4&&webs<4;i++){
+    const [ax,az]=sides[i],[bx,bz]=sides[(i+1)%4];
+    if(!walls.includes(sides[i])||!walls.includes(sides[(i+1)%4])||r(12+i)>.45)continue;
+    webs++;decorWeb(mesh,at((ax+bx)*.485,(az+bz)*.485),[ax,0,az],[bx,0,bz]);
+   }
+  }
+ }
  function colliderLines(boxes){
   const data=[],colors={floor:[.12,.65,1],block:[.22,.75,1],wall:[.8,.88,.95],lift:[1,.65,.04],bridge:[1,.7,.2],conveyor:[.7,.9,.3],spikes:[1,.1,.12],portal:[.85,.2,1]};
   for(const b of boxes){const c=colors[b.kind]||colors.wall,points=[];for(let y=0;y<2;y++)for(let z=0;z<2;z++)for(let x=0;x<2;x++)points.push([b.x+(x?1:-1)*(b.halfX??b.half),y?b.maxY:b.minY,b.z+(z?1:-1)*(b.halfZ??b.half)]);
@@ -285,6 +375,8 @@ import Levels from './levels.js';
   }
   return {vertices:new Float32Array(vertices),indices:new Uint32Array(indices),count:vertices.length/12};
  }
+ // Linear HDR colour of the void at the bottom of the screen, shared by fog and sky.
+ const VOID_COLOR='.0026,.0034,.0068';
  const shared=`
  struct Portal { position:vec4f, color:vec4f, animation:vec4f };
  struct Goal { position:vec4f, color:vec4f };
@@ -379,7 +471,7 @@ import Levels from './levels.js';
  @vertex fn goalGlowVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
   let goal=scene.goals[instance];var o:Out;
   o.world=goal.position.xyz+vec3f(p.x*.68,.061,p.z*.68);o.clip=scene.vp*vec4f(o.world,1.);
-  o.normal=vec3f(0,1,0);o.color=goal.color.rgb;o.material=9.;o.local=vec3f(p.x,goal.position.w*.55,p.z);return o;
+  o.normal=vec3f(0,1,0);o.color=goal.color.rgb;o.material=9.;o.local=vec3f(p.x,.13+goal.position.w*.45,p.z);return o;
  }
  // The seal sits outside the jelly's footprint, so its charge remains readable.
  @vertex fn goalSealVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
@@ -410,7 +502,35 @@ import Levels from './levels.js';
   for(var y=-1;y<=1;y++){for(var x=-1;x<=1;x++){lit+=textureSampleCompareLevel(shadowMap,shadowSampler,uv+vec2f(f32(x),f32(y))/.1024e4,clip.z-.001);}}
   return lit/9.;
  }
- fn hash(p:vec3f)->f32{return fract(sin(dot(p,vec3f(127.1,311.7,74.7)))*43758.5453);}
+ // Arithmetic hash (no transcendental functions), cheap enough for per-pixel noise.
+ fn hash(p:vec3f)->f32{var q=fract(p*.1031);q+=dot(q,q.zyx+31.32);return fract((q.x+q.y)*q.z);}
+ // The void fog below the lowest floor fades into the sky colour painted by the post pass.
+ const VOID_COLOR=vec3f(${VOID_COLOR});
+ fn voidFog(p:vec3f,color:vec3f)->vec3f{return mix(color,VOID_COLOR,smoothstep(.05,1.2,scene.finish.y-p.y)*.96);}
+ // Torch flames are camera-facing, additive billboards drawn after the opaque scene,
+ // so jelly refraction still sees them. Each one sways with its own phase.
+ @vertex fn flameVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
+  let torch=scene.torches[instance];var o:Out;
+  let right=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));let view=normalize(-vec3f(scene.vp[0].z,scene.vp[1].z,scene.vp[2].z));let up=normalize(cross(view,right));
+  let height=(p.z+1.)*.5*.6-.08;
+  o.world=torch.xyz+vec3f(0.,-.12,0.)+right*p.x*.2+up*height;o.clip=scene.vp*vec4f(o.world,1.);
+  if(torch.w<.5){o.clip=vec4f(2,2,2,1);}
+  o.normal=view;o.color=vec3f(1.);o.material=f32(instance);o.local=vec3f(p.x,height/.5,0.);return o;
+ }
+ @fragment fn flameFS(o:Out)->@location(0) vec4f{
+  let t=scene.options.z*1.1+o.material*1.93;let y=o.local.y;
+  let sway=(sin(y*5.2-t*6.1)*.12+sin(y*11.5-t*10.3)*.05)*clamp(y,0.,1.);
+  let x=o.local.x-sway;
+  let profile=.72*pow(clamp(1.-y,0.,1.),.9)*smoothstep(-.16,.22,y)+.0001;
+  let d=abs(x)/profile;
+  let body=(1.-smoothstep(.4,1.,d))*(1.-smoothstep(.62,1.,y));
+  let edge=body*smoothstep(.25,.95,d+y*.35);
+  let core=(1.-smoothstep(.05,.55,d+max(y,0.)*1.25))*smoothstep(-.14,.04,y);
+  let flicker=.9+.1*sin(t*14.3+y*4.)*sin(t*6.7);
+  let r=vec2f(o.local.x,(y-.2)*.8);let halo=exp(-dot(r,r)*5.)*.2;
+  let color=vec3f(1.,.4,.05)*body+vec3f(.9,.12,.01)*edge*.6+vec3f(1.,.72,.3)*core*.62+vec3f(1.,.28,.03)*halo;
+  return vec4f(color*flicker,1.);
+ }
  fn neutral(input:vec3f)->vec3f{
   var c=max(input,vec3f(0));let x=min(c.r,min(c.g,c.b));let offset=select(.04,x-6.25*x*x,x<.08);c-=vec3f(offset);
   let peak=max(c.r,max(c.g,c.b));if(peak<.76){return c;}
@@ -422,27 +542,107 @@ import Levels from './levels.js';
   let strip=pow(max(0.,dot(r,normalize(vec3f(.5,.55,-.65)))),75.);
   return color+vec3f(3.8,3.4,2.5)*softbox+vec3f(.8,1.4,2.1)*strip;
  }
+ struct Stone { albedo:vec3f, normal:vec3f, occlusion:f32 };
+ // texel/value: the atlas sample; slope: screen derivatives of value, taken in uniform control flow.
+ // Kept lean on purpose: it shades most of the screen on low-end integrated GPUs.
+ // broad: the moss amount baked per vertex (see mossAt).
+ fn stoneSurface(p:vec3f,normal:vec3f,base:vec3f,texel:vec3f,value:f32,slope:vec2f,uv:vec2f,dp1:vec3f,dp2:vec3f,masonry:bool,broad:f32)->Stone{
+  // Painted cracks and pits become relief through the screen-derivative surface gradient.
+  let r1=cross(dp2,normal);let r2=cross(normal,dp1);let det=dot(dp1,r1);
+  var n=normal;if(abs(det)>1e-14){n-=(r1*slope.x+r2*slope.y)*(.012/det);}
+  var albedo=base*mix(vec3f(clamp(value*3.6,.38,1.22)),texel*3.6,.2);
+  let tile=fract(uv*4.);let edge=min(min(tile.x,tile.y),min(1.-tile.x,1.-tile.y));
+  let axisPeak=max(abs(normal.x),max(abs(normal.y),abs(normal.z)));let bevel=smoothstep(.02,.24,1.-axisPeak);
+  // Worn, lighter bevels, chipped where the painted stone is dark; the outermost line stays a dark joint.
+  let chip=1.-smoothstep(.11,.19,value);
+  albedo*=(1.+bevel*.34*(1.-chip))*mix(1.,.55,bevel*chip)*mix(.45,1.,smoothstep(.02,.034,edge));
+  var occlusion=mix(.6,1.,smoothstep(.1,.32,value));var joint=0.;
+  if(masonry&&abs(normal.y)<.72){
+   // Two courses per block, each split into one to three stones; one hash seeds a whole course.
+   let alongX=abs(normal.z)>abs(normal.x);let tangent=select(vec3f(0,0,1),vec3f(1,0,0),alongX);
+   let along=select(p.z,p.x,alongX);let column=round(along);let a=along-column+.5;
+   let course=floor(p.y*2.);let seed=hash(vec3f(column,course,round(select(p.x,p.z,alongX)*2.)));let count=1.+floor(seed*2.7);
+   let j1=(1.+(fract(seed*13.7)-.5)*.2)/count;let j2=(2.+(fract(seed*29.3)-.5)*.2)/count;
+   let d1=a-j1;let d2=select(9.,a-j2,count>2.5);let near=select(d1,d2,abs(d2)<abs(d1));
+   let jointGap=select(1.,abs(near)*.97,count>1.5);let level=fract(p.y);let courseGap=abs(level-.5);
+   let gap=min(jointGap,courseGap)+(value-.22)*.05;
+   joint=1.-smoothstep(.006,.022,gap);let bend=(1.-smoothstep(.004,.045,gap))*.55;
+   if(jointGap<courseGap){n-=tangent*sign(near)*bend;}else{n.y+=select(-1.,1.,level<.5)*bend;}
+   let tone=fract(seed*71.3+step(j1,a)*.37+step(j2,a)*.61);
+   albedo*=mix(.25,1.,1.-joint)*(.86+tone*.26)*mix(vec3f(1.),vec3f(1.07,.98,.88),step(.62,tone));
+   occlusion*=mix(.45,1.,1.-joint);
+  }
+  // Moss gathers in cracks, joints and along worn edges, in broad irregular patches.
+  let growth=broad+(.24-value)*.6;
+  let crevice=1.-smoothstep(.1,.3,value);let rim=1.-smoothstep(.034,.09,edge);
+  let moss=smoothstep(.56,.78,growth)*clamp(crevice*.9+joint*.8+bevel*.55+rim*.45,0.,1.);
+  albedo=mix(albedo,vec3f(.075,.115,.035)*(.6+value*2.2),moss*.62);
+  var s:Stone;s.albedo=albedo;s.normal=normalize(n);s.occlusion=occlusion;return s;
+ }
+ struct Lighting { light:vec3f, marks:vec3f, sun:f32 };
+ fn jellyTint(slot:f32)->vec3f{
+  if(slot<.5){return vec3f(.09,.85,.18);}if(slot<1.5){return vec3f(.035,.17,1.);}if(slot<2.5){return vec3f(1.,.08,.035);}if(slot<3.5){return vec3f(.65,.08,1.);}return vec3f(1.,.7,.025);
+ }
+ // One jelly's coloured transmission pool (scale/add) and glowing footprint outline (marks).
+ // Called once per body with constant arguments: a dynamically indexed local array would
+ // spill to slow memory on some GPUs.
+ struct BodyLight { scale:vec3f, add:vec3f, marks:vec3f };
+ fn bodyLight(p:vec3f,up:f32,body:vec4f,slot:f32,acc:BodyLight)->BodyLight{
+  let delta=p.xz-body.xz;let d2=dot(delta,delta);
+  // Beyond about 1.6 units every term below is negligible.
+  if(body.w<=0.||d2>2.6||p.y>=body.y-.2){return acc;}
+  let height=max(0.,body.y-.42-(body.w-4.));let radius=.28+height*.18;let tint=jellyTint(slot);var r=acc;
+  r.scale*=mix(vec3f(1.),tint*.6+vec3f(.2),exp(-d2/(radius*radius))*.36/(1.+height*2.));
+  r.add+=tint*exp(-d2/.34)*.22/(1.+height*3.);
+  if(up>.6&&abs(p.y-(body.w-4.))<.12){
+   let q=abs(delta)-vec2f(.33);let outline=length(max(q,vec2f(0.)))+min(max(q.x,q.y),0.)-.09;
+   r.marks+=tint*(exp(-pow(outline/.015,2.))*1.15+exp(-max(outline,0.)*22.)*smoothstep(-.025,0.,outline)*.3)*(1.-smoothstep(.3,.65,height));
+  }
+  return r;
+ }
+ // Shared dungeon lighting: cool sky ambient and moonlit key with shadows, warm torches,
+ // and each jelly's coloured transmission pool plus its glowing footprint outline (marks).
+ fn dungeonLight(p:vec3f,n:vec3f,up:f32,occlusion:f32)->Lighting{
+  let l=normalize(scene.light.xyz-p);
+  let ambient=mix(vec3f(.04,.034,.032),vec3f(.092,.11,.165),n.y*.5+.5);
+  let sun=shadow(p,n);
+  var light=(ambient+vec3f(.08,.13,.27)*max(0.,dot(n,normalize(vec3f(-.6,.4,-.6)))))*occlusion+vec3f(.98,.85,.69)*max(0.,dot(n,l))*sun;
+  var torchLight=vec3f(0.);
+  for(var i=0;i<8;i++){
+   let delta=scene.torches[i].xyz-p;let reach=dot(delta,delta);
+   if(scene.torches[i].w<.5||reach>13.69){continue;}
+   let distance=sqrt(reach);let falloff=1.-smoothstep(.1,3.7,distance);let attenuation=falloff*falloff;
+   let flicker=1.+(sin(scene.options.z*8.+f32(i)*2.)*.6+sin(scene.options.z*13.7+f32(i)*5.)*.4)*.045;
+   torchLight+=vec3f(4.5,1.75,.36)*attenuation*max(.12,dot(n,delta/distance))*flicker;
+  }
+  light+=torchLight*(.5+.5*occlusion);
+  var bodies:BodyLight;bodies.scale=vec3f(1.);
+  bodies=bodyLight(p,up,scene.body0,scene.bodySlots[0].x,bodies);bodies=bodyLight(p,up,scene.body1,scene.bodySlots[0].y,bodies);
+  bodies=bodyLight(p,up,scene.body2,scene.bodySlots[0].z,bodies);bodies=bodyLight(p,up,scene.body3,scene.bodySlots[0].w,bodies);
+  bodies=bodyLight(p,up,scene.body4,scene.bodySlots[1].x,bodies);
+  var r:Lighting;r.light=light*bodies.scale+bodies.add;r.marks=bodies.marks;r.sun=sun;return r;
+ }
+ // Dedicated pass for the static masonry keeps the heavier stone code out of solidFS.
+ @fragment fn stoneFS(o:Out)->@location(0) vec4f{
+  let normal=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let h=normalize(v+normalize(scene.light.xyz-o.world));
+  let uv=o.local.xz;let dx=dpdx(uv);let dy=dpdy(uv);let dp1=dpdx(o.world);let dp2=dpdy(o.world);
+  let atlas=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;let value=dot(atlas,vec3f(.25,.6,.15));
+  let stone=stoneSurface(o.world,normal,o.color,atlas,value,vec2f(dpdxFine(value),dpdyFine(value)),uv,dp1,dp2,true,o.material/${STONE_DETAIL});
+  let lit=dungeonLight(o.world,stone.normal,normal.y,stone.occlusion);
+  let result=stone.albedo*lit.light+vec3f(.045,.05,.06)*pow(max(0.,dot(stone.normal,h)),26.)*lit.sun*stone.occlusion;
+  return vec4f(voidFog(o.world,result+lit.marks),1.);
+ }
  @fragment fn solidFS(o:Out)->@location(0) vec4f{
   let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);let h=normalize(v+l);
   var color=o.color;
   let uv=o.local.xz;let dx=dpdx(uv);let dy=dpdy(uv);
   if(o.material<.5||(o.material>16.5&&o.material<17.5)){
-   let texel=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;
-   let value=dot(texel,vec3f(.25,.6,.15));
-   let wear=clamp(value*3.6,.38,1.22);
-   color*=mix(vec3f(wear),texel*3.6,.2);
-   let tile=fract(uv*4.);let edge=min(min(tile.x,tile.y),min(1.-tile.x,1.-tile.y));
-   color*=mix(.58,1.,smoothstep(.023,.055,edge));
-   if(o.material<.5&&abs(n.y)<.72){
-    let row=floor(o.world.y*2.);let along=select(o.world.x,o.world.z,abs(n.x)>.7);
-    let seam=min(abs(fract(o.world.y*2.)-.5),abs(fract(along+row*.5+.5)-.5));
-    color*=mix(.38,1.,smoothstep(.009,.035,seam));
-   }
+   let texel=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;color*=mix(vec3f(clamp(dot(texel,vec3f(.25,.6,.15))*3.6,.38,1.22)),texel*3.6,.2);
   }
   if(o.material>17.5&&o.material<18.5){color*=.86+.14*sin(o.world.y*97.)*sin(o.world.x*113.+o.world.z*113.);}
   if(o.material>10.5&&o.material<11.5){color*=textureSampleGrad(oakTexture,materialSampler,uv,dx,dy).rgb*3.;}
   if(o.material>11.5&&o.material<12.5){let age=.5+.5*sin(o.world.x*11.+sin(o.world.y*7.))*sin(o.world.z*13.+o.world.y*5.);color=mix(color,vec3f(.065,.125,.095),smoothstep(.67,.95,age)*.32);}
-  if(o.material>13.5&&o.material<14.5){let stone=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;let wear=clamp(dot(stone,vec3f(.25,.6,.15))*3.5,.3,1.35);color*=wear;}
+  if(o.material>13.5&&o.material<14.5){let stone=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;color*=clamp(dot(stone,vec3f(.25,.6,.15))*3.5,.3,1.35);}
   if(o.material>15.5&&o.material<16.5){
    let axes=array<vec2f,4>(vec2f(0,1),vec2f(1,0),vec2f(0,-1),vec2f(-1,0));let axis=axes[min(u32(round(o.local.x)),3u)];
    let across=dot(o.world.xz-round(o.world.xz),vec2f(axis.y,-axis.x));let track=dot(o.world.xz,axis)-scene.options.z*o.local.z;
@@ -450,29 +650,11 @@ import Levels from './levels.js';
    let chevron=(1.-smoothstep(.035,.065,abs(fract((track+abs(across)*.7)*2.)-.5)))*(1.-smoothstep(.2,.24,abs(across)));
    color=mix(vec3f(.18,.23,.18),vec3f(.035,.05,.04),groove)+chevron*vec3f(.55,.38,.12);
   }
-  var light=vec3f(.105,.13,.18)+vec3f(1.04,.85,.59)*max(0.,dot(n,l))*shadow(o.world,n)+vec3f(.105,.16,.255)*max(0.,dot(n,normalize(vec3f(-.6,.4,-.6))));
-  for(var i=0;i<8;i++){
-   if(scene.torches[i].w<.5){continue;}
-   let delta=scene.torches[i].xyz-o.world;let distance=length(delta);let attenuation=pow(1.-smoothstep(.1,3.4,distance),2.);
-   let flicker=1.+sin(scene.options.z*8.+f32(i)*2.)*.035;
-   light+=vec3f(4.1,1.5,.22)*attenuation*max(.12,dot(n,normalize(delta)))*flicker;
-  }
-  // Soft, coloured transmission shadows; wider and lighter when a cube lifts off.
-  let bodies=array<vec4f,5>(scene.body0,scene.body1,scene.body2,scene.body3,scene.body4);
-  let tints=array<vec3f,5>(vec3f(.09,.85,.18),vec3f(.035,.17,1.),vec3f(1.,.08,.035),vec3f(.65,.08,1.),vec3f(1.,.7,.025));
-  for(var i=0;i<5;i++){
-   let body=bodies[i];let delta=o.world.xz-body.xz;
-   let height=max(0.,body.y-.42-(body.w-4.));let radius=.28+height*.18;
-   let amount=exp(-dot(delta,delta)/(radius*radius))*.36/(1.+height*2.);
-   if(body.w>0.&&o.world.y<body.y-.2){
-    let tint=tints[u32(scene.bodySlots[i/4][i%4])];
-    light*=mix(vec3f(1.),tint*.6+vec3f(.2),amount);
-    light+=tint*exp(-dot(delta,delta)/.34)*.22/(1.+height*3.);
-   }
-  }
+  let lit=dungeonLight(o.world,n,n.y,1.);let light=lit.light;let marks=lit.marks;
   var result=color*light;
   if(o.material>16.5&&o.material<17.5){result+=color*.22;}
   if(o.material>.5&&o.material<1.5){result+=vec3f(.28)*pow(max(0.,dot(n,h)),55.);}
+  if(o.material>25.5&&o.material<26.5){let rim=pow(1.-max(0.,dot(n,v)),1.6);result=o.color*(.22+rim*1.25)+vec3f(1.5,1.5,1.4)*pow(max(0.,dot(n,h)),36.);}
   if(o.material>3.5&&o.material<4.5){result=color*(1.4+sin(scene.options.z*4.)*.08);}
   if(o.material>11.5&&o.material<12.5){result+=vec3f(.56,.4,.21)*pow(max(0.,dot(n,h)),45.);}
   if(o.material>13.5&&o.material<14.5){result+=color*.12+vec3f(.18)*pow(max(0.,dot(n,h)),80.);}
@@ -484,10 +666,11 @@ import Levels from './levels.js';
    if(o.local.z>.5){
     let strokePosition=clamp((o.world.z-goal.position.z+.42)/.84,0.,1.);
     let inscribed=(1.-smoothstep(scene.finish.x-.025,scene.finish.x+.025,strokePosition))*smoothstep(0.,.04,scene.finish.x)*step(0.,scene.goalSlots[u32(o.local.x)/4u][u32(o.local.x)%4u]);
-    result=color*(mix(.32,2.7,charge)+inscribed*3.);
+    // Idle runes keep a soft neon glow, so every finish reads at a glance.
+    result=color*(mix(1.1,2.8,charge)*(.93+.07*sin(scene.options.z*2.2+o.local.x*1.7))+inscribed*3.);
    }
   }
-  return vec4f(result,1.);
+  return vec4f(voidFog(o.world,result+marks),1.);
  }
  fn energyRune(p:vec2f,glyph:u32)->f32{
   if(glyph==4u){return runeDistance(p*.45,4u)/.45;}
@@ -569,7 +752,7 @@ import Levels from './levels.js';
   if(o.material>3.5){absorption=vec3f(.13,2.35,2.8);}
   if(o.material>4.5){absorption=vec3f(.75,2.8,.13);}
   if(o.material>5.5){absorption=vec3f(.12,.4,3.1);}
-  let transmission=exp(-absorption*thick*1.35);
+  let transmission=exp(-absorption*thick*1.2);
   let background=textureSampleLevel(behind,linearSampler,refractedUV,0.).rgb;
   var color=background*transmission+pigment*(1.-transmission)*.55;
   let farInlay=clamp(exit.w-1.,0.,1.);
@@ -580,10 +763,17 @@ import Levels from './levels.js';
   color=mix(color,environment(reflect(ray,n)),min(.85,f*.78+.025));
   color+=pigment*pow(1.-max(0.,dot(n,-ray)),3.)*.34;
   let l=normalize(scene.light.xyz-o.world);let h=normalize(l-ray);
-  color+=vec3f(2.6,2.3,1.8)*pow(max(0.,dot(n,h)),150.);
+  // A tight glint: flat faces would otherwise flare white across their whole area.
+  color+=(vec3f(1.25,1.15,.95)+pigment*.3)*pow(max(0.,dot(n,h)),260.);
   color+=pigment*.07;
   color+=pigment*.28*pow(max(0.,dot(-n,l)),2.)*exp(-thick*2.);
-  return vec4f(color,1.);
+  // Glassy rounded edges catch light; the rest-space face grid locates the bevel band.
+  let a=abs(o.local);let mid=a.x+a.y+a.z-max(a.x,max(a.y,a.z))-min(a.x,min(a.y,a.z));
+  let band=smoothstep(.3,.365,mid);let facing=pow(1.-abs(dot(n,ray)),1.4);
+  color+=(vec3f(1.,.98,.93)*(.05+.6*smoothstep(-.1,.9,n.y))+pigment*.28)*band*(.35+.4*facing+.35*max(0.,dot(n,l)));
+  // Light scattered inside the gel pools near its base.
+  color+=pigment*.16*(1.-smoothstep(-.38,.06,o.local.y));
+  return vec4f(voidFog(o.world,color),1.);
  }
  `;
  const compute=`
@@ -612,9 +802,49 @@ import Levels from './levels.js';
  const post=`
  @group(0) @binding(0) var image:texture_2d<f32>;
  @group(0) @binding(1) var linearSampler:sampler;
+ @group(0) @binding(2) var bloomImage:texture_2d<f32>;
+ const BLOOM_STRENGTH=.15;
+ const VOID_COLOR=vec3f(${VOID_COLOR});
+ // Indigo haze behind the diorama. The scene clears to zero alpha, so the sky only
+ // shows where nothing was drawn and stays out of the MSAA and refraction buffers.
+ fn skyColor(uv:vec2f,aspect:f32)->vec3f{
+  let p=(uv-vec2f(.5,.38))*vec2f(aspect,1.);let falloff=max(0.,1.-dot(p,p)*.9);
+  return mix(vec3f(.0038,.0049,.0088),VOID_COLOR,uv.y)+vec3f(.0036,.0056,.0118)*falloff*falloff;
+ }
  @vertex fn postVS(@builtin(vertex_index) i:u32)->@builtin(position) vec4f{let p=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3));return vec4f(p[i],0,1);}
  fn tone(input:vec3f)->vec3f{var c=max(input,vec3f(0));let x=min(c.r,min(c.g,c.b));c-=vec3f(select(.04,x-6.25*x*x,x<.08));let peak=max(c.r,max(c.g,c.b));if(peak<.76){return c;}let newPeak=1.-.0576/(peak+.24-.76);c*=newPeak/peak;return mix(c,vec3f(newPeak),1.-1./(.15*(peak-newPeak)+1.));}
- @fragment fn postFS(@builtin(position) p:vec4f)->@location(0) vec4f{let uv=p.xy/vec2f(textureDimensions(image));var hdr=textureSampleLevel(image,linearSampler,uv,0.).rgb;let vignette=1.-.12*smoothstep(.25,.76,length(uv-vec2f(.5)));hdr*=vignette;var c=tone(hdr);c=pow(max(c,vec3f(0)),vec3f(1./2.2));let noise=fract(sin(dot(p.xy,vec2f(12.9898,78.233)))*43758.5453)-.5;return vec4f(c+noise/255.,1);}
+ @fragment fn postFS(@builtin(position) p:vec4f)->@location(0) vec4f{
+  let size=vec2f(textureDimensions(image));let uv=p.xy/size;let scene=textureSampleLevel(image,linearSampler,uv,0.);
+  var hdr=scene.rgb;let cover=clamp(scene.a,0.,1.);if(cover<.999){hdr+=skyColor(uv,size.x/size.y)*(1.-cover);}
+  hdr+=textureSampleLevel(bloomImage,linearSampler,uv,0.).rgb*BLOOM_STRENGTH;
+  let vignette=1.-.24*smoothstep(.22,.8,length((uv-vec2f(.5))*vec2f(1.,.86)));hdr*=vignette;
+  var c=tone(hdr);c=pow(max(c,vec3f(0)),vec3f(1./2.2));
+  var q=fract(vec3f(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);let noise=fract((q.x+q.y)*q.z)-.5;return vec4f(c+noise/255.,1);
+ }
+ `;
+ // Bright emissive pixels feed a four-level dual-filter blur from quarter resolution down:
+ // runes, flames, beams and jelly glints glow without extra full-resolution passes.
+ const BLOOM_LEVELS=4;
+ const bloomShader=`
+ @group(0) @binding(0) var source:texture_2d<f32>;
+ @group(0) @binding(1) var linearSampler:sampler;
+ struct V { @builtin(position) clip:vec4f, @location(0) uv:vec2f };
+ @vertex fn bloomVS(@builtin(vertex_index) i:u32)->V{let p=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3));var o:V;o.clip=vec4f(p[i],0,1);o.uv=vec2f(p[i].x*.5+.5,.5-p[i].y*.5);return o;}
+ fn tap(uv:vec2f)->vec3f{return textureSampleLevel(source,linearSampler,uv,0.).rgb;}
+ fn down(uv:vec2f)->vec3f{let h=.5/vec2f(textureDimensions(source));return (tap(uv)*4.+tap(uv-h)+tap(uv+h)+tap(uv+vec2f(h.x,-h.y))+tap(uv-vec2f(h.x,-h.y)))/8.;}
+ // The first level reads the full-resolution scene: four bilinear taps average its 4x4 block.
+ @fragment fn bloomPrefilterFS(o:V)->@location(0) vec4f{
+  let t=1./vec2f(textureDimensions(source));
+  let c=(tap(o.uv-t)+tap(o.uv+t)+tap(o.uv+vec2f(t.x,-t.y))+tap(o.uv-vec2f(t.x,-t.y)))*.25;let peak=max(c.r,max(c.g,c.b));let threshold=.92;let knee=.45;
+  var soft=clamp(peak-threshold+knee,0.,2.*knee);soft=soft*soft/(4.*knee);
+  return vec4f(min(c*max(soft,peak-threshold)/max(peak,.0001),vec3f(14.)),1.);
+ }
+ @fragment fn bloomDownFS(o:V)->@location(0) vec4f{return vec4f(down(o.uv),1.);}
+ @fragment fn bloomUpFS(o:V)->@location(0) vec4f{
+  let h=.5/vec2f(textureDimensions(source));let uv=o.uv;
+  let c=tap(uv+vec2f(-h.x*2.,0.))+tap(uv+vec2f(0.,h.y*2.))+tap(uv+vec2f(h.x*2.,0.))+tap(uv+vec2f(0.,-h.y*2.))+(tap(uv+vec2f(-h.x,h.y))+tap(uv+h)+tap(uv+vec2f(h.x,-h.y))+tap(uv-h))*2.;
+  return vec4f(c/12.,1.);
+ }
  `;
  const latticeShader=`
  struct Portal { position:vec4f, color:vec4f, animation:vec4f };
@@ -645,7 +875,7 @@ import Levels from './levels.js';
    d.lost.then(info=>{this.ready=false;this.error=info.message||'Соединение с графическим устройством потеряно.';this.onFailure?.(this.error);});
    this.context=this.canvas.getContext('webgpu');this.format=navigator.gpu.getPreferredCanvasFormat();this.context.configure({device:d,format:this.format,alphaMode:'opaque'});
    const module=async(label,code)=>{const m=d.createShaderModule({label,code});const info=await m.getCompilationInfo();const errors=info.messages.filter(x=>x.type==='error');if(errors.length)throw Error(label+': '+errors.map(e=>e.message).join('\n'));return m;};
-   const main=await module('Dungeon and candy',shared+skin),deform=await module('Cofactor deformation',compute),finish=await module('Khronos PBR Neutral',post),lattice=await module('XPBD lattice overlay',latticeShader),collider=await module('Level collision overlay',colliderShader);
+   const main=await module('Dungeon and candy',shared+skin),deform=await module('Cofactor deformation',compute),finish=await module('Khronos PBR Neutral',post),lattice=await module('XPBD lattice overlay',latticeShader),collider=await module('Level collision overlay',colliderShader),bloom=await module('Bloom',bloomShader);
    this.onProgress?.(.4,'loadingScene');
    this.uniform=this.buffer(new Float32Array(SCENE_FLOATS),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
    const bindings=surfaceBindings(this.soft);this.bindingCount=bindings.count;
@@ -660,7 +890,7 @@ import Levels from './levels.js';
    const layout=d.createPipelineLayout({bindGroupLayouts:[this.sceneLayout,this.skinLayout]});
    const vertexBuffers=[{arrayStride:48,attributes:[{shaderLocation:0,offset:0,format:'float32x3'},{shaderLocation:1,offset:12,format:'float32x3'},{shaderLocation:2,offset:24,format:'float32x3'},{shaderLocation:3,offset:36,format:'float32x3'}]}];
    const pipeline=(vertexEntry,fragmentEntry,cullMode='back',samples=4,depthCompare='less',depthWrite=true,blend=undefined,buffers=['solidVS','portalHaloVS','portalRingVS','goalBeamVS','goalGlowVS','goalSealVS'].includes(vertexEntry)?vertexBuffers:[])=>d.createRenderPipeline({layout,vertex:{module:main,entryPoint:vertexEntry,buffers},fragment:{module:main,entryPoint:fragmentEntry,targets:[{format:'rgba16float',blend}]},primitive:{topology:'triangle-list',cullMode,frontFace:'ccw'},depthStencil:{format:'depth32float',depthWriteEnabled:depthWrite,depthCompare},multisample:{count:samples}});
-   this.opaque=pipeline('solidVS','solidFS');this.skin=pipeline('softVS','skinFS');this.back=pipeline('softVS','backFS','front',1,'greater');
+   this.opaque=pipeline('solidVS','solidFS');this.stonePipeline=pipeline('solidVS','stoneFS');this.skin=pipeline('softVS','skinFS');this.back=pipeline('softVS','backFS','front',1,'greater');
    this.effectPipeline=pipeline('solidVS','effectFS','back',4,'less',false,{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}});
    this.phasePipeline=pipeline('solidVS','phaseFS','back',4,'less',false,{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}});
    const crystalBlend={color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}};
@@ -676,10 +906,17 @@ import Levels from './levels.js';
    this.goalBeamPipeline=pipeline('goalBeamVS','goalBeamFS','none',4,'less',false,additive);
    this.goalGlowPipeline=pipeline('goalGlowVS','portalFXFS','none',4,'less',false,additive);
    this.goalSealPipeline=pipeline('goalSealVS','goalSealFS','none',4,'less',false,additive);
+   const glow={color:{srcFactor:'one',dstFactor:'one',operation:'add'},alpha:{srcFactor:'zero',dstFactor:'one',operation:'add'}};
+   this.flamePipeline=pipeline('flameVS','flameFS','none',4,'less',false,glow,[vertexBuffers[0]]);
    const ring=[];portalRing(ring,0,0,0,[1,1,1]);this.portalRingCount=ring.length/12;this.portalRingBuffer=this.buffer(new Float32Array(ring),GPUBufferUsage.VERTEX);
    const halo=[];for(const p of [[-1,0,-1],[1,0,1],[1,0,-1],[-1,0,-1],[-1,0,1],[1,0,1]])halo.push(...p,0,1,0,1,1,1,0,0,0);this.portalHaloBuffer=this.buffer(new Float32Array(halo),GPUBufferUsage.VERTEX);
    this.shadow=d.createRenderPipeline({layout:d.createPipelineLayout({bindGroupLayouts:[this.sceneLayout]}),vertex:{module:main,entryPoint:'shadowVS',buffers:vertexBuffers},primitive:{topology:'triangle-list',cullMode:'back'},depthStencil:{format:'depth32float',depthWriteEnabled:true,depthCompare:'less'}});
    this.post=d.createRenderPipeline({layout:'auto',vertex:{module:finish,entryPoint:'postVS'},fragment:{module:finish,entryPoint:'postFS',targets:[{format:this.format}]},primitive:{topology:'triangle-list'}});
+   this.bloomLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{}},{binding:1,visibility:GPUShaderStage.FRAGMENT,sampler:{}}]});
+   const bloomLayout=d.createPipelineLayout({bindGroupLayouts:[this.bloomLayout]});
+   const bloomPipeline=(entryPoint,blend)=>d.createRenderPipeline({layout:bloomLayout,vertex:{module:bloom,entryPoint:'bloomVS'},fragment:{module:bloom,entryPoint,targets:[{format:'rgba16float',blend}]},primitive:{topology:'triangle-list'}});
+   this.bloomPrefilter=bloomPipeline('bloomPrefilterFS');this.bloomDown=bloomPipeline('bloomDownFS');
+   this.bloomUp=bloomPipeline('bloomUpFS',{color:{srcFactor:'one',dstFactor:'one',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one',operation:'add'}});
    this.latticePipeline=d.createRenderPipeline({layout:'auto',vertex:{module:lattice,entryPoint:'latticeVS'},fragment:{module:lattice,entryPoint:'latticeFS',targets:[{format:'rgba16float',blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'line-list'},multisample:{count:4}});
    const edgeData=new Uint32Array(this.soft.edges.flatMap(e=>[e.a,e.b]));this.edgeCount=edgeData.length;this.edgeBuffer=this.buffer(edgeData,GPUBufferUsage.STORAGE);
    this.latticeGroup=d.createBindGroup({layout:this.latticePipeline.getBindGroupLayout(0),entries:[this.uniform,this.nodes,this.edgeBuffer].map((buffer,binding)=>({binding,resource:{buffer}}))});
@@ -721,22 +958,48 @@ import Levels from './levels.js';
    const ratio=Math.min(devicePixelRatio||1,1.25,Math.sqrt(2e6/(width*height))),w=Math.max(1,Math.round(width*ratio)),h=Math.max(1,Math.round(height*ratio));
    if(this.canvas.width===w&&this.canvas.height===h&&this.hdr)return;
    this.canvas.width=w;this.canvas.height=h;const d=this.device;
-   for(const t of [this.hdr,this.background,this.msaa,this.depth,this.exitDepth,...(this.exits||[])])t?.destroy();
+   for(const t of [this.hdr,this.background,this.msaa,this.depth,this.exitDepth,...(this.exits||[]),...(this.bloomTextures||[])])t?.destroy();
    const create=(format,sampleCount=1,extra=0)=>d.createTexture({size:[w,h],format,sampleCount,usage:GPUTextureUsage.RENDER_ATTACHMENT|extra});
    this.hdr=create('rgba16float',1,GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_SRC);
    this.background=create('rgba16float',1,GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST);
    this.msaa=create('rgba16float',4);this.depth=create('depth32float',4);this.exitDepth=create('depth32float');
    this.exits=Array.from({length:5},()=>create('rgba16float',1,GPUTextureUsage.TEXTURE_BINDING));
    this.skinGroups=this.exits.map(t=>d.createBindGroup({layout:this.skinLayout,entries:[{binding:0,resource:this.background.createView()},{binding:1,resource:t.createView()},{binding:2,resource:this.sampler}]}));
-   this.postGroup=d.createBindGroup({layout:this.post.getBindGroupLayout(0),entries:[{binding:0,resource:this.hdr.createView()},{binding:1,resource:this.sampler}]});
+   this.bloomTextures=[];
+   for(let i=0,bw=w>>1,bh=h>>1;i<BLOOM_LEVELS;i++){bw=Math.max(1,bw>>1);bh=Math.max(1,bh>>1);this.bloomTextures.push(d.createTexture({size:[bw,bh],format:'rgba16float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING}));}
+   this.bloomViews=this.bloomTextures.map(t=>t.createView());
+   const bloomGroup=view=>d.createBindGroup({layout:this.bloomLayout,entries:[{binding:0,resource:view},{binding:1,resource:this.sampler}]});
+   // Down pass i reads the previous level (the HDR scene for i=0); up pass i reads level i.
+   this.bloomDownGroups=[this.hdr.createView(),...this.bloomViews.slice(0,-1)].map(bloomGroup);this.bloomUpGroups=this.bloomViews.map(bloomGroup);
+   this.postGroup=d.createBindGroup({layout:this.post.getBindGroupLayout(0),entries:[{binding:0,resource:this.hdr.createView()},{binding:1,resource:this.sampler},{binding:2,resource:this.bloomViews[0]}]});
+  }
+  encodeBloom(encoder){
+   const pass=(view,loadOp)=>encoder.beginRenderPass({colorAttachments:[{view,loadOp,clearValue:{r:0,g:0,b:0,a:1},storeOp:'store'}]});
+   this.bloomViews.forEach((view,i)=>{const p=pass(view,'clear');p.setPipeline(i?this.bloomDown:this.bloomPrefilter);p.setBindGroup(0,this.bloomDownGroups[i]);p.draw(3);p.end();});
+   for(let i=this.bloomViews.length-1;i>0;i--){const p=pass(this.bloomViews[i-1],'load');p.setPipeline(this.bloomUp);p.setBindGroup(0,this.bloomUpGroups[i]);p.draw(3);p.end();}
   }
   buildScene(level){
    const mesh=[],phaseMesh=[],blocks=(level.world.blocks||[]).filter(b=>!level.bridges.some(p=>p.x===b.x&&p.z===b.z&&p.y===b.y)&&!level.world.lifts.some(p=>p.x===b.x&&p.z===b.z&&p.base===b.y)),occupied=new Set(blocks.filter(b=>b.color===undefined).map(b=>[b.x,b.y,b.z].join(',')));
    const blockTints=[[.08,.88,.12],[.025,.48,1.],[1.,.045,.015],[.64,.07,1.],[1.,.67,.025]];this.phaseFaces=[];
+   // The void fog starts beneath the lowest walkable top of the map.
+   this.fogBase=blocks.reduce((low,b)=>Math.min(low,b.y),level.floor?.size?0:blocks.length?Infinity:0);
+   // Voxel-style contact occlusion: each face corner darkens with the stone cells around it.
+   const AO=[.46,.63,.81,1],solid=cell=>occupied.has(cell.join(','));
+   const occlusion=b=>{const corners=new Map();return (axis,sign,s,t)=>{
+    const key=axis*2+(sign>0?1:0);let c=corners.get(key);
+    if(!c){
+     const u=(axis+1)%3,v=(axis+2)%3,front=[b.x,b.y,b.z];front[axis]+=sign;
+     const at=(du,dv)=>{const cell=[...front];cell[u]+=du;cell[v]+=dv;return solid(cell)?1:0;};
+     const corner=(du,dv)=>{const a=at(du,0),e=at(0,dv);return AO[a&&e?0:3-a-e-at(du,dv)];};
+     // A face pressed against another stone is only seen through the joint: keep it as deep mortar.
+     c=solid(front)?[.12,.12,.12,.12]:[corner(-1,-1),corner(1,-1),corner(-1,1),corner(1,1)];corners.set(key,c);
+    }
+    return (c[0]*(1-s)+c[1]*s)*(1-t)+(c[2]*(1-s)+c[3]*s)*t;
+   };};
    for(const b of blocks){
     if([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].every(d=>occupied.has([b.x+d[0],b.y+d[1],b.z+d[2]].join(','))))continue;
     if(b.color!==undefined){phaseBlock(phaseMesh,this.phaseFaces,b,blockTints[b.color]);const support=level.world.heightAt(b.x,b.z,b.y-.99);if(support!==null&&Math.abs(support-(b.y-1))<.01)phaseGroundGlow(phaseMesh,this.phaseFaces,b,blockTints[b.color]);continue;}
-    const n=((b.x*73+b.y*31+b.z*137)%19+19)%19/19,color=b.y>0?[.135+n*.028,.15+n*.028,.18+n*.032]:[.265+n*.04,.225+n*.035,.18+n*.03];box(mesh,[b.x,b.y-.5,b.z],[.97,1,.97],color,.045,0,2);
+    const n=((b.x*73+b.y*31+b.z*137)%19+19)%19/19,color=b.y>0?[.2+n*.03,.172+n*.026,.142+n*.022]:[.265+n*.04,.225+n*.035,.18+n*.03];box(mesh,[b.x,b.y-.5,b.z],[.97,1,.97],color,.06,0,2,{crisp:true,shade:occlusion(b),detail:mossAt});
    }
    for(const key of level.floor){const [x,z]=key.split(',').map(Number);if(level.bridges.some(b=>b.x===x&&b.z===z))continue;const height=0;
     const noise=((x*73+z*137)%19)/19,color=[.265+noise*.04,.225+noise*.035,.18+noise*.03];
@@ -745,8 +1008,11 @@ import Levels from './levels.js';
     }else{box(mesh,[x,height-.36,z],[.97,.72,.97],color,.045);const upper=level.world.heights.get(key)||0;for(let y=0;y<upper;y++){const span=Math.min(1,upper-y);box(mesh,[x,y+span*.5,z],[.97,span,.97],color,.045);}}
    }
    for(const o of level.world.collisionBoxes().filter(o=>o.kind==='wall'))box(mesh,[o.x,(o.minY+o.maxY)*.5,o.z],[o.half*2-.03,o.maxY-o.minY,o.half*2-.03],o.half>.4?[.12,.145,.18]:[.105,.12,.115],.045);
-   const data=new Float32Array(mesh);if(data.byteLength>this.staticBuffer.size){this.staticBuffer.destroy();this.staticBuffer=this.device.createBuffer({size:Math.ceil(data.byteLength/65536)*65536,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}
-   this.staticCount=mesh.length/12;this.device.queue.writeBuffer(this.staticBuffer,0,data);
+   // Masonry comes first and uses the stone pipeline; decor follows in the same buffer.
+   const decor=[];scatterDecor(decor,level,occupied);
+   const data=new Float32Array(mesh.length+decor.length);data.set(mesh);data.set(decor,mesh.length);
+   if(data.byteLength>this.staticBuffer.size){this.staticBuffer.destroy();this.staticBuffer=this.device.createBuffer({size:Math.ceil(data.byteLength/65536)*65536,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}
+   this.stoneCount=mesh.length/12;this.staticCount=data.length/12;this.device.queue.writeBuffer(this.staticBuffer,0,data);
    const phaseData=new Float32Array(phaseMesh);if(phaseData.byteLength>this.phaseBuffer.size){this.phaseBuffer.destroy();this.phaseBuffer=this.device.createBuffer({size:Math.ceil(phaseData.byteLength/65536)*65536,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}
    if(phaseData.length)this.device.queue.writeBuffer(this.phaseBuffer,0,phaseData);
   }
@@ -782,7 +1048,8 @@ import Levels from './levels.js';
      for(const end of [-1,1])sphere(mesh,origin.map((v,k)=>v+axis[k]*end*.135),[.025,.025,.025],bone,1);
     }
     append('jelly',i,mesh);
-    for(let j=0;j<5;j++){const mesh=[],phase=j*2.4+i;const position=[Math.sin(phase)*.22,-.26+j*.097,Math.cos(phase)*.2];sphere(mesh,position,[.015,.015,.015],[[.55,.72,.23],[.25,.62,.7],[.9,.3,.12],[.7,.3,.9],[.95,.7,.15]][players[i].slot??i],1);append('bubble',i,mesh,{bubble:j});}
+    const tint=[[.62,.95,.5],[.55,.75,1.],[1.,.6,.48],[.85,.6,1.],[1.,.88,.5]][players[i].slot??i];
+    for(let j=0;j<BUBBLES;j++){const mesh=[],phase=j*2.4+i,size=.011+(j*7+i*3)%5*.0045,position=[Math.sin(phase)*(.17+j%3*.035),-.26+j*BUBBLE_SPACING,Math.cos(phase)*(.16+(j+1)%3*.035)];sphere(mesh,position,[size,size,size],tint,26,null,lowSphere);append('bubble',i,mesh,{bubble:j});}
    }
    for(let i=0;i<(level.crates||[]).length;i++)append('crate',i,crateGeometry());
    for(let i=0;i<(level.world.drones||[]).length;i++){const geometry=droneGeometry(beamColors[level.world.drones[i].color]);append('drone',i,geometry.mesh);crystals.push(geometry.crystal);}
@@ -843,7 +1110,7 @@ import Levels from './levels.js';
     if(piece.kind==='jelly'||piece.kind==='bubble'){
      const p=players[i];if(p.state==='dead')continue;
      const core=level.soft.get(p).core;x=core[0];y=core[1];z=core[2];rotate=piece.kind==='jelly';
-     if(piece.kind==='bubble')y+=(piece.bubble*.097+time*.018)%.51-piece.bubble*.097;
+     if(piece.kind==='bubble')y+=(piece.bubble*BUBBLE_SPACING+time*.03)%.51-piece.bubble*BUBBLE_SPACING;
     }else if(piece.kind==='drone'||piece.kind==='droneCrystal'){
      [x,y,z]=level.world.droneOrigin(level.world.drones[i]);const spin=level.reducedMotion?0:time*.35;matrix=[Math.cos(spin),0,Math.sin(spin),0,1,0,-Math.sin(spin),0,Math.cos(spin)];
      if(piece.kind==='droneCrystal'){opaqueCount??=cursor/12;this.crystalPieces.push({kind:'crystal',center:[x,y,z],first:cursor/12,count:source.length/12});}
@@ -908,9 +1175,8 @@ import Levels from './levels.js';
     rod(mesh,[0,-.23,.15],[0,.1,.25],.042,[.22,.115,.035],11);
     for(const y of [-.12,.04])box(mesh,[0,y,.21+(y+.12)*.3],[.11,.035,.11],bronze,.007,12,2);
     pressureSurface(mesh,[0,.08,.25],[[0,0],[.055,0],[.11,.12],[.11,.145],[.08,.145],[.04,.06],[0,.06]],iron,12,0,12);
-    sphere(mesh,[0,.27,.25],[.07,.13,.07],[2.8,.48,.025],4);
-    sphere(mesh,[-.015,.375,.25],[.035,.105,.038],[2.5,.65,.035],4);
-    sphere(mesh,[0,.235,.275],[.041,.085,.04],[4.,1.85,.18],4);
+    // Glowing coals fill the bowl; the flame itself is an animated billboard.
+    sphere(mesh,[0,.2,.25],[.082,.034,.082],[1.25,.36,.05],4);
     for(let k=from;k<mesh.length;k+=12)for(const off of [0,3]){const u=mesh[k+off],y=mesh[k+off+1],n=mesh[k+off+2];for(let axis=0;axis<3;axis++)mesh[k+off+axis]=(off?0:f.origin[axis])+f.u[axis]*u+(axis===1?y:0)+f.n[axis]*n;}
    }
    for(const trap of level.world.spikes){
@@ -1001,7 +1267,8 @@ import Levels from './levels.js';
    if(!this.ready)return;this.resize();const d=this.device,w=this.canvas.width,h=this.canvas.height;
    const rect=this.canvas.getBoundingClientRect(),frame=this.cameraState=cameraFrame(camera,angle,rect.width,rect.height,scale),{vp,view,eye}=frame;
    const extent=level.definition?.size??12,lightVP=viewMatrix([(extent-1)*.5,0,(extent-1)*.5],normalize([-.45,1.,.35]),Math.max(18,extent+4),Math.max(18,extent+4));
-   const uniforms=new Float32Array(SCENE_FLOATS);uniforms.set(vp);uniforms.set(lightVP,16);uniforms.set([...eye,frame.perspective?1:0],32);uniforms.set([-2,12,9,1],36);uniforms[FINISH_OFFSET]=Math.max(0,Math.min(1,level.finishProgress||0));
+   if(this.bridgeKey===undefined){this.buildScene(level);this.bridgeKey='static';}
+   const uniforms=new Float32Array(SCENE_FLOATS);uniforms.set(vp);uniforms.set(lightVP,16);uniforms.set([...eye,frame.perspective?1:0],32);uniforms.set([-2,12,9,1],36);uniforms[FINISH_OFFSET]=Math.max(0,Math.min(1,level.finishProgress||0));uniforms[FINISH_OFFSET+1]=this.fogBase??0;
    (level.world.torches||[]).slice(0,8).forEach((p,i)=>uniforms.set([...Levels.torchFrame(p).light,1],TORCHES_OFFSET+i*4));
    players.forEach((p,i)=>uniforms.set([p.x,(p.y||0)+.42,p.z,p.state==='dead'?0:4+(level.world.heightAt(p.x,p.z,(p.y||0)+.2,p)||0)],i===4?BODY4_OFFSET:i===3?BODY3_OFFSET:40+i*4));uniforms.set([w,h,time,this.mesh?1:0],52);
    this.updatePortalVisuals(level,players,dt);
@@ -1011,14 +1278,19 @@ import Levels from './levels.js';
    this.goalWinGlow+=((level.won?1:0)-this.goalWinGlow)*celebrate;
    level.goals.slice(0,5).forEach((g,i)=>{if(!g)return;const player=players.find((p,j)=>(p.slot??j)===(g.slot??i)),target=level.world.goalCharge(g,player);this.goalGlowStrength[i]=(this.goalGlowStrength[i]||0)+(target-(this.goalGlowStrength[i]||0))*fade;uniforms.set([g.x,g.y??level.world.heightAt(g.x,g.z)??0,g.z,this.goalGlowStrength[i]],GOALS_OFFSET+i*8);uniforms.set([...[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025],[.68,.12,1.],[1.,.65,.025]][g.slot??i],this.goalWinGlow],GOALS_OFFSET+4+i*8);uniforms[GOAL_SLOTS_OFFSET+i]=player?(g.slot??i):-1;});players.forEach((p,i)=>uniforms[BODY_SLOTS_OFFSET+i]=p.slot??i);d.queue.writeBuffer(this.uniform,0,uniforms);
    const nodes=new Float32Array(320*4);for(let i=0;i<5;i++)nodes[i*256+3]=-1;players.forEach((p,i)=>level.soft.get(p).positions.forEach((q,j)=>nodes.set([q[0],p.state==='dead'?-100:q[1],q[2],p.slot??i],(i*64+j)*4)));d.queue.writeBuffer(this.nodes,0,nodes);
-   if(this.bridgeKey===undefined){this.buildScene(level);this.bridgeKey='static';}
    const bridgeCount=this.bridges(level),propCount=this.props(level,players,angle,time,dt),effectCount=this.effects(level.effects,view);
    this.updateRunes(level.effects);this.updateBeams(level);const encoder=d.createCommandEncoder();
    const computePass=encoder.beginComputePass();computePass.setPipeline(this.compute);computePass.setBindGroup(0,this.computeGroup);computePass.dispatchWorkgroups(Math.ceil(players.length*1350/64));computePass.end();
    const shadowPass=encoder.beginRenderPass({colorAttachments:[],depthStencilAttachment:{view:this.shadowTexture.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
-   shadowPass.setPipeline(this.shadow);shadowPass.setBindGroup(0,this.shadowGroup);shadowPass.setVertexBuffer(0,this.staticBuffer);shadowPass.draw(this.staticCount);if(bridgeCount){shadowPass.setVertexBuffer(0,this.bridgeBuffer);shadowPass.draw(bridgeCount);}shadowPass.end();
-   const opaque=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),clearValue:{r:.009,g:.011,b:.014,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
-   opaque.setPipeline(this.opaque);opaque.setBindGroup(0,this.sceneGroup);opaque.setBindGroup(1,this.skinGroups[0]);opaque.setVertexBuffer(0,this.staticBuffer);opaque.draw(this.staticCount);if(bridgeCount){opaque.setVertexBuffer(0,this.bridgeBuffer);opaque.draw(bridgeCount);}opaque.setVertexBuffer(0,this.propBuffer);opaque.draw(propCount);opaque.setVertexBuffer(0,this.decorationBuffer);opaque.draw(this.decorationCount);opaque.end();
+   // Only masonry casts shadows: tiny decor shadows are invisible, and half-buried pebbles
+   // made this depth-only pass about 6 ms slower on an integrated Radeon.
+   shadowPass.setPipeline(this.shadow);shadowPass.setBindGroup(0,this.shadowGroup);shadowPass.setVertexBuffer(0,this.staticBuffer);shadowPass.draw(this.stoneCount);if(bridgeCount){shadowPass.setVertexBuffer(0,this.bridgeBuffer);shadowPass.draw(bridgeCount);}shadowPass.end();
+   const opaque=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),clearValue:{r:0,g:0,b:0,a:0},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
+   opaque.setBindGroup(0,this.sceneGroup);opaque.setBindGroup(1,this.skinGroups[0]);opaque.setVertexBuffer(0,this.staticBuffer);
+   if(this.stoneCount){opaque.setPipeline(this.stonePipeline);opaque.draw(this.stoneCount);}
+   opaque.setPipeline(this.opaque);if(this.staticCount>this.stoneCount)opaque.draw(this.staticCount-this.stoneCount,1,this.stoneCount);if(bridgeCount){opaque.setVertexBuffer(0,this.bridgeBuffer);opaque.draw(bridgeCount);}opaque.setVertexBuffer(0,this.propBuffer);opaque.draw(propCount);opaque.setVertexBuffer(0,this.decorationBuffer);opaque.draw(this.decorationCount);
+   const torchCount=Math.min(8,(level.world.torches||[]).length);if(torchCount){opaque.setPipeline(this.flamePipeline);opaque.setVertexBuffer(0,this.portalHaloBuffer);opaque.draw(6,torchCount);}
+   opaque.end();
    const order=players.flatMap((p,i)=>p.state==='dead'?[]:[{kind:'jelly',i,center:[p.x,(p.y||0)+.42,p.z]}]);
    order.push(...this.crystalPieces);
    for(const face of this.phaseFaces)if(dot(face.normal,eye.map((v,k)=>v-face.center[k]))>0)order.push(face);
@@ -1045,6 +1317,7 @@ import Levels from './levels.js';
    if(!order.length&&(effectCount||this.beamCount||level.world.portals.length||level.goals.length)){const effects=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});this.drawEffects(effects,level,effectCount);effects.end();}
    if(this.mesh){const lattice=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),loadOp:'load',storeOp:'store'}]});lattice.setPipeline(this.latticePipeline);lattice.setBindGroup(0,this.latticeGroup);lattice.draw(this.edgeCount,players.length);lattice.end();}
    if(this.colliders){const lines=colliderLines(level.world.debugBoxes());if(lines.byteLength>this.colliderBuffer.size){this.colliderBuffer.destroy();this.colliderBuffer=d.createBuffer({size:Math.ceil(lines.byteLength/65536)*65536,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}d.queue.writeBuffer(this.colliderBuffer,0,lines);const debug=encoder.beginRenderPass({colorAttachments:[{view:this.msaa.createView(),resolveTarget:this.hdr.createView(),loadOp:'load',storeOp:'store'}]});debug.setPipeline(this.colliderPipeline);debug.setBindGroup(0,this.colliderGroup);debug.setVertexBuffer(0,this.colliderBuffer);debug.draw(lines.length/6);debug.end();}
+   this.encodeBloom(encoder);
    const finish=encoder.beginRenderPass({colorAttachments:[{view:this.context.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});finish.setPipeline(this.post);finish.setBindGroup(0,this.postGroup);finish.draw(3);finish.end();
    d.queue.submit([encoder.finish()]);this.frames++;
   }
