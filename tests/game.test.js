@@ -16,7 +16,7 @@ async function game(options={}){
  const elements={},listeners={};
  // Menu metadata is optional; keep this VM test independent of network access.
  const fetch=async()=>({ok:false});
- const sandbox={fetch,innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellySharedCamera:SharedCamera,JellyLevels:Levels,JellyEffects:GameEffects,JellyPhysics:Physics,JellySoftBody:SoftBody,JellyGPU:{...GPU,Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
+ const sandbox={matchMedia:()=>({matches:!!options.reducedMotion}),fetch,innerWidth:1440,innerHeight:900,devicePixelRatio:1,JellySharedCamera:SharedCamera,JellyLevels:Levels,JellyEffects:GameEffects,JellyPhysics:Physics,JellySoftBody:SoftBody,JellyGPU:{...GPU,Renderer:class {constructor(){this.ready=true;}async init(){}render(){}}},document:{addEventListener:()=>{},querySelector:s=>elements[s]??=element(),querySelectorAll:()=>[element(),element()]},addEventListener:(k,f)=>listeners[k]=f,requestAnimationFrame:noop};
  if(!options.map)options.map=structuredClone(sunkenSanctum);
  if(options.map){sandbox.location={search:'?level=editor'};sandbox.localStorage={getItem:()=>JSON.stringify(options.map)};}
  const context=vm.createContext(sandbox);
@@ -39,6 +39,7 @@ async function game(options={}){
   return new vm.SyntheticModule(Object.keys(api),function(){for(const [key,value] of Object.entries(api))this.setExport(key,value);},{context});
  });
  await entry.evaluate();
+ if(!options.intro)entry.namespace.evaluateTest('cameraIntro=null;angle=targetAngle=CAMERA_STRAIGHT_ANGLE;updateGameCamera(0,true)');
  const codeFor=key=>({arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'}[key]||(/^\d$/.test(key)?'Digit'+key:'Key'+key.toUpperCase()));
  return {pointer:(type,options={})=>elements['#scene'].listeners[type]({pointerId:1,button:2,buttons:2,clientX:100,clientY:100,preventDefault:noop,...options}),run:s=>entry.namespace.evaluateTest(s),key:(key,code=codeFor(key),options={})=>listeners.keydown({key,code,preventDefault:noop,...options}),up:(key,code=codeFor(key))=>listeners.keyup({key,code,preventDefault:noop}),blur:()=>listeners.blur()};
 }
@@ -105,11 +106,11 @@ test('physical WASD works on Russian layout and releases after a layout change',
  }
 });
 test('shortcuts follow physical positions and movement ignores repeat and modifier shortcuts',async ()=>{
- const g=await game();g.key('Ц','KeyW');g.key('Ц','KeyW',{repeat:true});
+ const g=await game(),initialAngle=g.run('targetAngle');g.key('Ц','KeyW');g.key('Ц','KeyW',{repeat:true});
  assert.equal(g.run('moves'),1);
  g.run('simulate(.05)');g.key('я','KeyZ');assert.equal(g.run('players[0].z'),8);
- g.key('й','KeyQ');assert.equal(g.run('targetAngle'),-Math.PI/4);
- g.key('у','KeyE');assert.equal(g.run('targetAngle'),0);
+ g.key('й','KeyQ');assert.equal(g.run('targetAngle'),initialAngle-Math.PI/4);
+ g.key('у','KeyE');assert.equal(g.run('targetAngle'),initialAngle);
  g.key('@','Digit2');assert.equal(g.run('followedPlayer'),0);
  g.key('к','KeyR');assert.equal(g.run('followedPlayer'),0);
  for(const modifier of ['ctrlKey','metaKey','altKey'])g.key('ц','KeyW',{[modifier]:true});
@@ -307,8 +308,8 @@ test('initial menu uses only its diorama instead of creating a playable level',a
 
  test('right drag orbits without poking players and releases on cancellation or blur',async()=>{
  const g=await game();
- const moves=g.run('moves');g.pointer('pointerdown');g.pointer('pointermove',{clientX:200,clientY:140});
- assert.ok(Math.abs(g.run('targetAngle')+.8)<1e-9);assert.equal(g.run('targetPitch'),65);assert.equal(g.run('moves'),moves);
+ const moves=g.run('moves'),initialAngle=g.run('targetAngle');g.pointer('pointerdown');g.pointer('pointermove',{clientX:200,clientY:140});
+ assert.ok(Math.abs(g.run('targetAngle')-initialAngle+.8)<1e-9);assert.equal(g.run('targetPitch'),65);assert.equal(g.run('moves'),moves);
  g.pointer('pointermove',{clientY:1000});assert.equal(g.run('targetPitch'),85);
  g.pointer('pointermove',{clientY:-1000});assert.equal(g.run('targetPitch'),20);
  g.pointer('pointercancel');const angle=g.run('targetAngle');g.pointer('pointermove',{clientX:400});assert.equal(g.run('targetAngle'),angle);
@@ -341,4 +342,31 @@ test('camera frame correction and focal height advance with follow smoothing',as
  for(const key of ['x','z','targetY','focusHeight','frameY']){
   assert.ok(Math.abs(next[key]-before[key])<=Math.abs(wanted[key]-before[key])*.051+1e-9,key+' must ease into the new frame');
  }
+});
+
+test('level camera opens at 45 degrees and eases to a straight view only after loading',async()=>{
+ const g=await game({map:Levels.standardLevel(1),intro:true});
+ assert.equal(g.run('angle'),0);assert.equal(g.run('cameraIntro.overview'),1);
+ g.run('loadingActive=true;updateCameraIntro(.6)');assert.equal(g.run('angle'),0);
+ g.run('loadingActive=false;updateCameraIntro(.3)');
+ const first=g.run('angle');assert.ok(first<0&&first>-Math.PI/4);
+ assert.ok(g.run('cameraIntro.overview>0&&cameraIntro.overview<1'));
+ g.run('menuOpen=true;updateCameraIntro(.6)');assert.equal(g.run('angle'),first);
+ g.run('menuOpen=false;updateCameraIntro(.3)');assert.ok(g.run('angle')<first);
+ g.run('updateCameraIntro(.6)');assert.equal(g.run('cameraIntro'),null);
+ assert.equal(g.run('angle+Math.PI/4'),0);assert.equal(g.run('targetAngle'),g.run('angle'));
+ g.run('reset()');assert.equal(g.run('cameraIntro'),null,'restart does not replay the opening orbit');
+});
+
+test('manual orbit takes over from the opening camera without a jump',async()=>{
+ const g=await game({map:Levels.standardLevel(1),intro:true});
+ g.run('updateCameraIntro(.4)');const before=g.run('angle');
+ g.key('q');assert.equal(g.run('cameraIntro'),null);
+ assert.equal(g.run('angle'),before);assert.equal(g.run('targetAngle'),before-Math.PI/4);
+});
+
+test('reduced motion starts straight without the opening orbit',async()=>{
+ const g=await game({map:Levels.standardLevel(1),intro:true,reducedMotion:true});
+ assert.equal(g.run('cameraIntro'),null);assert.equal(g.run('angle'),-Math.PI/4);
+ assert.equal(g.run('targetAngle'),-Math.PI/4);
 });

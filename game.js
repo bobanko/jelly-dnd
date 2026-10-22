@@ -14,6 +14,8 @@ let winShown=false,winSelected=0;
 let restartTransition=null;
 let loadingActive=false,loadingFailed=false,loadingStage='loadingGraphics',autoZoom=1;
 let playerHints=[];
+let cameraIntro=null;
+const CAMERA_STRAIGHT_ANGLE=-Math.PI/4,CAMERA_INTRO_SECONDS=1.2;
 const canvas=document.querySelector('#scene');
 const reducedMotion=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
@@ -143,8 +145,8 @@ addEventListener('keydown',e=>{
   if(!heldKeys.size){history.push(snapshot());moves++;if(history.length>256)history.shift();}
   heldKeys.add(k);
  }else if(!e.repeat){
-  if(k==='KeyQ')targetAngle-=Math.PI/4;
-  else if(k==='KeyE')targetAngle+=Math.PI/4;
+  if(k==='KeyQ')turnCamera(-Math.PI/4);
+  else if(k==='KeyE')turnCamera(Math.PI/4);
   else if(k==='KeyR')restartLevel();
   else if(k==='KeyZ')undo();
  }
@@ -200,7 +202,8 @@ function frame(t){
  fpsElapsed+=elapsed;fpsFrames++;
  if(fpsElapsed>=.5){const counter=document.querySelector('#fps');if(counter)counter.textContent=Math.round(fpsFrames/fpsElapsed)+' FPS';fpsElapsed=0;fpsFrames=0;}
  updateRestart(dt);
- angle=reducedMotion?targetAngle:angle+(targetAngle-angle)*(1-Math.exp(-dt*11));
+ if(cameraIntro)updateCameraIntro(dt);
+ else angle=reducedMotion?targetAngle:angle+(targetAngle-angle)*(1-Math.exp(-dt*11));
  camera.pitch=reducedMotion?targetPitch:camera.pitch+(targetPitch-camera.pitch)*(1-Math.exp(-dt*11));
  if(sceneRenderer.ready)simulate(dt,elapsed);
  effects.step(dt,world,goals,players);
@@ -214,8 +217,24 @@ function frame(t){
  updatePlayerHints(dt);
  requestAnimationFrame(frame);
 }
+function startCameraIntro(){
+ if(menuOnly)return;
+ targetAngle=CAMERA_STRAIGHT_ANGLE;
+ if(reducedMotion){angle=targetAngle;cameraIntro=null;return;}
+ angle=0;cameraIntro={elapsed:0,overview:1};
+}
+function updateCameraIntro(dt){
+ if(!cameraIntro||loadingActive||menuOpen||document.hidden)return;
+ cameraIntro.elapsed+=dt;
+ const t=Math.min(1,cameraIntro.elapsed/CAMERA_INTRO_SECONDS),ease=t*t*(3-2*t);
+ angle=CAMERA_STRAIGHT_ANGLE*ease;
+ cameraIntro.overview=1-ease;
+ if(t===1){angle=targetAngle=CAMERA_STRAIGHT_ANGLE;cameraIntro=null;}
+}
+function cancelCameraIntro(){if(cameraIntro){cameraIntro=null;targetAngle=angle;}}
+function turnCamera(delta){cancelCameraIntro();targetAngle+=delta;}
 function updateGameCamera(dt,snap=false){
-  const target=JellySharedCamera.target(players,definition,camera,angle,W,H),tracking=snap||reducedMotion?1:1-Math.exp(-dt*3);
+  const target=JellySharedCamera.target(players,definition,camera,angle,W,H,cameraIntro?.overview??0),tracking=snap||reducedMotion?1:1-Math.exp(-dt*3);
   camera.x+=(target.x-camera.x)*tracking;camera.z+=(target.z-camera.z)*tracking;camera.targetY+=(target.targetY-camera.targetY)*tracking;camera.focusHeight+=(target.focusHeight-camera.focusHeight)*tracking;camera.frameY=(camera.frameY??target.frameY)+(target.frameY-(camera.frameY??target.frameY))*tracking;
   const smoothing=snap||reducedMotion?1:1-Math.exp(-dt*(target.zoom<autoZoom?6:1.8));
   autoZoom+=(target.zoom-autoZoom)*smoothing;
@@ -228,7 +247,7 @@ sceneRenderer.onProgress=updateLoading;
 if(JellyI18n)updateLoading(0,'loadingGraphics');
 sceneRenderer.init().then(async()=>{
  if(mapError){gpuFailure(mapError);return;}
- updateGameCamera(0,true);
+ startCameraIntro();updateGameCamera(0,true);
  // Build and submit the actual scene before revealing it or accepting input.
  if(menuOpen&&menuScene){const menuCamera={x:3.1,z:4.8,targetY:.2,focusHeight:.5,mode:'ortho',pitch:24,fov:45};sceneRenderer.render(menuScene,menuScene.players,menuCamera,-.15,0,Math.min(W/7.5,H/5),0);}
  else sceneRenderer.render(level,players,camera,angle,0,scale,0);
@@ -252,8 +271,8 @@ document.querySelector('#camera-mode').addEventListener('change',e=>{if(e.target
 function setCameraZoom(value){zoom=Math.max(.65,Math.min(1.8,value));resize();updateCameraUI();}
 document.querySelector('#camera-zoom-out').addEventListener('click',()=>setCameraZoom(zoom*.8));
 document.querySelector('#camera-zoom-in').addEventListener('click',()=>setCameraZoom(zoom*1.25));
-document.querySelector('#camera-turn-left').addEventListener('click',()=>targetAngle-=Math.PI/4);
-document.querySelector('#camera-turn-right').addEventListener('click',()=>targetAngle+=Math.PI/4);
+document.querySelector('#camera-turn-left').addEventListener('click',()=>turnCamera(-Math.PI/4));
+document.querySelector('#camera-turn-right').addEventListener('click',()=>turnCamera(Math.PI/4));
 document.querySelector('#camera-pitch').addEventListener('input',e=>{targetPitch=camera.pitch=Number(e.target.value);cameraPitches[camera.mode]=camera.pitch;updateCameraUI();});
 document.querySelector('#camera-fov').addEventListener('input',e=>{camera.fov=Number(e.target.value);updateCameraUI();});
 updateCameraUI();
@@ -278,7 +297,7 @@ for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addE
 canvas.addEventListener('pointerdown',e=>{
  if(menuOpen||restartTransition||loadingActive)return;
  if(e.button===2){
-  e.preventDefault();endOrbit();orbitGesture={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);return;
+  e.preventDefault();cancelCameraIntro();endOrbit();orbitGesture={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);return;
  }
  if(e.button!==0)return;
  let closest=null,distance=Infinity;

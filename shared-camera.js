@@ -19,7 +19,7 @@ function geometry(definition){
  }
  geometryCache.set(definition,corners);return corners;
 }
-function target(players,definition,camera,angle,width,height){
+function target(players,definition,camera,angle,width,height,overviewAmount=0){
  const points=players.map(p=>p.state==='alive'||!p.state?{x:p.rx??p.x,z:p.rz??p.z,y:p.y||0}:{x:p.spawn?.x??p.x,z:p.spawn?.z??p.z,y:p.spawn?.y||0});
  const roster=points.flatMap(p=>[-.85,.85].flatMap(dx=>[-.85,.85].flatMap(dz=>[p.y,p.y+1.15].map(y=>[p.x+dx,y,p.z+dz]))));
  const authored=geometry(definition),scene=authored.length?authored:roster;
@@ -58,7 +58,7 @@ function target(players,definition,camera,angle,width,height){
  // Close together: 150% of the overview scale and follow the party.
  // Spread across the level: stop at the full-level overview.
  const far=Math.max(3,Math.hypot(x1-x0,z1-z0)*.65);
- const t=clamp((spread-2)/(far-2),0,1),follow=1-t*t*(3-2*t);
+ const t=clamp((spread-2)/(far-2),0,1),follow=(1-t*t*(3-2*t))*(1-clamp(overviewAmount,0,1));
  const close=fit(roster,{x:(px0+px1)/2,z:(pz0+pz1)/2,targetY:(py0+py1)/2,focusHeight:(py0+py1)/2+.42},overview.zoom*1.5);
  const result={};
  for(const key of ['x','z','targetY','focusHeight','frameY','zoom'])result[key]=overview[key]+(close[key]-overview[key])*follow;
