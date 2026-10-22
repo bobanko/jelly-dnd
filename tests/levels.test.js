@@ -8,6 +8,21 @@ import L from '../levels.js';
 import {Model} from '../editor-model.js';
 import * as Physics from '../physics.js';
 import * as Soft from '../soft-body.js';
+
+test('starting camera survives level roundtrip, voxel conversion, editor history and reset',()=>{
+ const original=L.standardLevel(1),model=new Model(original);
+ assert.equal(model.map.camera,undefined,'old files retain their default view');
+ model.change(map=>{map.camera={yaw:135.5,pitch:37};});
+ const saved=L.read(JSON.stringify(model.map));
+ assert.deepEqual(saved.camera,{yaw:135.5,pitch:37});
+ assert.deepEqual(L.voxelize(saved).camera,saved.camera);
+ model.undo();assert.equal(model.map.camera,undefined);
+ model.redo();assert.deepEqual(model.map.camera,saved.camera);
+ model.change(map=>{delete map.camera;});assert.equal(model.map.camera,undefined);
+ model.undo();assert.deepEqual(model.map.camera,saved.camera);
+ assert.equal(L.read({...original,camera:{yaw:360,pitch:55}}).camera.yaw,0);
+ for(const camera of [null,[],false,'view',{yaw:-1},{yaw:361},{yaw:NaN},{yaw:Infinity},{yaw:'90'},{pitch:19},{pitch:86},{pitch:Infinity}])assert.throws(()=>L.read({...original,camera}));
+});
 test('color group bindings roundtrip and survive removing one of the same-color plates',()=>{
  const map=L.blank();map.tiles=[{x:2,z:2,height:0},{x:3,z:2,height:0}];
  map.plates=[{id:'a',color:'red',x:2,z:2,y:0},{id:'b',color:'red',x:3,z:2,y:0}];

@@ -5,6 +5,7 @@ import * as JellySoftBody from './soft-body.js';
 import * as JellyPhysics from './physics.js';
 import * as JellyEffects from './game-effects.js';
 import * as JellySharedCamera from './shared-camera.js';
+import * as LevelCamera from './level-camera.js';
 import {createMenuScene} from './menu-scene.js';
 import {menuOnly as JellyMenuOnly,progress as JellyProgress} from './runtime-context.js';
 
@@ -15,7 +16,6 @@ let restartTransition=null;
 let loadingActive=false,loadingFailed=false,loadingStage='loadingGraphics',autoZoom=1;
 let playerHints=[];
 let cameraIntro=null;
-const CAMERA_STRAIGHT_ANGLE=-Math.PI/4,CAMERA_INTRO_SECONDS=1.2;
 const canvas=document.querySelector('#scene');
 const reducedMotion=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sceneRenderer=new JellyGPU.Renderer(canvas,JellySoftBody);
@@ -32,8 +32,8 @@ const runtime=menuOnly?menuScene:JellyLevels.instantiate(definition,JellyPhysics
 const {start,players,crates,bodies,plates,goals,bridges,floor,world,soft}=runtime;
 let followedPlayer=0;
 let runSeconds=0,runDeaths=players.map(()=>0);
-const camera={x:start[0].x,z:start[0].z,targetY:start[0].y||0,focusHeight:(start[0].y||0)+.42,mode:'perspective',pitch:55,fov:45};
-const cameraPitches={ortho:30,perspective:55};
+const camera={x:start[0].x,z:start[0].z,targetY:start[0].y||0,focusHeight:(start[0].y||0)+.42,mode:'perspective',pitch:LevelCamera.settings(definition).pitch,fov:45};
+const cameraPitches={ortho:30,perspective:camera.pitch};
 let targetPitch=camera.pitch,orbitGesture=null;
 const effects=new JellyEffects.System({reducedMotion});
 const level={...runtime,effects,won:false,finishProgress:0,reducedMotion};
@@ -219,17 +219,17 @@ function frame(t){
 }
 function startCameraIntro(){
  if(menuOnly)return;
- targetAngle=CAMERA_STRAIGHT_ANGLE;
+ targetAngle=LevelCamera.angle(definition);
+ targetPitch=camera.pitch=LevelCamera.settings(definition).pitch;
  if(reducedMotion){angle=targetAngle;cameraIntro=null;return;}
- angle=0;cameraIntro={elapsed:0,overview:1};
+ angle=targetAngle+Math.PI/4;cameraIntro={elapsed:0,overview:1};
 }
 function updateCameraIntro(dt){
  if(!cameraIntro||loadingActive||menuOpen||document.hidden)return;
  cameraIntro.elapsed+=dt;
- const t=Math.min(1,cameraIntro.elapsed/CAMERA_INTRO_SECONDS),ease=t*t*(3-2*t);
- angle=CAMERA_STRAIGHT_ANGLE*ease;
- cameraIntro.overview=1-ease;
- if(t===1){angle=targetAngle=CAMERA_STRAIGHT_ANGLE;cameraIntro=null;}
+ const pose=LevelCamera.intro(definition,cameraIntro.elapsed);
+ angle=pose.angle;cameraIntro.overview=pose.overview;
+ if(pose.done){angle=targetAngle=LevelCamera.angle(definition);cameraIntro=null;}
 }
 function cancelCameraIntro(){if(cameraIntro){cameraIntro=null;targetAngle=angle;}}
 function turnCamera(delta){cancelCameraIntro();targetAngle+=delta;}

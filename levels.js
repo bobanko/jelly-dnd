@@ -45,6 +45,10 @@ import * as campaign from './levels/catalog.js';
   const map=blank();map.size=data.size;map.name=typeof data.name==='string'?data.name.trim().slice(0,80)||'Без названия':'Без названия';
   if(data.names&&typeof data.names==='object'&&!Array.isArray(data.names))map.names=Object.fromEntries(Object.entries(data.names).filter(([lang,value])=>/^[a-z]{2,8}(?:-[a-z0-9]{2,8})?$/i.test(lang)&&typeof value==='string'&&value.trim()).map(([lang,value])=>[lang,value.trim().slice(0,80)]));
   const number=(value,fallback,min,max)=>{if(value===undefined)return fallback;if(typeof value!=='number'||!Number.isFinite(value)||value<min||value>max)fail('Недопустимое числовое свойство объекта.');return value;};
+  if(data.camera!==undefined){
+   if(!data.camera||typeof data.camera!=='object'||Array.isArray(data.camera))fail('Неверный стартовый ракурс.');
+   map.camera={yaw:number(data.camera.yaw,0,0,360)%360,pitch:number(data.camera.pitch,55,20,85)};
+  }
   const id=(value,fallback)=>{if(value===undefined)return fallback;if(typeof value!=='string'||!value.trim()||value.length>64)fail('Неверный идентификатор объекта.');return value;};
   const point=p=>{if(!p||!Number.isSafeInteger(p.x)||!Number.isSafeInteger(p.z))fail('Координаты X и Z должны быть целыми.');map.size=Math.max(map.size,Math.abs(p.x)+1,Math.abs(p.z)+1);return {x:p.x,z:p.z,...(p.y===undefined?{}:{y:number(p.y,0,-2,12)})};};
   const list=(key,convert,max=limits[key])=>{

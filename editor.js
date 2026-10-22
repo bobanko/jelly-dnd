@@ -8,6 +8,8 @@ import * as JellyEditorModel from './editor-model.js';
 import * as JellyEditorSpace from './editor-space.js';
 import * as JellyLevelFeatures from './level-features.js';
 import * as JellyLevelCatalog from './levels/catalog.js';
+import * as LevelCamera from './level-camera.js';
+import * as SharedCamera from './shared-camera.js';
 import {editorI18n as JellyEditorI18n} from './editor-i18n.js';
 
 const L=JellyLevels,M=JellyEditorModel,S=JellyEditorSpace,$=id=>document.getElementById(id);
@@ -38,10 +40,11 @@ const cubeTool=value=>value==='floor'||/^color-[0-4]$/.test(value);
 const labels={blocks:'Каменный куб',tiles:'Камень',walls:'Стена',torches:'Настенный факел',drones:'Кристаллический дрон',spawns:'Спавн',goals:'Финиш',plates:'Кнопка',bridges:'Мост',lifts:'Лифт',conveyors:'Конвейер',spikes:'Шипы',portals:'Портал',crates:'Ящик',archers:'Скелет-лучник',pickups:'Предмет'};
 let tool='floor',selected=null,hover=null,moveObject=null,gesture=null,space=false,expandedIssues=false,toastTimer;
 const view3d=true;
-let previewZoom=1,previewAngle=0,previewDirty=true,previewRuntime=null,previewRenderer=null,previewPromise=null,previewLast=0,previewFrame=0;
+let previewZoom=1,previewAngle=model.map.camera?LevelCamera.angle(model.map):0,previewDirty=true,previewRuntime=null,previewRenderer=null,previewPromise=null,previewLast=0,previewFrame=0;
 let pickBounds=null,lastPointer=null,previewFitHeight=0,spatialCells=null;
-const previewCamera={x:(model.map.size-1)/2,z:(model.map.size-1)/2,mode:'ortho',pitch:50,fov:45};
+const previewCamera={x:(model.map.size-1)/2,z:(model.map.size-1)/2,mode:'ortho',pitch:model.map.camera?.pitch??50,fov:45};
 let previewTargetAngle=previewAngle,previewTargetPitch=previewCamera.pitch,cameraLast=0;
+let startViewPreview=null;
 let fpsLast=0,fpsElapsed=0,fpsFrames=0;
 const panKeys=new Set(),panCodes=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight']);
 const editingField=target=>target?.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"])');
@@ -61,9 +64,9 @@ function toolIcon(id,glyph){
 }
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,5000);}
 function save(){try{localStorage.setItem(L.DRAFT_KEY,JSON.stringify(model.map));if(sourceFilename)localStorage.setItem(filenameKey,sourceFilename);else localStorage.removeItem(filenameKey);$('save-status').textContent='● Сохранено';$('save-status').className='valid';return true;}catch(error){$('save-status').textContent='Не сохранено';$('save-status').className='invalid';toast('Не удалось сохранить в браузере. Используйте экспорт файла.');return false;}}
-function changed(){previewDirty=true;pickBounds=null;spatialCells=null;save();renderPanels();invalidate();}
+function changed(){stopStartViewPreview();previewDirty=true;pickBounds=null;spatialCells=null;save();renderPanels();invalidate();}
 function edit(fn){try{if(model.change(fn))changed();else renderPanels();}catch(error){toast(error.message);renderPanels();}}
-function selectTool(value){finishGesture();tool=value;moveObject=null;for(const button of document.querySelectorAll('[data-tool]'))button.setAttribute('aria-pressed',String(button.dataset.tool===tool));$('active-tool').textContent=tools[tool]?.label||'Переместить';$('conveyor-brush').hidden=tool!=='conveyor';$('spike-brush').hidden=tool!=='spikes';$('torch-brush').hidden=tool!=='torch';refreshHover();invalidate();}
+function selectTool(value){stopStartViewPreview();finishGesture();tool=value;moveObject=null;for(const button of document.querySelectorAll('[data-tool]'))button.setAttribute('aria-pressed',String(button.dataset.tool===tool));$('active-tool').textContent=tools[tool]?.label||'Переместить';$('conveyor-brush').hidden=tool!=='conveyor';$('spike-brush').hidden=tool!=='spikes';$('torch-brush').hidden=tool!=='torch';refreshHover();invalidate();}
 for(const [name,items] of groups){const group=element('section',undefined,'tool-group');group.append(element('h2',name.toUpperCase()));const grid=element('div',undefined,'tool-grid');for(const [id,glyph,label,color] of items){const button=element('button',undefined,'tool'),description=name+' · '+label;button.dataset.tool=id;button.title=description;button.setAttribute('aria-label',description);button.style.setProperty('--tool-color',color||'#a7bba4');button.append(toolIcon(id,glyph));grid.append(button);}group.append(grid);$('palette').append(group);}
 const panButton=element('button','✥');panButton.dataset.tool='pan';panButton.title='Перемещение вида (M)';panButton.setAttribute('aria-label','Перемещение вида');document.querySelector('.basic-tools').append(panButton);
 const orbitButton=element('button','⟳');orbitButton.dataset.tool='orbit';orbitButton.title='Вращение камеры · правая кнопка мыши';orbitButton.setAttribute('aria-label','Вращение камеры');document.querySelector('.basic-tools').append(orbitButton);
@@ -78,12 +81,12 @@ for(const [i,button] of [...document.querySelectorAll('button[title]')].entries(
 document.querySelectorAll('[data-tool]').forEach(button=>button.onclick=()=>selectTool(button.dataset.tool));
 const colliderLabel=element('label','Коллайдеры'),colliderToggle=element('input');colliderToggle.type='checkbox';colliderToggle.id='preview-colliders';colliderLabel.prepend(colliderToggle);document.querySelector('.camera-buttons').append(colliderLabel);
 const projection=element('fieldset',undefined,'projection-options');projection.id='editor-projection';projection.append(element('legend','Проекция камеры','visually-hidden'));
-for(const [value,text] of [['ortho','Изометрия'],['perspective','Перспектива']]){const label=element('label'),input=element('input');input.type='radio';input.name='camera-projection';input.value=value;input.checked=previewCamera.mode===value;input.onchange=()=>{previewCamera.mode=input.value;refreshHover();invalidate();};label.append(input,element('span',text));projection.append(label);}document.querySelector('.camera-buttons').prepend(projection);
+for(const [value,text] of [['ortho','Изометрия'],['perspective','Перспектива']]){const label=element('label'),input=element('input');input.type='radio';input.name='camera-projection';input.value=value;input.checked=previewCamera.mode===value;input.onchange=()=>{stopStartViewPreview();previewCamera.mode=input.value;refreshHover();invalidate();};label.append(input,element('span',text));projection.append(label);}document.querySelector('.camera-buttons').prepend(projection);
 const spatialGridLabel=element('label','Сетка'),spatialGrid=element('input');spatialGrid.type='checkbox';spatialGrid.checked=true;spatialGrid.id='spatial-grid';spatialGridLabel.prepend(spatialGrid);document.querySelector('.camera-buttons').append(spatialGridLabel);
 const zoomButtons=element('div',undefined,'zoom-buttons');
 for(const [id,text,factor,label] of [['zoom-out','−',.8,'Уменьшить масштаб'],['zoom-in','+',1.25,'Увеличить масштаб']]){
  const button=element('button',text);button.id=id;button.title=label;button.setAttribute('aria-label',label);button.onclick=()=>{
-  previewZoom=Math.max(.5,Math.min(3,previewZoom*factor));$('zoom-label').textContent=Math.round(previewZoom*100)+'%';refreshHover();
+  stopStartViewPreview();previewZoom=Math.max(.5,Math.min(3,previewZoom*factor));$('zoom-label').textContent=Math.round(previewZoom*100)+'%';refreshHover();
  };zoomButtons.append(button);if(id==='zoom-out'){const zoomLabel=element('span','100%');zoomLabel.id='zoom-label';zoomButtons.append(zoomLabel);}
 }
 document.querySelector('.viewport-toolbar').insertBefore(zoomButtons,$('fit'));
@@ -211,8 +214,51 @@ function renderPanels(){
  $('level-name').value=model.map.name;
  $('undo').disabled=!model.undoStack.length;$('redo').disabled=!model.redoStack.length;
  $('stats').replaceChildren(element('span',`${model.map.blocks.length} кубов`),element('span',`${Object.keys(L.limits).filter(k=>!['tiles','blocks'].includes(k)).reduce((n,k)=>n+model.map[k].length,0)} объектов`));
- renderProperties();renderIssues();
+ renderStartCamera();renderProperties();renderIssues();
 }
+function renderStartCamera(){
+ const view=LevelCamera.settings(model.map);
+ $('start-camera-yaw').value=view.yaw+'°';$('start-camera-pitch').value=view.pitch+'°';
+ $('save-start-camera').disabled=!!startViewPreview;
+ $('reset-start-camera').disabled=!!startViewPreview||!model.map.camera;
+ const button=$('preview-start-camera');button.textContent=startViewPreview?'Вернуться к редактированию':'Предпросмотр';button.setAttribute('aria-pressed',String(!!startViewPreview));
+}
+function stopStartViewPreview(){
+ if(!startViewPreview)return;
+ const saved=startViewPreview.saved;startViewPreview=null;
+ for(const key of Object.keys(previewCamera))if(!(key in saved.camera))delete previewCamera[key];
+ Object.assign(previewCamera,saved.camera);previewAngle=saved.angle;previewTargetAngle=saved.targetAngle;previewTargetPitch=saved.targetPitch;previewZoom=saved.zoom;
+ document.querySelectorAll('#editor-projection input').forEach(input=>input.checked=input.value===previewCamera.mode);
+ renderStartCamera();refreshHover();invalidate();
+}
+function startCameraPreview(){
+ if(startViewPreview){stopStartViewPreview();return;}
+ if(!model.map.spawns.some(Boolean)){toast('Добавьте персонажа для предпросмотра.');return;}
+ if(!previewRenderer?.ready)return;
+ finishGesture();panKeys.clear();if(previewDirty||!previewRuntime)rebuildPreview();
+ startViewPreview={definition:L.copy(model.map),elapsed:0,scale:1,zoom:null,saved:{camera:{...previewCamera},angle:previewAngle,targetAngle:previewTargetAngle,targetPitch:previewTargetPitch,zoom:previewZoom}};
+ previewCamera.mode='perspective';previewCamera.fov=45;
+ document.querySelectorAll('#editor-projection input').forEach(input=>input.checked=input.value===previewCamera.mode);
+ updateStartViewPreview(0);renderStartCamera();invalidate();
+}
+function updateStartViewPreview(dt){
+ if(!startViewPreview)return;
+ if(!document.hidden)startViewPreview.elapsed+=dt;
+ const pose=LevelCamera.intro(startViewPreview.definition,startViewPreview.elapsed,reducedMotion),r=$('viewport').getBoundingClientRect();
+ previewAngle=previewTargetAngle=pose.angle;previewCamera.pitch=previewTargetPitch=pose.pitch;
+ const target=SharedCamera.target(previewRuntime.players,startViewPreview.definition,previewCamera,pose.angle,r.width,r.height,pose.overview);
+ const snap=startViewPreview.zoom===null||reducedMotion,tracking=snap?1:1-Math.exp(-dt*3);
+ for(const key of ['x','z','targetY','focusHeight','frameY'])previewCamera[key]=(previewCamera[key]??target[key])+(target[key]-(previewCamera[key]??target[key]))*tracking;
+ const zoomRate=target.zoom<startViewPreview.zoom?6:1.8;
+ startViewPreview.zoom=snap?target.zoom:startViewPreview.zoom+(target.zoom-startViewPreview.zoom)*(1-Math.exp(-dt*zoomRate));
+ startViewPreview.scale=Math.min(r.width/16,r.height/12)*startViewPreview.zoom;
+}
+$('save-start-camera').onclick=()=>{
+ finishGesture();const yaw=((previewAngle*180/Math.PI+45)%360+360)%360;
+ edit(map=>{map.camera={yaw:Math.round(yaw*100)/100%360,pitch:Math.round(previewCamera.pitch*100)/100};});toast('Стартовый ракурс сохранён.');
+};
+$('reset-start-camera').onclick=()=>{edit(map=>{delete map.camera;});toast('Стартовый ракурс сброшен.');};
+$('preview-start-camera').onclick=startCameraPreview;
 function screenFrame(){const r=$('viewport').getBoundingClientRect();return S.frame(previewCamera,previewAngle,r.width,r.height,previewScale());}
 function screenRay(event){const r=$('viewport').getBoundingClientRect();return S.ray(screenFrame(),event.clientX-r.left,event.clientY-r.top,r.width,r.height);}
 function point(event){
@@ -242,6 +288,7 @@ function finishGesture(){
  const changedMap=model.commit();gesture=null;if(changedMap)changed();else{renderProperties();invalidate();}refreshHover();
 }
 $('viewport').addEventListener('pointerdown',event=>{
+ if(startViewPreview){stopStartViewPreview();event.preventDefault();return;}
  if(![0,1,2].includes(event.button)||gesture)return;event.preventDefault();$('viewport').focus();lastPointer=event;const p=point(event);hover=p;
  if(event.button===2||tool==='orbit'||space||event.button===1||tool==='pan'){
   const orbit=!space&&event.button!==1&&(event.button===2||tool==='orbit');gesture={pan:!orbit,orbit,x:event.clientX,y:event.clientY};$('viewport').classList.add('camera-drag');$('viewport').setPointerCapture(event.pointerId);return;
@@ -266,17 +313,18 @@ $('viewport').addEventListener('pointermove',event=>{
 });
 $('viewport').addEventListener('pointerup',finishGesture);$('viewport').addEventListener('pointercancel',finishGesture);$('viewport').addEventListener('lostpointercapture',finishGesture);
 $('viewport').addEventListener('contextmenu',event=>event.preventDefault());$('viewport').addEventListener('pointerleave',()=>{if(!gesture){lastPointer=null;hover=null;invalidate();}});
-$('viewport').addEventListener('wheel',event=>{event.preventDefault();previewZoom=Math.max(.5,Math.min(3,previewZoom*Math.exp(-event.deltaY*.001)));$('zoom-label').textContent=Math.round(previewZoom*100)+'%';refreshHover();},{passive:false});
+$('viewport').addEventListener('wheel',event=>{event.preventDefault();stopStartViewPreview();previewZoom=Math.max(.5,Math.min(3,previewZoom*Math.exp(-event.deltaY*.001)));$('zoom-label').textContent=Math.round(previewZoom*100)+'%';refreshHover();},{passive:false});
 function areaPoints(){return Object.keys(L.limits).concat(['spawns','goals']).flatMap(key=>model.map[key].filter(Boolean));}
 function gridCells(){if(spatialCells)return spatialCells;const cells=new Set(),points=areaPoints();if(!points.length)points.push({x:0,z:0});for(const p of points)for(let dz=-3;dz<=3;dz++)for(let dx=-3;dx<=3;dx++)cells.add(`${p.x+dx},${p.z+dz}`);return spatialCells=Array.from(cells,cell=>{const [x,z]=cell.split(',').map(Number);return {x,z,cell};});}
 function areaBounds(){const points=areaPoints();if(!points.length)return {minX:-3,maxX:3,minZ:-3,maxZ:3};return {minX:Math.min(...points.map(p=>p.x))-3,maxX:Math.max(...points.map(p=>p.x))+3,minZ:Math.min(...points.map(p=>p.z))-3,maxZ:Math.max(...points.map(p=>p.z))+3};}
 let previewFitSize=8;
-function fit(){previewZoom=1;const bounds=areaBounds();previewCamera.x=(bounds.minX+bounds.maxX)/2;previewCamera.z=(bounds.minZ+bounds.maxZ)/2;previewFitSize=Math.max(bounds.maxX-bounds.minX+1,bounds.maxZ-bounds.minZ+1);const ys=areaPoints().map(p=>p.y??p.height??p.base??0);previewFitHeight=ys.length?Math.max(...ys)-Math.min(...ys)+1:0;previewCamera.targetY=ys.length?(Math.max(...ys)+Math.min(...ys)-1)/2:0;$('zoom-label').textContent='100%';refreshHover();invalidate();}
-function previewScale(){const r=$('viewport').getBoundingClientRect();return Math.min(r.width/(previewFitSize*1.65),r.height/(previewFitSize*1.3+previewFitHeight*.6))*previewZoom;}
+function fit(){stopStartViewPreview();previewZoom=1;const bounds=areaBounds();previewCamera.x=(bounds.minX+bounds.maxX)/2;previewCamera.z=(bounds.minZ+bounds.maxZ)/2;previewFitSize=Math.max(bounds.maxX-bounds.minX+1,bounds.maxZ-bounds.minZ+1);const ys=areaPoints().map(p=>p.y??p.height??p.base??0);previewFitHeight=ys.length?Math.max(...ys)-Math.min(...ys)+1:0;previewCamera.targetY=ys.length?(Math.max(...ys)+Math.min(...ys)-1)/2:0;$('zoom-label').textContent='100%';refreshHover();invalidate();}
+function previewScale(){if(startViewPreview)return startViewPreview.scale;const r=$('viewport').getBoundingClientRect();return Math.min(r.width/(previewFitSize*1.65),r.height/(previewFitSize*1.3+previewFitHeight*.6))*previewZoom;}
 function drawSpatialOverlay(){
  const canvas=$('spatial-overlay'),r=$('viewport').getBoundingClientRect(),ratio=Math.min(devicePixelRatio||1,2),w=Math.round(r.width*ratio),h=Math.round(r.height*ratio);
  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
  const ctx=canvas.getContext('2d');ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,r.width,r.height);
+ if(startViewPreview)return;
  const frame=screenFrame(),project=p=>JellyGPU.projectPoint(frame,...p,r.width,r.height);
  function path(points,color,fill=null,dashed=false){
   const ps=points.map(project);if(ps.some(p=>!p.visible))return;ctx.beginPath();ps.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.setLineDash(dashed?[5,4]:[]);if(fill){ctx.fillStyle=fill;ctx.fill();}ctx.strokeStyle=color;ctx.stroke();
@@ -334,6 +382,7 @@ function panView(dx,dy,clientX,clientY){
 }
 function cameraTick(t){
  const dt=Math.min(.05,(t-cameraLast)/1000||.016);cameraLast=t;
+ if(startViewPreview){updateStartViewPreview(dt);requestAnimationFrame(cameraTick);return;}
  const angleDelta=previewTargetAngle-previewAngle,pitchDelta=previewTargetPitch-previewCamera.pitch;
  let moved=false;
  if(Math.abs(angleDelta)>1e-6||Math.abs(pitchDelta)>1e-6){
@@ -356,12 +405,12 @@ async function initPreview(){
   previewPromise=previewRenderer.init();await previewPromise;$('gpu-message').hidden=true;if(!previewFrame)previewFrame=requestAnimationFrame(previewTick);
  }catch(error){$('gpu-message').hidden=false;$('gpu-message').textContent=error.message;}
 }
-function turnCamera(delta){previewTargetAngle+=delta;}
+function turnCamera(delta){stopStartViewPreview();previewTargetAngle+=delta;}
 $('fit').onclick=fit;$('rotate-left').onclick=()=>turnCamera(-Math.PI/4);$('rotate-right').onclick=()=>turnCamera(Math.PI/4);
 $('connections').onchange=invalidate;$('brush-height').onchange=()=>{refreshHover();invalidate();};
 $('undo').onclick=()=>{finishGesture();if(model.undo()){moveObject=null;selected=null;changed();}};$('redo').onclick=()=>{if(model.redo()){selected=null;changed();}};
 $('level-name').onchange=event=>edit(map=>{map.name=event.target.value.trim()||'Без названия';});
-function replaceMap(map,filename=sourceFilename){finishGesture();const changedMap=model.load(L.voxelize(map));sourceFilename=filename;if(changedMap){selected=null;moveObject=null;expandedIssues=false;changed();fit();}else save();}
+function replaceMap(map,filename=sourceFilename){finishGesture();const changedMap=model.load(L.voxelize(map));sourceFilename=filename;if(changedMap){selected=null;moveObject=null;expandedIssues=false;changed();if(model.map.camera){previewAngle=previewTargetAngle=LevelCamera.angle(model.map);previewCamera.pitch=previewTargetPitch=model.map.camera.pitch;}fit();}else save();}
 $('new').onclick=()=>replaceMap(L.blank(),null);
 const catalogPicker=element('label',undefined,'catalog-picker'),catalogSelect=element('select');
 catalogSelect.id='catalog-map';catalogSelect.setAttribute('aria-label','Карта кампании');
@@ -397,6 +446,7 @@ addEventListener('keydown',event=>{
   if(next!==Number(input.value)||input.value===''){input.value=next;input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}return;
  }
  if(editingField(event.target))return;
+ if(startViewPreview){stopStartViewPreview();if(event.code==='Escape'){event.preventDefault();return;}}
  if((event.ctrlKey||event.metaKey)&&event.code==='KeyZ'){event.preventDefault();(event.shiftKey?$('redo'):$('undo')).click();return;}
  if((event.ctrlKey||event.metaKey)&&event.code==='KeyY'){event.preventDefault();$('redo').click();return;}
  if(event.ctrlKey||event.metaKey||event.altKey)return;

@@ -1,5 +1,6 @@
 import * as menuSceneModule from '../menu-scene.js';
 import * as SharedCamera from '../shared-camera.js';
+import * as LevelCamera from '../level-camera.js';
 import Levels from '../levels.js';
 import * as GameEffects from '../game-effects.js';
 import * as Physics from '../physics.js';
@@ -27,6 +28,7 @@ async function game(options={}){
   './game-effects.js':GameEffects,
   './webgpu-renderer.js':sandbox.JellyGPU,
   './shared-camera.js':SharedCamera,
+  './level-camera.js':LevelCamera,
   './menu-scene.js':menuSceneModule,
   './i18n.js':{i18n:null},
   './runtime-context.js':{menuOnly:!!options.menuOnly,progress:null}
@@ -39,7 +41,7 @@ async function game(options={}){
   return new vm.SyntheticModule(Object.keys(api),function(){for(const [key,value] of Object.entries(api))this.setExport(key,value);},{context});
  });
  await entry.evaluate();
- if(!options.intro)entry.namespace.evaluateTest('cameraIntro=null;angle=targetAngle=CAMERA_STRAIGHT_ANGLE;updateGameCamera(0,true)');
+ if(!options.intro)entry.namespace.evaluateTest('cameraIntro=null;angle=targetAngle=LevelCamera.angle(definition);updateGameCamera(0,true)');
  const codeFor=key=>({arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'}[key]||(/^\d$/.test(key)?'Digit'+key:'Key'+key.toUpperCase()));
  return {pointer:(type,options={})=>elements['#scene'].listeners[type]({pointerId:1,button:2,buttons:2,clientX:100,clientY:100,preventDefault:noop,...options}),run:s=>entry.namespace.evaluateTest(s),key:(key,code=codeFor(key),options={})=>listeners.keydown({key,code,preventDefault:noop,...options}),up:(key,code=codeFor(key))=>listeners.keyup({key,code,preventDefault:noop}),blur:()=>listeners.blur()};
 }
@@ -369,4 +371,15 @@ test('reduced motion starts straight without the opening orbit',async()=>{
  const g=await game({map:Levels.standardLevel(1),intro:true,reducedMotion:true});
  assert.equal(g.run('cameraIntro'),null);assert.equal(g.run('angle'),-Math.PI/4);
  assert.equal(g.run('targetAngle'),-Math.PI/4);
+});
+
+test('authored starting view sets gameplay pitch and the destination of the opening orbit',async()=>{
+ const map=Levels.standardLevel(1);map.camera={yaw:135,pitch:37};
+ const g=await game({map,intro:true});
+ assert.ok(Math.abs(g.run('angle')-135*Math.PI/180)<1e-12);
+ assert.equal(g.run('camera.pitch'),37);assert.equal(g.run('targetPitch'),37);
+ g.run('updateCameraIntro(1.2)');
+ assert.ok(Math.abs(g.run('angle')-Math.PI/2)<1e-12);assert.equal(g.run('cameraIntro'),null);
+ const reduced=await game({map,intro:true,reducedMotion:true});
+ assert.equal(reduced.run('angle'),Math.PI/2);assert.equal(reduced.run('camera.pitch'),37);
 });

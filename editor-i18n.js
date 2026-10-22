@@ -8,6 +8,18 @@ export function initEditorI18n(){
 Редактор|Editor
 МАСТЕРСКАЯ|WORKSHOP
 Название уровня|Level name
+Стартовый ракурс|Starting view
+Поворот|Rotation
+Наклон|Pitch
+Поверните вид и сохраните ракурс для игры.|Rotate the view and save it for gameplay.
+Сохранить текущий|Use current view
+Предпросмотр|Preview
+Сбросить|Reset
+Вернуться к редактированию|Back to editing
+Стартовый ракурс сохранён.|Starting view saved.
+Стартовый ракурс сброшен.|Starting view reset.
+Добавьте персонажа для предпросмотра.|Add a character to preview the starting view.
+Неверный стартовый ракурс.|Invalid starting view.
 Сохранено|Saved
 Не сохранено|Not saved
 Отменить|Undo
