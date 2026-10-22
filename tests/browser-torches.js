@@ -33,9 +33,11 @@ import fs from 'node:fs';
   assert.ok(await page.evaluate(()=>world.arrows.length===1&&world.arrows[0].z>3.6));
   await page.evaluate(()=>{world.arrows=[{x:3,y:.5,z:1,dx:0,dz:1,speed:5.5,life:4}];world.afterCombat(bodies,soft,.5);});assert.equal(await page.evaluate(()=>world.arrows.length),0);
   await page.evaluate(()=>{Object.assign(camera,{x:3,z:3,targetY:.4});zoom=1.5;resize();});await page.screenshot({path:'artifacts/wall-torches-game.png'});
-  await page.goto('http://localhost:3000/');await page.waitForFunction(()=>sceneRenderer.ready&&sceneRenderer.frames>6);
-  assert.ok(await page.evaluate(()=>world.torches.length===4&&world.obstacles.every(p=>p.half>=.4)));
+  // The original chamber left the campaign ('/' is now the menu diorama): play its JSON as a test level. Its four lights stay explicit side-wall mounts on full masonry, without narrow legacy torch colliders.
+  await page.addInitScript(map=>localStorage.setItem('jelly-dnd.play.v1',map),fs.readFileSync('levels/05-sunken-sanctum.json','utf8'));
+  await page.goto('http://localhost:3000/?level=editor');await page.waitForFunction(()=>sceneRenderer.ready&&sceneRenderer.frames>6&&!loadingActive&&cameraIntro===null);
+  assert.deepEqual(await page.evaluate(()=>({name:definition.name,torches:world.torches.map(p=>[p.x,p.y,p.z,p.face].join()).sort(),narrow:world.obstacles.filter(p=>p.half<.4).length,hosted:world.torches.every(p=>world.obstacles.some(o=>o.x===p.x&&o.z===p.z&&o.half>=.4))})),{name:'The Sunken Sanctum',torches:['0,1,2,east','0,1,9,east','11,1,2,west','11,1,9,west'],narrow:0,hosted:true});
   await page.screenshot({path:'artifacts/wall-torches-chamber.png'});assert.deepEqual(await page.evaluate(()=>sceneRenderer.errors),[]);assert.deepEqual(errors,[]);
-  console.log('PASS: four wall-face clicks, mount height editing, independent deletion/undo, JSON persistence, shared editor/game meshes, no torch colliders, arrows cross torch volumes but hit masonry, explicit chamber mounts and no browser/GPU errors.');
+  console.log('PASS: four wall-face clicks, mount height editing, independent deletion/undo, JSON persistence, shared editor/game meshes, no torch colliders, arrows cross torch volumes but hit masonry, the Sunken Sanctum\'s four explicit side-wall mounts on full masonry without narrow torch colliders, and no browser/GPU errors.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

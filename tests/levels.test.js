@@ -10,8 +10,10 @@ import * as Physics from '../physics.js';
 import * as Soft from '../soft-body.js';
 
 test('starting camera survives level roundtrip, voxel conversion, editor history and reset',()=>{
- const original=L.standardLevel(1),model=new Model(original);
+ // The legacy Sunken Sanctum predates start cameras; campaign maps store authored views.
+ const original=L.copy(sunkenSanctum),model=new Model(original);
  assert.equal(model.map.camera,undefined,'old files retain their default view');
+ const authored=L.standardLevel(1);assert.deepEqual(new Model(authored).map.camera,authored.camera,'authored start views load unchanged');
  model.change(map=>{map.camera={yaw:135.5,pitch:37};});
  const saved=L.read(JSON.stringify(model.map));
  assert.deepEqual(saved.camera,{yaw:135.5,pitch:37});

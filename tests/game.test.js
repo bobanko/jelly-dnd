@@ -346,8 +346,11 @@ test('camera frame correction and focal height advance with follow smoothing',as
  }
 });
 
+// Campaign maps store authored start views; without one a level keeps the default straight view (yaw 0).
+function defaultViewLevel(){const map=Levels.standardLevel(1);delete map.camera;return map;}
+
 test('level camera opens at 45 degrees and eases to a straight view only after loading',async()=>{
- const g=await game({map:Levels.standardLevel(1),intro:true});
+ const g=await game({map:defaultViewLevel(),intro:true});
  assert.equal(g.run('angle'),0);assert.equal(g.run('cameraIntro.overview'),1);
  g.run('loadingActive=true;updateCameraIntro(.6)');assert.equal(g.run('angle'),0);
  g.run('loadingActive=false;updateCameraIntro(.3)');
@@ -368,7 +371,7 @@ test('manual orbit takes over from the opening camera without a jump',async()=>{
 });
 
 test('reduced motion starts straight without the opening orbit',async()=>{
- const g=await game({map:Levels.standardLevel(1),intro:true,reducedMotion:true});
+ const g=await game({map:defaultViewLevel(),intro:true,reducedMotion:true});
  assert.equal(g.run('cameraIntro'),null);assert.equal(g.run('angle'),-Math.PI/4);
  assert.equal(g.run('targetAngle'),-Math.PI/4);
 });
