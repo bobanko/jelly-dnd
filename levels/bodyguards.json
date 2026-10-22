@@ -1,7 +1,6 @@
 {
   "version": 1,
   "name": "Bodyguards",
-  "ds-lvl":"5",
   "size": 10,
   "blocks": [
     {
@@ -415,6 +414,7 @@
       "z": 5,
       "y": 0
     },
+    null,
     null
   ],
   "goals": [
@@ -429,6 +429,7 @@
       "z": 3,
       "y": 0
     },
+    null,
     null
   ],
   "plates": [],
@@ -439,5 +440,9 @@
   "conveyors": [],
   "crates": [],
   "archers": [],
-  "pickups": []
+  "pickups": [],
+  "camera": {
+    "yaw": 180,
+    "pitch": 50
+  }
 }

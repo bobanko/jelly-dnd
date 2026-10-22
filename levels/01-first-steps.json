@@ -119,6 +119,7 @@
       "z": 8,
       "y": 0
     },
+    null,
     null
   ],
   "goals": [
@@ -133,6 +134,7 @@
       "z": 6,
       "y": 0
     },
+    null,
     null
   ],
   "plates": [],
@@ -153,5 +155,9 @@
       "firstShot": 0.1
     }
   ],
-  "pickups": []
+  "pickups": [],
+  "camera": {
+    "yaw": 90,
+    "pitch": 50
+  }
 }

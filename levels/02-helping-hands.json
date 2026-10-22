@@ -110,6 +110,7 @@
       "y": 0
     },
     null,
+    null,
     null
   ],
   "goals": [
@@ -123,6 +124,7 @@
       "z": 2,
       "y": 0
     },
+    null,
     null,
     null
   ],
@@ -164,5 +166,9 @@
   "pickups": [],
   "names": {
     "ru": "Взаимопомощь"
+  },
+  "camera": {
+    "yaw": 0,
+    "pitch": 50
   }
 }

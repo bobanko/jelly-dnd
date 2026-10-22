@@ -580,6 +580,7 @@
       "z": 1,
       "y": 0
     },
+    null,
     null
   ],
   "goals": [
@@ -594,6 +595,7 @@
       "z": -2,
       "y": 0
     },
+    null,
     null
   ],
   "plates": [
@@ -661,5 +663,9 @@
     }
   ],
   "archers": [],
-  "pickups": []
+  "pickups": [],
+  "camera": {
+    "yaw": 90,
+    "pitch": 50
+  }
 }

@@ -565,5 +565,9 @@
   "conveyors": [],
   "crates": [],
   "archers": [],
-  "pickups": []
+  "pickups": [],
+  "camera": {
+    "yaw": 0,
+    "pitch": 50
+  }
 }

@@ -330,6 +330,7 @@
       "y": 0
     },
     null,
+    null,
     null
   ],
   "goals": [
@@ -343,6 +344,7 @@
       "z": 3,
       "y": 2
     },
+    null,
     null,
     null
   ],
@@ -412,5 +414,9 @@
   "pickups": [],
   "names": {
     "ru": "Через разлом"
+  },
+  "camera": {
+    "yaw": 45,
+    "pitch": 50
   }
 }
