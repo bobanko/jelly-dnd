@@ -1,63 +1,168 @@
 /* Shared keyboard hints: gameplay, menus, completion screen and editor. */
-.controls-footer{
- --controls-line:#bc995d30;
- display:flex;
- align-items:center;
- gap:16px 22px;
- min-height:65px;
- height:auto;
- padding:14px 0;
- border-top:1px solid var(--controls-line);
- color:#a89e88;
- font:10px Arial,sans-serif;
- text-align:left;
- flex-shrink:0;
+.controls-footer {
+  --controls-line: #bc995d30;
+  display: flex;
+  align-items: center;
+  gap: 16px 22px;
+  min-height: 65px;
+  height: auto;
+  padding: 14px 0;
+  border-top: 1px solid var(--controls-line);
+  color: #a89e88;
+  font:
+    10px Arial,
+    sans-serif;
+  text-align: left;
+  flex-shrink: 0;
 }
-.controls-footer.screen-controls{
- position:fixed;
- inset:auto 3% 0;
- margin:0;
- width:auto;
- flex-wrap:wrap;
- background:linear-gradient(transparent,#101214cc);
+.controls-footer.screen-controls {
+  position: fixed;
+  inset: auto 3% 0;
+  margin: 0;
+  width: auto;
+  flex-wrap: wrap;
+  background: linear-gradient(transparent, #101214cc);
 }
-.controls-footer .controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px 22px}
-.controls-footer>span,.controls-footer .controls>span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;margin:0}
-.controls-footer>span>span{margin:0 0 0 3px}
-:is(.controls-footer,.help-controls,.shortcut-tooltip) kbd{
- display:inline-grid;
- place-items:center;
- min-width:24px;
- min-height:27px;
- box-sizing:border-box;
- padding:5px 7px;
- margin:0;
- border:1px solid #b5996733;
- border-bottom-width:2px;
- border-radius:4px;
- background:#bdd3c007;
- color:#c8bca6;
- font:10px/1 Arial,sans-serif;
- white-space:nowrap;
+.controls-footer .controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 22px;
 }
-.viewport-footer.controls-footer{--controls-line:#bc995d30;border-top:1px solid var(--controls-line);padding:8px 14px;min-height:48px;flex-wrap:wrap;gap:8px;font-size:9px}
-.viewport-footer.controls-footer #mouse-hints{display:flex;white-space:normal;line-height:1.5;visibility:visible;gap:8px 12px}
-.controls-footer .direction-keyset{display:inline-grid;grid-template-columns:repeat(3,14px);grid-template-rows:repeat(2,14px);gap:2px;margin:0}
-.controls-footer .direction-keyset kbd{width:100%;height:100%;min-width:0;min-height:0;padding:0!important;font-size:8px}
-.mouse-icon{display:inline-block;position:relative;flex:none;width:17px;height:24px;border:1px solid currentColor;border-radius:7px;vertical-align:middle;overflow:hidden}
-.mouse-icon::before{content:"";position:absolute;top:0;width:50%;height:10px;background:currentColor}
-.mouse-left::before{left:0;border-radius:5px 0 0 0}
-.mouse-right::before{right:0;border-radius:0 5px 0 0}
-.mouse-icon::after{content:"";position:absolute;left:50%;top:0;height:10px;border-left:1px solid #142023}
-.direction-keyset kbd:first-child{grid-column:2}
-.direction-keyset kbd:nth-child(2){grid-column:1;grid-row:2}
-.direction-keyset kbd:nth-child(3){grid-column:2;grid-row:2}
-.direction-keyset kbd:nth-child(4){grid-column:3;grid-row:2}
-#main-menu{padding-bottom:100px}
-#win{padding-bottom:110px}
-@media(max-width:600px){
- .controls-footer.screen-controls{inset:auto 15px 0;gap:10px 16px;min-height:62px;padding:12px 0}
- .controls-footer .controls{gap:10px 14px}
- :is(.controls-footer,.help-controls,.shortcut-tooltip) kbd{min-width:22px;min-height:25px;padding:4px 5px;font-size:9px}
- #main-menu,#win{padding-bottom:150px}
+.controls-footer > span,
+.controls-footer .controls > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  margin: 0;
+}
+.controls-footer > span > span {
+  margin: 0 0 0 3px;
+}
+:is(.controls-footer, .help-controls, .shortcut-tooltip) kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  min-height: 27px;
+  box-sizing: border-box;
+  padding: 5px 7px;
+  margin: 0;
+  border: 1px solid #b5996733;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #bdd3c007;
+  color: #c8bca6;
+  font:
+    10px/1 Arial,
+    sans-serif;
+  white-space: nowrap;
+}
+.viewport-footer.controls-footer {
+  --controls-line: #bc995d30;
+  border-top: 1px solid var(--controls-line);
+  padding: 8px 14px;
+  min-height: 48px;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 9px;
+}
+.viewport-footer.controls-footer #mouse-hints {
+  display: flex;
+  white-space: normal;
+  line-height: 1.5;
+  visibility: visible;
+  gap: 8px 12px;
+}
+.controls-footer .direction-keyset {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 14px);
+  grid-template-rows: repeat(2, 14px);
+  gap: 2px;
+  margin: 0;
+}
+.controls-footer .direction-keyset kbd {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 !important;
+  font-size: 8px;
+}
+.mouse-icon {
+  display: inline-block;
+  position: relative;
+  flex: none;
+  width: 17px;
+  height: 24px;
+  border: 1px solid currentColor;
+  border-radius: 7px;
+  vertical-align: middle;
+  overflow: hidden;
+}
+.mouse-icon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 10px;
+  background: currentColor;
+}
+.mouse-left::before {
+  left: 0;
+  border-radius: 5px 0 0 0;
+}
+.mouse-right::before {
+  right: 0;
+  border-radius: 0 5px 0 0;
+}
+.mouse-icon::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 10px;
+  border-left: 1px solid #142023;
+}
+.direction-keyset kbd:first-child {
+  grid-column: 2;
+}
+.direction-keyset kbd:nth-child(2) {
+  grid-column: 1;
+  grid-row: 2;
+}
+.direction-keyset kbd:nth-child(3) {
+  grid-column: 2;
+  grid-row: 2;
+}
+.direction-keyset kbd:nth-child(4) {
+  grid-column: 3;
+  grid-row: 2;
+}
+#main-menu {
+  padding-bottom: 100px;
+}
+#win {
+  padding-bottom: 110px;
+}
+@media (max-width: 600px) {
+  .controls-footer.screen-controls {
+    inset: auto 15px 0;
+    gap: 10px 16px;
+    min-height: 62px;
+    padding: 12px 0;
+  }
+  .controls-footer .controls {
+    gap: 10px 14px;
+  }
+  :is(.controls-footer, .help-controls, .shortcut-tooltip) kbd {
+    min-width: 22px;
+    min-height: 25px;
+    padding: 4px 5px;
+    font-size: 9px;
+  }
+  #main-menu,
+  #win {
+    padding-bottom: 150px;
+  }
 }

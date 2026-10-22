@@ -1,45 +1,231 @@
-import {chromium} from './browser-harness.js';
+import { chromium } from './browser-harness.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-(async()=>{
- fs.mkdirSync('artifacts',{recursive:true});const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--enable-unsafe-webgpu','--use-angle=d3d11']});
- try{
-  const page=await browser.newPage({viewport:{width:1600,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-  await page.goto('http://localhost:3000/editor.html');await page.waitForFunction(()=>view3d&&previewRenderer?.ready&&previewRuntime);
-  assert.equal(await page.locator('[data-tool=wall]').count(),0);assert.ok(await page.evaluate(()=>model.map.blocks.length>100&&model.map.tiles.length===0&&model.map.walls.every(w=>w.half<.4)));
-  await page.screenshot({path:'artifacts/voxel-migrated-chamber.png'});await page.locator('#new').click();await page.selectOption('#map-size','8');
-  const place=async(x,y,z)=>page.evaluate(p=>edit(()=>paintCell(p,'floor')),{x,y,z});
-  const screen=async(x,y,z)=>page.evaluate(p=>{const r=document.getElementById('viewport').getBoundingClientRect(),p2=JellyGPU.projectPoint(screenFrame(),...p,r.width,r.height);return {x:r.left+p2.x,y:r.top+p2.y};},[x,y,z]);
-  const click=async(x,y,z,options)=>{const p=await screen(x,y,z);await page.mouse.click(p.x,p.y,options);};
-  const tool=async name=>page.locator(`[data-tool="${name}"]`).click();
-  for(const y of [0,1,3])await place(2,y,2);assert.equal(await page.evaluate(()=>model.map.blocks.length),3);assert.ok(await page.evaluate(()=>!model.at('blocks',2,2,2)));
-  await tool('select');await click(2,3,2);assert.deepEqual(await page.evaluate(()=>selected),{x:2,y:3,z:2});
-  await page.getByLabel('Y',{exact:true}).fill('5');await page.getByLabel('Y',{exact:true}).press('Tab');assert.ok(await page.evaluate(()=>!!model.at('blocks',2,2,5)&&!model.at('blocks',2,2,3)));await page.locator('#undo').click();
-  await place(5,0,2);await tool('floor');await click(5,0,2);assert.ok(await page.evaluate(()=>!!model.at('blocks',5,2,1)),'top face places one cube above');
-  await click(5.49,.5,2);assert.ok(await page.evaluate(()=>!!model.at('blocks',6,2,1)),'side face places a neighbouring cube');
-  await tool('erase');await click(2,3,2);assert.ok(await page.evaluate(()=>!model.at('blocks',2,2,3)&&!!model.at('blocks',2,2,1)&&!!model.at('blocks',2,2,0)));await page.locator('#undo').click();
-  await tool('floor');await page.selectOption('#placement-mode','layer');await page.selectOption('#brush-height','2');await page.selectOption('#brush-shape','rectangle');
-  const before=await page.evaluate(()=>model.map.blocks.length),a=await screen(3,2,3),b=await screen(5,2,4);await page.mouse.move(a.x,a.y);await page.mouse.down();await page.mouse.move(b.x,b.y,{steps:6});await page.mouse.up();
-  assert.equal(await page.evaluate(()=>model.map.blocks.length),before+6);await page.locator('#undo').click();assert.equal(await page.evaluate(()=>model.map.blocks.length),before);await page.locator('#redo').click();
-  await page.selectOption('#brush-shape','brush');await page.selectOption('#brush-height','4');const c=await screen(1,4,6),d=await screen(3,4,6);await page.mouse.move(c.x,c.y);await page.mouse.down();await page.waitForFunction(()=>previewRuntime.world.heightAt(1,6)===4);await page.mouse.move(d.x,d.y,{steps:8});await page.mouse.up();
-  assert.ok(await page.evaluate(()=>[1,2,3].every(x=>!!model.at('blocks',x,6,4))));
-  const r=await page.locator('#viewport').boundingBox(),old=await page.evaluate(()=>({angle:previewAngle,map:JSON.stringify(model.map)}));await page.mouse.move(r.x+r.width*.5,r.y+r.height*.5);await page.mouse.down({button:'right'});await page.mouse.move(r.x+r.width*.5+75,r.y+r.height*.5+25,{steps:8});await page.mouse.up({button:'right'});assert.ok(await page.evaluate(o=>previewAngle!==o.angle&&JSON.stringify(model.map)===o.map,old));
-  await page.waitForFunction(()=>Math.abs(previewAngle-previewTargetAngle)<.0001&&Math.abs(previewCamera.pitch-previewTargetPitch)<.0001);
-  await page.locator('#editor-projection input[value=perspective]').check();await tool('select');await click(2,3,2);assert.deepEqual(await page.evaluate(()=>selected),{x:2,y:3,z:2});await page.locator('#preview-colliders').check();await page.screenshot({path:'artifacts/voxel-xyz-editor.png'});
-  const draft=await page.evaluate(()=>JSON.stringify(model.map)),download=page.waitForEvent('download');await page.locator('#export').click();await (await download).saveAs('artifacts/voxel-export.json');assert.equal(JSON.stringify(JSON.parse(fs.readFileSync('artifacts/voxel-export.json','utf8'))),draft);
-  await page.reload();await page.waitForFunction(()=>previewRenderer?.ready&&previewRuntime);assert.deepEqual(await page.evaluate(()=>model.map),JSON.parse(draft));
-  await page.locator('#file').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{"version":999}')});assert.deepEqual(await page.evaluate(()=>model.map),JSON.parse(draft));
-  // A playable multi-storey room: lower tunnel, floating roof and portal to its top.
-  await page.evaluate(()=>{const m=L.blank();m.size=8;m.name='Stone and air';for(let x=0;x<8;x++)for(let z=0;z<8;z++)m.blocks.push({x,y:0,z});for(let x=2;x<=5;x++)m.blocks.push({x,y:3,z:3});m.spawns[0]={x:1,y:0,z:3};m.goals[0]={x:6,y:0,z:3};m.portals=[{x:1,y:0,z:1,color:'violet'},{x:5,y:3,z:3,color:'violet'}];replaceMap(m);});
-  assert.deepEqual(await page.evaluate(()=>L.issues(model.map)),[]);await page.locator('#play').click();await page.waitForURL('**/?level=editor');await page.waitForFunction(()=>sceneRenderer.ready);
-  await page.keyboard.down('KeyD');await page.waitForFunction(()=>players[0].x>4.3);await page.keyboard.up('KeyD');assert.ok(await page.evaluate(()=>players[0].state==='alive'&&Math.abs(players[0].y)<.1));
-  await page.evaluate(()=>{Object.assign(players[0],{x:1,y:0,z:1});soft.reset();});await page.waitForFunction(()=>players[0].y>2.8&&players[0].portalLock==='violet');
-  await page.screenshot({path:'artifacts/voxel-portal-upper-storey.png'});await page.keyboard.press('KeyZ');assert.ok(await page.evaluate(()=>Math.abs(players[0].y)<.1));await page.keyboard.press('KeyR');assert.ok(await page.evaluate(()=>Math.abs(players[0].x-1)<.1&&Math.abs(players[0].y)<.1));
-  assert.deepEqual(await page.evaluate(()=>sceneRenderer.errors),[]);await page.locator('#editor-link').click();await page.waitForURL('**/editor.html');await page.waitForFunction(()=>previewRenderer?.ready&&previewRuntime);
-  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'artifacts/voxel-editor-mobile.png'});await page.selectOption('#brush-height','3');assert.ok(await page.locator('#preview').isVisible());assert.equal(await page.locator('#view-grid, #view-3d, #grid').count(),0);
-  await page.setViewportSize({width:1600,height:1000});await page.evaluate(()=>{const m=L.blank();for(let x=0;x<16;x++)for(let z=0;z<16;z++)for(let y=0;y<=4;y++)m.blocks.push({x,y,z});replaceMap(m);});await page.waitForFunction(()=>previewRuntime.world.blocks.length===1280);await page.locator('#preview-colliders').check();await page.waitForTimeout(100);assert.deepEqual(await page.evaluate(()=>previewRenderer.errors),[]);
-  await page.close(); // Release the dense GPU scene before starting the fallback context.
-  const noGPU=await browser.newPage();await noGPU.addInitScript(()=>Object.defineProperty(navigator,'gpu',{value:undefined}));await noGPU.goto('http://localhost:3000/editor.html');await noGPU.waitForFunction(()=>previewRenderer&&!previewRenderer.ready&&!document.querySelector('#gpu-message').hidden);assert.equal(await noGPU.locator('#grid, #view-grid').count(),0);await noGPU.locator('#new').click();assert.equal(await noGPU.locator('.coordinate-placement, #place-coordinate').count(),0);await noGPU.close();
-  assert.deepEqual(errors,[]);console.log('PASS: migrated cube geometry, XYZ placement/coordinate edits, top/side face placement, single-voxel erase, sparse layers, rectangles/live strokes/history, orbit/perspective picking, JSON persistence/export, multi-storey tunnel and portal gameplay, undo/reset, mobile/no-GPU editing and dense 1280-cube buffers. No browser or GPU errors.');
- }finally{await browser.close();}
-})().catch(e=>{console.error(e);process.exitCode=1;});
+(async () => {
+  fs.mkdirSync('artifacts', { recursive: true });
+  const browser = await chromium.launch({
+    headless: true,
+    executablePath:
+      process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    args: ['--enable-unsafe-webgpu', '--use-angle=d3d11'],
+  });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } }),
+      errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('console', (m) => {
+      if (m.type() === 'error') errors.push(m.text());
+    });
+    await page.goto('http://localhost:3000/editor.html');
+    await page.waitForFunction(() => view3d && previewRenderer?.ready && previewRuntime);
+    assert.equal(await page.locator('[data-tool=wall]').count(), 0);
+    assert.ok(
+      await page.evaluate(
+        () =>
+          model.map.blocks.length > 100 &&
+          model.map.tiles.length === 0 &&
+          model.map.walls.every((w) => w.half < 0.4),
+      ),
+    );
+    await page.screenshot({ path: 'artifacts/voxel-migrated-chamber.png' });
+    await page.locator('#new').click();
+    await page.selectOption('#map-size', '8');
+    const place = async (x, y, z) =>
+      page.evaluate((p) => edit(() => paintCell(p, 'floor')), { x, y, z });
+    const screen = async (x, y, z) =>
+      page.evaluate(
+        (p) => {
+          const r = document.getElementById('viewport').getBoundingClientRect(),
+            p2 = JellyGPU.projectPoint(screenFrame(), ...p, r.width, r.height);
+          return { x: r.left + p2.x, y: r.top + p2.y };
+        },
+        [x, y, z],
+      );
+    const click = async (x, y, z, options) => {
+      const p = await screen(x, y, z);
+      await page.mouse.click(p.x, p.y, options);
+    };
+    const tool = async (name) => page.locator(`[data-tool="${name}"]`).click();
+    for (const y of [0, 1, 3]) await place(2, y, 2);
+    assert.equal(await page.evaluate(() => model.map.blocks.length), 3);
+    assert.ok(await page.evaluate(() => !model.at('blocks', 2, 2, 2)));
+    await tool('select');
+    await click(2, 3, 2);
+    assert.deepEqual(await page.evaluate(() => selected), { x: 2, y: 3, z: 2 });
+    await page.getByLabel('Y', { exact: true }).fill('5');
+    await page.getByLabel('Y', { exact: true }).press('Tab');
+    assert.ok(
+      await page.evaluate(() => !!model.at('blocks', 2, 2, 5) && !model.at('blocks', 2, 2, 3)),
+    );
+    await page.locator('#undo').click();
+    await place(5, 0, 2);
+    await tool('floor');
+    await click(5, 0, 2);
+    assert.ok(
+      await page.evaluate(() => !!model.at('blocks', 5, 2, 1)),
+      'top face places one cube above',
+    );
+    await click(5.49, 0.5, 2);
+    assert.ok(
+      await page.evaluate(() => !!model.at('blocks', 6, 2, 1)),
+      'side face places a neighbouring cube',
+    );
+    await tool('erase');
+    await click(2, 3, 2);
+    assert.ok(
+      await page.evaluate(
+        () =>
+          !model.at('blocks', 2, 2, 3) &&
+          !!model.at('blocks', 2, 2, 1) &&
+          !!model.at('blocks', 2, 2, 0),
+      ),
+    );
+    await page.locator('#undo').click();
+    await tool('floor');
+    await page.selectOption('#placement-mode', 'layer');
+    await page.selectOption('#brush-height', '2');
+    await page.selectOption('#brush-shape', 'rectangle');
+    const before = await page.evaluate(() => model.map.blocks.length),
+      a = await screen(3, 2, 3),
+      b = await screen(5, 2, 4);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 6 });
+    await page.mouse.up();
+    assert.equal(await page.evaluate(() => model.map.blocks.length), before + 6);
+    await page.locator('#undo').click();
+    assert.equal(await page.evaluate(() => model.map.blocks.length), before);
+    await page.locator('#redo').click();
+    await page.selectOption('#brush-shape', 'brush');
+    await page.selectOption('#brush-height', '4');
+    const c = await screen(1, 4, 6),
+      d = await screen(3, 4, 6);
+    await page.mouse.move(c.x, c.y);
+    await page.mouse.down();
+    await page.waitForFunction(() => previewRuntime.world.heightAt(1, 6) === 4);
+    await page.mouse.move(d.x, d.y, { steps: 8 });
+    await page.mouse.up();
+    assert.ok(await page.evaluate(() => [1, 2, 3].every((x) => !!model.at('blocks', x, 6, 4))));
+    const r = await page.locator('#viewport').boundingBox(),
+      old = await page.evaluate(() => ({ angle: previewAngle, map: JSON.stringify(model.map) }));
+    await page.mouse.move(r.x + r.width * 0.5, r.y + r.height * 0.5);
+    await page.mouse.down({ button: 'right' });
+    await page.mouse.move(r.x + r.width * 0.5 + 75, r.y + r.height * 0.5 + 25, { steps: 8 });
+    await page.mouse.up({ button: 'right' });
+    assert.ok(
+      await page.evaluate(
+        (o) => previewAngle !== o.angle && JSON.stringify(model.map) === o.map,
+        old,
+      ),
+    );
+    await page.waitForFunction(
+      () =>
+        Math.abs(previewAngle - previewTargetAngle) < 0.0001 &&
+        Math.abs(previewCamera.pitch - previewTargetPitch) < 0.0001,
+    );
+    await page.locator('#editor-projection input[value=perspective]').check();
+    await tool('select');
+    await click(2, 3, 2);
+    assert.deepEqual(await page.evaluate(() => selected), { x: 2, y: 3, z: 2 });
+    await page.locator('#preview-colliders').check();
+    await page.screenshot({ path: 'artifacts/voxel-xyz-editor.png' });
+    const draft = await page.evaluate(() => JSON.stringify(model.map)),
+      download = page.waitForEvent('download');
+    await page.locator('#export').click();
+    await (await download).saveAs('artifacts/voxel-export.json');
+    assert.equal(
+      JSON.stringify(JSON.parse(fs.readFileSync('artifacts/voxel-export.json', 'utf8'))),
+      draft,
+    );
+    await page.reload();
+    await page.waitForFunction(() => previewRenderer?.ready && previewRuntime);
+    assert.deepEqual(await page.evaluate(() => model.map), JSON.parse(draft));
+    await page
+      .locator('#file')
+      .setInputFiles({
+        name: 'bad.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from('{"version":999}'),
+      });
+    assert.deepEqual(await page.evaluate(() => model.map), JSON.parse(draft));
+    // A playable multi-storey room: lower tunnel, floating roof and portal to its top.
+    await page.evaluate(() => {
+      const m = L.blank();
+      m.size = 8;
+      m.name = 'Stone and air';
+      for (let x = 0; x < 8; x++) for (let z = 0; z < 8; z++) m.blocks.push({ x, y: 0, z });
+      for (let x = 2; x <= 5; x++) m.blocks.push({ x, y: 3, z: 3 });
+      m.spawns[0] = { x: 1, y: 0, z: 3 };
+      m.goals[0] = { x: 6, y: 0, z: 3 };
+      m.portals = [
+        { x: 1, y: 0, z: 1, color: 'violet' },
+        { x: 5, y: 3, z: 3, color: 'violet' },
+      ];
+      replaceMap(m);
+    });
+    assert.deepEqual(await page.evaluate(() => L.issues(model.map)), []);
+    await page.locator('#play').click();
+    await page.waitForURL('**/?level=editor');
+    await page.waitForFunction(() => sceneRenderer.ready);
+    await page.keyboard.down('KeyD');
+    await page.waitForFunction(() => players[0].x > 4.3);
+    await page.keyboard.up('KeyD');
+    assert.ok(
+      await page.evaluate(() => players[0].state === 'alive' && Math.abs(players[0].y) < 0.1),
+    );
+    await page.evaluate(() => {
+      Object.assign(players[0], { x: 1, y: 0, z: 1 });
+      soft.reset();
+    });
+    await page.waitForFunction(() => players[0].y > 2.8 && players[0].portalLock === 'violet');
+    await page.screenshot({ path: 'artifacts/voxel-portal-upper-storey.png' });
+    await page.keyboard.press('KeyZ');
+    assert.ok(await page.evaluate(() => Math.abs(players[0].y) < 0.1));
+    await page.keyboard.press('KeyR');
+    assert.ok(
+      await page.evaluate(() => Math.abs(players[0].x - 1) < 0.1 && Math.abs(players[0].y) < 0.1),
+    );
+    assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
+    await page.locator('#editor-link').click();
+    await page.waitForURL('**/editor.html');
+    await page.waitForFunction(() => previewRenderer?.ready && previewRuntime);
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: 'artifacts/voxel-editor-mobile.png' });
+    await page.selectOption('#brush-height', '3');
+    assert.ok(await page.locator('#preview').isVisible());
+    assert.equal(await page.locator('#view-grid, #view-3d, #grid').count(), 0);
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.evaluate(() => {
+      const m = L.blank();
+      for (let x = 0; x < 16; x++)
+        for (let z = 0; z < 16; z++) for (let y = 0; y <= 4; y++) m.blocks.push({ x, y, z });
+      replaceMap(m);
+    });
+    await page.waitForFunction(() => previewRuntime.world.blocks.length === 1280);
+    await page.locator('#preview-colliders').check();
+    await page.waitForTimeout(100);
+    assert.deepEqual(await page.evaluate(() => previewRenderer.errors), []);
+    await page.close(); // Release the dense GPU scene before starting the fallback context.
+    const noGPU = await browser.newPage();
+    await noGPU.addInitScript(() => Object.defineProperty(navigator, 'gpu', { value: undefined }));
+    await noGPU.goto('http://localhost:3000/editor.html');
+    await noGPU.waitForFunction(
+      () =>
+        previewRenderer && !previewRenderer.ready && !document.querySelector('#gpu-message').hidden,
+    );
+    assert.equal(await noGPU.locator('#grid, #view-grid').count(), 0);
+    await noGPU.locator('#new').click();
+    assert.equal(await noGPU.locator('.coordinate-placement, #place-coordinate').count(), 0);
+    await noGPU.close();
+    assert.deepEqual(errors, []);
+    console.log(
+      'PASS: migrated cube geometry, XYZ placement/coordinate edits, top/side face placement, single-voxel erase, sparse layers, rectangles/live strokes/history, orbit/perspective picking, JSON persistence/export, multi-storey tunnel and portal gameplay, undo/reset, mobile/no-GPU editing and dense 1280-cube buffers. No browser or GPU errors.',
+    );
+  } finally {
+    await browser.close();
+  }
+})().catch((e) => {
+  console.error(e);
+  process.exitCode = 1;
+});

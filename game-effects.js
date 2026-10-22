@@ -1,125 +1,352 @@
 import Levels from './levels.js';
 // Short-lived visual particles. They never become gameplay colliders.
- const palettes=[[.12,.9,.16],[.025,.17,1.],[1.,.065,.035],[.65,.1,1.],[1.,.65,.035]];
- const runeColors=[[.45,1.,.08],[.035,.17,1.],[1.,.055,.025],[.68,.12,1.],[1.,.65,.025]],RUNE_LIMIT=32;
- class System{
-  constructor({reducedMotion=false}={}){this.reducedMotion=reducedMotion;this.particles=[];this.rings=[];this.runes=[];this.bones=[];this.lasers=[];this.runeTimers=[];this.runeActive=[];this.seed=1;}
-  random(){this.seed=(Math.imul(this.seed,1664525)+1013904223)>>>0;return this.seed/4294967296;}
-  clear(){this.particles.length=0;this.rings.length=0;this.runes.length=0;this.bones.length=0;this.lasers.length=0;this.runeTimers=[];this.runeActive=[];}
-  skeletonBurst(event){
-   this.bones=this.bones.filter(p=>p.archer!==event.archer);
-   const parts=[[0,1.04,0,.14],[0,.43,0,.09],[-.14,.04,.09,.07],[.14,.04,.09,.07]];
-   for(const side of [-1,1])for(const y of [.22,.55,.65,.75,.83])parts.push([side*(y<.4?.11:.13),y,0,.055]);
-   for(let i=0;i<parts.length;i++){
-    const [x,y,z,size]=parts[i],dir=event.direction||{x:0,z:1},home=[event.position[0]+dir.z*x+dir.x*z,event.position[1]+y,event.position[2]-dir.x*x+dir.z*z],a=this.random()*Math.PI*2;
-    this.bones.push({kind:'bone',archer:event.archer,home,position:[...home],velocity:this.reducedMotion?[0,0,0]:[Math.cos(a)*(.25+this.random()*.45),.6+this.random()*1.3,Math.sin(a)*(.25+this.random()*.45)],size,phase:this.random()*6.28,color:[.72,.67,.47],age:0,life:5,skull:i===0});
-   }
-   this.bones=this.bones.slice(-56);
+const palettes = [
+  [0.12, 0.9, 0.16],
+  [0.025, 0.17, 1],
+  [1, 0.065, 0.035],
+  [0.65, 0.1, 1],
+  [1, 0.65, 0.035],
+];
+const runeColors = [
+    [0.45, 1, 0.08],
+    [0.035, 0.17, 1],
+    [1, 0.055, 0.025],
+    [0.68, 0.12, 1],
+    [1, 0.65, 0.025],
+  ],
+  RUNE_LIMIT = 32;
+class System {
+  constructor({ reducedMotion = false } = {}) {
+    this.reducedMotion = reducedMotion;
+    this.particles = [];
+    this.rings = [];
+    this.runes = [];
+    this.bones = [];
+    this.lasers = [];
+    this.runeTimers = [];
+    this.runeActive = [];
+    this.seed = 1;
   }
-  emitRune(goal,index,world){
-   if(this.runes.length>=RUNE_LIMIT)return;
-   const a=this.random()*Math.PI*2,edge=Math.floor(this.random()*4),offset=(this.random()-.5)*.6;
-   const x=edge<2?(edge===0?-.4:.4):offset,z=edge>=2?(edge===2?-.4:.4):offset;
-   this.runes.push({glyph:index,position:[goal.x+x,(goal.y??world.heightAt(goal.x,goal.z)??0)+.07,goal.z+z],velocity:[Math.cos(a)*.045,.72+this.random()*.2,Math.sin(a)*.045],color:runeColors[index],size:.105+this.random()*.035,phase:this.random()*Math.PI*2,age:0,life:1.8+this.random()*.4});
+  random() {
+    this.seed = (Math.imul(this.seed, 1664525) + 1013904223) >>> 0;
+    return this.seed / 4294967296;
   }
-  burst(event,players,soft){
-   const random=()=>this.random();
-   if(event.type==='victory'){
-    if(this.reducedMotion)return;
-    players.forEach((player,index)=>{
-     const slot=player.slot??index,color=runeColors[slot],center=[player.x,(player.y||0)+.06,player.z];
-     this.rings.push({center,color,age:0,life:.9});
-     for(let i=0;i<14;i++){
-      const a=i/14*Math.PI*2,r=.28+random()*.15;
-      this.particles.push({kind:'magic',position:[center[0]+Math.cos(a)*r,center[1]+.15+random()*.5,center[2]+Math.sin(a)*r],velocity:[Math.cos(a)*.45,.45+random()*.65,Math.sin(a)*.45],size:.018+random()*.02,phase:a,color,age:0,life:.7+random()*.5});
-     }
-     for(let i=0;i<3&&this.runes.length<RUNE_LIMIT;i++){
-      const a=i/3*Math.PI*2;
-      this.runes.push({glyph:slot,position:[center[0]+Math.cos(a)*.5,center[1]+.18,center[2]+Math.sin(a)*.5],velocity:[Math.cos(a)*.08,.55,Math.sin(a)*.08],color,size:.12,phase:a,age:0,life:1.4});
-     }
+  clear() {
+    this.particles.length = 0;
+    this.rings.length = 0;
+    this.runes.length = 0;
+    this.bones.length = 0;
+    this.lasers.length = 0;
+    this.runeTimers = [];
+    this.runeActive = [];
+  }
+  skeletonBurst(event) {
+    this.bones = this.bones.filter((p) => p.archer !== event.archer);
+    const parts = [
+      [0, 1.04, 0, 0.14],
+      [0, 0.43, 0, 0.09],
+      [-0.14, 0.04, 0.09, 0.07],
+      [0.14, 0.04, 0.09, 0.07],
+    ];
+    for (const side of [-1, 1])
+      for (const y of [0.22, 0.55, 0.65, 0.75, 0.83])
+        parts.push([side * (y < 0.4 ? 0.11 : 0.13), y, 0, 0.055]);
+    for (let i = 0; i < parts.length; i++) {
+      const [x, y, z, size] = parts[i],
+        dir = event.direction || { x: 0, z: 1 },
+        home = [
+          event.position[0] + dir.z * x + dir.x * z,
+          event.position[1] + y,
+          event.position[2] - dir.x * x + dir.z * z,
+        ],
+        a = this.random() * Math.PI * 2;
+      this.bones.push({
+        kind: 'bone',
+        archer: event.archer,
+        home,
+        position: [...home],
+        velocity: this.reducedMotion
+          ? [0, 0, 0]
+          : [
+              Math.cos(a) * (0.25 + this.random() * 0.45),
+              0.6 + this.random() * 1.3,
+              Math.sin(a) * (0.25 + this.random() * 0.45),
+            ],
+        size,
+        phase: this.random() * 6.28,
+        color: [0.72, 0.67, 0.47],
+        age: 0,
+        life: 5,
+        skull: i === 0,
+      });
+    }
+    this.bones = this.bones.slice(-56);
+  }
+  emitRune(goal, index, world) {
+    if (this.runes.length >= RUNE_LIMIT) return;
+    const a = this.random() * Math.PI * 2,
+      edge = Math.floor(this.random() * 4),
+      offset = (this.random() - 0.5) * 0.6;
+    const x = edge < 2 ? (edge === 0 ? -0.4 : 0.4) : offset,
+      z = edge >= 2 ? (edge === 2 ? -0.4 : 0.4) : offset;
+    this.runes.push({
+      glyph: index,
+      position: [goal.x + x, (goal.y ?? world.heightAt(goal.x, goal.z) ?? 0) + 0.07, goal.z + z],
+      velocity: [Math.cos(a) * 0.045, 0.72 + this.random() * 0.2, Math.sin(a) * 0.045],
+      color: runeColors[index],
+      size: 0.105 + this.random() * 0.035,
+      phase: this.random() * Math.PI * 2,
+      age: 0,
+      life: 1.8 + this.random() * 0.4,
     });
-   }else if(event.type==='death'){
-    if(event.beam){this.lasers.push({...event.beam,age:0,life:.18});this.lasers=this.lasers.slice(-8);}
-    const player=players[event.player],body=soft.get(player),count=this.reducedMotion?6:22;
-    const life=Math.min(this.reducedMotion ? .3 : .68,player.respawnTimer||.68);
-    for(let i=0;i<count;i++){
-     const q=body.positions[Math.floor(random()*body.positions.length)],a=random()*Math.PI*2,speed=.6+random()*1.8;
-     this.particles.push({kind:'jelly',position:[...q],velocity:[Math.cos(a)*speed,1+random()*2.2,Math.sin(a)*speed],size:.075+random()*.075,phase:random()*6.28,color:palettes[player.slot??event.player],age:0,life});
-    }
-   }else if(event.type==='archerDeath'){
-    this.skeletonBurst(event);
-   }else if(event.type==='shieldBreak'){
-    for(let i=0;i<(this.reducedMotion?4:14);i++){
-     const a=random()*Math.PI*2;
-     this.particles.push({kind:'wood',position:[...event.position],velocity:[Math.cos(a)*(1+random()),1+random()*2,Math.sin(a)*(1+random())],size:.035+random()*.025,phase:a,color:[.38,.22,.085],age:0,life:.7+random()*.3});
-    }
-   }else if(event.type==='arrowBlock'||event.type==='arrowImpact'){
-    const color=event.type==='arrowBlock'?[1.,.72,.26]:[.48,.4,.29];
-    for(let i=0;i<(this.reducedMotion?2:7);i++){
-     const a=random()*Math.PI*2;
-     this.particles.push({kind:'magic',position:[...event.position],velocity:[Math.cos(a)*.8,.3+random()*.7,Math.sin(a)*.8],size:.012+random()*.012,phase:a,color,age:0,life:.18+random()*.12});
-    }
-   }else if(event.type==='portal'){
-    const color=Levels.portalColor(event.color).glow;
-    for(const center of [event.source,event.destination]){
-     this.rings.push({center:[...center],color,age:0,life:this.reducedMotion ? .25 : .65});
-     for(let i=0;i<(this.reducedMotion?0:14);i++){
-      const a=random()*Math.PI*2,r=.12+random()*.3;
-      this.particles.push({kind:'magic',position:[center[0]+Math.cos(a)*r,center[1]+.06+random()*.5,center[2]+Math.sin(a)*r],velocity:[Math.cos(a)*.35, .5+random()*1.6,Math.sin(a)*.35],size:.018+random()*.026,phase:a,color,age:0,life:.4+random()*.22});
-     }
-    }
-   }
-   this.particles=this.particles.slice(-96);this.rings=this.rings.slice(-8);
   }
-  step(dt,world,goals=[],players=[]){
-   // Cap long background-tab gaps for stable presentation.
-   dt=Math.min(Math.max(0,dt),.1);
-   for(const ray of this.lasers)ray.age+=dt;this.lasers=this.lasers.filter(ray=>ray.age<ray.life);
-   for(const p of this.particles){
-    p.age+=dt;
-    const previousY=p.position[1];
-    if(p.kind==='jelly'||p.kind==='wood')p.velocity[1]-=7*dt;
-    for(let k=0;k<3;k++)p.position[k]+=p.velocity[k]*dt;
-    if(p.kind==='jelly'||p.kind==='wood'){
-     const floor=world.heightAt(p.position[0],p.position[2],previousY);
-     if(floor!==null&&previousY>=floor-.01&&p.position[1]<floor+p.size*.45&&p.velocity[1]<0){p.position[1]=floor+p.size*.45;p.velocity[1]*=-.22;p.velocity[0]*=.65;p.velocity[2]*=.65;}
+  burst(event, players, soft) {
+    const random = () => this.random();
+    if (event.type === 'victory') {
+      if (this.reducedMotion) return;
+      players.forEach((player, index) => {
+        const slot = player.slot ?? index,
+          color = runeColors[slot],
+          center = [player.x, (player.y || 0) + 0.06, player.z];
+        this.rings.push({ center, color, age: 0, life: 0.9 });
+        for (let i = 0; i < 14; i++) {
+          const a = (i / 14) * Math.PI * 2,
+            r = 0.28 + random() * 0.15;
+          this.particles.push({
+            kind: 'magic',
+            position: [
+              center[0] + Math.cos(a) * r,
+              center[1] + 0.15 + random() * 0.5,
+              center[2] + Math.sin(a) * r,
+            ],
+            velocity: [Math.cos(a) * 0.45, 0.45 + random() * 0.65, Math.sin(a) * 0.45],
+            size: 0.018 + random() * 0.02,
+            phase: a,
+            color,
+            age: 0,
+            life: 0.7 + random() * 0.5,
+          });
+        }
+        for (let i = 0; i < 3 && this.runes.length < RUNE_LIMIT; i++) {
+          const a = (i / 3) * Math.PI * 2;
+          this.runes.push({
+            glyph: slot,
+            position: [
+              center[0] + Math.cos(a) * 0.5,
+              center[1] + 0.18,
+              center[2] + Math.sin(a) * 0.5,
+            ],
+            velocity: [Math.cos(a) * 0.08, 0.55, Math.sin(a) * 0.08],
+            color,
+            size: 0.12,
+            phase: a,
+            age: 0,
+            life: 1.4,
+          });
+        }
+      });
+    } else if (event.type === 'death') {
+      if (event.beam) {
+        this.lasers.push({ ...event.beam, age: 0, life: 0.18 });
+        this.lasers = this.lasers.slice(-8);
+      }
+      const player = players[event.player],
+        body = soft.get(player),
+        count = this.reducedMotion ? 6 : 22;
+      const life = Math.min(this.reducedMotion ? 0.3 : 0.68, player.respawnTimer || 0.68);
+      for (let i = 0; i < count; i++) {
+        const q = body.positions[Math.floor(random() * body.positions.length)],
+          a = random() * Math.PI * 2,
+          speed = 0.6 + random() * 1.8;
+        this.particles.push({
+          kind: 'jelly',
+          position: [...q],
+          velocity: [Math.cos(a) * speed, 1 + random() * 2.2, Math.sin(a) * speed],
+          size: 0.075 + random() * 0.075,
+          phase: random() * 6.28,
+          color: palettes[player.slot ?? event.player],
+          age: 0,
+          life,
+        });
+      }
+    } else if (event.type === 'archerDeath') {
+      this.skeletonBurst(event);
+    } else if (event.type === 'shieldBreak') {
+      for (let i = 0; i < (this.reducedMotion ? 4 : 14); i++) {
+        const a = random() * Math.PI * 2;
+        this.particles.push({
+          kind: 'wood',
+          position: [...event.position],
+          velocity: [Math.cos(a) * (1 + random()), 1 + random() * 2, Math.sin(a) * (1 + random())],
+          size: 0.035 + random() * 0.025,
+          phase: a,
+          color: [0.38, 0.22, 0.085],
+          age: 0,
+          life: 0.7 + random() * 0.3,
+        });
+      }
+    } else if (event.type === 'arrowBlock' || event.type === 'arrowImpact') {
+      const color = event.type === 'arrowBlock' ? [1, 0.72, 0.26] : [0.48, 0.4, 0.29];
+      for (let i = 0; i < (this.reducedMotion ? 2 : 7); i++) {
+        const a = random() * Math.PI * 2;
+        this.particles.push({
+          kind: 'magic',
+          position: [...event.position],
+          velocity: [Math.cos(a) * 0.8, 0.3 + random() * 0.7, Math.sin(a) * 0.8],
+          size: 0.012 + random() * 0.012,
+          phase: a,
+          color,
+          age: 0,
+          life: 0.18 + random() * 0.12,
+        });
+      }
+    } else if (event.type === 'portal') {
+      const color = Levels.portalColor(event.color).glow;
+      for (const center of [event.source, event.destination]) {
+        this.rings.push({
+          center: [...center],
+          color,
+          age: 0,
+          life: this.reducedMotion ? 0.25 : 0.65,
+        });
+        for (let i = 0; i < (this.reducedMotion ? 0 : 14); i++) {
+          const a = random() * Math.PI * 2,
+            r = 0.12 + random() * 0.3;
+          this.particles.push({
+            kind: 'magic',
+            position: [
+              center[0] + Math.cos(a) * r,
+              center[1] + 0.06 + random() * 0.5,
+              center[2] + Math.sin(a) * r,
+            ],
+            velocity: [Math.cos(a) * 0.35, 0.5 + random() * 1.6, Math.sin(a) * 0.35],
+            size: 0.018 + random() * 0.026,
+            phase: a,
+            color,
+            age: 0,
+            life: 0.4 + random() * 0.22,
+          });
+        }
+      }
     }
-   }
-   this.particles=this.particles.filter(p=>p.age<p.life);
-   for(const ring of this.rings)ring.age+=dt;
-   this.rings=this.rings.filter(r=>r.age<r.life);
-   // These fragments follow the gameplay resurrection clock, including after undo.
-   (world.archers||[]).forEach((a,i)=>{
-    if(a.state==='dead'&&!this.bones.some(p=>p.archer===i))this.skeletonBurst({archer:i,position:[a.x,a.y??world.heightAt(a.x,a.z)??0,a.z],direction:{x:a.dx||0,z:a.dz??1}});
-   });
-   this.bones=this.bones.filter(p=>world.archers?.[p.archer]?.state==='dead');
-   const boneWalls=this.bones.length?(world.collisionBoxes?.()||[]).filter(b=>b.kind==='wall'||b.maxY>.15):[];
-   for(const p of this.bones){
-    const timer=world.archers[p.archer].respawnTimer;p.age=5-timer;
-    if(timer<.7&&!this.reducedMotion){
-     p.gatherFrom??=[...p.position];const t=1-timer/.7,s=t*t*(3-2*t);p.position=p.gatherFrom.map((v,k)=>v+(p.home[k]-v)*s);continue;
-    }
-    const previous=p.position[1];p.velocity[1]-=7*dt;
-    for(let k=0;k<3;k++)p.position[k]+=p.velocity[k]*dt;
-    for(const b of boneWalls){
-     const lo=[b.x-(b.halfX??b.half)-p.size*.5,b.minY-p.size*.5,b.z-(b.halfZ??b.half)-p.size*.5],hi=[b.x+(b.halfX??b.half)+p.size*.5,b.maxY+p.size*.5,b.z+(b.halfZ??b.half)+p.size*.5];
-     if(p.position.some((v,k)=>v<lo[k]||v>hi[k]))continue;
-     let axis=0,side=lo[0],distance=Infinity;
-     for(let k=0;k<3;k++)for(const edge of [lo[k],hi[k]])if(Math.abs(p.position[k]-edge)<distance){distance=Math.abs(p.position[k]-edge);axis=k;side=edge;}
-     p.position[axis]=side;p.velocity[axis]*=-.2;
-    }
-    const floor=world.heightAt(p.position[0],p.position[2],previous);
-    if(floor!==null&&previous>=floor&&p.position[1]<floor+p.size*.5){p.position[1]=floor+p.size*.5;p.velocity[1]*=-.12;p.velocity[0]*=.65;p.velocity[2]*=.65;}
-   }
-   for(const rune of this.runes){rune.age+=dt;for(let k=0;k<3;k++)rune.position[k]+=rune.velocity[k]*dt;}
-   this.runes=this.runes.filter(r=>r.age<r.life);
-   if(!this.reducedMotion)goals.slice(0,5).forEach((goal,i)=>{
-    const slot=goal?.slot??i,charge=world.goalCharge(goal,players.find((p,j)=>(p.slot??j)===slot));
-    if(charge<=.1){this.runeActive[i]=false;this.runeTimers[i]=0;return;}
-    if(!this.runeActive[i]){this.runeActive[i]=true;this.runeTimers[i]=0;this.emitRune(goal,slot,world);}
-    this.runeTimers[i]+=dt*charge;
-    while(this.runeTimers[i]>=.25){this.runeTimers[i]-=.25;this.emitRune(goal,slot,world);}
-   });
+    this.particles = this.particles.slice(-96);
+    this.rings = this.rings.slice(-8);
   }
- }
-export {System};
+  step(dt, world, goals = [], players = []) {
+    // Cap long background-tab gaps for stable presentation.
+    dt = Math.min(Math.max(0, dt), 0.1);
+    for (const ray of this.lasers) ray.age += dt;
+    this.lasers = this.lasers.filter((ray) => ray.age < ray.life);
+    for (const p of this.particles) {
+      p.age += dt;
+      const previousY = p.position[1];
+      if (p.kind === 'jelly' || p.kind === 'wood') p.velocity[1] -= 7 * dt;
+      for (let k = 0; k < 3; k++) p.position[k] += p.velocity[k] * dt;
+      if (p.kind === 'jelly' || p.kind === 'wood') {
+        const floor = world.heightAt(p.position[0], p.position[2], previousY);
+        if (
+          floor !== null &&
+          previousY >= floor - 0.01 &&
+          p.position[1] < floor + p.size * 0.45 &&
+          p.velocity[1] < 0
+        ) {
+          p.position[1] = floor + p.size * 0.45;
+          p.velocity[1] *= -0.22;
+          p.velocity[0] *= 0.65;
+          p.velocity[2] *= 0.65;
+        }
+      }
+    }
+    this.particles = this.particles.filter((p) => p.age < p.life);
+    for (const ring of this.rings) ring.age += dt;
+    this.rings = this.rings.filter((r) => r.age < r.life);
+    // These fragments follow the gameplay resurrection clock, including after undo.
+    (world.archers || []).forEach((a, i) => {
+      if (a.state === 'dead' && !this.bones.some((p) => p.archer === i))
+        this.skeletonBurst({
+          archer: i,
+          position: [a.x, a.y ?? world.heightAt(a.x, a.z) ?? 0, a.z],
+          direction: { x: a.dx || 0, z: a.dz ?? 1 },
+        });
+    });
+    this.bones = this.bones.filter((p) => world.archers?.[p.archer]?.state === 'dead');
+    const boneWalls = this.bones.length
+      ? (world.collisionBoxes?.() || []).filter((b) => b.kind === 'wall' || b.maxY > 0.15)
+      : [];
+    for (const p of this.bones) {
+      const timer = world.archers[p.archer].respawnTimer;
+      p.age = 5 - timer;
+      if (timer < 0.7 && !this.reducedMotion) {
+        p.gatherFrom ??= [...p.position];
+        const t = 1 - timer / 0.7,
+          s = t * t * (3 - 2 * t);
+        p.position = p.gatherFrom.map((v, k) => v + (p.home[k] - v) * s);
+        continue;
+      }
+      const previous = p.position[1];
+      p.velocity[1] -= 7 * dt;
+      for (let k = 0; k < 3; k++) p.position[k] += p.velocity[k] * dt;
+      for (const b of boneWalls) {
+        const lo = [
+            b.x - (b.halfX ?? b.half) - p.size * 0.5,
+            b.minY - p.size * 0.5,
+            b.z - (b.halfZ ?? b.half) - p.size * 0.5,
+          ],
+          hi = [
+            b.x + (b.halfX ?? b.half) + p.size * 0.5,
+            b.maxY + p.size * 0.5,
+            b.z + (b.halfZ ?? b.half) + p.size * 0.5,
+          ];
+        if (p.position.some((v, k) => v < lo[k] || v > hi[k])) continue;
+        let axis = 0,
+          side = lo[0],
+          distance = Infinity;
+        for (let k = 0; k < 3; k++)
+          for (const edge of [lo[k], hi[k]])
+            if (Math.abs(p.position[k] - edge) < distance) {
+              distance = Math.abs(p.position[k] - edge);
+              axis = k;
+              side = edge;
+            }
+        p.position[axis] = side;
+        p.velocity[axis] *= -0.2;
+      }
+      const floor = world.heightAt(p.position[0], p.position[2], previous);
+      if (floor !== null && previous >= floor && p.position[1] < floor + p.size * 0.5) {
+        p.position[1] = floor + p.size * 0.5;
+        p.velocity[1] *= -0.12;
+        p.velocity[0] *= 0.65;
+        p.velocity[2] *= 0.65;
+      }
+    }
+    for (const rune of this.runes) {
+      rune.age += dt;
+      for (let k = 0; k < 3; k++) rune.position[k] += rune.velocity[k] * dt;
+    }
+    this.runes = this.runes.filter((r) => r.age < r.life);
+    if (!this.reducedMotion)
+      goals.slice(0, 5).forEach((goal, i) => {
+        const slot = goal?.slot ?? i,
+          charge = world.goalCharge(
+            goal,
+            players.find((p, j) => (p.slot ?? j) === slot),
+          );
+        if (charge <= 0.1) {
+          this.runeActive[i] = false;
+          this.runeTimers[i] = 0;
+          return;
+        }
+        if (!this.runeActive[i]) {
+          this.runeActive[i] = true;
+          this.runeTimers[i] = 0;
+          this.emitRune(goal, slot, world);
+        }
+        this.runeTimers[i] += dt * charge;
+        while (this.runeTimers[i] >= 0.25) {
+          this.runeTimers[i] -= 0.25;
+          this.emitRune(goal, slot, world);
+        }
+      });
+  }
+}
+export { System };
