@@ -24,7 +24,21 @@ import Levels from './levels.js';
   }
   burst(event,players,soft){
    const random=()=>this.random();
-   if(event.type==='death'){
+   if(event.type==='victory'){
+    if(this.reducedMotion)return;
+    players.forEach((player,index)=>{
+     const slot=player.slot??index,color=runeColors[slot],center=[player.x,(player.y||0)+.06,player.z];
+     this.rings.push({center,color,age:0,life:.9});
+     for(let i=0;i<14;i++){
+      const a=i/14*Math.PI*2,r=.28+random()*.15;
+      this.particles.push({kind:'magic',position:[center[0]+Math.cos(a)*r,center[1]+.15+random()*.5,center[2]+Math.sin(a)*r],velocity:[Math.cos(a)*.45,.45+random()*.65,Math.sin(a)*.45],size:.018+random()*.02,phase:a,color,age:0,life:.7+random()*.5});
+     }
+     for(let i=0;i<3&&this.runes.length<RUNE_LIMIT;i++){
+      const a=i/3*Math.PI*2;
+      this.runes.push({glyph:slot,position:[center[0]+Math.cos(a)*.5,center[1]+.18,center[2]+Math.sin(a)*.5],velocity:[Math.cos(a)*.08,.55,Math.sin(a)*.08],color,size:.12,phase:a,age:0,life:1.4});
+     }
+    });
+   }else if(event.type==='death'){
     if(event.beam){this.lasers.push({...event.beam,age:0,life:.18});this.lasers=this.lasers.slice(-8);}
     const player=players[event.player],body=soft.get(player),count=this.reducedMotion?6:22;
     const life=Math.min(this.reducedMotion ? .3 : .68,player.respawnTimer||.68);

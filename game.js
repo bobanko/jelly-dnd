@@ -61,7 +61,7 @@ function woodHit(broken=false){
 function updateUI(){
  document.querySelector('#moves').textContent=String(moves).padStart(2,'0');document.querySelector('#win').hidden=!won;
  document.body?.classList.toggle('level-won',won);
- if(won&&!winShown&&JellyI18n){refreshWin();selectWinItem(0);}winShown=won;
+ if(won&&!winShown&&JellyI18n){refreshWin();selectWinItem(1);}winShown=won;
  const lost=players.findIndex(p=>!JellyPhysics.alive(p)),moving=world.lifts.some(l=>Math.abs(l.target-l.height)>.01&&players.some(p=>Math.abs(p.x-l.x)<.4&&Math.abs(p.z-l.z)<.4));
  document.querySelector('#status').textContent=won?tr('Все руны пробуждены'):lost>=0?`${tr(names[players[lost].slot])} ${players[lost].state==='falling'?tr('падает…'):players[lost].deathReason==='spikes'?tr('погиб на шипах. Возрождение…'):tr('возрождается…')}`:finishHold>0?tr('Рунические печати наполняются светом…'):players.some(p=>p.portalBlocked)?tr('Выход портала занят'):moving?tr('Лифт поднимается'):players.some(p=>p.portalFlash>0)?tr('Магический переход'):active(0)||active(1)?tr('Магический мост поднят'):tr('Святилище ждёт вас');
 }
@@ -115,7 +115,7 @@ function simulate(dt,elapsed=dt){
   }
   const allFinished=players.length>0&&players.every(p=>world.goalActive(goals.find(g=>g.slot===p.slot),p)&&Math.hypot(p.vx,p.vz)<.25);
   finishHold=allFinished?Math.min(WIN_HOLD_SECONDS,finishHold+JellyPhysics.STEP):0;
-  if(finishHold>=WIN_HOLD_SECONDS-1e-9){finishHold=WIN_HOLD_SECONDS;won=true;players.forEach(p=>{p.vx=p.vz=0;});heldKeys.clear();tone(640);const current=currentStandardLevel();if(current&&JellyProgress){JellyProgress.complete(current,runSeconds);updateLevelLocks();}}
+  if(finishHold>=WIN_HOLD_SECONDS-1e-9){finishHold=WIN_HOLD_SECONDS;won=true;players.forEach(p=>{p.vx=p.vz=0;});effects.burst({type:'victory'},players,soft);heldKeys.clear();tone(640);const current=currentStandardLevel();if(current&&JellyProgress){JellyProgress.complete(current,runSeconds);updateLevelLocks();}}
   level.finishProgress=finishHold/WIN_HOLD_SECONDS;
   accumulator-=JellyPhysics.STEP;
  }
@@ -179,7 +179,7 @@ function createPlayerHints(){
  const layouts=[['W','A','S','D'],['↑','←','↓','→'],['I','J','K','L'],['T','F','G','H'],['8','4','5','6']];
  playerHints=players.map((p,i)=>{const node=document.createElement('div');node.className='player-key-hint';node.hidden=true;node.style.setProperty('--jelly-color',colors[p.slot]);
   const control=controlOwners.indexOf(i),keys=layouts[control];if(control===4)node.title='NumPad';keys.forEach(key=>{const kbd=document.createElement('kbd');kbd.textContent=key;node.append(kbd);});
-  const caption=document.createElement('span');caption.className='player-hint-action';caption.dataset.t='helpMove';caption.textContent=tr('helpMove');node.append(caption);
+  node.setAttribute('aria-label',tr('helpMove'));
   document.querySelector('#player-hints').append(node);return {node,idle:0};
  });
 }
@@ -307,7 +307,7 @@ canvas.addEventListener('pointerdown',e=>{
 requestAnimationFrame(frame);focusPlayer(0);updateUI();
 
 function refreshLanguage(){
- document.querySelectorAll('.player-hint-action').forEach(node=>node.textContent=tr('helpMove'));
+ document.querySelectorAll('.player-key-hint').forEach(node=>node.setAttribute('aria-label',tr('helpMove')));
  if(JellyI18n){
   const russian=JellyI18n.language==='ru',title=document.querySelector('#menu-title');
   title.replaceChildren();const word=document.createElement('span');word.className='jelly-word';
@@ -336,14 +336,14 @@ function currentStandardLevel(){const match=/(?:^|[?&])level=(\d+)(?:&|$)/.exec(
 function currentLevelTitle(){if(menuOnly)return '';const id=currentStandardLevel(),name=JellyLevels.displayName(definition,JellyI18n?.language);return id?`${id}. ${name}`:name;}
 function formatRunTime(seconds){const n=Math.floor((seconds+1e-9)*100);return `${Math.floor(n/6000)}:${String(Math.floor(n/100)%60).padStart(2,'0')}.${String(n%100).padStart(2,'0')}`;}
 function statIcon(kind,slot){
- const icon=document.createElement('span');icon.className='stat-icon'+(kind==='jelly'?' stat-jelly':'');icon.setAttribute('aria-hidden','true');
+ const icon=document.createElement('span');icon.className='stat-icon stat-'+kind;icon.setAttribute('aria-hidden','true');
  if(kind==='jelly')icon.style.color=colors[slot];
  const drawings={timer:'<path d="M9 2h6M12 2v3m6 1 2-2"/><circle cx="12" cy="14" r="8"/><path d="M12 9v5l3 2"/>',skull:'<path d="M12 3a8 8 0 0 0-8 8c0 3 1 5 4 6v4h8v-4c3-1 4-3 4-6a8 8 0 0 0-8-8Z"/><circle cx="9" cy="11" r="1"/><circle cx="15" cy="11" r="1"/><path d="m11 15 1-2 1 2m-3 3v3m4-3v3"/>',jelly:"<path d=\"M16 3 29 10 16 17 3 10Z\" fill=\"currentColor\" fill-opacity=\".55\"/><path d=\"M3 10v14l13 7V17Z\" fill=\"currentColor\" fill-opacity=\".3\"/><path d=\"m16 17 13-7v14l-13 7Z\" fill=\"currentColor\" fill-opacity=\".18\"/><path d=\"m16 3 13 7v14l-13 7-13-7V10Zm0 14v14M3 10l13 7 13-7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linejoin=\"round\"/><path d=\"M8 15c-3-1-4 0-4 3 0 2 1 4 2 5v3l5 3v-3c2 0 3-1 3-3 0-3-2-6-6-8Z\" fill=\"currentColor\"/><path d=\"m6 19 2 1v3l-2-1Zm4 2 2 1v3l-2-1Z\" fill=\"#142023\"/>"};
  icon.innerHTML='<svg viewBox="'+(kind==='jelly'?'0 0 32 34':'0 0 24 24')+'" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false">'+drawings[kind]+'</svg>';return icon;
 }
 function refreshWin(){const time=document.querySelector('#win-time');time.replaceChildren(statIcon('timer'),document.createTextNode(formatRunTime(runSeconds)));time.setAttribute('aria-label',tr('completionTime')+': '+formatRunTime(runSeconds));const deaths=document.querySelector('#win-deaths');deaths.replaceChildren();players.forEach((p,i)=>{const row=document.createElement('div');row.className='death-stat';row.setAttribute('aria-label',tr(names[p.slot])+', '+tr('deaths')+': '+runDeaths[i]);row.append(statIcon('jelly',p.slot),statIcon('skull'),String(runDeaths[i]));deaths.append(row);});const id=currentStandardLevel();document.querySelector('#win-title').textContent=tr(id===JellyLevels.standardNames.length?'demoComplete':'levelComplete');document.querySelector('#win-level-name').textContent=currentLevelTitle();document.querySelector('#win-next').textContent=tr(id&&id<JellyLevels.standardNames.length?'nextLevel':globalThis.location?.search?.includes('level=editor')?'editor':'levels');}
-function selectWinItem(index,focus=true){const buttons=[document.querySelector('#win-next'),document.querySelector('#again')];winSelected=(index+2)%2;buttons.forEach((button,i)=>button.classList.toggle('selected',i===winSelected));if(focus)buttons[winSelected].focus({preventScroll:true});}
-function handleWinKey(e){const k=e.code;if(['ArrowDown','ArrowRight','KeyS','KeyD','ArrowUp','ArrowLeft','KeyW','KeyA','Tab'].includes(k)){e.preventDefault();selectWinItem(winSelected+1);}else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)document.querySelector(winSelected===0?'#win-next':'#again').click();}else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(!e.repeat)setMenu(true);}}
+function selectWinItem(index,focus=true){const buttons=[...document.querySelectorAll('#win .menu-items button')];winSelected=(index+2)%2;buttons.forEach((button,i)=>button.classList.toggle('selected',i===winSelected));if(focus)buttons[winSelected].focus({preventScroll:true});}
+function handleWinKey(e){const k=e.code;if(['ArrowDown','ArrowRight','KeyS','KeyD','ArrowUp','ArrowLeft','KeyW','KeyA','Tab'].includes(k)){e.preventDefault();selectWinItem(winSelected+1);}else if(k==='Enter'||k==='KeyE'){e.preventDefault();if(!e.repeat)document.querySelectorAll('#win .menu-items button')[winSelected].click();}else if(k==='Escape'||k==='KeyQ'){e.preventDefault();if(!e.repeat)setMenu(true);}}
 function updateLevelLocks(){document.querySelectorAll('[data-level]').forEach(button=>{const locked=JellyProgress&&!JellyProgress.canPlay(Number(button.dataset.level));let best=button.querySelector('.level-best');if(!best){best=document.createElement('span');best.className='level-best';button.append(best);}const seconds=JellyProgress?.bestTime(Number(button.dataset.level));const value=seconds==null?'\u2014':formatRunTime(seconds);best.replaceChildren(statIcon('timer'),document.createTextNode(value));best.setAttribute('aria-label',tr('bestTime')+': '+value);button.disabled=!!locked;button.classList.toggle('locked',!!locked);let icon=button.querySelector('.level-lock');if(!icon){icon=document.createElement('span');icon.className='level-lock';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';button.append(icon);}icon.hidden=!locked;});}
 function menuButtons(){return [...document.querySelectorAll(menuHelp?'#menu-back':menuLevelSelect?'#menu-levels button:not(:disabled)':'#menu-root button')];}
 function selectMenuItem(index,focus=true){const buttons=menuButtons();menuSelected=(index+buttons.length)%buttons.length;buttons.forEach((button,i)=>button.classList.toggle('selected',i===menuSelected));if(focus){const button=buttons[menuSelected];button?.focus({preventScroll:true});const list=menuLevelSelect&&button?.closest('.level-list');if(list){const item=button.getBoundingClientRect(),box=list.getBoundingClientRect();if(item.top<box.top)list.scrollTop+=item.top-box.top;else if(item.bottom>box.bottom)list.scrollTop+=item.bottom-box.bottom;}}}
@@ -359,7 +359,7 @@ function setMenu(open){if(menuOpen!==open){sceneRenderer.bridgeKey=undefined;sce
 if(JellyI18n){
  createPlayerHints();
  document.querySelector('#win-next').onclick=()=>{const id=currentStandardLevel();if(id&&id<JellyLevels.standardNames.length)globalThis.location.href='?level='+(id+1)+'&play=1';else if(globalThis.location?.search?.includes('level=editor'))globalThis.location.href='editor.html';else{setMenu(true);showMenuScreen('levels');}};
- [document.querySelector('#win-next'),document.querySelector('#again')].forEach((button,index)=>{button.addEventListener('pointerenter',()=>selectWinItem(index,false));button.addEventListener('focus',()=>selectWinItem(index,false));});
+ document.querySelectorAll('#win .menu-items button').forEach((button,index)=>{button.addEventListener('pointerenter',()=>selectWinItem(index,false));button.addEventListener('focus',()=>selectWinItem(index,false));});
  document.querySelector('#play').onclick=()=>hasPlayed?setMenu(false):showMenuScreen('levels');
  document.querySelector('#show-levels').onclick=()=>showMenuScreen('levels');
  document.querySelector('#levels-back').onclick=()=>showMenuScreen('root');

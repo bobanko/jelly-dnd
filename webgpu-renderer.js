@@ -1072,7 +1072,7 @@ import Levels from './levels.js';
    }
    for(let i=0;i<level.plates.length;i++){
     const mesh=[],plate=level.plates[i],palette={green:[.22,.65,.035],red:[.78,.026,.012],blue:[.018,.25,.78],violet:[.5,.07,.78],amber:[.78,.36,.012],dark:[.12,.135,.14]},color=palette[plate.color]||[palette.red,palette.blue][i%2];
-    pressureSurface(mesh,[0,0,0],[[0,0],[.285,0],[.3,.009],[.3,.032],[.287,.045],[0,.045]],color,14,(i*7+2)%16);
+    pressureSurface(mesh,[0,0,0],[[0,0],[.285,0],[.3,.009],[.3,.052],[.287,.065],[0,.065]],color,14,(i*7+2)%16);
     append('pressureButton',i,mesh);
    }
    for(let i=0;i<level.world.lifts.length;i++){
@@ -1134,7 +1134,7 @@ import Levels from './levels.js';
      if(piece.kind==='archerString')stringPull=pull;
      if(piece.kind==='nockedArrow'){if((a.cooldown??1.6)>.85)continue;x+=fx*(.21-pull)-fz*.09;y+=.57;z+=fz*(.21-pull)+fx*.09;}
     }else if(piece.kind==='pressureButton'){
-     const p=level.plates[i];x=p.x;y=(p.y??level.world.heightAt(p.x,p.z)??0)+.02-this.platePress[i]*.045;z=p.z;
+     const p=level.plates[i];x=p.x;y=(p.y??level.world.heightAt(p.x,p.z)??0)+.02-this.platePress[i]*.065;z=p.z;
     }else if(piece.kind==='lift'){
      const lift=level.world.lifts[i];x=lift.x;y=lift.height;z=lift.z;
     }else{

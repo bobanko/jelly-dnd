@@ -7,6 +7,24 @@ const world={heightAt:()=>0},players=[{}],soft={get:()=>({positions:[[2,.05,3],[
 const death={type:'death',reason:'spikes',player:0};
 const portal={type:'portal',color:'violet',source:[3,0,6],destination:[6,1,9]};
 
+test('victory surrounds each jelly with matching magic that expires without moving bodies',()=>{
+ const effects=new System(),party=[{x:2,y:1,z:3,slot:0},{x:5,y:2,z:7,slot:3}],before=structuredClone(party);
+ effects.burst({type:'victory'},party);
+ assert.equal(effects.particles.length,28);assert.equal(effects.rings.length,2);assert.equal(effects.runes.length,6);
+ assert.deepEqual(effects.rings.map(r=>r.center),[[2,1.06,3],[5,2.06,7]]);
+ assert.deepEqual(effects.runes.map(r=>r.glyph),[0,0,0,3,3,3]);
+ assert.ok(effects.particles.every(p=>p.kind==='magic'&&p.velocity[1]>0));
+ for(let i=0;i<16;i++)effects.step(.1,world);
+ assert.equal(effects.particles.length+effects.rings.length+effects.runes.length,0);
+ assert.deepEqual(party,before);
+});
+
+test('victory respects reduced motion',()=>{
+ const effects=new System({reducedMotion:true});
+ effects.burst({type:'victory'},[{x:2,z:3,slot:0}]);
+ assert.equal(effects.particles.length+effects.rings.length+effects.runes.length,0);
+});
+
 test('spike scraps inherit lattice positions, move under gravity, bounce and expire before respawn',()=>{
  const effects=new System();effects.burst(death,players,soft);
  assert.equal(effects.particles.length,22);
