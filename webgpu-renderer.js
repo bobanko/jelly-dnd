@@ -181,8 +181,8 @@ function box(
           uv = [((tile % 4) + 0.02 + a * 0.96) / 4, (Math.floor(tile / 4) + 0.02 + b * 0.96) / 4];
         } else if (material === 11) {
           const seed = Math.abs(Math.sin(dot(center, [19.7, 31.1, 47.3]))),
-            a = (size[u] > size[v] ? j : i) / steps,
-            b = (size[u] > size[v] ? i : j) / steps;
+            a = size[u] > size[v] ? t : s,
+            b = size[u] > size[v] ? s : t;
           uv = [seed * 0.72 + a * 0.2, 0.04 + b * 0.92];
         }
         const brightness = shade ? shade(axis, sign, s, t) : 1;
@@ -215,72 +215,128 @@ function box(
 }
 function crateGeometry() {
   const mesh = [],
-    wood = [0.66, 0.39, 0.17],
-    frame = [0.82, 0.54, 0.26],
-    peg = [0.31, 0.17, 0.07];
-  box(mesh, [0, 0, 0], [0.71, 0.71, 0.71], [0.2, 0.105, 0.035], 0.012, 11, 2);
+    wood = [0.64, 0.355, 0.145],
+    frame = [0.8, 0.49, 0.225],
+    endGrain = [0.69, 0.405, 0.19],
+    nail = [0.19, 0.135, 0.085];
+  // Work in face-local coordinates so grain, wear and hardware tumble with the crate.
+  const plank = (center, size, color, seed, bevel = 0.009) => {
+    const start = mesh.length,
+      vertical = size[1] > size[0];
+    box(mesh, center, size, color, bevel, 11, 3, {
+      crisp: true,
+      shade: (axis, sign, s, t) => {
+        const edge = Math.min(s, t, 1 - s, 1 - t);
+        return axis === 2 && sign > 0 ? 0.92 + Math.max(0, 1 - edge * 18) * 0.16 : 0.86;
+      },
+    });
+    // Shallow corner chips expose pale fibres without opening holes in the box.
+    for (let k = start; k < mesh.length; k += 12) {
+      const x = (mesh[k] - center[0]) / (size[0] * 0.5),
+        y = (mesh[k + 1] - center[1]) / (size[1] * 0.5),
+        corner =
+          Math.max(0, (x * (seed % 2 ? 1 : -1) - 0.76) / 0.24) *
+          Math.max(0, (y * (seed % 3 ? -1 : 1) - 0.76) / 0.24);
+      mesh[k + 2] -= corner * 0.007;
+      for (let c = 0; c < 3; c++) mesh[k + 6 + c] *= 1 + corner * 0.16;
+    }
+    // Sparse tapered scratches follow the timber, with a shadow and exposed fibre lip.
+    for (let i = 0; i < 3; i++) {
+      const across = Math.sin(seed * 12.7 + i * 7.3) * 0.3,
+        along = Math.sin(seed * 4.1 + i * 13.7) * 0.29,
+        length = Math.max(size[0], size[1]) * (0.09 + i * 0.035),
+        width = 0.0018 + (i % 2) * 0.001,
+        x = center[0] + (vertical ? across * size[0] : along * size[0]),
+        y = center[1] + (vertical ? along * size[1] : across * size[1]),
+        z = center[2] + size[2] * 0.5 + 0.0004;
+      for (const [offset, tint] of [
+        [0, [0.32, 0.16, 0.06]],
+        [width, [0.9, 0.61, 0.3]],
+      ]) {
+        for (const [u, v] of [
+          [-width, -length * 0.5],
+          [width, -length * 0.32],
+          [0, length * 0.5],
+        ])
+          mesh.push(
+            x + (vertical ? u + offset : -v),
+            y + (vertical ? v : u + offset),
+            z,
+            0,
+            0,
+            1,
+            ...tint,
+            11,
+            0.37,
+            0.46,
+          );
+      }
+    }
+  };
+  box(mesh, [0, 0, 0], [0.71, 0.71, 0.71], [0.19, 0.095, 0.032], 0.012, 11, 2);
   for (let axis = 0; axis < 3; axis++)
     for (const sign of [-1, 1]) {
-      const from = mesh.length;
-      for (let j = 0; j < 4; j++)
-        box(
-          mesh,
-          [(j - 1.5) * 0.155, 0, 0.367],
-          [0.149, 0.63, 0.032],
-          wood.map((v) => v * (0.92 + j * 0.045)),
-          0.004,
-          11,
-          2,
+      const from = mesh.length,
+        faceSeed = axis * 7 + sign + 3;
+      for (let j = 0; j < 4; j++) {
+        const center = [(j - 1.5) * 0.153, 0, 0.365],
+          size = [0.147, 0.625, 0.036];
+        if (axis === 1) {
+          [center[0], center[1]] = [center[1], center[0]];
+          [size[0], size[1]] = [size[1], size[0]];
+        }
+        plank(
+          center,
+          size,
+          wood.map((v) => v * (0.9 + ((j * 3 + faceSeed) % 5) * 0.045)),
+          faceSeed + j,
+          0.005,
         );
-      for (const edge of [-1, 1]) {
-        box(mesh, [edge * 0.315, 0, 0.395], [0.095, 0.73, 0.045], frame, 0.006, 11, 2);
-        box(mesh, [0, edge * 0.315, 0.398], [0.73, 0.095, 0.045], frame, 0.006, 11, 2);
       }
-      if (axis !== 1)
-        for (const direction of [-1, 1]) {
-          const start = mesh.length,
-            a = (direction * Math.PI) / 4,
-            c = Math.cos(a),
-            s = Math.sin(a);
-          box(mesh, [0, 0, 0.416], [0.072, 0.76, 0.026], frame, 0.004, 11, 2);
-          for (let k = start; k < mesh.length; k += 12)
-            for (const offset of [0, 3]) {
-              const x = mesh[k + offset],
-                y = mesh[k + offset + 1];
-              mesh[k + offset] = x * c - y * s;
-              mesh[k + offset + 1] = x * s + y * c;
-            }
-        }
-      for (const x of [-0.31, 0.31])
-        for (const y of [-0.31, 0.31]) {
-          box(mesh, [x, y, 0.43], [0.14, 0.14, 0.022], frame, 0.008, 11, 2);
-          for (const dx of [-0.034, 0.034])
-            for (const dy of [-0.034, 0.034])
-              for (let k = 0; k < 8; k++) {
-                const a = (k * Math.PI) / 4,
-                  b = ((k + 1) * Math.PI) / 4;
-                for (const [px, py, pz, nx, ny, nz] of [
-                  [0, 0, 0.006, 0, 0, 1],
-                  [
-                    Math.cos(a) * 0.01,
-                    Math.sin(a) * 0.01,
-                    0,
-                    Math.cos(a) * 0.5,
-                    Math.sin(a) * 0.5,
-                    0.866,
-                  ],
-                  [
-                    Math.cos(b) * 0.01,
-                    Math.sin(b) * 0.01,
-                    0,
-                    Math.cos(b) * 0.5,
-                    Math.sin(b) * 0.5,
-                    0.866,
-                  ],
-                ])
-                  mesh.push(x + dx + px, y + dy + py, 0.443 + pz, nx, ny, nz, ...peg, 11, 0, 0);
-              }
-        }
+      // Broad rails with clean butt joints; their worn bevels catch the dungeon light.
+      for (const edge of [-1, 1]) {
+        plank([edge * 0.326, 0, 0.392], [0.112, 0.55, 0.062], frame, faceSeed + edge, 0.012);
+        plank(
+          [0, edge * 0.326, 0.392],
+          [0.764, 0.112, 0.062],
+          endGrain,
+          faceSeed + edge + 4,
+          0.012,
+        );
+      }
+      if (axis !== 1) {
+        const start = mesh.length,
+          a = (sign * Math.PI) / 4,
+          c = Math.cos(a),
+          s = Math.sin(a);
+        plank(
+          [0, 0, 0.392],
+          [0.087, 0.77, 0.039],
+          frame.map((v) => v * 0.91),
+          faceSeed + 9,
+          0.007,
+        );
+        for (let k = start; k < mesh.length; k += 12)
+          for (const offset of [0, 3]) {
+            const x = mesh[k + offset],
+              y = mesh[k + offset + 1];
+            mesh[k + offset] = x * c - y * s;
+            mesh[k + offset + 1] = x * s + y * c;
+          }
+      }
+      // Small recessed iron nail heads, one per rail end, instead of corner plates.
+      for (const x of [-0.326, 0.326])
+        for (const y of [-0.326, 0.326])
+          for (let k = 0; k < 8; k++) {
+            const a = (k * Math.PI) / 4,
+              b = ((k + 1) * Math.PI) / 4;
+            for (const [px, py, pz] of [
+              [0, 0, 0.0015],
+              [Math.cos(a) * 0.008, Math.sin(a) * 0.008, 0],
+              [Math.cos(b) * 0.008, Math.sin(b) * 0.008, 0],
+            ])
+              mesh.push(x + px, y + py, 0.424 + pz, 0, 0, 1, ...nail, 11, 0.3, 0.4);
+          }
       const u = axis === 0 ? [0, 0, -sign] : axis === 1 ? [1, 0, 0] : [sign, 0, 0],
         v = axis === 1 ? [0, 0, -sign] : [0, 1, 0],
         normal = [0, 0, 0];
@@ -295,6 +351,7 @@ function crateGeometry() {
     }
   return mesh;
 }
+
 const unitSphere = (() => {
   const result = [],
     vertex = (u, v) => [Math.cos(u) * Math.sin(v), Math.cos(v), Math.sin(u) * Math.sin(v)];
@@ -1559,7 +1616,11 @@ const shared = `
    let texel=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;color*=mix(vec3f(clamp(dot(texel,vec3f(.25,.6,.15))*3.6,.38,1.22)),texel*3.6,.2);
   }
   if(o.material>17.5&&o.material<18.5){color*=.86+.14*sin(o.world.y*97.)*sin(o.world.x*113.+o.world.z*113.);}
-  if(o.material>10.5&&o.material<11.5){color*=textureSampleGrad(oakTexture,materialSampler,uv,dx,dy).rgb*3.;}
+  if(o.material>10.5&&o.material<11.5){
+   let timber=textureSampleGrad(oakTexture,materialSampler,uv,dx,dy).rgb;
+   let grain=clamp(.48+dot(timber,vec3f(.25,.6,.15))*3.,.54,1.22);
+   color*=mix(vec3f(grain),timber*2.7,.18);
+  }
   if(o.material>11.5&&o.material<12.5){let age=.5+.5*sin(o.world.x*11.+sin(o.world.y*7.))*sin(o.world.z*13.+o.world.y*5.);color=mix(color,vec3f(.065,.125,.095),smoothstep(.67,.95,age)*.32);}
   if(o.material>13.5&&o.material<14.5){let stone=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;color*=clamp(dot(stone,vec3f(.25,.6,.15))*3.5,.3,1.35);}
   if(o.material>15.5&&o.material<16.5){
