@@ -215,10 +215,10 @@ function box(
 }
 function crateGeometry() {
   const mesh = [],
-    wood = [0.39, 0.28, 0.17],
-    rim = [0.52, 0.37, 0.23],
-    iron = [0.16, 0.17, 0.17];
-  box(mesh, [0, 0, 0], [0.71, 0.71, 0.71], [0.055, 0.033, 0.017], 0.012, 13, 2);
+    wood = [0.66, 0.39, 0.17],
+    frame = [0.82, 0.54, 0.26],
+    peg = [0.31, 0.17, 0.07];
+  box(mesh, [0, 0, 0], [0.71, 0.71, 0.71], [0.2, 0.105, 0.035], 0.012, 11, 2);
   for (let axis = 0; axis < 3; axis++)
     for (const sign of [-1, 1]) {
       const from = mesh.length;
@@ -233,8 +233,8 @@ function crateGeometry() {
           2,
         );
       for (const edge of [-1, 1]) {
-        box(mesh, [edge * 0.315, 0, 0.395], [0.095, 0.73, 0.045], rim, 0.006, 11, 2);
-        box(mesh, [0, edge * 0.315, 0.398], [0.73, 0.095, 0.045], rim, 0.006, 11, 2);
+        box(mesh, [edge * 0.315, 0, 0.395], [0.095, 0.73, 0.045], frame, 0.006, 11, 2);
+        box(mesh, [0, edge * 0.315, 0.398], [0.73, 0.095, 0.045], frame, 0.006, 11, 2);
       }
       if (axis !== 1)
         for (const direction of [-1, 1]) {
@@ -242,7 +242,7 @@ function crateGeometry() {
             a = (direction * Math.PI) / 4,
             c = Math.cos(a),
             s = Math.sin(a);
-          box(mesh, [0, 0, 0.416], [0.072, 0.76, 0.026], rim, 0.004, 11, 2);
+          box(mesh, [0, 0, 0.416], [0.072, 0.76, 0.026], frame, 0.004, 11, 2);
           for (let k = start; k < mesh.length; k += 12)
             for (const offset of [0, 3]) {
               const x = mesh[k + offset],
@@ -253,7 +253,7 @@ function crateGeometry() {
         }
       for (const x of [-0.31, 0.31])
         for (const y of [-0.31, 0.31]) {
-          box(mesh, [x, y, 0.43], [0.14, 0.14, 0.022], iron, 0.008, 12, 2);
+          box(mesh, [x, y, 0.43], [0.14, 0.14, 0.022], frame, 0.008, 11, 2);
           for (const dx of [-0.034, 0.034])
             for (const dy of [-0.034, 0.034])
               for (let k = 0; k < 8; k++) {
@@ -278,20 +278,7 @@ function crateGeometry() {
                     0.866,
                   ],
                 ])
-                  mesh.push(
-                    x + dx + px,
-                    y + dy + py,
-                    0.443 + pz,
-                    nx,
-                    ny,
-                    nz,
-                    0.42,
-                    0.35,
-                    0.25,
-                    12,
-                    0,
-                    0,
-                  );
+                  mesh.push(x + dx + px, y + dy + py, 0.443 + pz, nx, ny, nz, ...peg, 11, 0, 0);
               }
         }
       const u = axis === 0 ? [0, 0, -sign] : axis === 1 ? [1, 0, 0] : [sign, 0, 0],
