@@ -4,6 +4,7 @@ import * as JellyGPU from './webgpu-renderer.js';
 import * as JellySoftBody from './soft-body.js';
 import * as JellyPhysics from './physics.js';
 import * as JellyEffects from './game-effects.js';
+import { GameAudio, SpikeSounds } from './game-audio.js';
 import * as JellySharedCamera from './shared-camera.js';
 import * as LevelCamera from './level-camera.js';
 import { createMenuScene } from './menu-scene.js';
@@ -74,6 +75,12 @@ const runtime = menuOnly
   ? menuScene
   : JellyLevels.instantiate(definition, JellyPhysics, JellySoftBody);
 const { start, players, crates, bodies, plates, goals, bridges, floor, world, soft } = runtime;
+const gameAudio = new GameAudio(() => (audio ??= new AudioContext()));
+const spikeSounds = new SpikeSounds();
+spikeSounds.reset(world);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) gameAudio.setActive(false);
+});
 let followedPlayer = 0;
 let runSeconds = 0,
   runDeaths = players.map(() => 0);
@@ -281,6 +288,8 @@ function reset() {
   heldKeys.clear();
   world.held.clear();
   world.resetFeatures();
+  gameAudio.stop();
+  spikeSounds.reset(world);
   soft.reset();
   effects.clear();
   sceneRenderer.bridgeKey = undefined;
@@ -321,6 +330,8 @@ function undo() {
   crates.forEach((p, i) => Object.assign(p, previous.crates[i], { vx: 0, vy: 0, vz: 0 }));
   world.held = new Set(previous.bridges);
   world.restoreFeatures(previous.features);
+  gameAudio.stop();
+  spikeSounds.reset(world);
   soft.restore(bodies, previous.soft);
   bodies.forEach((p) => {
     if (!p.launchTimer) soft.get(p).velocities.forEach((v) => v.fill(0));
@@ -355,12 +366,26 @@ function inputs() {
   return result;
 }
 function simulate(dt, elapsed = dt) {
-  if (loadingActive || menuOpen || restartTransition || won || mapError || document.hidden) return;
+  const active = !(
+    loadingActive ||
+    menuOpen ||
+    restartTransition ||
+    won ||
+    mapError ||
+    document.hidden
+  );
+  gameAudio.setActive(active);
+  gameAudio.updateWind();
+  if (!active) return;
   runSeconds += Math.max(0, elapsed);
   accumulator += Math.min(dt, 0.05);
   const input = inputs();
   while (accumulator >= JellyPhysics.STEP && !won) {
     const events = world.step(bodies, input);
+    for (const { name, spike } of spikeSounds.update(world)) {
+      const distance = Math.min(...players.map((p) => Math.hypot(p.x - spike.x, p.z - spike.z)));
+      if (distance < 8) gameAudio.play(name, 1 / (1 + distance * 0.3));
+    }
     for (const event of events) {
       if (event.player >= players.length) continue;
       effects.burst(event, players, soft);
@@ -374,7 +399,8 @@ function simulate(dt, elapsed = dt) {
         input[event.target] = { x: 0, z: 0 };
         woodHit();
       } else if (event.type === 'respawn') tone(event.player ? 400 : 300);
-      else if (event.type === 'portal') tone(520);
+      else if (event.type === 'portal') gameAudio.play('portal');
+      else if (event.type === 'land') gameAudio.play('land');
       else if (event.type === 'pickup') tone(720);
       else if (event.type === 'archerShot') tone(840);
       else if (event.type === 'arrowBlock' && event.durability > 0) woodHit();
@@ -530,6 +556,7 @@ function updateRestart(dt) {
 }
 document.querySelector('#sound').onclick = (e) => {
   audioOn = !audioOn;
+  gameAudio.setEnabled(audioOn);
   const button = e.currentTarget;
   button.setAttribute('aria-pressed', String(audioOn));
   button.setAttribute('aria-label', audioOn ? tr('Выключить звук') : tr('Включить звук'));

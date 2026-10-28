@@ -1,21 +1,27 @@
 {
   "jelly-land": {
-    "text": "A single compact gelatinous creature landing on rough stone. A weighty wet rubber slap followed by a brief internal rattle of small bones. Thick, elastic, slightly grotesque. Very short decay, dry close recording, isolated sound effect. No voice, no music, no cartoon boing, no reverb.",
-    "duration_seconds": 1.5,
+    "text": "One large thick water droplet landing softly in a shallow puddle. A rounded low plop, a small wet splash and a brief soft liquid wobble. Gentle attack, compact and weighty, muted high frequencies. A gelatinous body landing. Dry isolated game sound, short tail. No crunch, crack, bones, clicks, slap, sharp impact, voice or music.",
+    "duration_seconds": 1,
     "loop": false,
-    "prompt_influence": 0.5
+    "prompt_influence": 0.7
   },
   "spikes": {
-    "text": "A small iron dungeon spike trap activating once. A tense mechanical latch clicks, followed by a fast sharp metal thrust and a brief gritty rattle as the mechanism locks into place. Heavy worn iron, tight and threatening. Isolated dry sound effect, no music, no ambience.",
-    "duration_seconds": 2,
+    "text": "A small dungeon mechanism gently sliding metal blades upward once. Soft chain links jingle as a smooth oiled mechanism lifts the blades. A restrained rounded metallic ring gradually rises in pitch throughout the movement, ending in a quiet cushioned stop. Muted, delicate metal, gentle attack, dry isolated game sound. No strike, clang, harsh scraping, piercing treble, voice or music.",
+    "duration_seconds": 1.5,
     "loop": false,
-    "prompt_influence": 0.5
+    "prompt_influence": 0.7
+  },
+  "spikes-retract": {
+    "text": "A small dungeon mechanism gently retracting metal blades downward once. Soft chain links jingle and an oiled mechanism slides smoothly. A restrained rounded metallic ring sinks in pitch and steadily fades in volume into silence as the blades withdraw. Quiet cushioned finish. Muted, delicate metal, gentle attack, dry isolated game sound. No strike, clang, harsh scraping, piercing treble, voice or music.",
+    "duration_seconds": 1.5,
+    "loop": false,
+    "prompt_influence": 0.7
   },
   "portal": {
-    "text": "A single occult dungeon portal transporting a small creature. A brief reverse suction, bending resonant glass tones and a low rounded magical pulse, ending with a tight unstable shimmer. Mysterious, strange and slightly sinister. Isolated sound effect, short tail, no voice, no music, no cartoon sounds.",
-    "duration_seconds": 3,
+    "text": "One deep muffled liquid glug as a small magical portal swallows a gelatinous creature. A soft hollow underwater bloop with a rounded bassy bubble collapsing inward and a brief gentle liquid wobble. Low-pass filtered, warm low mids, soft onset, short subdued tail. Isolated game sound. No sharp transient, pop, glass, chimes, electric zap, explosive whoosh, voice or music.",
+    "duration_seconds": 1.5,
     "loop": false,
-    "prompt_influence": 0.5
+    "prompt_influence": 0.7
   },
   "dungeon-wind": {
     "text": "Seamless ambience of low air moving through an ancient underground stone corridor. Hollow drafts, subtle pressure fluctuations and distant airy resonance. Quiet, spacious and uneasy, with no distinct repeating events. No voices, no choir, no music, no sudden sounds.",

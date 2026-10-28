@@ -3,6 +3,7 @@ import * as SharedCamera from '../shared-camera.js';
 import * as LevelCamera from '../level-camera.js';
 import Levels from '../levels.js';
 import * as GameEffects from '../game-effects.js';
+import * as GameAudio from '../game-audio.js';
 import * as Physics from '../physics.js';
 import * as SoftBody from '../soft-body.js';
 import * as GPU from '../webgpu-renderer.js';
@@ -72,6 +73,7 @@ async function game(options = {}) {
     './physics.js': Physics,
     './soft-body.js': SoftBody,
     './game-effects.js': GameEffects,
+    './game-audio.js': GameAudio,
     './webgpu-renderer.js': sandbox.JellyGPU,
     './shared-camera.js': SharedCamera,
     './level-camera.js': LevelCamera,

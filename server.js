@@ -29,6 +29,7 @@ http
           '.js': 'text/javascript',
           '.json': 'application/json; charset=utf-8',
           '.png': 'image/png',
+          '.mp3': 'audio/mpeg',
         }[path.extname(file)] || 'application/octet-stream',
       );
       res.end(data);
