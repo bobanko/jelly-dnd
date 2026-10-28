@@ -1,8 +1,9 @@
 const clips = {
+  death: ['jelly-death-2026-10-28T23-52-26-447Z.mp3', 0.35],
   land: ['jelly-land-2026-10-28T23-36-16-777Z.mp3', 0.35],
   portal: ['portal-2026-10-28T23-36-09-597Z.mp3', 0.4],
-  rise: ['spikes-2026-10-28T23-36-23-633Z.mp3', 0.18],
-  retract: ['spikes-retract-2026-10-28T23-36-30-356Z.mp3', 0.18],
+  rise: ['spikes-2026-10-28T23-51-49-777Z.mp3', 0.18],
+  retract: ['spikes-retract-2026-10-28T23-51-56-006Z.mp3', 0.18],
   wind: ['dungeon-wind-2026-10-28T23-31-02-885Z.mp3', 0.08],
 };
 
@@ -79,6 +80,7 @@ export class GameAudio {
     // Never queue stale events while decoding, muted, paused or in menus.
     if (!this.enabled || !this.active || !this.buffers.has(name)) return null;
     const context = this.context();
+    if (context.state === 'suspended') return null;
     if (context.currentTime - (this.lastPlayed.get(name) ?? -Infinity) < 0.08) return null;
     if (this.sources.size >= 12) return null;
     this.lastPlayed.set(name, context.currentTime);

@@ -1,4 +1,10 @@
 {
+  "jelly-death": {
+    "text": "A single raw egg breaking on a stone surface. A brief delicate eggshell crack immediately followed by a thick wet yolk splat and tiny shell fragments settling. Compact, tactile, slightly grotesque and darkly comic. Rounded wet body, restrained brittle detail, short natural decay. Close dry isolated game sound. No glass shattering, explosive impact, exaggerated crunch, voice, music or reverb.",
+    "duration_seconds": 1,
+    "loop": false,
+    "prompt_influence": 0.7
+  },
   "jelly-land": {
     "text": "One large thick water droplet landing softly in a shallow puddle. A rounded low plop, a small wet splash and a brief soft liquid wobble. Gentle attack, compact and weighty, muted high frequencies. A gelatinous body landing. Dry isolated game sound, short tail. No crunch, crack, bones, clicks, slap, sharp impact, voice or music.",
     "duration_seconds": 1,
@@ -6,14 +12,14 @@
     "prompt_influence": 0.7
   },
   "spikes": {
-    "text": "A small dungeon mechanism gently sliding metal blades upward once. Soft chain links jingle as a smooth oiled mechanism lifts the blades. A restrained rounded metallic ring gradually rises in pitch throughout the movement, ending in a quiet cushioned stop. Muted, delicate metal, gentle attack, dry isolated game sound. No strike, clang, harsh scraping, piercing treble, voice or music.",
-    "duration_seconds": 1.5,
+    "text": "One short solid metallic tone, like a single thick brass coin gently struck with a padded mallet. Dense rounded body, one clear midrange pitch with a slight upward bend, soft attack and short damped ring. Simple, compact, dry and close. An understated dungeon trap rising cue. No multiple coins, jingling, rattling, chains, machinery, scraping, sharp treble, melody, voice or music.",
+    "duration_seconds": 0.5,
     "loop": false,
     "prompt_influence": 0.7
   },
   "spikes-retract": {
-    "text": "A small dungeon mechanism gently retracting metal blades downward once. Soft chain links jingle and an oiled mechanism slides smoothly. A restrained rounded metallic ring sinks in pitch and steadily fades in volume into silence as the blades withdraw. Quiet cushioned finish. Muted, delicate metal, gentle attack, dry isolated game sound. No strike, clang, harsh scraping, piercing treble, voice or music.",
-    "duration_seconds": 1.5,
+    "text": "One short solid metallic tone, like a single thick brass coin gently struck with a padded mallet. Dense rounded body, one clear midrange pitch with a slight downward bend, soft attack and a damped ring fading smoothly to silence. Simple, compact, dry and close. An understated dungeon trap retracting cue. No multiple coins, jingling, rattling, chains, machinery, scraping, sharp treble, melody, voice or music.",
+    "duration_seconds": 0.5,
     "loop": false,
     "prompt_influence": 0.7
   },
