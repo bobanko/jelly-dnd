@@ -26,7 +26,10 @@ async function game(options = {}) {
     setPointerCapture: noop,
     getContext: () => ctx,
     classList: { toggle: noop },
-    setAttribute: noop,
+    attributes: {},
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
     querySelector: () => element(),
   });
   const elements = {},
@@ -65,7 +68,13 @@ async function game(options = {}) {
   if (!options.map) options.map = structuredClone(sunkenSanctum);
   if (options.map) {
     sandbox.location = { search: '?level=editor' };
-    sandbox.localStorage = { getItem: () => JSON.stringify(options.map) };
+    sandbox.localStorage = {
+      getItem: (key) =>
+        key === 'jelly-dnd.editor.v1' || key === 'jelly-dnd.play.v1'
+          ? JSON.stringify(options.map)
+          : (options.storage?.getItem(key) ?? null),
+      setItem: (key, value) => options.storage?.setItem(key, value),
+    };
   }
   const context = vm.createContext(sandbox);
   const dependencies = {
@@ -73,7 +82,7 @@ async function game(options = {}) {
     './physics.js': Physics,
     './soft-body.js': SoftBody,
     './game-effects.js': GameEffects,
-    './game-audio.js': GameAudio,
+    './game-audio.js': { ...GameAudio, GameAudio: options.audioClass || GameAudio.GameAudio },
     './webgpu-renderer.js': sandbox.JellyGPU,
     './shared-camera.js': SharedCamera,
     './level-camera.js': LevelCamera,
@@ -874,4 +883,70 @@ test('authored starting view sets gameplay pitch and the destination of the open
   const reduced = await game({ map, intro: true, reducedMotion: true });
   assert.equal(reduced.run('angle'), Math.PI / 2);
   assert.equal(reduced.run('camera.pitch'), 37);
+});
+
+class PreferenceTestAudio extends GameAudio.GameAudio {
+  setEnabled(enabled) {
+    this.enabled = enabled;
+  }
+}
+
+test('audio preference survives reload, level reset and explicitly switching off', async () => {
+  const saved = new Map();
+  const options = {
+    audioClass: PreferenceTestAudio,
+    storage: {
+      getItem: (key) => saved.get(key),
+      setItem: (key, value) => saved.set(key, value),
+    },
+  };
+  let g = await game(options);
+  assert.equal(g.run('audioOn'), false);
+  g.run('tone=()=>{};document.querySelector("#sound").onclick()');
+  assert.equal(saved.get('jelly-dnd.audio.enabled'), 'true');
+  g = await game(options);
+  assert.equal(g.run('audioOn && gameAudio.enabled'), true);
+  assert.equal(g.run('document.querySelector("#sound").attributes["aria-pressed"]'), 'true');
+  g.run('reset()');
+  assert.equal(g.run('audioOn && gameAudio.enabled'), true);
+  g.run('tone=()=>{};document.querySelector("#sound").onclick()');
+  assert.equal(saved.get('jelly-dnd.audio.enabled'), 'false');
+  g = await game(options);
+  assert.equal(g.run('audioOn || gameAudio.enabled'), false);
+  assert.equal(g.run('document.querySelector("#sound").attributes["aria-pressed"]'), 'false');
+});
+
+test('invalid or unavailable audio storage keeps the switch usable', async () => {
+  for (const storage of [
+    { getItem: () => 'invalid', setItem() {} },
+    {
+      getItem() {
+        throw Error('blocked');
+      },
+      setItem() {
+        throw Error('blocked');
+      },
+    },
+  ]) {
+    const g = await game({ audioClass: PreferenceTestAudio, storage });
+    assert.equal(g.run('audioOn'), false);
+    g.run('tone=()=>{};document.querySelector("#sound").onclick()');
+    assert.equal(g.run('audioOn && gameAudio.enabled'), true);
+  }
+});
+
+test('restored sound resumes a suspended context on input without changing the preference', async () => {
+  const g = await game({
+    audioClass: PreferenceTestAudio,
+    storage: { getItem: () => 'true' },
+  });
+  assert.equal(
+    g.run(`
+    audio={state:'suspended',calls:0,resume(){this.calls++;return Promise.resolve()}};
+    resumeAudio();audio.calls
+  `),
+    1,
+  );
+  assert.equal(g.run('audioOn'), true);
+  assert.equal(g.run('audioOn=false;resumeAudio();audio.calls'), 1);
 });

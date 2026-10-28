@@ -63,6 +63,10 @@ test('samples preload once, deduplicate simultaneous traps, and stop on mute or 
   await audio.loading;
   assert.equal(started.length, 1);
   assert.equal(started[0].loop, true);
+  context.state = 'suspended';
+  assert.equal(audio.play('death'), null);
+  assert.equal(started.length, 1);
+  context.state = 'running';
   audio.play('rise');
   audio.play('rise');
   assert.equal(started.length, 2);
@@ -71,7 +75,7 @@ test('samples preload once, deduplicate simultaneous traps, and stop on mute or 
   assert.equal(audio.play('land'), null);
   audio.setEnabled(true);
   await audio.loading;
-  assert.equal(fetch.mock.callCount(), 5);
+  assert.equal(fetch.mock.callCount(), 6);
   audio.setActive(false);
   assert.ok(started.every((source) => source.stopped));
   assert.equal(audio.play('portal'), null);
@@ -85,5 +89,5 @@ test('missing audio files do not prevent gameplay or cause deferred playback', a
   audio.setEnabled(true);
   await audio.loading;
   assert.equal(audio.play('land'), null);
-  assert.equal(warn.mock.callCount(), 5);
+  assert.equal(warn.mock.callCount(), 6);
 });

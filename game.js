@@ -41,7 +41,7 @@ let W,
   history = [],
   won = false,
   finishHold = 0,
-  audioOn = false,
+  audioOn = readAudioPreference(),
   audio;
 const WIN_HOLD_SECONDS = 1;
 const N = 12,
@@ -148,9 +148,29 @@ function project(x, y, z) {
 function active(i) {
   return world.active(i, players);
 }
+function readAudioPreference() {
+  try {
+    return globalThis.localStorage?.getItem('jelly-dnd.audio.enabled') === 'true';
+  } catch {
+    return false;
+  }
+}
+function updateSoundButton() {
+  const button = document.querySelector('#sound');
+  button.setAttribute('aria-pressed', String(audioOn));
+  button.title = tr(audioOn ? 'Выключить звук' : 'Включить звук');
+  button.setAttribute('aria-label', button.title);
+}
+function resumeAudio() {
+  if (audioOn && audio?.state === 'suspended') audio.resume().catch(() => {});
+}
+// A saved preference restores the switch immediately; user input unlocks browser audio.
+addEventListener('pointerdown', resumeAudio, { capture: true });
+addEventListener('keydown', resumeAudio, { capture: true });
 function tone(freq) {
   if (!audioOn) return;
   audio ??= new AudioContext();
+  if (audio.state === 'suspended') return;
   const o = audio.createOscillator(),
     g = audio.createGain();
   o.type = 'sine';
@@ -165,6 +185,7 @@ function tone(freq) {
 function woodHit(broken = false) {
   if (!audioOn) return;
   audio ??= new AudioContext();
+  if (audio.state === 'suspended') return;
   const now = audio.currentTime,
     duration = broken ? 0.3 : 0.18,
     buffer = audio.createBuffer(1, Math.ceil(audio.sampleRate * duration), audio.sampleRate),
@@ -393,7 +414,8 @@ function simulate(dt, elapsed = dt) {
       if (event.type === 'fall' || event.type === 'death') {
         for (const key of heldKeys) if (movementKeys[key][0] === event.player) heldKeys.delete(key);
         input[event.player] = { x: 0, z: 0 };
-        tone(95);
+        if (event.type === 'death') gameAudio.play('death');
+        else tone(95);
       } else if (event.type === 'shieldBash') {
         for (const key of heldKeys) if (movementKeys[key][0] === event.target) heldKeys.delete(key);
         input[event.target] = { x: 0, z: 0 };
@@ -554,15 +576,17 @@ function updateRestart(dt) {
     document.querySelector('#restart-fade').hidden = true;
   }
 }
-document.querySelector('#sound').onclick = (e) => {
+document.querySelector('#sound').onclick = () => {
   audioOn = !audioOn;
+  try {
+    globalThis.localStorage?.setItem('jelly-dnd.audio.enabled', String(audioOn));
+  } catch {}
   gameAudio.setEnabled(audioOn);
-  const button = e.currentTarget;
-  button.setAttribute('aria-pressed', String(audioOn));
-  button.setAttribute('aria-label', audioOn ? tr('Выключить звук') : tr('Включить звук'));
-  button.title = audioOn ? tr('Выключить звук') : tr('Включить звук');
+  updateSoundButton();
   tone(400);
 };
+updateSoundButton();
+gameAudio.setEnabled(audioOn);
 
 function createPlayerHints() {
   const layouts = [
@@ -943,9 +967,7 @@ function refreshLanguage() {
     document.querySelector('#level-intro-title').textContent = currentLevelTitle();
   if (loadingActive && !loadingFailed)
     document.querySelector('#loading-status').textContent = tr(loadingStage);
-  const sound = document.querySelector('#sound');
-  sound.title = tr(audioOn ? 'Выключить звук' : 'Включить звук');
-  sound.setAttribute('aria-label', sound.title);
+  updateSoundButton();
   if (JellyI18n) document.querySelector('#play').textContent = tr(hasPlayed ? 'resume' : 'play');
   document
     .querySelectorAll('[data-level-name]')
