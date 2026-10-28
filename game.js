@@ -702,6 +702,7 @@ function updateLoading(progress, stage) {
   document.querySelector('#loading-progress').value = progress;
 }
 function gpuFailure(message) {
+  document.querySelector('#loading-spinner').hidden = true;
   if (!JellyI18n) return;
   loadingFailed = true;
   updateLoading(0, 'loadingGraphics');
@@ -744,6 +745,7 @@ sceneRenderer
     } else sceneRenderer.render(level, players, camera, angle, 0, scale, 0);
     await sceneRenderer.device?.queue?.onSubmittedWorkDone();
     if (loadingFailed) return;
+    document.querySelector('#loading-spinner').hidden = true;
     if (JellyI18n) {
       document.querySelector('#level-loading').hidden = true;
       document.querySelector('#level-intro').hidden = true;

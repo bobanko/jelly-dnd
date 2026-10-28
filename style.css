@@ -1193,6 +1193,32 @@ html[lang='ru'] .selecting-level .menu-panel h1 {
   pointer-events: auto;
   background: radial-gradient(ellipse, #101214de, #101214fa);
 }
+#loading-spinner {
+  position: fixed;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  z-index: 31;
+  width: 48px;
+  height: 48px;
+  color: #fff;
+  pointer-events: none;
+}
+#loading-spinner svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  animation: loading-gear-spin 2.4s linear infinite;
+}
+@keyframes loading-gear-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #loading-spinner svg {
+    animation: none;
+  }
+}
 #level-loading {
   margin: 35px auto 0;
   max-width: 520px;

@@ -9,6 +9,25 @@
     <link rel="stylesheet" href="controls.css" />
   </head>
   <body class="menu-open">
+    <div id="loading-spinner" role="status" aria-label="loadingLevel">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <defs>
+          <mask id="loading-gear-hole">
+            <rect width="100" height="100" fill="white" />
+            <circle cx="50" cy="50" r="15" fill="black" />
+          </mask>
+        </defs>
+        <g fill="currentColor" mask="url(#loading-gear-hole)">
+          <circle cx="50" cy="50" r="35" />
+          <rect x="38" y="3" width="24" height="27" rx="3" />
+          <rect x="38" y="3" width="24" height="27" rx="3" transform="rotate(60 50 50)" />
+          <rect x="38" y="3" width="24" height="27" rx="3" transform="rotate(120 50 50)" />
+          <rect x="38" y="3" width="24" height="27" rx="3" transform="rotate(180 50 50)" />
+          <rect x="38" y="3" width="24" height="27" rx="3" transform="rotate(240 50 50)" />
+          <rect x="38" y="3" width="24" height="27" rx="3" transform="rotate(300 50 50)" />
+        </g>
+      </svg>
+    </div>
     <canvas id="scene" aria-label="Jelly & Bones"></canvas>
     <div class="game-tools">
       <button id="menu-button" class="icon-button" title="Menu" aria-label="Menu">

@@ -21,6 +21,7 @@ export async function loadLevels({
   const $status = document.querySelector('#loading-status');
   const $progress = document.querySelector('#loading-progress');
   const $retry = document.querySelector('#loading-retry');
+  const $spinner = document.querySelector('#loading-spinner');
   const menuOnly =
     entryScript === 'game.js' &&
     !location.search.includes('level=editor') &&
@@ -62,6 +63,7 @@ export async function loadLevels({
   }
 
   function showError(error) {
+    if ($spinner) $spinner.hidden = true;
     if ($overlay) {
       $overlay.hidden = false;
       $overlay.classList.add('loading');
