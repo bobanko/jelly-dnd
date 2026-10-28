@@ -1,0 +1,26 @@
+{
+  "jelly-land": {
+    "text": "A single compact gelatinous creature landing on rough stone. A weighty wet rubber slap followed by a brief internal rattle of small bones. Thick, elastic, slightly grotesque. Very short decay, dry close recording, isolated sound effect. No voice, no music, no cartoon boing, no reverb.",
+    "duration_seconds": 1.5,
+    "loop": false,
+    "prompt_influence": 0.5
+  },
+  "spikes": {
+    "text": "A small iron dungeon spike trap activating once. A tense mechanical latch clicks, followed by a fast sharp metal thrust and a brief gritty rattle as the mechanism locks into place. Heavy worn iron, tight and threatening. Isolated dry sound effect, no music, no ambience.",
+    "duration_seconds": 2,
+    "loop": false,
+    "prompt_influence": 0.5
+  },
+  "portal": {
+    "text": "A single occult dungeon portal transporting a small creature. A brief reverse suction, bending resonant glass tones and a low rounded magical pulse, ending with a tight unstable shimmer. Mysterious, strange and slightly sinister. Isolated sound effect, short tail, no voice, no music, no cartoon sounds.",
+    "duration_seconds": 3,
+    "loop": false,
+    "prompt_influence": 0.5
+  },
+  "dungeon-wind": {
+    "text": "Seamless ambience of low air moving through an ancient underground stone corridor. Hollow drafts, subtle pressure fluctuations and distant airy resonance. Quiet, spacious and uneasy, with no distinct repeating events. No voices, no choir, no music, no sudden sounds.",
+    "duration_seconds": 20,
+    "loop": true,
+    "prompt_influence": 0.5
+  }
+}

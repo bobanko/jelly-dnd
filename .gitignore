@@ -4,3 +4,5 @@ artifacts/
 test-results/
 playwright-report/
 dist/
+.env*
+!.env.elevenlabs.example

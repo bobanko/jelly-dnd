@@ -6,7 +6,13 @@ http
   .createServer((req, res) => {
     const name = req.url.split('?')[0] === '/' ? '/index.html' : req.url.split('?')[0];
     const file = path.resolve(root, '.' + name);
-    if (!file.startsWith(root + path.sep)) {
+    if (
+      !file.startsWith(root + path.sep) ||
+      path
+        .relative(root, file)
+        .split(path.sep)
+        .some((part) => part.startsWith('.'))
+    ) {
       res.writeHead(403);
       return res.end();
     }

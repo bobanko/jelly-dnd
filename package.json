@@ -6,6 +6,7 @@
   },
   "private": true,
   "scripts": {
+    "audio": "node scripts/elevenlabs.js",
     "format": "prettier --write \"**/*.{js,mjs,cjs,json,html,css}\"",
     "format:check": "prettier --check \"**/*.{js,mjs,cjs,json,html,css}\"",
     "start": "node server.js",
