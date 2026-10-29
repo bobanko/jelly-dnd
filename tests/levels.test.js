@@ -77,6 +77,8 @@ test('color group bindings roundtrip and survive removing one of the same-color 
   );
   world.refresh([{ x: 3, z: 2, y: 0 }]);
   assert.equal(world.held.has(0), true);
+  assert.equal(world.spikeState(world.spikes[0]).dangerous, false);
+  world.beforeFeatures(world.bodies, world.soft, 0.3);
   assert.equal(world.spikeState(world.spikes[0]).dangerous, true);
 });
 

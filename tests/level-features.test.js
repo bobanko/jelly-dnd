@@ -39,16 +39,17 @@ test('same-color plates activate every linked bridge and spike from either plate
     { id: 'c', color: 'blue', x: 7, z: 2, y: 0 },
   ];
   world.bridges = [{ plate: 0 }, { plate: 1 }, { plate: 2 }];
+  world.spikes = ['a', 'b', 'red', 'c'].map((plate) => ({ plate }));
   for (const body of [
     { x: 2, z: 2, y: 0 },
     { x: 5, z: 2, y: 1 },
     { x: 5, z: 2, y: 1, kind: 'crate' },
   ]) {
-    world.refresh([body]);
+    world.resetFeatures();
+    world.beforeFeatures([body], world.soft, 0.3);
     assert.deepEqual([...world.held], [0, 1]);
-    for (const plate of ['a', 'b', 'red'])
-      assert.equal(world.spikeState({ plate }).dangerous, true);
-    assert.equal(world.spikeState({ plate: 'c' }).dangerous, false);
+    assert.ok(world.spikes.slice(0, 3).every((s) => world.spikeState(s).dangerous));
+    assert.equal(world.spikeState(world.spikes[3]).dangerous, false);
   }
   for (const body of [
     { x: 5, z: 2, y: 0 },
@@ -92,24 +93,110 @@ test('spikes support constant states and proportional custom cycles without chan
   assert.equal(g.world.spikeState({ enabled: false, cycle: 10 }).stage, 'hidden');
 });
 
-test('a bound pressure plate directly controls floor or wall spikes and ignores timer and flag', () => {
+test('pressure plates animate every spike mount over 0.3 seconds regardless of timer or flag', () => {
   const g = scene(),
-    plate = { id: 'trigger', x: 2, z: 2, y: 1 },
-    trap = { plate: 'trigger', cycle: 0, enabled: false, face: 'north' };
+    plate = { id: 'trigger', x: 2, z: 2, y: 1 };
+  const traps = ['top', 'north', 'east', 'south', 'west'].map((face) => ({
+    x: 4,
+    y: 1,
+    z: 2,
+    plate: 'trigger',
+    cycle: 0,
+    enabled: false,
+    face,
+  }));
   g.world.plates.push(plate);
-  g.world.refresh(g.players);
-  assert.equal(g.world.spikeState(trap).dangerous, false);
+  g.world.spikes = traps;
+  g.world.beforeFeatures(g.players, g.soft, 0.3);
+  assert.ok(traps.every((s) => g.world.spikeState(s).extension === 0));
   g.players[0].y = 1;
-  assert.equal(g.world.spikeState(trap).extension, 1);
+  g.world.beforeFeatures(g.players, g.soft, 0.1);
+  for (const trap of traps) {
+    const state = g.world.spikeState(trap);
+    assert.equal(state.stage, 'rising');
+    assert.ok(state.extension > 0 && state.extension < 0.35);
+    assert.equal(state.dangerous, false);
+    assert.equal(state.warning, true);
+  }
+  g.world.beforeFeatures(g.players, g.soft, 0.05);
+  assert.ok(traps.every((s) => Math.abs(g.world.spikeState(s).extension - 0.5) < 1e-10));
+  assert.ok(traps.every((s) => g.world.spikeState(s).dangerous));
+  g.world.beforeFeatures(g.players, g.soft, 0.15);
+  assert.ok(traps.every((s) => g.world.spikeState(s).stage === 'raised'));
   g.players[0].x = 3;
-  assert.equal(g.world.spikeState(trap).extension, 0);
+  g.world.beforeFeatures(g.players, g.soft, 0.15);
+  for (const trap of traps) {
+    assert.equal(g.world.spikeState(trap).stage, 'retracting');
+    assert.ok(Math.abs(g.world.spikeState(trap).extension - 0.5) < 1e-10);
+    assert.equal(g.world.spikeState(trap).dangerous, true);
+  }
+  g.world.beforeFeatures(g.players, g.soft, 0.15);
+  assert.ok(traps.every((s) => g.world.spikeState(s).extension === 0));
   g.players[0].x = 2;
   g.players[0].state = 'dead';
-  assert.equal(g.world.spikeState(trap).extension, 0);
+  g.world.beforeFeatures(g.players, g.soft, 0.3);
+  assert.ok(traps.every((s) => g.world.spikeState(s).extension === 0));
   const crate = { x: 2, z: 2, y: 1, kind: 'crate', state: 'alive' };
-  g.world.refresh([crate]);
-  assert.equal(g.world.spikeState(trap).dangerous, true);
-  assert.equal(g.world.spikeState({ ...trap, plate: 'missing' }).extension, 0);
+  g.world.beforeFeatures([crate], g.soft, 0.3);
+  assert.ok(traps.every((s) => g.world.spikeState(s).dangerous));
+  g.world.spikes.push({ ...traps[0], plate: 'missing', progress: 0 });
+  g.world.beforeFeatures([crate], g.soft, 0.3);
+  assert.equal(g.world.spikeState(g.world.spikes.at(-1)).extension, 0);
+});
+
+test('stepping onto a button cannot kill a jelly before its linked spikes visibly rise', () => {
+  const g = scene(),
+    trap = { x: 2, z: 2, plate: 'trigger' };
+  g.world.plates.push({ id: 'trigger', x: 2, z: 2 });
+  g.world.spikes.push(trap);
+  g.step([], 12);
+  assert.equal(g.players[0].state, 'alive');
+  assert.equal(g.world.spikeState(trap).stage, 'rising');
+  assert.equal(g.world.spikeState(trap).dangerous, false);
+  assert.equal(g.world.debugBoxes().filter((b) => b.kind === 'spikes').length, 0);
+  let events = [];
+  for (let n = 0; n < 24 && g.players[0].state !== 'dead'; n++) events.push(...g.step());
+  assert.ok(events.some((e) => e.type === 'death' && e.reason === 'spikes'));
+  assert.ok(g.world.spikeState(trap).extension > 0.35);
+  const boxes = g.world.debugBoxes().filter((b) => b.kind === 'spikes');
+  assert.equal(boxes.length, 4);
+  assert.ok(Math.abs(boxes[0].maxY - (0.015 + 0.24 * g.world.spikeState(trap).extension)) < 1e-10);
+  g.step([], 36);
+  assert.equal(g.world.spikeState(trap).stage, 'hidden', 'death releases the button smoothly');
+});
+
+test('button spike reversals stay continuous and undo/reset preserve the animation', () => {
+  const g = scene(),
+    trap = { x: 4, z: 4, plate: 'trigger' };
+  g.world.plates.push({ id: 'trigger', x: 2, z: 2 });
+  g.world.spikes.push(trap);
+  g.world.beforeFeatures(g.players, g.soft, 0.15);
+  const rising = g.world.spikeState(trap),
+    saved = structuredClone(g.world.featureSnapshot());
+  g.players[0].x = 3;
+  g.world.beforeFeatures(g.players, g.soft, 0);
+  assert.equal(g.world.spikeState(trap).extension, rising.extension);
+  assert.equal(g.world.spikeState(trap).stage, 'retracting');
+  g.world.beforeFeatures(g.players, g.soft, 0.05);
+  const retracting = g.world.spikeState(trap),
+    savedRetracting = g.world.featureSnapshot();
+  assert.ok(retracting.extension < rising.extension);
+  g.players[0].x = 2;
+  g.world.beforeFeatures(g.players, g.soft, 0);
+  assert.equal(g.world.spikeState(trap).extension, retracting.extension);
+  assert.equal(g.world.spikeState(trap).stage, 'rising');
+  g.world.beforeFeatures(g.players, g.soft, 0.3);
+  g.world.restoreFeatures(saved);
+  assert.deepEqual(g.world.spikeState(trap), rising);
+  g.world.restoreFeatures(savedRetracting);
+  assert.deepEqual(g.world.spikeState(trap), retracting);
+  g.world.resetFeatures();
+  assert.deepEqual(g.world.spikeState(trap), {
+    extension: 0,
+    stage: 'hidden',
+    dangerous: false,
+    warning: false,
+  });
 });
 test('goal activation requires a living jelly centred on the same floor', () => {
   const g = scene(),

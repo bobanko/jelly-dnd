@@ -1,6 +1,7 @@
 // Height-aware level surfaces and triggers, shared by physics, rendering and debug overlays.
 const alive = (p) => !p.state || p.state === 'alive';
 const near = (p, q, r) => Math.abs(p.x - q.x) < r && Math.abs(p.z - q.z) < r;
+const smooth = (t) => t * t * (3 - 2 * t);
 const spikeNormals = {
   top: [0, 1, 0],
   north: [0, 0, -1],
@@ -177,13 +178,26 @@ function install(World) {
       return charge;
     },
     spikeState(spike) {
-      if (spike.plate || spike.cycle === 0) {
-        const enabled = spike.plate
-          ? this.active(
-              this.plates.findIndex((p) => p.id === spike.plate || p.color === spike.plate),
-              this.bodies || [],
-            )
-          : spike.enabled !== false;
+      if (spike.plate) {
+        const progress = spike.progress || 0,
+          extension = smooth(progress),
+          stage =
+            progress === 0
+              ? 'hidden'
+              : progress === 1
+                ? 'raised'
+                : spike.target
+                  ? 'rising'
+                  : 'retracting';
+        return {
+          extension,
+          stage,
+          dangerous: extension > 0.35,
+          warning: stage === 'rising' && extension <= 0.35,
+        };
+      }
+      if (spike.cycle === 0) {
+        const enabled = spike.enabled !== false;
         return {
           extension: enabled ? 1 : 0,
           stage: enabled ? 'raised' : 'hidden',
@@ -199,7 +213,6 @@ function install(World) {
           (spike.enabled === false ? (cycle * 2.4) / 5.8 : 0),
         phase = (((time % cycle) + cycle) % cycle) * (5.8 / cycle),
         peek = 0.3;
-      const smooth = (t) => t * t * (3 - 2 * t);
       let extension = 1,
         stage = 'raised';
       if (phase >= 2 && phase < 2.3) {
@@ -467,6 +480,7 @@ function install(World) {
     featureSnapshot() {
       return {
         time: this.featureTime || 0,
+        spikes: this.spikes.map((s) => ({ progress: s.progress || 0, target: s.target || 0 })),
         bridges: this.bridges.map((b) => ({
           progress: b.progress || 0,
           velocity: b.velocity || 0,
@@ -482,6 +496,9 @@ function install(World) {
     },
     restoreFeatures(snapshot) {
       this.featureTime = snapshot?.time || 0;
+      this.spikes.forEach((s, i) =>
+        Object.assign(s, snapshot?.spikes?.[i] || { progress: 0, target: 0 }),
+      );
       this.bridges.forEach((b, i) =>
         Object.assign(b, snapshot?.bridges?.[i] || { progress: 0, velocity: 0 }),
       );
@@ -502,10 +519,26 @@ function install(World) {
     resetFeatures() {
       this.restoreFeatures(null);
     },
+    stepSpikes(bodies, dt) {
+      for (const spike of this.spikes) {
+        if (!spike.plate) continue;
+        spike.target = this.active(
+          this.plates.findIndex((p) => p.id === spike.plate || p.color === spike.plate),
+          bodies,
+        )
+          ? 1
+          : 0;
+        // The same extension drives visible geometry, damage, sound and debug bounds.
+        const progress = spike.progress || 0,
+          distance = spike.target - progress;
+        spike.progress = progress + Math.sign(distance) * Math.min(Math.abs(distance), dt / 0.3);
+      }
+    },
     beforeFeatures(players, soft, dt) {
       this.featureTime = (this.featureTime || 0) + dt;
       this._collisionCache = null;
       this.refresh(players);
+      this.stepSpikes(players, dt);
       for (let i = 0; i < this.bridges.length; i++) {
         const bridge = this.bridges[i],
           target = this.held.has(i) ? 1 : 0;

@@ -1831,6 +1831,7 @@ function previewTick(t) {
   fpsLast = t;
   if (previewDirty) rebuildPreview();
   previewRuntime.world.featureTime += dt;
+  previewRuntime.world.stepSpikes(previewRuntime.bodies, dt);
   previewRenderer.colliders = $('preview-colliders').checked;
   previewRenderer.render(
     previewRuntime,

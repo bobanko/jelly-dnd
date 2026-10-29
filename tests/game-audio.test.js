@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GameAudio, MechanismSounds, SpikeSounds } from '../game-audio.js';
+import { World } from '../physics.js';
 
 test('spike audio follows motion phases once and resets silently', () => {
   let stage = 'raised';
@@ -53,6 +54,36 @@ test('mechanism audio follows physical button transitions and bridge extension o
   );
   sounds.reset(world, [body]);
   assert.deepEqual(sounds.update(world, [body]), []);
+});
+
+test('button spikes play sound once at each animation start, including reversals and undo', () => {
+  const world = new World(new Set(['2,2']), [], [{ id: 'trigger', x: 2, z: 2 }]),
+    spike = { x: 3, z: 2, plate: 'trigger' },
+    body = { x: 2, z: 2, y: 0, kind: 'crate' },
+    sounds = new SpikeSounds();
+  world.spikes.push(spike);
+  sounds.reset(world);
+  world.beforeFeatures([body], null, 0.05);
+  assert.deepEqual(sounds.update(world), [{ name: 'rise', spike }]);
+  world.beforeFeatures([body], null, 0.05);
+  assert.deepEqual(sounds.update(world), []);
+  const saved = world.featureSnapshot();
+  body.x = 3;
+  world.beforeFeatures([body], null, 0.025);
+  assert.deepEqual(sounds.update(world), [{ name: 'retract', spike }]);
+  body.x = 2;
+  world.beforeFeatures([body], null, 0.025);
+  assert.deepEqual(sounds.update(world), [{ name: 'rise', spike }]);
+  world.beforeFeatures([body], null, 0.3);
+  assert.deepEqual(sounds.update(world), []);
+  body.x = 3;
+  world.beforeFeatures([body], null, 0.05);
+  assert.deepEqual(sounds.update(world), [{ name: 'retract', spike }]);
+  world.beforeFeatures([body], null, 0.3);
+  assert.deepEqual(sounds.update(world), []);
+  world.restoreFeatures(saved);
+  sounds.reset(world);
+  assert.deepEqual(sounds.update(world), []);
 });
 
 test('samples preload once, deduplicate simultaneous traps, and stop on mute or pause', async (t) => {
