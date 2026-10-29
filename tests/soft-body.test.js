@@ -154,3 +154,25 @@ test('internal damping preserves rigid translation in free fall', () => {
   assert.ok(Math.abs(g.players[0].vz - 0.4) < 1e-6);
   assert.ok(g.players[0].vy < 0);
 });
+test('movement gently turns a diagonally rotated jelly to face its travel direction', () => {
+  const g = setup(),
+    b = g.soft.get(g.players[0]),
+    angle = Math.PI / 4,
+    c = Math.cos(angle),
+    s = Math.sin(angle);
+  b.positions.forEach((node) => {
+    const x = node[0] - b.center[0],
+      z = node[2] - b.center[2];
+    node[0] = b.center[0] + x * c + z * s;
+    node[2] = b.center[2] - x * s + z * c;
+  });
+  b.orientation();
+  const initialError = Math.abs(Math.atan2(b.r[2], b.r[8]));
+  g.step([{ x: 0, z: 1 }], 90);
+  b.orientation();
+  const finalError = Math.abs(Math.atan2(b.r[2], b.r[8]));
+  assert.ok(initialError > 0.7, `initial heading error ${initialError}`);
+  assert.ok(finalError < 0.18, `final heading error ${finalError}`);
+  assert.ok(finalError < initialError * 0.3);
+  assert.equal(g.players[0].state, 'alive');
+});

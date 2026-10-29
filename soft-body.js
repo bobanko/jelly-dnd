@@ -496,6 +496,10 @@ class System {
         onBelt = Math.hypot(belt.x, belt.z) > 0.001;
       b.surfaceVelocity = belt;
       b.driven = magnitude > 0 || onBelt;
+      b.heading =
+        magnitude > 0 && p.state === 'alive' && !p.launchTimer
+          ? [input.x / magnitude, input.z / magnitude]
+          : null;
       if (p.state === 'dead') {
         p.respawnTimer -= dt;
         const spawn = p.respawnTimer <= 0 && world.respawnPosition(p, players);
@@ -656,7 +660,23 @@ class System {
         });
       let omega = mv(inverse(inertia), angular);
       if (b.rigid) omega = mul(omega, Math.exp(-dt * (crateGrounded ? 2.5 : 0.12)));
-      else if (p.state === 'alive') omega = mul(omega, Math.exp(-dt * 12));
+      else if (p.state === 'alive') {
+        omega = mul(omega, Math.exp(-dt * 12));
+        if (b.heading) {
+          const forwardX = b.r[2],
+            forwardZ = b.r[8],
+            horizontalLength = Math.hypot(forwardX, forwardZ),
+            [targetX, targetZ] = b.heading;
+          if (horizontalLength > 0.1) {
+            const x = forwardX / horizontalLength,
+              z = forwardZ / horizontalLength,
+              error = Math.atan2(z * targetX - x * targetZ, x * targetX + z * targetZ),
+              targetOmega = Math.max(-5, Math.min(5, error * 7)),
+              response = 1 - Math.exp(-dt * 14);
+            omega[1] += (targetOmega - omega[1]) * response;
+          }
+        }
+      }
       const damping = Math.exp(-dt * (3 + this.decay * 10));
       let energy = 0;
       b.positions.forEach((node, n) => {
