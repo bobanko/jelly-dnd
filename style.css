@@ -241,9 +241,6 @@ kbd {
   font-weight: 500;
   color: #d7e1d4;
 }
-.moves > span {
-  color: #586d62;
-}
 .jelly-settings {
   position: fixed;
   left: 3%;

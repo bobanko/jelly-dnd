@@ -570,7 +570,6 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) stopInput();
 });
 
-document.querySelector('#reset').onclick = () => restartLevel();
 document.querySelector('#again').onclick = () => restartLevel();
 function restartLevel() {
   if (!JellyI18n) {
