@@ -177,6 +177,7 @@ A drone continuously aims directly at its target in 3D. The beam ends at the nea
 - HDR intermediate buffers, bloom, Khronos PBR Neutral tone mapping, vignette, 4x MSAA and final dithering.
 - Subtle monochrome film grain animates at 24 Hz after tone mapping. Toggle “Film grain” in the developer panel opened with the backquote key, or tune its strength and apparent pixel size with the adjacent sliders. Reduced motion keeps the grain static; disabling it preserves the original output dithering.
 - Warm floating dust drifts above exposed surfaces in the menu, game and editor preview. A deterministic set of up to 64 softly glowing sprites animates on the GPU, respects scene depth and never creates gameplay colliders. “Floating dust” in the developer panel disables it; amount and drift-speed sliders provide finer control, while reduced motion freezes its drift.
+- On desktop high-density displays the compact gameplay HUD automatically scales to 1.5× or 2×. The WebGPU canvas and large menu layout keep their original logical dimensions; the developer panel becomes scrollable when its scaled controls would exceed the viewport.
 - The mesh overlay draws the actual tetrahedral edges rather than a decorative grid.
 - Skull, bone, bubble, crate, lift and spike geometry is built once in local coordinates. Frames reuse these meshes and one typed upload array, updating only transforms and bubble offsets. Camera rotation, physical skull motion and animated hazards keep the same appearance without rebuilding their triangles on the CPU.
 

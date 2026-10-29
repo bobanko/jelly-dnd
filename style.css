@@ -386,6 +386,7 @@ h2 {
     transition: none !important;
   }
 }
+
 .editor-link {
   font-size: 11px;
   color: #b7cb9e;
@@ -1941,4 +1942,36 @@ html[lang='ru'] .selecting-level .menu-panel h1 {
   color: #a89e88;
   font: 11px/1.4 monospace;
   overflow-wrap: anywhere;
+}
+
+/*
+ * Compact HUD controls are authored in CSS pixels, while desktop high-density
+ * displays can make those controls physically much smaller than the game art.
+ * Scale only the fixed HUD surfaces: scaling the document would also enlarge
+ * the canvas coordinate system and push the main menu outside the viewport.
+ */
+:root {
+  --ui-density-scale: 1;
+}
+@media (min-width: 1025px) and (min-resolution: 1.5dppx) {
+  :root {
+    --ui-density-scale: 1.5;
+  }
+}
+@media (min-width: 1025px) and (min-resolution: 2dppx) {
+  :root {
+    --ui-density-scale: 2;
+  }
+}
+@media (min-width: 1025px) and (min-resolution: 1.5dppx) {
+  .game-tools,
+  .controls-footer.screen-controls,
+  .jelly-settings {
+    zoom: var(--ui-density-scale);
+  }
+  .jelly-settings[open] {
+    max-height: calc(100dvh / var(--ui-density-scale) - 93px);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
 }
