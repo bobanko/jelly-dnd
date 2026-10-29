@@ -2186,7 +2186,7 @@ class Renderer {
         attributes: [{ shaderLocation: 4, offset: 0, format: 'float32x4' }],
       },
     ]);
-    this.dustData = new Float32Array(64 * 4);
+    this.dustData = new Float32Array(192 * 4);
     this.dustBuffer = d.createBuffer({
       size: this.dustData.byteLength,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
@@ -3635,7 +3635,7 @@ class Renderer {
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
       return seed / 4294967296;
     };
-    for (let i = 0; i < this.dustCount; i++) {
+    for (let i = 0; i < this.dustData.length / 4; i++) {
       const surface = surfaces[Math.floor(random() * surfaces.length)];
       this.dustData.set(
         [
@@ -3652,7 +3652,10 @@ class Renderer {
   drawEffects(pass, level, effectCount) {
     pass.setBindGroup(0, this.sceneGroup);
     pass.setBindGroup(1, this.skinGroups[0]);
-    const visibleDust = Math.round(this.dustCount * this.dustDensity);
+    const visibleDust = Math.min(
+      this.dustData.length / 4,
+      Math.round(this.dustCount * this.dustDensity),
+    );
     if (this.dust && visibleDust) {
       pass.setPipeline(this.dustPipeline);
       pass.setVertexBuffer(0, this.dustBuffer);

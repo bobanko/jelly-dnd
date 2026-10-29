@@ -80,6 +80,20 @@ try {
     await page.evaluate(() => [sceneRenderer.dustDensity, sceneRenderer.dustSpeed]),
     [0.4, 1.5],
   );
+  await page.locator('#grain-strength').fill('300');
+  await page.locator('#grain-size').fill('400');
+  await page.locator('#dust-density').fill('300');
+  await page.locator('#dust-speed').fill('400');
+  assert.deepEqual(
+    await page.evaluate(() => [
+      sceneRenderer.grainStrength,
+      sceneRenderer.grainSize,
+      sceneRenderer.dustDensity,
+      sceneRenderer.dustSpeed,
+      sceneRenderer.dustData.length / 4,
+    ]),
+    [3, 4, 3, 4, 192],
+  );
   const features = await page.evaluate(() => JSON.stringify(world.featureSnapshot())),
     dustSample = () => page.screenshot({ clip: { x: 150, y: 160, width: 650, height: 450 } });
   await nextFrames();
