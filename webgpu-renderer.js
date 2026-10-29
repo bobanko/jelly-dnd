@@ -367,18 +367,19 @@ function crateGeometry() {
             mesh[k + offset + 1] = x * s + y * c;
           }
       }
-      // Small recessed iron nail heads, one per rail end, instead of corner plates.
+      // Broad, shallow iron nail heads remain readable against the oak at game scale.
       for (const x of [-0.326, 0.326])
         for (const y of [-0.326, 0.326])
           for (let k = 0; k < 8; k++) {
             const a = (k * Math.PI) / 4,
-              b = ((k + 1) * Math.PI) / 4;
+              b = ((k + 1) * Math.PI) / 4,
+              radius = 0.04;
             for (const [px, py, pz] of [
-              [0, 0, 0.0015],
-              [Math.cos(a) * 0.008, Math.sin(a) * 0.008, 0],
-              [Math.cos(b) * 0.008, Math.sin(b) * 0.008, 0],
+              [0, 0, 0.004],
+              [Math.cos(a) * radius, Math.sin(a) * radius, 0],
+              [Math.cos(b) * radius, Math.sin(b) * radius, 0],
             ])
-              mesh.push(x + px, y + py, 0.424 + pz, 0, 0, 1, ...nail, 11, 0.3, 0.4);
+              mesh.push(x + px, y + py, 0.424 + pz, 0, 0, 1, ...nail, 12, 0.3, 0.4);
           }
       const u = axis === 0 ? [0, 0, -sign] : axis === 1 ? [1, 0, 0] : [sign, 0, 0],
         v = axis === 1 ? [0, 0, -sign] : [0, 1, 0],

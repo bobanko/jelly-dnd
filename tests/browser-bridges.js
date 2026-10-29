@@ -11,6 +11,7 @@ for (let x = 0; x < 8; x++) for (let z = 0; z < 8; z++) map.blocks.push({ x, y: 
 map.spawns = [{ x: 1, y: 0, z: 1 }, { x: 2, y: 0, z: 1 }, null, null, null];
 map.goals = [{ x: 6, y: 0, z: 6 }, { x: 5, y: 0, z: 6 }, null, null, null];
 map.plates = [{ id: 'bridge-test', color: 'blue', x: 1, y: 0, z: 1 }];
+map.crates = [{ x: 6, z: 3 }];
 map.bridges = [
   { x: 4, y: 0, z: 3, plate: 'bridge-test', color: 1 },
   { x: 3, y: 0, z: 3, plate: 'bridge-test' },
@@ -81,7 +82,7 @@ try {
   assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: wooden and spectral bridge draws, 90-degree hinge motion, colour-filtered support, matching rising runes and WebGPU rendering.',
+    'PASS: wooden and spectral bridge draws beside the oak crate, 90-degree hinge motion, colour-filtered support, matching rising runes and WebGPU rendering.',
   );
 } finally {
   await browser.close();
