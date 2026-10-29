@@ -5,7 +5,7 @@ const clips = {
   buttonPress: ['button-press-2026-10-29T00-09-56-757Z.mp3', 0.65],
   buttonRelease: ['button-release-2026-10-29T00-10-01-533Z.mp3', 0.36],
   death: ['jelly-death-2026-10-28T23-58-40-459Z.mp3', 0.35],
-  land: ['jelly-land-2026-10-29T00-15-51-575Z.mp3', 0.42],
+  land: ['jelly-land-2026-10-29T00-18-45-533Z.mp3', 0.5],
   portal: ['portal-2026-10-29T00-12-36-751Z.mp3', 0.38],
   rune: ['finish-rune-2026-10-29T00-11-31-512Z.mp3', 0.48],
   rise: ['spikes-2026-10-28T23-57-14-327Z.mp3', 0.18],

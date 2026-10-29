@@ -42,7 +42,7 @@
     "prompt_influence": 0.5
   },
   "jelly-land": {
-    "text": "One heavy cloth sack filled with dense sand dropping once onto a hard stone floor. A single unified low muffled thud with a short soft granular settling texture inside the bag. Dry, weighty and compact, with one clear impact and an extremely short decay. Close isolated game sound. No second impact, no bounce, no wet splat, no squeeze, no suction, no crunch, no voice, no music or reverb.",
+    "text": "One large soft gel blob dropping once onto a stone floor. A clear loud low-pitched slap with a firm rounded attack and a dense muffled thud. Short, weighty and easy to hear in a game. One isolated impact only. No second hit, bounce, sharp click, splash, voice, music or reverb.",
     "duration_seconds": 0.7,
     "loop": false,
     "prompt_influence": 0.7
