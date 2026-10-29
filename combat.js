@@ -144,6 +144,7 @@ function install(World) {
           to: from.map((v, k) => v + (end[k] - v) * nearest),
           color: d.color ?? 3,
           hit,
+          impact: nearest < 1,
           target: target.p.slot ?? target.i,
         });
       }

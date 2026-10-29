@@ -61,6 +61,15 @@ test('all twenty-five colour pairs use colour immunity, death events, inventory 
         const effects = new Effects.System();
         effects.burst(events[0], r.players, r.soft);
         assert.equal(effects.lasers.length, 1);
+        const droplets = effects.particles.filter((p) => p.size < 0.075);
+        assert.ok(droplets.length > 0, 'lethal hits spray from the contact point');
+        assert.ok(droplets.every((p) => p.kind === 'jelly'));
+        assert.ok(
+          droplets.every((p) =>
+            p.position.every((v, k) => Math.abs(v - events[0].beam.to[k]) < 0.02),
+          ),
+        );
+        assert.ok(effects.particles.every((p) => p.color === droplets[0].color));
         effects.step(0.1, r.world);
         effects.step(0.1, r.world);
         assert.equal(effects.lasers.length, 0);
@@ -96,6 +105,16 @@ test('stone, colour glass, raised surfaces, closed walls, crates and the first j
     w.afterDrones(r.bodies, null);
     assert.equal(victim.state, 'alive', kind);
     assert.ok(w.droneBeams[0].to[0] < 4, kind);
+    assert.equal(w.droneBeams[0].impact, true, kind);
+    if (kind !== 'other jelly') {
+      const effects = new Effects.System();
+      effects.step(0.01, w, [], r.players);
+      assert.ok(effects.particles.length > 0, kind);
+      assert.ok(
+        effects.particles.every((p) => p.kind === (kind === 'safe jelly' ? 'jelly' : 'spark')),
+        kind,
+      );
+    }
     if (kind === 'safe jelly') assert.equal(blocker.state, 'alive');
     if (kind === 'other jelly') assert.equal(blocker.state, 'dead');
   }

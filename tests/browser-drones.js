@@ -7,7 +7,10 @@ import fs from 'node:fs';
     headless: true,
     executablePath:
       process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
-    args: ['--enable-unsafe-webgpu', '--use-angle=d3d11'],
+    args: [
+      '--enable-unsafe-webgpu',
+      ...(process.platform === 'win32' ? ['--use-angle=d3d11'] : []),
+    ],
   });
   try {
     const page = await browser.newPage({ viewport: { width: 1100, height: 800 } }),
@@ -134,6 +137,14 @@ import fs from 'node:fs';
       await page.evaluate(() => players.every((p) => p.state === 'alive' && p.deaths === 0)),
     );
     assert.equal(await page.evaluate(() => world.droneBeams[0].target), 1);
+    await page.waitForFunction(() =>
+      effects.particles.some((p) => p.kind === 'jelly' && p.size < 0.075 && p.age > 0.1),
+    );
+    assert.ok(
+      await page.evaluate(() =>
+        effects.particles.every((p) => p.kind === 'jelly' && p.color[2] === 1),
+      ),
+    );
     assert.ok(
       await page.evaluate(
         () =>
@@ -141,6 +152,24 @@ import fs from 'node:fs';
       ),
     );
     await page.screenshot({ path: 'artifacts/crystal-drone-game.png' });
+    await page.evaluate(() => {
+      world.obstacles.push({ x: 3, z: 3, half: 0.5, minY: 0, height: 2 });
+      world._collisionCache = null;
+    });
+    await page.waitForFunction(() =>
+      effects.particles.some((p) => p.kind === 'spark' && p.age > 0.1),
+    );
+    assert.ok(await page.evaluate(() => world.droneBeams[0].to[0] < 3));
+    await page.screenshot({ path: 'artifacts/crystal-drone-sparks.png' });
+    await page.evaluate(() => {
+      world.obstacles.pop();
+      world._collisionCache = null;
+    });
+    await page.waitForFunction(
+      () =>
+        !effects.particles.some((p) => p.kind === 'spark') &&
+        effects.particles.some((p) => p.kind === 'jelly'),
+    );
     await page.evaluate(() => {
       const p = players.find((p) => p.slot === 1);
       p.z = 5;
@@ -168,7 +197,7 @@ import fs from 'node:fs';
     assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
     assert.deepEqual(errors, []);
     console.log(
-      'PASS: 3D drone placement and picking, colour/target/hover controls, numeric focus, blocked beam preview, undo, persistence, safe matching colour, live tracking, lethal other colour, fragments/afterglow, respawn/reset and no browser/GPU errors.',
+      'PASS: 3D drone placement and picking, colour/target/hover controls, numeric focus, blocked beam preview, undo, persistence, safe matching colour and jelly spray, wall sparks, live tracking, lethal other colour, fragments/afterglow, respawn/reset and no browser/GPU errors.',
     );
   } finally {
     await browser.close();

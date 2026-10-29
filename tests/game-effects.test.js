@@ -15,6 +15,86 @@ const world = { heightAt: () => 0 },
   };
 const death = { type: 'death', reason: 'spikes', player: 0 };
 const portal = { type: 'portal', color: 'violet', source: [3, 0, 6], destination: [6, 1, 9] };
+const contactBeam = {
+  drone: 0,
+  from: [0, 1, 3],
+  to: [2, 1, 3],
+  color: 2,
+  hit: -1,
+  impact: true,
+};
+
+test('laser sparks track the contact point, fly back from it, fall and stop after contact ends', () => {
+  const effects = new System(),
+    w = { ...world, droneBeams: [structuredClone(contactBeam)] };
+  effects.step(0, w);
+  assert.equal(effects.particles.length, 0);
+  effects.step(0.01, w);
+  const first = effects.particles[0],
+    startY = first.velocity[1];
+  assert.ok(effects.particles.every((p) => p.kind === 'spark' && p.velocity[0] < 0));
+  assert.ok(effects.particles.every((p) => Math.abs(p.position[0] - 2) < 0.02));
+  effects.step(0.02, w);
+  assert.ok(first.position[0] < 1.985);
+  assert.ok(first.velocity[1] < startY, 'sparks fall under gravity');
+  w.droneBeams[0].to = [4, 1, 5];
+  effects.step(0.05, w);
+  assert.ok(effects.particles.some((p) => p.age === 0 && Math.abs(p.position[2] - 5) < 0.02));
+  w.droneBeams = [];
+  for (let i = 0; i < 6; i++) effects.step(0.1, w);
+  assert.equal(effects.particles.length, 0);
+  assert.equal(effects.laserTimers.size, 0);
+});
+
+test('laser spray matches every living jelly colour in sparse parties and skips dead bodies and misses', () => {
+  const colors = [
+    [0.12, 0.9, 0.16],
+    [0.025, 0.17, 1],
+    [1, 0.065, 0.035],
+    [0.65, 0.1, 1],
+    [1, 0.65, 0.035],
+  ];
+  for (const [slot, color] of colors.entries()) {
+    const effects = new System(),
+      party = [{ slot, state: 'alive' }],
+      w = { ...world, droneBeams: [{ ...contactBeam, hit: 0 }] };
+    effects.step(0.01, w, [], party);
+    assert.ok(effects.particles.length > 0);
+    for (const p of effects.particles) {
+      assert.equal(p.kind, 'jelly');
+      assert.deepEqual(p.color, color);
+    }
+    effects.clear();
+    party[0].state = 'dead';
+    effects.step(0.01, w, [], party);
+    assert.equal(effects.particles.length, 0);
+    party[0].state = 'alive';
+    w.droneBeams[0].impact = false;
+    effects.step(0.01, w, [], party);
+    assert.equal(effects.particles.length, 0, 'range endpoints do not emit impacts');
+  }
+});
+
+test('sustained laser effects use a time-based rate, stay bounded and reduce motion', () => {
+  const w = { ...world, droneBeams: [contactBeam] },
+    fast = new System(),
+    slow = new System(),
+    reduced = new System({ reducedMotion: true });
+  for (let i = 0; i < 60; i++) fast.step(1 / 60, w);
+  for (let i = 0; i < 30; i++) slow.step(1 / 30, w);
+  assert.equal(fast.seed, slow.seed, 'frame rate does not change the number of emissions');
+  for (let i = 0; i < 30; i++) reduced.step(1 / 30, w);
+  assert.ok(reduced.particles.length < slow.particles.length);
+  w.droneBeams = Array.from({ length: 16 }, (_, drone) => ({ ...contactBeam, drone }));
+  for (let i = 0; i < 100; i++) {
+    fast.step(0.1, w);
+    assert.ok(fast.particles.length <= 96);
+  }
+  fast.clear();
+  assert.equal(fast.particles.length + fast.laserTimers.size, 0);
+  fast.step(0.001, w);
+  assert.ok(fast.particles.length > 0, 'reset allows immediate emission');
+});
 
 test('victory surrounds each jelly with matching magic that expires without moving bodies', () => {
   const effects = new System(),

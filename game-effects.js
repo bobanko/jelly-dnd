@@ -23,6 +23,7 @@ class System {
     this.runes = [];
     this.bones = [];
     this.lasers = [];
+    this.laserTimers = new Map();
     this.runeTimers = [];
     this.runeActive = [];
     this.seed = 1;
@@ -37,8 +38,55 @@ class System {
     this.runes.length = 0;
     this.bones.length = 0;
     this.lasers.length = 0;
+    this.laserTimers.clear();
     this.runeTimers = [];
     this.runeActive = [];
+  }
+  laserImpact(beam, player, count = this.reducedMotion ? 1 : 3) {
+    const direction = beam.from.map((v, k) => v - beam.to[k]),
+      length = Math.hypot(...direction);
+    if (length < 0.001) return;
+    const normal = direction.map((v) => v / length),
+      jelly = player && player.kind !== 'crate',
+      color = jelly ? palettes[player.slot ?? beam.hit] : [1, 0.72, 0.24];
+    for (let i = 0; i < count; i++) {
+      const scatter = normal.map(() => this.random() - 0.5),
+        along = scatter.reduce((sum, v, k) => sum + v * normal[k], 0),
+        speed = 0.7 + this.random() * 1.5;
+      this.particles.push({
+        kind: jelly ? 'jelly' : 'spark',
+        position: beam.to.map((v, k) => v + normal[k] * 0.015),
+        velocity: normal.map(
+          (v, k) => v * speed + (scatter[k] - along * v) * 2.8 + (k === 1 ? 0.65 : 0),
+        ),
+        size: jelly ? 0.025 + this.random() * 0.035 : 0.008 + this.random() * 0.006,
+        phase: this.random() * Math.PI * 2,
+        color,
+        age: 0,
+        life: this.reducedMotion ? 0.16 : (jelly ? 0.3 : 0.18) + this.random() * 0.16,
+      });
+    }
+    this.particles = this.particles.slice(-96);
+  }
+  stepLaserImpacts(dt, world, players) {
+    const active = new Set(),
+      interval = this.reducedMotion ? 0.2 : 0.06;
+    for (const beam of world.droneBeams || []) {
+      if (!beam.impact) continue;
+      const player = (world.bodies || players)[beam.hit];
+      // Lethal contacts already emit at the moment of death, before the body disappears.
+      if (player?.state === 'dead') continue;
+      active.add(beam.drone);
+      let remaining = this.laserTimers.get(beam.drone) ?? 0;
+      remaining -= dt;
+      while (remaining < 0) {
+        this.laserImpact(beam, player);
+        remaining += interval;
+      }
+      this.laserTimers.set(beam.drone, remaining);
+    }
+    for (const drone of this.laserTimers.keys())
+      if (!active.has(drone)) this.laserTimers.delete(drone);
   }
   skeletonBurst(event) {
     this.bones = this.bones.filter((p) => p.archer !== event.archer);
@@ -153,6 +201,7 @@ class System {
       const player = players[event.player],
         body = soft.get(player),
         count = this.reducedMotion ? 6 : 22;
+      if (event.beam) this.laserImpact(event.beam, player, this.reducedMotion ? 2 : 10);
       const life = Math.min(this.reducedMotion ? 0.3 : 0.68, player.respawnTimer || 0.68);
       for (let i = 0; i < count; i++) {
         const q = body.positions[Math.floor(random() * body.positions.length)],
@@ -241,6 +290,7 @@ class System {
       p.age += dt;
       const previousY = p.position[1];
       if (p.kind === 'jelly' || p.kind === 'wood') p.velocity[1] -= 7 * dt;
+      else if (p.kind === 'spark') p.velocity[1] -= 5 * dt;
       for (let k = 0; k < 3; k++) p.position[k] += p.velocity[k] * dt;
       if (p.kind === 'jelly' || p.kind === 'wood') {
         const floor = world.heightAt(p.position[0], p.position[2], previousY);
@@ -258,6 +308,7 @@ class System {
       }
     }
     this.particles = this.particles.filter((p) => p.age < p.life);
+    this.stepLaserImpacts(dt, world, players);
     for (const ring of this.rings) ring.age += dt;
     this.rings = this.rings.filter((r) => r.age < r.life);
     // These fragments follow the gameplay resurrection clock, including after undo.

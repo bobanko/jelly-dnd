@@ -1421,18 +1421,29 @@ const shared = `
   let stroke=1.-smoothstep(.022-aa,.022+aa,distance);let glow=exp(-distance*35.)*.22;
   return vec4f(o.color,(stroke*.85+glow)*o.local.z);
  }
- @vertex fn beamVS(@location(0) p:vec3f,@location(4) start:vec4f,@location(5) end:vec4f,@location(6) tint:vec4f)->Out{
+ struct BeamOut { @builtin(position) clip:vec4f, @location(0) uv:vec2f, @location(1) tint:vec4f, @location(2) @interpolate(flat) beamLength:f32, @location(3) @interpolate(flat) impact:f32, @location(4) @interpolate(flat) tip:f32 };
+ @vertex fn beamVS(@builtin(vertex_index) vertex:u32,@location(4) start:vec4f,@location(5) end:vec4f,@location(6) tint:vec4f)->BeamOut{
+  let corners=array<vec2f,6>(vec2f(-1,-1),vec2f(1,-1),vec2f(1,1),vec2f(-1,-1),vec2f(1,1),vec2f(-1,1));let p=corners[vertex%6u];
   let direction=normalize(end.xyz-start.xyz);let view=normalize(scene.eye.xyz-(start.xyz+end.xyz)*.5);let side=cross(direction,view);
   let fallback=cross(direction,select(vec3f(0,1,0),vec3f(1,0,0),abs(direction.y)>.9));
-  let right=normalize(select(fallback,side,dot(side,side)>.0001));let uv=vec2f(p.x,(p.z+1.)*.5);var o:Out;
-  o.world=mix(start.xyz,end.xyz,uv.y)+right*uv.x*.24;o.clip=scene.vp*vec4f(o.world,1.);o.normal=view;o.color=tint.rgb;o.material=length(end.xyz-start.xyz);o.local=vec3f(uv,tint.w);return o;
+  let right=normalize(select(fallback,side,dot(side,side)>.0001));let beamLength=length(end.xyz-start.xyz);
+  // Leave room for rounded glow caps instead of cutting the quad at the raycast hit.
+  let uv=vec2f(p.x,mix(-.22,beamLength+.22,(p.y+1.)*.5));var o:BeamOut;
+  var world=start.xyz+direction*uv.y+right*uv.x*.24;o.uv=uv;o.tip=0.;
+  if(vertex>=6u){
+   // Face the contact halo toward the camera so it stays round at every beam angle.
+   let cameraRight=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));let cameraUp=normalize(vec3f(scene.vp[0].y,scene.vp[1].y,scene.vp[2].y));
+   let towardEye=normalize(scene.eye.xyz-end.xyz);
+   world=end.xyz-direction*.025+towardEye*.045+(cameraRight*p.x+cameraUp*p.y)*.2;o.uv=p;o.tip=1.;
+  }
+  o.clip=scene.vp*vec4f(world,1.);o.tint=tint;o.beamLength=beamLength;o.impact=end.w;return o;
  }
  fn arcNoise(x:f32,seed:f32)->f32{
   let cell=floor(x);let a=fract(sin(cell*127.1+seed*311.7)*43758.5453)*2.-1.;let b=fract(sin((cell+1.)*127.1+seed*311.7)*43758.5453)*2.-1.;
   return mix(a,b,fract(x));
  }
- @fragment fn beamFS(o:Out)->@location(0) vec4f{
-  let uv=o.local.xy;let time=scene.options.z;let along=uv.y*o.material;let envelope=sin(uv.y*3.14159265);
+ @fragment fn beamFS(o:BeamOut)->@location(0) vec4f{
+  let uv=o.uv;let time=scene.options.z;let along=uv.y;let progress=clamp(along/o.beamLength,0.,1.);let envelope=sin(progress*3.14159265);
   // Piecewise linear noise forms travelling lightning kinks. Both endpoints
   // stay attached to the emitter and the raycast hit, even on short beams.
   let epoch=floor(time*11.);let blend=smoothstep(0.,1.,fract(time*11.));
@@ -1440,9 +1451,18 @@ const shared = `
   let branch=arc+arcNoise(along*9.-time*3.,19.)*.42*envelope;
   let distance=abs(uv.x-arc);let width=max(.08,fwidth(uv.x)*.7);let core=exp(-pow(distance/width,2.));
   let glow=exp(-pow(distance/.36,2.));let filament=exp(-pow((uv.x-branch)/max(.018,fwidth(uv.x)*.5),2.));
-  let flow=.88+.12*sin(along*24.-time*17.);let ends=exp(-along*17.)+exp(-(o.material-along)*17.);
-  let flare=exp(-uv.x*uv.x*15.)*ends*.35;let alpha=(core*.95+glow*.23+filament*.3+flare)*o.local.z*flow;
-  return vec4f(mix(o.color*2.3,vec3f(3.),core*.7),alpha);
+  let flow=.88+.12*sin(along*24.-time*17.);
+  let endFade=1.-smoothstep(o.beamLength-min(.1,o.beamLength*.35),o.beamLength+.005,along);
+  let startFade=smoothstep(-.025,min(.045,o.beamLength*.35),along);
+  let outside=max(0.,max(-along,along-o.beamLength));let glowCap=exp(-pow(outside/.075,2.));
+  let sourceFlare=exp(-uv.x*uv.x*15.-pow(along/.065,2.))*.35;
+  var alpha=((core*.95+filament*.3)*startFade*endFade+glow*.23*glowCap+sourceFlare)*o.tint.w*flow;
+  var color=mix(o.tint.rgb*2.3,vec3f(3.),core*.7);
+  if(o.tip>.5){
+   let radius=length(o.uv);let hot=exp(-radius*radius*25.);let halo=exp(-radius*radius*4.8)*(1.-smoothstep(.7,1.,radius));
+   color=mix(o.tint.rgb*2.3,vec3f(3.),hot*.85);alpha=(hot*1.2+halo*.5)*o.tint.w*o.impact;
+  }
+  return vec4f(color,alpha);
  }
  @vertex fn goalGlowVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
   let goal=scene.goals[instance];var o:Out;
@@ -2037,7 +2057,6 @@ class Renderer {
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
     this.beamPipeline = pipeline('beamVS', 'beamFS', 'none', 4, 'less', false, additive, [
-      vertexBuffers[0],
       {
         arrayStride: 48,
         stepMode: 'instance',
@@ -3289,7 +3308,16 @@ class Renderer {
       const t = item.age / item.life,
         fade = item.kind === 'bone' ? 1 : 1 - t * t * (3 - 2 * t),
         from = mesh.length;
-      if (item.position) {
+      if (item.kind === 'spark') {
+        rod(
+          mesh,
+          item.position.map((v, k) => v - item.velocity[k] * 0.035),
+          item.position,
+          item.size * (0.5 + fade * 0.5),
+          item.color,
+          7,
+        );
+      } else if (item.position) {
         const a = item.phase + Math.min(item.age, 0.8) * 8,
           c = Math.cos(a),
           s = Math.sin(a),
@@ -3389,7 +3417,7 @@ class Renderer {
           ...b.from,
           0,
           ...b.to,
-          0,
+          b.impact ? 1 : 0,
           ...beamColors[b.color],
           b.life ? Math.max(0, 1 - b.age / b.life) : 1,
         ],
@@ -3415,9 +3443,8 @@ class Renderer {
     }
     if (this.beamCount) {
       pass.setPipeline(this.beamPipeline);
-      pass.setVertexBuffer(0, this.portalHaloBuffer);
-      pass.setVertexBuffer(1, this.beamBuffer);
-      pass.draw(6, this.beamCount);
+      pass.setVertexBuffer(0, this.beamBuffer);
+      pass.draw(12, this.beamCount);
     }
     const count = Math.min(PORTAL_LIMIT, level.world.portals.length);
     if (count) {
