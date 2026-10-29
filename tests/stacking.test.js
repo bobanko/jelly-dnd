@@ -35,6 +35,11 @@ function separation(g, upper, lower) {
     'stacked bodies must not interpenetrate',
   );
 }
+function uprightError(body) {
+  const tilt = Math.acos(Math.max(-1, Math.min(1, body.r[4]))),
+    yaw = Math.abs(Math.atan2(body.r[2], body.r[8]));
+  return { tilt, yaw };
+}
 test('fast falling jelly lands on another jelly, sleeps and rides with its carrier', () => {
   const g = scene([{}, { y: 2.5, state: 'falling', vy: -9 }]);
   g.step([], 400);
@@ -70,6 +75,17 @@ test('crate and jelly can each be a passenger, and three bodies form a moving st
     assert.ok(g.bodies[2].z > before + 1);
     assert.ok(Math.abs(g.bodies[0].z - g.bodies[2].z) < 0.16);
   }
+});
+test('a straight grounded push keeps both the jelly and crate aligned', () => {
+  const g = scene([{ x: 4 }, { x: 4.72, kind: 'crate' }]);
+  g.step([{ x: 1, z: 0 }], 140);
+  const jelly = uprightError(g.soft.get(g.bodies[0])),
+    crate = uprightError(g.soft.get(g.bodies[1]));
+  assert.ok(
+    [jelly.tilt, jelly.yaw, crate.tilt, crate.yaw].every((error) => error < 0.12),
+    JSON.stringify({ jelly, crate }),
+  );
+  assert.ok(g.bodies[1].x > 5.5, 'the stabilised contact must still push the crate');
 });
 test('passenger walks off independently and falls onto the floor without sticking', () => {
   const g = scene([{}, { y: 1.6, state: 'falling' }]);

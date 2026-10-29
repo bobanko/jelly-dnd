@@ -447,12 +447,13 @@ class System {
     )
       return;
     if (this.stackContact(pa, pb, a, b)) return;
+    let touching = false;
     // Symmetric node/rounded-body contacts. Contact corrections deform the lattice,
     // and their opposite impulses are distributed across the neighbour's mass.
     for (const [src, dst] of [
       [a, b],
       [b, a],
-    ])
+    ]) {
       for (let nodeIndex = 0; nodeIndex < NODE_COUNT; nodeIndex++) {
         const node = src.positions[nodeIndex];
         const worldDelta = sub(node, dst.center),
@@ -467,6 +468,7 @@ class System {
           l = len(outside),
           distance = l + Math.min(Math.max(...q), 0) - (dst.rigid ? 0.025 : 0.045);
         if (distance >= 0) continue;
+        touching = true;
         let n;
         if (l > 1e-7) n = outside.map((v, k) => (v / l) * Math.sign(d[k] || 1));
         else {
@@ -487,11 +489,17 @@ class System {
         for (const other of dst.positions)
           for (let k = 0; k < 3; k++) other[k] += (tangent[k] * friction) / NODE_COUNT;
       }
+    }
+    if (touching && a.rigid !== b.rigid && Math.abs(a.center[1] - b.center[1]) < 0.35) {
+      a.pushingCrate = true;
+      b.pushingCrate = true;
+    }
   }
   step(world, players, inputs, dt) {
     this.contactStep = dt;
     const events = [],
       lattices = players.map((p) => this.get(p));
+    lattices.forEach((b) => (b.pushingCrate = false));
     world.refresh(players);
     const previousCenters = lattices.map((b) => b.summarize().slice());
     const supports = lattices.map((b, i) => {
@@ -677,20 +685,27 @@ class System {
         for (let j = 0; j < 3; j++)
           for (let k = 0; k < 3; k++) inertia[j * 3 + k] += (j === k ? r2 : 0) - r[j] * r[k];
       });
-      const crateGrounded =
-        b.rigid &&
-        b.positions.some((node) => {
+      const touchingGround = b.positions.some((node) => {
           const height = world.heightAt(node[0], node[2], node[1] + 0.06);
           return height !== null && Math.abs(node[1] - height - 0.035) < 0.025;
-        });
+        }),
+        crateGrounded = b.rigid && touchingGround,
+        stableCratePush = b.pushingCrate && touchingGround;
       let omega = mv(inverse(inertia), angular);
-      if (b.rigid) omega = mul(omega, Math.exp(-dt * (crateGrounded ? 2.5 : 0.12)));
+      if (b.rigid)
+        omega = mul(omega, Math.exp(-dt * (stableCratePush ? 50 : crateGrounded ? 2.5 : 0.12)));
       else if (p.state === 'alive') {
         omega = mul(omega, Math.exp(-dt * 12));
+        if (stableCratePush) {
+          const tiltDamping = Math.exp(-dt * 20);
+          omega[0] *= tiltDamping;
+          omega[2] *= tiltDamping;
+        }
         const face = nearestMovementFace(b.r, b.driveDirection || { x: 0, z: 0 });
         if (face) {
           const targetOmega = Math.max(-5.6, Math.min(5.6, face.angle * 14));
-          omega[1] += (targetOmega - omega[1]) * (1 - Math.exp(-dt * 10));
+          const response = stableCratePush ? 50 : 10;
+          omega[1] += (targetOmega - omega[1]) * (1 - Math.exp(-dt * response));
         }
       }
       const damping = Math.exp(-dt * (3 + this.decay * 10));
