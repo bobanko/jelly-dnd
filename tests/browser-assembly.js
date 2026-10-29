@@ -83,6 +83,11 @@ try {
   await frames();
   assert.ok(await page.evaluate(() => runSeconds > 0));
   await page.screenshot({ path: 'artifacts/assembly-complete.png' });
+  await page.evaluate(() => (document.querySelector('#restart-assembly').checked = true));
+  await page.keyboard.press('KeyR');
+  await page.waitForFunction(() => restartTransition === null);
+  assert.equal(await page.evaluate(() => level.assembly?.progress), 0);
+  await page.evaluate(() => (level.assembly = null));
   await page.reload();
   await ready();
   await page.keyboard.press('KeyD');

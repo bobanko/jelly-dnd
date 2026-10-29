@@ -901,7 +901,7 @@ test('level assembly pauses gameplay clocks and hazards until complete and pause
   assert.ok(g.run('runSeconds') > 0);
 });
 
-test('movement skips level assembly and restart does not replay it', async () => {
+test('movement skips level assembly and restart replays it only when enabled', async () => {
   const g = await game({ map: defaultViewLevel(), intro: true });
   g.key('w');
   assert.equal(g.run('level.assembly'), null);
@@ -909,6 +909,13 @@ test('movement skips level assembly and restart does not replay it', async () =>
   assert.ok(g.run('runSeconds') > 0);
   g.run('startCameraIntro();reset()');
   assert.equal(g.run('level.assembly'), null);
+  g.run('document.querySelector("#restart-assembly").checked=true');
+  g.key('r', 'KeyR');
+  assert.equal(g.run('level.assembly.progress'), 0);
+  const reduced = await game({ map: defaultViewLevel(), reducedMotion: true });
+  reduced.run('document.querySelector("#restart-assembly").checked=true');
+  reduced.key('r', 'KeyR');
+  assert.equal(reduced.run('level.assembly'), null);
   const menu = await game({ menuOnly: true });
   assert.equal(menu.run('level.assembly'), null);
 });

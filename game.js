@@ -263,7 +263,7 @@ function clearGoalVisuals() {
   sceneRenderer.goalGlowStrength = [];
   sceneRenderer.goalWinGlow = 0;
 }
-function reset() {
+function reset(replayAssembly = false) {
   players.forEach((p, i) =>
     Object.assign(p, start[i], {
       spawn: { ...start[i] },
@@ -317,7 +317,7 @@ function reset() {
   mechanismSounds.reset(world, bodies);
   soft.reset();
   effects.clear();
-  level.assembly = null;
+  level.assembly = replayAssembly && !menuOnly && !reducedMotion ? { progress: 0 } : null;
   sceneRenderer.bridgeKey = undefined;
   accumulator = 0;
   players.forEach((p) =>
@@ -574,13 +574,14 @@ document.addEventListener('visibilitychange', () => {
 
 document.querySelector('#again').onclick = () => restartLevel();
 function restartLevel() {
+  const replayAssembly = document.querySelector('#restart-assembly').checked;
   if (!JellyI18n) {
-    reset();
+    reset(replayAssembly);
     return;
   }
   if (restartTransition) return;
   stopInput();
-  restartTransition = { elapsed: 0, reset: false };
+  restartTransition = { elapsed: 0, reset: false, replayAssembly };
   document.querySelector('#restart-fade').hidden = false;
   document.querySelector('#restart-fade').style.opacity = '0';
 }
@@ -590,7 +591,7 @@ function updateRestart(dt) {
   state.elapsed += dt;
   if (state.elapsed >= 0.22 && !state.reset) {
     state.reset = true;
-    reset();
+    reset(state.replayAssembly);
   }
   const opacity = state.elapsed < 0.22 ? state.elapsed / 0.22 : 1 - (state.elapsed - 0.22) / 0.33;
   document.querySelector('#restart-fade').style.opacity = String(Math.max(0, Math.min(1, opacity)));
