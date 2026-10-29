@@ -54,6 +54,7 @@ export default {
   Затухание: 'Damping',
   'Показать решётку': 'Show mesh',
   'Коллайдеры уровня': 'Level colliders',
+  'Формирование при рестарте': 'Assembly on restart',
   Зернистость: 'Film grain',
   'Пыль в воздухе': 'Floating dust',
   'Сила грейна': 'Grain strength',
