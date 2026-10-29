@@ -46,13 +46,11 @@ try {
   const download = await downloadPromise,
     exported = JSON.parse(await fs.readFile(await download.path(), 'utf8'));
   assert.deepEqual(exported.camera, expected);
-  await page
-    .locator('#file')
-    .setInputFiles({
-      name: 'starting-view.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(JSON.stringify(exported)),
-    });
+  await page.locator('#file').setInputFiles({
+    name: 'starting-view.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(exported)),
+  });
   await page.reload();
   await page.waitForFunction(() => previewRenderer?.ready && previewRuntime);
   assert.ok(

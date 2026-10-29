@@ -140,13 +140,11 @@ import fs from 'node:fs';
     await page.reload();
     await page.waitForFunction(() => previewRenderer?.ready && previewRuntime);
     assert.deepEqual(await page.evaluate(() => model.map), JSON.parse(draft));
-    await page
-      .locator('#file')
-      .setInputFiles({
-        name: 'bad.json',
-        mimeType: 'application/json',
-        buffer: Buffer.from('{"version":999}'),
-      });
+    await page.locator('#file').setInputFiles({
+      name: 'bad.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from('{"version":999}'),
+    });
     assert.deepEqual(await page.evaluate(() => model.map), JSON.parse(draft));
     // A playable multi-storey room: lower tunnel, floating roof and portal to its top.
     await page.evaluate(() => {

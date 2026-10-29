@@ -83,13 +83,11 @@ import assert from 'node:assert/strict';
       ];
       return map;
     });
-    await page
-      .locator('#file')
-      .setInputFiles({
-        name: 'my-original-level.json',
-        mimeType: 'application/json',
-        buffer: Buffer.from(JSON.stringify(map)),
-      });
+    await page.locator('#file').setInputFiles({
+      name: 'my-original-level.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(map)),
+    });
     await page.waitForFunction(() => sourceFilename === 'my-original-level.json');
     await page.evaluate(() => {
       selected = { x: 2, y: 0, z: 4 };
