@@ -242,20 +242,17 @@ const ASSEMBLY_BLOCK_END = 0.7,
   ASSEMBLY_DROP_DURATION = 0.2,
   ASSEMBLY_DROP_HEIGHT = 5;
 
-function easeOutBounce(t) {
-  const scale = 7.5625,
-    span = 2.75;
-  if (t < 1 / span) return scale * t * t;
-  if (t < 2 / span) {
-    t -= 1.5 / span;
-    return scale * t * t + 0.75;
+function assemblyDropRemaining(t) {
+  if (t < 0.68) {
+    const fall = t / 0.68;
+    return 1 - fall * fall;
   }
-  if (t < 2.5 / span) {
-    t -= 2.25 / span;
-    return scale * t * t + 0.9375;
+  if (t < 0.88) {
+    const bounce = (t - 0.68) / 0.2;
+    return 0.035 * 4 * bounce * (1 - bounce);
   }
-  t -= 2.625 / span;
-  return scale * t * t + 0.984375;
+  const settle = (t - 0.88) / 0.12;
+  return 0.008 * 4 * settle * (1 - settle);
 }
 
 function assemblyDropOffset(assembly, index, count) {
@@ -265,7 +262,7 @@ function assemblyDropOffset(assembly, index, count) {
     t = (assembly.progress - start) / ASSEMBLY_DROP_DURATION;
   if (t < 0) return null;
   if (t >= 1) return 0;
-  return ASSEMBLY_DROP_HEIGHT * (1 - easeOutBounce(t));
+  return ASSEMBLY_DROP_HEIGHT * assemblyDropRemaining(t);
 }
 
 // Shared oak board: the crate and wooden bridge keep the same grain, wear and scratches.

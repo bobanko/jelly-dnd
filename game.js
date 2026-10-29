@@ -44,7 +44,7 @@ let W,
   audioOn = readAudioPreference(),
   audio;
 const WIN_HOLD_SECONDS = 1;
-const LEVEL_ASSEMBLY_SECONDS = 2.8;
+const LEVEL_ASSEMBLY_SECONDS = 2.6;
 const N = 12,
   colors = JellyLevels.characters.map((p) => p.color),
   names = JellyLevels.characters.map((p) => p.name);
