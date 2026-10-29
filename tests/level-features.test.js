@@ -515,7 +515,7 @@ test('feature snapshots restore lift state and collider bounds follow its curren
   assert.equal(g.world.debugBoxes().find((b) => b.kind === 'lift').maxY, 0);
 });
 
-test('bridge slides out and retracts continuously with matching partial floor and collider', () => {
+test('bridge rises as a complete deck and supports only near floor height', () => {
   const g = scene();
   g.world.plates.push({ x: 2, z: 2 });
   g.world.bridges.push({ x: 6, z: 6, plate: 0 });
@@ -525,11 +525,17 @@ test('bridge slides out and retracts continuously with matching partial floor an
   assert.ok(bridge.progress > 0 && bridge.progress < 0.01);
   for (let n = 0; n < 17; n++) g.world.beforeFeatures(g.players, g.soft, 1 / 120);
   assert.ok(bridge.progress > 0.2 && bridge.progress < 0.5);
+  assert.equal(
+    g.world.debugBoxes().find((b) => b.kind === 'bridge'),
+    undefined,
+  );
+  while (bridge.progress <= 0.7) g.world.beforeFeatures(g.players, g.soft, 1 / 120);
   const bounds = g.world.debugBoxes().find((b) => b.kind === 'bridge');
-  assert.equal(bounds.halfZ * 2, bridge.progress);
-  assert.equal(bounds.z - bounds.halfZ, 5.5);
-  assert.equal(g.world.heightAt(6, 5.55), 0);
-  assert.equal(g.world.heightAt(6, 5.5 + bridge.progress + 0.02), null);
+  assert.equal(bounds.halfZ, 0.5);
+  assert.equal(bounds.z, 6);
+  assert.equal(bounds.maxY, -(1 - bridge.progress) * 0.72);
+  assert.equal(g.world.heightAt(6, 5.55), bounds.maxY);
+  assert.equal(g.world.heightAt(6, 6.45), bounds.maxY);
   for (let n = 0; n < 150; n++) g.world.beforeFeatures(g.players, g.soft, 1 / 120);
   assert.equal(bridge.progress, 1);
   assert.equal(g.world.heightAt(6, 6.4), 0);

@@ -2755,60 +2755,60 @@ class Renderer {
   }
   bridges(level) {
     const mesh = [];
-    level.bridges.forEach((bridge, i) => {
+    level.bridges.forEach((bridge) => {
       const from = mesh.length;
-      const bounds = level.world.bridgeBounds(i);
-      if (!bounds) return;
-      const length = bounds.halfZ * 2,
-        x = bounds.x,
-        z = bounds.z,
-        anchor = bridge.z - 0.5,
-        front = anchor + length;
-      box(mesh, [x, -0.13, z], [0.97, 0.26, length], [0.14, 0.1, 0.065], 0.018, 11, 2);
-      for (let n = 0; n < 4; n++)
+      const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
+        x = bridge.x,
+        z = bridge.z,
+        height = (bridge.y || 0) - (1 - progress) * 0.72;
+      // Two dark oak beams keep the full silhouette readable while the bridge rises.
+      for (const side of [-1, 1])
         box(
           mesh,
-          [x + (n - 1.5) * 0.195, 0.004, z],
-          [0.184, 0.026, length],
-          [0.42 + n * 0.017, 0.245 + n * 0.013, 0.105 + n * 0.009],
-          0.008,
+          [x + side * 0.31, -0.13, z],
+          [0.13, 0.2, 0.96],
+          [0.18, 0.105, 0.045],
+          0.014,
           11,
           2,
         );
-      for (const side of [-1, 1])
+      // Separate crosswise boards retain fixed UV scale and never stretch during motion.
+      for (let n = 0; n < 5; n++) {
+        const boardZ = z + (n - 2) * 0.19,
+          warm = n % 2 ? 0.018 : 0;
         box(
           mesh,
-          [x + side * 0.42, 0.012, z],
-          [0.085, 0.04, length],
-          [0.29, 0.215, 0.13],
-          0.009,
-          12,
+          [x, -0.035 + (n % 3) * 0.002, boardZ],
+          [0.92, 0.1, 0.18],
+          [0.42 + warm, 0.225 + warm, 0.08],
+          0.012,
+          11,
           2,
         );
-      box(
-        mesh,
-        [x, 0.012, front - 0.024],
-        [0.95, 0.035, Math.min(0.07, length)],
-        [0.42, 0.3, 0.145],
-        0.009,
-        12,
-        2,
-      );
-      for (const side of [-1, 1])
-        for (const offset of [0.13, 0.55, 0.9]) {
-          const position = front - offset;
-          if (position > anchor + 0.02)
+        for (const side of [-1, 1])
+          if (n === 0 || n === 4)
             box(
               mesh,
-              [x + side * 0.42, 0.04, position],
-              [0.032, 0.018, 0.032],
-              [0.62, 0.46, 0.25],
+              [x + side * 0.37, 0.022, boardZ],
+              [0.07, 0.025, 0.055],
+              [0.31, 0.23, 0.14],
               0.004,
               12,
               1,
             );
-        }
-      if (bridge.y) for (let k = from; k < mesh.length; k += 12) mesh[k + 1] += bridge.y;
+      }
+      // Iron end brackets visually lock the deck into the banks.
+      for (const end of [-1, 1])
+        box(
+          mesh,
+          [x, 0.008, z + end * 0.445],
+          [0.82, 0.035, 0.045],
+          [0.19, 0.16, 0.13],
+          0.006,
+          12,
+          1,
+        );
+      for (let k = from; k < mesh.length; k += 12) mesh[k + 1] += height;
     });
     if (mesh.length) {
       const data = new Float32Array(mesh);

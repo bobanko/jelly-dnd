@@ -263,16 +263,18 @@ function install(World) {
     bridgeBounds(i) {
       const bridge = this.bridges[i],
         progress = bridge.progress ?? (this.soft ? 0 : this.held.has(i) ? 1 : 0);
-      if (progress <= 0) return null;
-      // Slide out of the northern bank, revealing only the supported part of the gap.
+      // The complete deck rises from below. It only becomes supporting once it is
+      // close enough to the surrounding floor to avoid catching a falling jelly.
+      if (progress <= 0.62) return null;
+      const height = (bridge.y || 0) - (1 - progress) * 0.72;
       return {
         x: bridge.x,
-        z: bridge.z - 0.5 + progress * 0.5,
+        z: bridge.z,
         half: 0.5,
         halfX: 0.5,
-        halfZ: progress * 0.5,
-        minY: (bridge.y || 0) - 0.26,
-        maxY: bridge.y || 0,
+        halfZ: 0.5,
+        minY: height - 0.2,
+        maxY: height,
         kind: 'bridge',
       };
     },
