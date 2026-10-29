@@ -509,8 +509,7 @@ addEventListener('keydown', (e) => {
     if (e.repeat) return;
     const panel = document.querySelector('.jelly-settings');
     panel.hidden = !panel.hidden;
-    if (panel.hidden && panel.contains?.(document.activeElement))
-      document.querySelector('#menu-button').focus?.({ preventScroll: true });
+    if (panel.hidden && panel.contains?.(document.activeElement)) document.activeElement.blur?.();
     return;
   }
   if (
@@ -1220,7 +1219,8 @@ function setMenu(open) {
     if (JellyI18n) showMenuHelp(false);
   } else {
     hasPlayed = true;
-    document.querySelector('#menu-button').focus?.({ preventScroll: true });
+    const active = document.activeElement;
+    if (document.querySelector('#main-menu').contains?.(active)) active.blur?.();
   }
 }
 if (JellyI18n) {
