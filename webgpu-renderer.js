@@ -255,14 +255,36 @@ function assemblyDropRemaining(t) {
   return 0.008 * 4 * settle * (1 - settle);
 }
 
-function assemblyDropOffset(assembly, index, count) {
-  if (!assembly) return 0;
+function assemblyLandingProgress(assembly, index, count) {
+  if (!assembly) return 1;
   const position = count > 1 ? index / (count - 1) : 0.5,
     start = ASSEMBLY_BLOCK_END + position * ASSEMBLY_DROP_STAGGER,
     t = (assembly.progress - start) / ASSEMBLY_DROP_DURATION;
   if (t < 0) return null;
-  if (t >= 1) return 0;
-  return ASSEMBLY_DROP_HEIGHT * assemblyDropRemaining(t);
+  return Math.min(1, t);
+}
+
+function assemblyDropOffset(assembly, index, count) {
+  const t = assemblyLandingProgress(assembly, index, count);
+  return t === null ? null : ASSEMBLY_DROP_HEIGHT * assemblyDropRemaining(t);
+}
+
+function assemblyFloatOffset(assembly, index, count) {
+  const t = assemblyLandingProgress(assembly, index, count);
+  if (t === null) return null;
+  if (t < 0.62) {
+    const fall = t / 0.62;
+    return ASSEMBLY_DROP_HEIGHT * (1 - fall * fall);
+  }
+  const ripple = (t - 0.62) / 0.38;
+  return Math.sin(ripple * Math.PI * 3) * 0.22 * (1 - ripple) ** 2;
+}
+
+function assemblyRock(assembly, index, count) {
+  const t = assemblyLandingProgress(assembly, index, count);
+  if (t === null || t < 0.68 || t >= 1) return 0;
+  const settle = (t - 0.68) / 0.32;
+  return Math.sin(settle * Math.PI * 5) * 0.24 * (1 - settle) ** 1.5;
 }
 
 // Shared oak board: the crate and wooden bridge keep the same grain, wear and scratches.
@@ -1278,7 +1300,46 @@ function decorWeb(mesh, corner, a, b) {
       rod(mesh, p, q, 0.005, silk, 13);
     }
 }
-function scatterDecor(mesh, level, occupied) {
+function torchDecor(mesh, torch) {
+  const from = mesh.length,
+    f = Levels.torchFrame(torch),
+    iron = [0.085, 0.1, 0.105],
+    bronze = [0.4, 0.255, 0.1];
+  box(mesh, [0, -0.05, 0.025], [0.18, 0.44, 0.065], iron, 0.02, 12, 2);
+  for (const y of [-0.21, 0.11]) sphere(mesh, [0, y, 0.064], [0.026, 0.026, 0.018], bronze, 12);
+  rod(mesh, [0, -0.2, 0.065], [0, -0.13, 0.23], 0.035, iron, 12);
+  rod(mesh, [0, -0.23, 0.15], [0, 0.1, 0.25], 0.042, [0.22, 0.115, 0.035], 11);
+  for (const y of [-0.12, 0.04])
+    box(mesh, [0, y, 0.21 + (y + 0.12) * 0.3], [0.11, 0.035, 0.11], bronze, 0.007, 12, 2);
+  pressureSurface(
+    mesh,
+    [0, 0.08, 0.25],
+    [
+      [0, 0],
+      [0.055, 0],
+      [0.11, 0.12],
+      [0.11, 0.145],
+      [0.08, 0.145],
+      [0.04, 0.06],
+      [0, 0.06],
+    ],
+    iron,
+    12,
+    0,
+    12,
+  );
+  sphere(mesh, [0, 0.2, 0.25], [0.082, 0.034, 0.082], [1.25, 0.36, 0.05], 4);
+  for (let k = from; k < mesh.length; k += 12)
+    for (const off of [0, 3]) {
+      const u = mesh[k + off],
+        y = mesh[k + off + 1],
+        n = mesh[k + off + 2];
+      for (let axis = 0; axis < 3; axis++)
+        mesh[k + off + axis] =
+          (off ? 0 : f.origin[axis]) + f.u[axis] * u + (axis === 1 ? y : 0) + f.n[axis] * n;
+    }
+}
+function scatterDecor(mesh, level, occupied, recordAssembly) {
   const map = level.definition || {},
     random = (x, y, z, k) => {
       const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7 + k * 19.19) * 43758.5453;
@@ -1316,7 +1377,8 @@ function scatterDecor(mesh, level, occupied) {
     const key = b.x + ',' + b.z,
       y = b.y;
     if (occupied.has([b.x, y + 1, b.z].join(',')) || taken.has(key)) continue;
-    const archer = archers.has(key),
+    const from = mesh.length,
+      archer = archers.has(key),
       walls = sides.filter(([dx, dz]) => occupied.has([b.x + dx, y + 1, b.z + dz].join(',')));
     const r = (k) => random(b.x, y, b.z, k),
       at = (dx, dz, lift = 0) => [b.x + dx, y + lift, b.z + dz];
@@ -1388,6 +1450,7 @@ function scatterDecor(mesh, level, occupied) {
       webs++;
       decorWeb(mesh, at((ax + bx) * 0.485, (az + bz) * 0.485), [ax, 0, az], [bx, 0, bz]);
     }
+    if (mesh.length > from) recordAssembly?.(mesh, from, b);
   }
 }
 function colliderLines(boxes) {
@@ -2196,6 +2259,16 @@ class Renderer {
       undefined,
       assemblyBuffers,
     );
+    this.assemblyOpaque = pipeline(
+      'assemblyVS',
+      'solidFS',
+      'back',
+      4,
+      'less',
+      true,
+      undefined,
+      assemblyBuffers,
+    );
     this.skin = pipeline('softVS', 'skinFS');
     this.back = pipeline('softVS', 'backFS', 'front', 1, 'greater');
     this.effectPipeline = pipeline('solidVS', 'effectFS', 'back', 4, 'less', false, {
@@ -2692,6 +2765,7 @@ class Renderer {
       phaseMesh = [],
       assembly = [],
       phaseAssembly = [],
+      decorAssembly = [],
       blocks = (level.world.blocks || []).filter(
         (b) =>
           !level.bridges.some((p) => p.x === b.x && p.z === b.z && p.y === b.y) &&
@@ -2701,10 +2775,17 @@ class Renderer {
         blocks.filter((b) => b.color === undefined).map((b) => [b.x, b.y, b.z].join(',')),
       );
     let blockIndex = 0;
-    const recordBlock = (target, source, from, center) => {
-      for (let k = from; k < source.length; k += 12) target.push(...center, blockIndex);
-      blockIndex++;
-    };
+    const blockAssemblyIndices = new Map(),
+      recordBlock = (target, source, from, center, cell = center) => {
+        blockAssemblyIndices.set(cell.join(','), blockIndex);
+        for (let k = from; k < source.length; k += 12) target.push(...center, blockIndex);
+        blockIndex++;
+      },
+      recordDecor = (source, from, b) => {
+        const index = blockAssemblyIndices.get([b.x, b.y, b.z].join(',')) ?? 0;
+        for (let k = from; k < source.length; k += 12)
+          decorAssembly.push(b.x, b.y - 0.5, b.z, index);
+      };
     this.phaseFaces = [];
     // The void fog starts beneath the lowest walkable top of the map.
     this.fogBase = blocks.reduce(
@@ -2762,7 +2843,7 @@ class Renderer {
         const support = level.world.heightAt(b.x, b.z, b.y - 0.99);
         if (support !== null && Math.abs(support - (b.y - 1)) < 0.01)
           phaseGroundGlow(phaseMesh, this.phaseFaces, b, phaseTints[b.color]);
-        recordBlock(phaseAssembly, phaseMesh, from, [b.x, b.y - 0.5, b.z]);
+        recordBlock(phaseAssembly, phaseMesh, from, [b.x, b.y - 0.5, b.z], [b.x, b.y, b.z]);
         continue;
       }
       const from = mesh.length;
@@ -2776,7 +2857,7 @@ class Renderer {
         shade: occlusion(b),
         detail: mossAt,
       });
-      recordBlock(assembly, mesh, from, [b.x, b.y - 0.5, b.z]);
+      recordBlock(assembly, mesh, from, [b.x, b.y - 0.5, b.z], [b.x, b.y, b.z]);
     }
     for (const key of level.floor) {
       const [x, z] = key.split(',').map(Number);
@@ -2796,7 +2877,7 @@ class Renderer {
           box(mesh, [x, y + span * 0.5, z], [0.97, span, 0.97], color, 0.045);
         }
       }
-      recordBlock(assembly, mesh, from, [x, height - 0.36, z]);
+      recordBlock(assembly, mesh, from, [x, height - 0.36, z], [x, height, z]);
     }
     for (const o of level.world.collisionBoxes().filter((o) => o.kind === 'wall')) {
       const from = mesh.length;
@@ -2809,6 +2890,15 @@ class Renderer {
       );
       recordBlock(assembly, mesh, from, [o.x, (o.minY + o.maxY) * 0.5, o.z]);
     }
+    // Masonry comes first and uses the stone pipeline; decor follows in the same buffer.
+    const decor = [];
+    scatterDecor(decor, level, occupied, recordDecor);
+    for (const torch of level.world.torches || []) {
+      const from = decor.length;
+      torchDecor(decor, torch);
+      recordDecor(decor, from, torch);
+    }
+    assembly.push(...decorAssembly);
     for (const [key, values] of [
       ['assemblyBuffer', assembly],
       ['phaseAssemblyBuffer', phaseAssembly],
@@ -2821,9 +2911,6 @@ class Renderer {
       );
     }
     this.assemblyBlockCount = blockIndex;
-    // Masonry comes first and uses the stone pipeline; decor follows in the same buffer.
-    const decor = [];
-    scatterDecor(decor, level, occupied);
     const data = new Float32Array(mesh.length + decor.length);
     data.set(mesh);
     data.set(decor, mesh.length);
@@ -3211,7 +3298,11 @@ class Renderer {
       rz = -(s + c) * 0.7071,
       fx = (c + s) * 0.7071,
       fz = (c - s) * 0.7071,
-      landingCount = level.plates.length + players.length + (level.crates || []).length;
+      crateLandingStart = level.plates.length + players.length,
+      pickupLandingStart = crateLandingStart + (level.crates || []).length,
+      archerLandingStart = pickupLandingStart + level.world.pickups.length,
+      droneLandingStart = archerLandingStart + level.world.archers.length,
+      landingCount = droneLandingStart + (level.world.drones || []).length;
     let cursor = 0,
       opaqueCount = null;
     this.crystalPieces = [];
@@ -3226,12 +3317,24 @@ class Renderer {
             : piece.kind === 'jelly' || piece.kind === 'bubble'
               ? level.plates.length + i
               : piece.kind === 'crate'
-                ? level.plates.length + players.length + i
-                : null,
+                ? crateLandingStart + i
+                : piece.kind === 'pickup'
+                  ? pickupLandingStart + i
+                  : piece.kind.startsWith('archer') || piece.kind === 'nockedArrow'
+                    ? archerLandingStart + i
+                    : piece.kind === 'drone' || piece.kind === 'droneCrystal'
+                      ? droneLandingStart + i
+                      : null,
         dropOffset =
           landingIndex === null
             ? null
-            : assemblyDropOffset(level.assembly, landingIndex, landingCount);
+            : piece.kind === 'drone' || piece.kind === 'droneCrystal'
+              ? assemblyFloatOffset(level.assembly, landingIndex, landingCount)
+              : assemblyDropOffset(level.assembly, landingIndex, landingCount),
+        rock =
+          piece.kind.startsWith('archer') || piece.kind === 'nockedArrow'
+            ? assemblyRock(level.assembly, landingIndex, landingCount)
+            : 0;
       if (level.assembly && (landingIndex === null || dropOffset === null)) continue;
       let x = 0,
         y = 0,
@@ -3359,13 +3462,15 @@ class Renderer {
           }
       }
       if (matrix) {
+        const rockC = Math.cos(rock),
+          rockS = Math.sin(rock);
         for (let n = 0; n < source.length; n += 12) {
           const k = cursor + n,
-            px = data[k],
-            py = data[k + 1],
+            px = data[k] * rockC - data[k + 1] * rockS,
+            py = data[k] * rockS + data[k + 1] * rockC,
             localZ = data[k + 2] - stringPull * Math.max(0, 1 - Math.abs(py - 0.57) / 0.38),
-            nx = data[k + 3],
-            ny = data[k + 4],
+            nx = data[k + 3] * rockC - data[k + 4] * rockS,
+            ny = data[k + 3] * rockS + data[k + 4] * rockC,
             nz = data[k + 5];
           for (let axis = 0; axis < 3; axis++) {
             const a = axis * 3;
@@ -3440,47 +3545,6 @@ class Renderer {
           mesh[n + 11] = 1;
         }
       });
-      for (const torch of level.world.torches || []) {
-        const from = mesh.length,
-          f = Levels.torchFrame(torch),
-          iron = [0.085, 0.1, 0.105],
-          bronze = [0.4, 0.255, 0.1];
-        box(mesh, [0, -0.05, 0.025], [0.18, 0.44, 0.065], iron, 0.02, 12, 2);
-        for (const y of [-0.21, 0.11])
-          sphere(mesh, [0, y, 0.064], [0.026, 0.026, 0.018], bronze, 12);
-        rod(mesh, [0, -0.2, 0.065], [0, -0.13, 0.23], 0.035, iron, 12);
-        rod(mesh, [0, -0.23, 0.15], [0, 0.1, 0.25], 0.042, [0.22, 0.115, 0.035], 11);
-        for (const y of [-0.12, 0.04])
-          box(mesh, [0, y, 0.21 + (y + 0.12) * 0.3], [0.11, 0.035, 0.11], bronze, 0.007, 12, 2);
-        pressureSurface(
-          mesh,
-          [0, 0.08, 0.25],
-          [
-            [0, 0],
-            [0.055, 0],
-            [0.11, 0.12],
-            [0.11, 0.145],
-            [0.08, 0.145],
-            [0.04, 0.06],
-            [0, 0.06],
-          ],
-          iron,
-          12,
-          0,
-          12,
-        );
-        // Glowing coals fill the bowl; the flame itself is an animated billboard.
-        sphere(mesh, [0, 0.2, 0.25], [0.082, 0.034, 0.082], [1.25, 0.36, 0.05], 4);
-        for (let k = from; k < mesh.length; k += 12)
-          for (const off of [0, 3]) {
-            const u = mesh[k + off],
-              y = mesh[k + off + 1],
-              n = mesh[k + off + 2];
-            for (let axis = 0; axis < 3; axis++)
-              mesh[k + off + axis] =
-                (off ? 0 : f.origin[axis]) + f.u[axis] * u + (axis === 1 ? y : 0) + f.n[axis] * n;
-          }
-      }
       for (const trap of level.world.spikes) {
         const from = mesh.length,
           f = level.world.spikeFrame(trap);
@@ -3933,7 +3997,13 @@ class Renderer {
     d.queue.writeBuffer(this.filmUniform, 0, this.filmData);
     const nodes = new Float32Array(320 * 4);
     for (let i = 0; i < 5; i++) nodes[i * 256 + 3] = -1;
-    const landingCount = level.plates.length + players.length + (level.crates || []).length;
+    const landingCount =
+      level.plates.length +
+      players.length +
+      (level.crates || []).length +
+      level.world.pickups.length +
+      level.world.archers.length +
+      (level.world.drones || []).length;
     players.forEach((p, i) => {
       const dropOffset = assemblyDropOffset(level.assembly, level.plates.length + i, landingCount);
       level.soft
@@ -4010,9 +4080,10 @@ class Renderer {
       opaque.setVertexBuffer(1, this.assemblyBuffer);
       opaque.draw(this.stoneCount);
     }
-    opaque.setPipeline(this.opaque);
-    if (!assembling && this.staticCount > this.stoneCount)
+    opaque.setPipeline(assembling ? this.assemblyOpaque : this.opaque);
+    if (this.staticCount > this.stoneCount)
       opaque.draw(this.staticCount - this.stoneCount, 1, this.stoneCount);
+    opaque.setPipeline(this.opaque);
     if (bridgeDraw.opaqueCount) {
       opaque.setVertexBuffer(0, this.bridgeBuffer);
       opaque.draw(bridgeDraw.opaqueCount);
@@ -4057,7 +4128,7 @@ class Renderer {
         ? []
         : [{ kind: 'jelly', i, center: [p.x, (p.y || 0) + 0.42 + dropOffset, p.z] }];
     });
-    if (!assembling) order.push(...this.crystalPieces);
+    order.push(...this.crystalPieces);
     for (const face of this.phaseFaces)
       if (
         dot(

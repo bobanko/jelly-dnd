@@ -19,6 +19,9 @@ map.goals = [{ x: 6, y: 0, z: 6 }, null, null, null];
 map.plates = [{ x: 2, y: 0, z: 4, id: 'assembly-button', color: 'green' }];
 map.crates = [{ x: 5, y: 0, z: 4 }];
 map.spikes = [{ x: 2, y: 0, z: 2 }];
+map.archers = [{ x: 4, y: 0, z: 2, dx: 0, dz: 1, interval: 3, firstShot: 1.2 }];
+map.drones = [{ x: 6, y: 0, z: 2, hover: 1.2, color: 0, target: 0 }];
+map.torches = [{ x: 3, y: 1, z: 3, face: 'south' }];
 const browser = await chromium.launch({
   headless: true,
   executablePath:
@@ -74,6 +77,11 @@ try {
     if (progress < 0.7) assert.equal(propCount, 0, 'props wait until every block has arrived');
     if (progress === 0.82)
       assert.ok(propCount > 0, 'buttons, characters and crates render during the landing phase');
+    if (progress === 0.92)
+      assert.ok(
+        await page.evaluate(() => sceneRenderer.crystalPieces.length > 0),
+        'hovering crystals join the final landing wave',
+      );
     assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
   }
   for (let i = 1; i < captures.length; i++) assert.notDeepEqual(captures[i - 1], captures[i]);
