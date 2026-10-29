@@ -1,4 +1,5 @@
 import Levels from './levels.js';
+import { bridgePose } from './level-features.js';
 const PORTAL_LIMIT = Levels.limits.portals,
   PORTAL_FLOATS = 12,
   GOALS_OFFSET = 56 + PORTAL_LIMIT * PORTAL_FLOATS,
@@ -19,6 +20,22 @@ const normalize = (a) => {
   const l = Math.hypot(...a) || 1;
   return a.map((v) => v / l);
 };
+function rotateBridgeMesh(mesh, from, bridge, progress) {
+  const pose = bridgePose(bridge, progress),
+    c = Math.cos(pose.angle),
+    s = Math.sin(pose.angle);
+  for (let k = from; k < mesh.length; k += 12) {
+    const y = mesh[k + 1] + (bridge.y || 0) - pose.hinge[1],
+      z = mesh[k + 2] - pose.hinge[2],
+      ny = mesh[k + 4],
+      nz = mesh[k + 5];
+    mesh[k + 1] = pose.hinge[1] + y * c - z * s;
+    mesh[k + 2] = pose.hinge[2] + y * s + z * c;
+    mesh[k + 4] = ny * c - nz * s;
+    mesh[k + 5] = ny * s + nz * c;
+  }
+  return pose;
+}
 function viewMatrix(center, view, width, height, offset = 0, depthRange = 40) {
   const right = normalize(cross([0, 1, 0], view)),
     up = normalize(cross(view, right)),
@@ -2770,8 +2787,7 @@ class Renderer {
         const from = mesh.length;
         const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
           x = bridge.x,
-          z = bridge.z,
-          height = (bridge.y || 0) - (1 - progress) * 0.72;
+          z = bridge.z;
         // Two dark oak beams keep the full silhouette readable while the bridge rises.
         for (const side of [-1, 1])
           box(
@@ -2819,17 +2835,17 @@ class Renderer {
             12,
             1,
           );
-        for (let k = from; k < mesh.length; k += 12) mesh[k + 1] += height;
+        rotateBridgeMesh(mesh, from, bridge, progress);
       });
     level.bridges
       .filter((bridge) => bridge.color !== undefined)
       .forEach((bridge) => {
         const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
-          height = (bridge.y || 0) - (1 - progress) * 0.72,
-          tint = phaseTints[bridge.color ?? 1] || phaseTints[1];
+          tint = phaseTints[bridge.color ?? 1] || phaseTints[1],
+          from = spectral.length;
         box(
           spectral,
-          [bridge.x, height - 0.055, bridge.z],
+          [bridge.x, -0.055, bridge.z],
           [0.92, 0.11, 0.96],
           tint.map((v) => v * 1.25),
           0.025,
@@ -2837,6 +2853,7 @@ class Renderer {
           3,
           { crisp: true },
         );
+        rotateBridgeMesh(spectral, from, bridge, progress);
       });
     const opaqueCount = wood.length / 12,
       mesh = wood.concat(spectral),
@@ -3556,13 +3573,17 @@ class Renderer {
     const runes = [...(system?.runes || [])];
     for (const bridge of level.bridges.filter((p) => p.color !== undefined)) {
       const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
-        height = (bridge.y || 0) - (1 - progress) * 0.72,
+        pose = bridgePose(bridge, progress),
         color = phaseTints[bridge.color ?? 1] || phaseTints[1];
       for (let i = 0; i < 3; i++) {
         const phase =
           ((level.world.featureTime || 0) * 0.22 + i / 3 + bridge.x * 0.071 + bridge.z * 0.037) % 1;
         runes.push({
-          position: [bridge.x + (i - 1) * 0.25, height + 0.18 + phase * 0.72, bridge.z],
+          position: [
+            bridge.x + (i - 1) * 0.25,
+            pose.center[1] + 0.18 + phase * 0.72,
+            pose.center[2],
+          ],
           size: 0.11 + phase * 0.035,
           color,
           glyph: bridge.color,

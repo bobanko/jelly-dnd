@@ -2,6 +2,16 @@
 const alive = (p) => !p.state || p.state === 'alive';
 const near = (p, q, r) => Math.abs(p.x - q.x) < r && Math.abs(p.z - q.z) < r;
 const smooth = (t) => t * t * (3 - 2 * t);
+function bridgePose(bridge, progress = 0) {
+  const t = Math.max(0, Math.min(1, progress)),
+    angle = (1 - t) * Math.PI * 0.5,
+    hinge = [bridge.x, bridge.y || 0, bridge.z - 0.5];
+  return {
+    angle,
+    hinge,
+    center: [bridge.x, hinge[1] - Math.sin(angle) * 0.5, hinge[2] + Math.cos(angle) * 0.5],
+  };
+}
 const spikeNormals = {
   top: [0, 1, 0],
   north: [0, 0, -1],
@@ -263,18 +273,18 @@ function install(World) {
     bridgeBounds(i) {
       const bridge = this.bridges[i],
         progress = bridge.progress ?? (this.soft ? 0 : this.held.has(i) ? 1 : 0);
-      // The complete deck rises from below. It only becomes supporting once it is
-      // close enough to the surrounding floor to avoid catching a falling jelly.
-      if (progress <= 0.62) return null;
-      const height = (bridge.y || 0) - (1 - progress) * 0.72;
+      // The complete deck unfolds around its northern hinge. It only becomes
+      // supporting once it is close enough to horizontal for stable footing.
+      if (progress <= 0.88) return null;
+      const pose = bridgePose(bridge, progress);
       return {
         x: bridge.x,
         z: bridge.z,
         half: 0.5,
         halfX: 0.5,
         halfZ: 0.5,
-        minY: height - 0.2,
-        maxY: height,
+        minY: pose.center[1] - 0.2,
+        maxY: pose.center[1],
         kind: 'bridge',
         ...(bridge.color === undefined ? {} : { color: bridge.color }),
       };
@@ -695,4 +705,4 @@ function install(World) {
     },
   });
 }
-export { install, spikeFrame, spikeBoxes };
+export { install, spikeFrame, spikeBoxes, bridgePose };

@@ -63,6 +63,14 @@ try {
   assert.equal(await page.evaluate(() => world.heightAt(4, 3, 0.2, players[1])), null);
   assert.equal(await page.evaluate(() => world.heightAt(4, 3, 0.2, players[0])), 0);
   const first = await page.screenshot({ path: 'artifacts/spectral-bridge.png' });
+  await page.evaluate(() => world.bridges.forEach((bridge) => (bridge.progress = 0)));
+  await page.waitForFunction(
+    (frame) => sceneRenderer.frames > frame + 2,
+    await page.evaluate(() => sceneRenderer.frames),
+  );
+  const folded = await page.screenshot({ path: 'artifacts/bridges-folded.png' });
+  assert.notDeepEqual(folded, first, 'both complete decks visibly pivot through 90 degrees');
+  await page.evaluate(() => world.bridges.forEach((bridge) => (bridge.progress = 1)));
   await page.evaluate(() => (world.featureTime += 1.2));
   await page.waitForFunction(
     (frame) => sceneRenderer.frames > frame + 2,
@@ -73,7 +81,7 @@ try {
   assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: wooden and spectral bridge draws, colour-filtered support, rising runes and WebGPU rendering.',
+    'PASS: wooden and spectral bridge draws, 90-degree hinge motion, colour-filtered support, matching rising runes and WebGPU rendering.',
   );
 } finally {
   await browser.close();

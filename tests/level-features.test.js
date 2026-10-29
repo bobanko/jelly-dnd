@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { World } from '../physics.js';
 import { System } from '../soft-body.js';
+import { bridgePose } from '../level-features.js';
 function scene(positions = [[2, 2, 0]]) {
   const floor = new Set();
   for (let x = 0; x <= 9; x++) for (let z = 0; z <= 9; z++) floor.add(`${x},${z}`);
@@ -515,7 +516,7 @@ test('feature snapshots restore lift state and collider bounds follow its curren
   assert.equal(g.world.debugBoxes().find((b) => b.kind === 'lift').maxY, 0);
 });
 
-test('bridge rises as a complete deck and supports only near floor height', () => {
+test('bridge unfolds 90 degrees as a complete deck and supports only near horizontal', () => {
   const g = scene();
   g.world.plates.push({ x: 2, z: 2 });
   g.world.bridges.push({ x: 6, z: 6, plate: 0 });
@@ -529,11 +530,11 @@ test('bridge rises as a complete deck and supports only near floor height', () =
     g.world.debugBoxes().find((b) => b.kind === 'bridge'),
     undefined,
   );
-  while (bridge.progress <= 0.7) g.world.beforeFeatures(g.players, g.soft, 1 / 120);
+  while (bridge.progress <= 0.9) g.world.beforeFeatures(g.players, g.soft, 1 / 120);
   const bounds = g.world.debugBoxes().find((b) => b.kind === 'bridge');
   assert.equal(bounds.halfZ, 0.5);
   assert.equal(bounds.z, 6);
-  assert.equal(bounds.maxY, -(1 - bridge.progress) * 0.72);
+  assert.equal(bounds.maxY, bridgePose(bridge, bridge.progress).center[1]);
   assert.equal(g.world.heightAt(6, 5.55), bounds.maxY);
   assert.equal(g.world.heightAt(6, 6.45), bounds.maxY);
   for (let n = 0; n < 150; n++) g.world.beforeFeatures(g.players, g.soft, 1 / 120);
@@ -549,6 +550,19 @@ test('bridge rises as a complete deck and supports only near floor height', () =
     g.world.debugBoxes().some((b) => b.kind === 'bridge'),
     false,
   );
+});
+
+test('bridge pose pivots from vertical below its northern hinge to horizontal', () => {
+  const bridge = { x: 6, y: 2, z: 6 },
+    closed = bridgePose(bridge, 0),
+    half = bridgePose(bridge, 0.5),
+    open = bridgePose(bridge, 1);
+  assert.equal(closed.angle, Math.PI / 2);
+  assert.deepEqual(closed.hinge, [6, 2, 5.5]);
+  assert.ok(Math.abs(closed.center[1] - 1.5) < 1e-12);
+  assert.ok(Math.abs(closed.center[2] - 5.5) < 1e-12);
+  assert.ok(half.center[1] > closed.center[1] && half.center[2] > closed.center[2]);
+  assert.deepEqual(open.center, [6, 2, 6]);
 });
 
 test('bridge motion is independent of step size and mid-motion snapshots preserve momentum', () => {
