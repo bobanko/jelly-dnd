@@ -3565,7 +3565,7 @@ class Renderer {
           position: [bridge.x + (i - 1) * 0.25, height + 0.18 + phase * 0.72, bridge.z],
           size: 0.11 + phase * 0.035,
           color,
-          glyph: ((bridge.color ?? 1) + i) % 4,
+          glyph: bridge.color,
           opacity: (0.24 + progress * 0.56) * Math.sin(phase * Math.PI),
           phase: i,
           spectral: true,

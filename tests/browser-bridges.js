@@ -48,6 +48,15 @@ try {
     sceneRenderer.dust = false;
   });
   await page.waitForFunction(() => sceneRenderer.runeCount >= 3);
+  assert.deepEqual(
+    await page.evaluate(() => [
+      sceneRenderer.runeData[8],
+      sceneRenderer.runeData[20],
+      sceneRenderer.runeData[32],
+    ]),
+    [1, 1, 1],
+    'every bridge rune uses the finish glyph for its bridge colour',
+  );
   const draw = await page.evaluate(() => sceneRenderer.bridges(level));
   assert.ok(draw.opaqueCount > 0, 'wood deck has opaque geometry');
   assert.ok(draw.spectralCount > 0, 'spectral deck has translucent geometry');
