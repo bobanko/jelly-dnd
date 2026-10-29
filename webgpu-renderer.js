@@ -237,6 +237,37 @@ const OAK_WOOD = [0.64, 0.355, 0.145],
   OAK_END_GRAIN = [0.69, 0.405, 0.19],
   IRON_NAIL = [0.19, 0.135, 0.085];
 
+const ASSEMBLY_BLOCK_END = 0.7,
+  ASSEMBLY_DROP_STAGGER = 0.1,
+  ASSEMBLY_DROP_DURATION = 0.2,
+  ASSEMBLY_DROP_HEIGHT = 5;
+
+function easeOutBounce(t) {
+  const scale = 7.5625,
+    span = 2.75;
+  if (t < 1 / span) return scale * t * t;
+  if (t < 2 / span) {
+    t -= 1.5 / span;
+    return scale * t * t + 0.75;
+  }
+  if (t < 2.5 / span) {
+    t -= 2.25 / span;
+    return scale * t * t + 0.9375;
+  }
+  t -= 2.625 / span;
+  return scale * t * t + 0.984375;
+}
+
+function assemblyDropOffset(assembly, index, count) {
+  if (!assembly) return 0;
+  const position = count > 1 ? index / (count - 1) : 0.5,
+    start = ASSEMBLY_BLOCK_END + position * ASSEMBLY_DROP_STAGGER,
+    t = (assembly.progress - start) / ASSEMBLY_DROP_DURATION;
+  if (t < 0) return null;
+  if (t >= 1) return 0;
+  return ASSEMBLY_DROP_HEIGHT * (1 - easeOutBounce(t));
+}
+
 // Shared oak board: the crate and wooden bridge keep the same grain, wear and scratches.
 function oakPlank(mesh, center, size, color, seed, bevel = 0.009) {
   const start = mesh.length,
@@ -1431,7 +1462,8 @@ const shared = `
  ${runeGlyphShader}
  fn assemblyPosition(p:vec3f,block:vec4f)->vec3f{
   if(scene.finish.z>=1.){return p;}
-  let t=clamp((scene.finish.z-block.w*.6)/.4,0.,1.);let remaining=pow(1.-t,3.);
+  let blockProgress=clamp(scene.finish.z/${ASSEMBLY_BLOCK_END},0.,1.);
+  let t=clamp((blockProgress-block.w*.6)/.4,0.,1.);let remaining=pow(1.-t,3.);
   let right=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));let up=normalize(vec3f(scene.vp[0].y,scene.vp[1].y,scene.vp[2].y));
   let seed=hash(block.xyz+vec3f(17,3,41));let side=u32(floor(seed*6.));var direction=right;
   switch(side){case 0u:{direction=-right;}case 1u:{direction=right;}case 2u:{direction=up;}case 3u:{direction=-up;}case 4u:{direction=vec3f(0,1,0);}default:{direction=vec3f(0,-1,0);}}
@@ -3026,6 +3058,35 @@ class Renderer {
       append('nockedArrow', i, arrow);
     }
     for (let i = 0; i < level.plates.length; i++) {
+      const socket = [];
+      pressureSurface(
+        socket,
+        [0, 0, 0],
+        [
+          [0.293, 0.003],
+          [0.342, 0.003],
+          [0.346, 0.014],
+          [0.334, 0.038],
+          [0.304, 0.038],
+          [0.293, 0.024],
+          [0.293, 0.003],
+        ],
+        [0.09, 0.095, 0.093],
+        12,
+      );
+      pressureSurface(
+        socket,
+        [0, 0.004, 0],
+        [
+          [0, 0],
+          [0.294, 0],
+          [0.294, 0.012],
+          [0, 0.012],
+        ],
+        [0.027, 0.03, 0.029],
+        13,
+      );
+      append('pressureSocket', i, socket);
       const mesh = [],
         plate = level.plates[i],
         palette = {
@@ -3136,7 +3197,8 @@ class Renderer {
       rx = (c - s) * 0.7071,
       rz = -(s + c) * 0.7071,
       fx = (c + s) * 0.7071,
-      fz = (c - s) * 0.7071;
+      fz = (c - s) * 0.7071,
+      landingCount = level.plates.length + players.length + (level.crates || []).length;
     let cursor = 0,
       opaqueCount = null;
     this.crystalPieces = [];
@@ -3144,7 +3206,20 @@ class Renderer {
     // or large JS number arrays for rigid decorations.
     for (const piece of this.propPieces) {
       const i = piece.index,
-        source = piece.data;
+        source = piece.data,
+        landingIndex =
+          piece.kind === 'pressureButton' || piece.kind === 'pressureSocket'
+            ? i
+            : piece.kind === 'jelly' || piece.kind === 'bubble'
+              ? level.plates.length + i
+              : piece.kind === 'crate'
+                ? level.plates.length + players.length + i
+                : null,
+        dropOffset =
+          landingIndex === null
+            ? null
+            : assemblyDropOffset(level.assembly, landingIndex, landingCount);
+      if (level.assembly && (landingIndex === null || dropOffset === null)) continue;
       let x = 0,
         y = 0,
         z = 0,
@@ -3236,10 +3311,12 @@ class Renderer {
           y += 0.57;
           z += fz * (0.21 - pull) + fx * 0.09;
         }
-      } else if (piece.kind === 'pressureButton') {
+      } else if (piece.kind === 'pressureButton' || piece.kind === 'pressureSocket') {
         const p = level.plates[i];
         x = p.x;
-        y = (p.y ?? level.world.heightAt(p.x, p.z) ?? 0) + 0.02 - this.platePress[i] * 0.065;
+        y =
+          (p.y ?? level.world.heightAt(p.x, p.z) ?? 0) +
+          (piece.kind === 'pressureButton' ? 0.02 - this.platePress[i] * 0.065 : 0);
         z = p.z;
       } else if (piece.kind === 'lift') {
         const lift = level.world.lifts[i];
@@ -3254,6 +3331,7 @@ class Renderer {
         [x, y, z] = f.origin.map((p, k) => p + f.n[k] * (0.015 - 0.24 * (1 - state.extension)));
         matrix = [0, 1, 2].flatMap((k) => [f.u[k], f.n[k], f.v[k]]);
       }
+      if (dropOffset) y += dropOffset;
       data.set(source, cursor);
       if (swing) {
         const c = Math.cos(swing),
@@ -3348,36 +3426,6 @@ class Renderer {
           mesh[n + 10] = i;
           mesh[n + 11] = 1;
         }
-      });
-      level.plates.forEach((p) => {
-        const y = p.y ?? level.world.heightAt(p.x, p.z) ?? 0;
-        pressureSurface(
-          mesh,
-          [p.x, y, p.z],
-          [
-            [0.293, 0.003],
-            [0.342, 0.003],
-            [0.346, 0.014],
-            [0.334, 0.038],
-            [0.304, 0.038],
-            [0.293, 0.024],
-            [0.293, 0.003],
-          ],
-          [0.09, 0.095, 0.093],
-          12,
-        );
-        pressureSurface(
-          mesh,
-          [p.x, y + 0.004, p.z],
-          [
-            [0, 0],
-            [0.294, 0],
-            [0.294, 0.012],
-            [0, 0.012],
-          ],
-          [0.027, 0.03, 0.029],
-          13,
-        );
       });
       for (const torch of level.world.torches || []) {
         const from = mesh.length,
@@ -3872,17 +3920,27 @@ class Renderer {
     d.queue.writeBuffer(this.filmUniform, 0, this.filmData);
     const nodes = new Float32Array(320 * 4);
     for (let i = 0; i < 5; i++) nodes[i * 256 + 3] = -1;
-    players.forEach((p, i) =>
+    const landingCount = level.plates.length + players.length + (level.crates || []).length;
+    players.forEach((p, i) => {
+      const dropOffset = assemblyDropOffset(level.assembly, level.plates.length + i, landingCount);
       level.soft
         .get(p)
         .positions.forEach((q, j) =>
-          nodes.set([q[0], p.state === 'dead' ? -100 : q[1], q[2], p.slot ?? i], (i * 64 + j) * 4),
-        ),
-    );
+          nodes.set(
+            [
+              q[0],
+              p.state === 'dead' || dropOffset === null ? -100 : q[1] + dropOffset,
+              q[2],
+              p.slot ?? i,
+            ],
+            (i * 64 + j) * 4,
+          ),
+        );
+    });
     d.queue.writeBuffer(this.nodes, 0, nodes);
     const assembling = !!level.assembly,
       bridgeDraw = assembling ? { opaqueCount: 0, spectralCount: 0 } : this.bridges(level),
-      propCount = assembling ? 0 : this.props(level, players, angle, time, dt),
+      propCount = this.props(level, players, angle, time, dt),
       effectCount = this.effects(level.effects, view);
     this.updateRunes(level.effects, level);
     this.updateBeams(level);
@@ -3980,11 +4038,12 @@ class Renderer {
       spectral.draw(bridgeDraw.spectralCount, 1, bridgeDraw.opaqueCount);
       spectral.end();
     }
-    const order = players.flatMap((p, i) =>
-      assembling || p.state === 'dead'
+    const order = players.flatMap((p, i) => {
+      const dropOffset = assemblyDropOffset(level.assembly, level.plates.length + i, landingCount);
+      return p.state === 'dead' || dropOffset === null
         ? []
-        : [{ kind: 'jelly', i, center: [p.x, (p.y || 0) + 0.42, p.z] }],
-    );
+        : [{ kind: 'jelly', i, center: [p.x, (p.y || 0) + 0.42 + dropOffset, p.z] }];
+    });
     if (!assembling) order.push(...this.crystalPieces);
     for (const face of this.phaseFaces)
       if (

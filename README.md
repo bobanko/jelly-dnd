@@ -53,7 +53,7 @@ Run npm start (or node server.js), then open http://localhost:3000 in Chrome or 
 
 If the browser has no WebGPU adapter, an explanation appears instead of a blank scene. A lost GPU device also shows the fallback card. There is no silent return to the old 2D renderer.
 
-Each level opens with a two-second assembly: stone and coloured blocks arrive in sequence from the screen edges, above and below, with low arrivals emerging through the void fog. The GPU moves blocks and their shadows without changing physics geometry. Characters, mechanisms and decor appear once assembly finishes; hazards and the run timer remain paused until then. A movement key skips assembly, and reduced-motion settings show the completed level immediately. Restart does not replay the animation. `npm run test:assembly:browser` checks the construction frames, coloured blocks, pause, skip and reduced-motion paths on WebGPU.
+Each level opens with a 2.8-second assembly: stone and coloured blocks arrive in sequence from the screen edges, above and below, with low arrivals emerging through the void fog. Once every block locks into place, pressure buttons, characters and crates fall from above in a short staggered cascade with a soft bounce. The animation moves only rendered geometry, leaving physics state unchanged; other mechanisms, hazards and decor appear after the landing phase, while the run timer remains paused throughout. A movement key skips assembly, and reduced-motion settings show the completed level immediately. Restart does not replay the animation. `npm run test:assembly:browser` checks construction frames, prop landings, pause, skip and reduced-motion paths on WebGPU.
 
 ## Level editor
 

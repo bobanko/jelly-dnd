@@ -16,6 +16,8 @@ map.blocks.push(
 );
 map.spawns = [{ x: 1, y: 0, z: 1 }, null, null, null];
 map.goals = [{ x: 6, y: 0, z: 6 }, null, null, null];
+map.plates = [{ x: 2, y: 0, z: 4, id: 'assembly-button', color: 'green' }];
+map.crates = [{ x: 5, y: 0, z: 4 }];
 map.spikes = [{ x: 2, y: 0, z: 2 }];
 const browser = await chromium.launch({
   headless: true,
@@ -58,7 +60,7 @@ try {
     JSON.stringify({ players, features: world.featureSnapshot(), runSeconds }),
   );
   const captures = [];
-  for (const progress of [0, 0.3, 0.6, 0.9]) {
+  for (const progress of [0, 0.3, 0.6, 0.69, 0.82, 0.92]) {
     await page.evaluate((progress) => (level.assembly.progress = progress), progress);
     await frames();
     captures.push(await page.screenshot({ path: `artifacts/assembly-${progress}.png` }));
@@ -68,11 +70,13 @@ try {
       ),
       before,
     );
+    const propCount = await page.evaluate(() => sceneRenderer.props(level, players, angle, 0, 0));
+    if (progress < 0.7) assert.equal(propCount, 0, 'props wait until every block has arrived');
+    if (progress === 0.82)
+      assert.ok(propCount > 0, 'buttons, characters and crates render during the landing phase');
     assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
   }
-  assert.notDeepEqual(captures[0], captures[1]);
-  assert.notDeepEqual(captures[1], captures[2]);
-  assert.notDeepEqual(captures[2], captures[3]);
+  for (let i = 1; i < captures.length; i++) assert.notDeepEqual(captures[i - 1], captures[i]);
   assert.ok(await page.evaluate(() => sceneRenderer.assemblyBlockCount >= 64));
   assert.ok(await page.evaluate(() => sceneRenderer.phaseAssemblyBuffer.size > 16));
   await page.evaluate(() => (level.assembly = null));
@@ -94,7 +98,7 @@ try {
   assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: staggered assembly of stone and glass blocks, frozen hazards and timer, completed level, movement skip, reduced motion, unaffected menu and no WebGPU errors.',
+    'PASS: staggered assembly of stone and glass blocks, falling buttons, characters and crates, frozen physics and timer, movement skip, reduced motion, unaffected menu and no WebGPU errors.',
   );
 } finally {
   await browser.close();
