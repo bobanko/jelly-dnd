@@ -53,6 +53,15 @@ function metrics(b) {
   }
   return { min, max, total };
 }
+test('movement turns the nearest side face toward the requested direction', () => {
+  const a = Math.PI / 3,
+    r = [Math.cos(a), 0, Math.sin(a), 0, 1, 0, -Math.sin(a), 0, Math.cos(a)],
+    face = Soft.nearestMovementFace(r, { x: 1, z: 0 });
+  assert.ok(face.normal[0] > 0);
+  assert.ok(Math.abs(face.angle) < Math.PI / 4);
+  assert.ok(face.normal[1] > 0, 'the nearby +Z face should turn toward +X');
+  assert.ok(face.angle > 0);
+});
 test('tetrahedral solid has consistent positive rest volumes and shared nodes', () => {
   const { soft, players } = setup(),
     b = soft.get(players[0]);
@@ -154,10 +163,10 @@ test('internal damping preserves rigid translation in free fall', () => {
   assert.ok(Math.abs(g.players[0].vz - 0.4) < 1e-6);
   assert.ok(g.players[0].vy < 0);
 });
-test('movement gently turns a diagonally rotated jelly to face its travel direction', () => {
+test('movement gently turns the nearest face toward its travel direction', () => {
   const g = setup(),
     b = g.soft.get(g.players[0]),
-    angle = Math.PI / 4,
+    angle = Math.PI / 3,
     c = Math.cos(angle),
     s = Math.sin(angle);
   b.positions.forEach((node) => {
@@ -167,11 +176,11 @@ test('movement gently turns a diagonally rotated jelly to face its travel direct
     node[2] = b.center[2] - x * s + z * c;
   });
   b.orientation();
-  const initialError = Math.abs(Math.atan2(b.r[2], b.r[8]));
-  g.step([{ x: 0, z: 1 }], 90);
+  const initialError = Math.abs(Soft.nearestMovementFace(b.r, { x: 1, z: 0 }).angle);
+  g.step([{ x: 1, z: 0 }], 120);
   b.orientation();
-  const finalError = Math.abs(Math.atan2(b.r[2], b.r[8]));
-  assert.ok(initialError > 0.7, `initial heading error ${initialError}`);
+  const finalError = Math.abs(Soft.nearestMovementFace(b.r, { x: 1, z: 0 }).angle);
+  assert.ok(initialError > 0.5, `initial heading error ${initialError}`);
   assert.ok(finalError < 0.18, `final heading error ${finalError}`);
   assert.ok(finalError < initialError * 0.3);
   assert.equal(g.players[0].state, 'alive');

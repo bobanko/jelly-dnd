@@ -15,6 +15,34 @@ const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
 const len = (a) => Math.hypot(...a),
   ident = () => [1, 0, 0, 0, 1, 0, 0, 0, 1];
 const mv = (m, v) => [dot(m.slice(0, 3), v), dot(m.slice(3, 6), v), dot(m.slice(6, 9), v)];
+function nearestMovementFace(r, direction) {
+  const length = Math.hypot(direction.x, direction.z);
+  if (length < 1e-8) return null;
+  const target = [direction.x / length, direction.z / length],
+    faces = [
+      [r[0], r[6]],
+      [-r[0], -r[6]],
+      [r[2], r[8]],
+      [-r[2], -r[8]],
+    ];
+  let best = null,
+    bestDot = -Infinity;
+  for (const face of faces) {
+    const faceLength = Math.hypot(...face);
+    if (faceLength < 1e-8) continue;
+    const normal = face.map((v) => v / faceLength),
+      alignment = normal[0] * target[0] + normal[1] * target[1];
+    if (alignment > bestDot) {
+      bestDot = alignment;
+      best = normal;
+    }
+  }
+  if (!best) return null;
+  return {
+    normal: best,
+    angle: Math.atan2(best[1] * target[0] - best[0] * target[1], bestDot),
+  };
+}
 const det = (m) => dot(m.slice(0, 3), cross(m.slice(3, 6), m.slice(6, 9)));
 function inverse(m) {
   const d = det(m);
@@ -496,10 +524,7 @@ class System {
         onBelt = Math.hypot(belt.x, belt.z) > 0.001;
       b.surfaceVelocity = belt;
       b.driven = magnitude > 0 || onBelt;
-      b.heading =
-        magnitude > 0 && p.state === 'alive' && !p.launchTimer
-          ? [input.x / magnitude, input.z / magnitude]
-          : null;
+      b.driveDirection = magnitude > 0 ? input : onBelt ? belt : null;
       if (p.state === 'dead') {
         p.respawnTimer -= dt;
         const spawn = p.respawnTimer <= 0 && world.respawnPosition(p, players);
@@ -662,19 +687,10 @@ class System {
       if (b.rigid) omega = mul(omega, Math.exp(-dt * (crateGrounded ? 2.5 : 0.12)));
       else if (p.state === 'alive') {
         omega = mul(omega, Math.exp(-dt * 12));
-        if (b.heading) {
-          const forwardX = b.r[2],
-            forwardZ = b.r[8],
-            horizontalLength = Math.hypot(forwardX, forwardZ),
-            [targetX, targetZ] = b.heading;
-          if (horizontalLength > 0.1) {
-            const x = forwardX / horizontalLength,
-              z = forwardZ / horizontalLength,
-              error = Math.atan2(z * targetX - x * targetZ, x * targetX + z * targetZ),
-              targetOmega = Math.max(-5, Math.min(5, error * 7)),
-              response = 1 - Math.exp(-dt * 14);
-            omega[1] += (targetOmega - omega[1]) * response;
-          }
+        const face = nearestMovementFace(b.r, b.driveDirection || { x: 0, z: 0 });
+        if (face) {
+          const targetOmega = Math.max(-2.8, Math.min(2.8, face.angle * 7));
+          omega[1] += (targetOmega - omega[1]) * (1 - Math.exp(-dt * 10));
         }
       }
       const damping = Math.exp(-dt * (3 + this.decay * 10));
@@ -748,5 +764,6 @@ export {
   NODE_COUNT,
   rounded,
   det,
+  nearestMovementFace,
   rotation,
 };
