@@ -688,7 +688,7 @@ function frame(t) {
       z: 4.8,
       targetY: 0.2,
       focusHeight: 0.5,
-      mode: 'ortho',
+      mode: 'perspective',
       pitch: 24,
       fov: 45,
     };
@@ -801,7 +801,7 @@ sceneRenderer
         z: 4.8,
         targetY: 0.2,
         focusHeight: 0.5,
-        mode: 'ortho',
+        mode: 'perspective',
         pitch: 24,
         fov: 45,
       };
