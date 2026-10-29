@@ -1,30 +1,66 @@
 {
-  "jelly-death": {
-    "text": "A single raw egg breaking on a stone surface. A brief delicate eggshell crack immediately followed by a thick wet yolk splat and tiny shell fragments settling. Compact, tactile, slightly grotesque and darkly comic. Rounded wet body, restrained brittle detail, short natural decay. Close dry isolated game sound. No glass shattering, explosive impact, exaggerated crunch, voice, music or reverb.",
-    "duration_seconds": 1,
+  "finish-rune": {
+    "text": "Seamless quiet magical rune ambience: a steady soft energy hum, gentle luminous shimmer and a faint airy human vowel tone without words. Smooth, mysterious and restrained, with no melody or distinct events. Designed as a background game loop. No speech, lyrics, bells, percussion or dramatic changes.",
+    "duration_seconds": 10,
+    "loop": true,
+    "prompt_influence": 0.5
+  },
+  "button-press": {
+    "text": "One clearly audible close-up dungeon pressure plate press. A compact padded wooden clack with a solid midrange knock as a stone button moves down and locks. Short, rounded and punchy enough to remain distinct over a low stone rumble. Dry isolated game sound with immediate attack and very short decay. No tiny delicate click, no metal clang, no voice, no music, no reverb.",
+    "duration_seconds": 0.5,
     "loop": false,
     "prompt_influence": 0.7
   },
-  "jelly-land": {
-    "text": "One large thick water droplet landing softly in a shallow puddle. A rounded low plop, a small wet splash and a brief soft liquid wobble. Gentle attack, compact and weighty, muted high frequencies. A gelatinous body landing. Dry isolated game sound, short tail. No crunch, crack, bones, clicks, slap, sharp impact, voice or music.",
+  "button-release": {
+    "text": "One clearly audible close-up dungeon pressure plate release. A compact padded wooden click with a hollow low-mid stone knock as the button rises, quieter and more resonant than the press but still distinct over a low rumble. Rounded attack and quick fade. Dry isolated game sound. No tiny delicate click, no metal clang, no voice, no music, no reverb.",
+    "duration_seconds": 0.6,
+    "loop": false,
+    "prompt_influence": 0.7
+  },
+  "bridge-slide": {
+    "text": "A heavy stone bridge slab sliding outward slowly across a smooth stone floor. One steady low muffled grinding tone with almost no variation, dark and dense, ending in a soft dull stop. Monotone ancient dungeon mechanism, close dry isolated game sound. No pebbles, sharp scraping, metal, crash, earthquake, voice, music or reverb.",
+    "duration_seconds": 1.2,
+    "loop": false,
+    "prompt_influence": 0.7
+  },
+  "bridge-retract": {
+    "text": "A heavy stone bridge slab sliding backward into a stone wall. One steady low muffled grinding tone with almost no variation, dark and dense, fading slightly as it retreats and ending in a soft hollow stop. Monotone ancient dungeon mechanism, close dry isolated game sound. No pebbles, sharp scraping, metal, crash, earthquake, voice, music or reverb.",
+    "duration_seconds": 1.2,
+    "loop": false,
+    "prompt_influence": 0.7
+  },
+  "skeleton-arrow": {
+    "text": "One soft lightweight fantasy game bow shot. A muted gentle bowstring release blended with two thin dry wooden sticks lightly tapping and rattling once, followed by a tiny soft puff of air. Delicate, hollow and understated, with rounded transients, reduced high frequencies and a very short dry tail. One isolated shot. No sharp thwip, no heavy impact, no arrow hit, no gunshot, no voice, no music, no reverb.",
+    "duration_seconds": 0.6,
+    "loop": false,
+    "prompt_influence": 0.7
+  },
+  "jelly-death": {
+    "text": "A short layered Foley impact: one chicken egg cracking, one ripe watermelon hitting stone with a dense wet splat, and a small water splash. All three sounds occur together as one compact game effect. Close dry recording, short decay, no voice, no music, no reverb.",
     "duration_seconds": 1,
+    "loop": false,
+    "prompt_influence": 0.5
+  },
+  "jelly-land": {
+    "text": "One heavy cloth sack filled with dense sand dropping once onto a hard stone floor. A single unified low muffled thud with a short soft granular settling texture inside the bag. Dry, weighty and compact, with one clear impact and an extremely short decay. Close isolated game sound. No second impact, no bounce, no wet splat, no squeeze, no suction, no crunch, no voice, no music or reverb.",
+    "duration_seconds": 0.7,
     "loop": false,
     "prompt_influence": 0.7
   },
   "spikes": {
-    "text": "One short solid metallic tone, like a single thick brass coin gently struck with a padded mallet. Dense rounded body, one clear midrange pitch with a slight upward bend, soft attack and short damped ring. Simple, compact, dry and close. An understated dungeon trap rising cue. No multiple coins, jingling, rattling, chains, machinery, scraping, sharp treble, melody, voice or music.",
-    "duration_seconds": 0.5,
+    "text": "A single steel sword blade being drawn smoothly from a tight leather and metal scabbard. One compact rising metallic shing: controlled blade friction, a clean bright steel resonance and a subtle release at the end. Dense and tactile, quick but not aggressive, close dry isolated game sound. No sword strike, impact, combat swing, chains, coins, machinery, voice, music or reverb.",
+    "duration_seconds": 0.8,
     "loop": false,
     "prompt_influence": 0.7
   },
   "spikes-retract": {
-    "text": "One short solid metallic tone, like a single thick brass coin gently struck with a padded mallet. Dense rounded body, one clear midrange pitch with a slight downward bend, soft attack and a damped ring fading smoothly to silence. Simple, compact, dry and close. An understated dungeon trap retracting cue. No multiple coins, jingling, rattling, chains, machinery, scraping, sharp treble, melody, voice or music.",
-    "duration_seconds": 0.5,
+    "text": "A single steel sword blade being slid smoothly back into a tight leather and metal scabbard. One compact descending metallic shing: controlled blade friction, a muted steel resonance, ending with a soft firm seat in the sheath. Dense and tactile, quick but not aggressive, close dry isolated game sound. No sword strike, impact, combat swing, chains, coins, machinery, voice, music or reverb.",
+    "duration_seconds": 0.8,
     "loop": false,
     "prompt_influence": 0.7
   },
   "portal": {
-    "text": "One deep muffled liquid glug as a small magical portal swallows a gelatinous creature. A soft hollow underwater bloop with a rounded bassy bubble collapsing inward and a brief gentle liquid wobble. Low-pass filtered, warm low mids, soft onset, short subdued tail. Isolated game sound. No sharp transient, pop, glass, chimes, electric zap, explosive whoosh, voice or music.",
+    "text": "One cold magical portal transporting a small creature. A deep frosty vibration swells inward, layered with a smooth icy resonance, fine crystalline trembling and a brief subzero shimmer. Hollow, spectral and tactile, with a soft onset and a short vibrating tail. Chilled blue energy, close isolated game sound. No liquid glug, no warm bass, no sharp glass break, no bell melody, no electric zap, no explosive whoosh, no voice or music.",
     "duration_seconds": 1.5,
     "loop": false,
     "prompt_influence": 0.7

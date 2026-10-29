@@ -4,7 +4,7 @@ import * as JellyGPU from './webgpu-renderer.js';
 import * as JellySoftBody from './soft-body.js';
 import * as JellyPhysics from './physics.js';
 import * as JellyEffects from './game-effects.js';
-import { GameAudio, SpikeSounds } from './game-audio.js';
+import { GameAudio, MechanismSounds, SpikeSounds } from './game-audio.js';
 import * as JellySharedCamera from './shared-camera.js';
 import * as LevelCamera from './level-camera.js';
 import { createMenuScene } from './menu-scene.js';
@@ -77,7 +77,9 @@ const runtime = menuOnly
 const { start, players, crates, bodies, plates, goals, bridges, floor, world, soft } = runtime;
 const gameAudio = new GameAudio(() => (audio ??= new AudioContext()));
 const spikeSounds = new SpikeSounds();
+const mechanismSounds = new MechanismSounds();
 spikeSounds.reset(world);
+mechanismSounds.reset(world, bodies);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) gameAudio.setActive(false);
 });
@@ -311,6 +313,7 @@ function reset() {
   world.resetFeatures();
   gameAudio.stop();
   spikeSounds.reset(world);
+  mechanismSounds.reset(world, bodies);
   soft.reset();
   effects.clear();
   sceneRenderer.bridgeKey = undefined;
@@ -353,6 +356,7 @@ function undo() {
   world.restoreFeatures(previous.features);
   gameAudio.stop();
   spikeSounds.reset(world);
+  mechanismSounds.reset(world, bodies);
   soft.restore(bodies, previous.soft);
   bodies.forEach((p) => {
     if (!p.launchTimer) soft.get(p).velocities.forEach((v) => v.fill(0));
@@ -407,6 +411,15 @@ function simulate(dt, elapsed = dt) {
       const distance = Math.min(...players.map((p) => Math.hypot(p.x - spike.x, p.z - spike.z)));
       if (distance < 8) gameAudio.play(name, 1 / (1 + distance * 0.3));
     }
+    for (const { name, object } of mechanismSounds.update(world, bodies)) {
+      const distance = Math.min(...players.map((p) => Math.hypot(p.x - object.x, p.z - object.z)));
+      if (distance < 8)
+        gameAudio.play(
+          name,
+          1 / (1 + distance * 0.25),
+          name === 'bridge' || name === 'bridgeRetract' ? 0.14 : 0,
+        );
+    }
     for (const event of events) {
       if (event.player >= players.length) continue;
       effects.burst(event, players, soft);
@@ -424,11 +437,20 @@ function simulate(dt, elapsed = dt) {
       else if (event.type === 'portal') gameAudio.play('portal');
       else if (event.type === 'land') gameAudio.play('land');
       else if (event.type === 'pickup') tone(720);
-      else if (event.type === 'archerShot') tone(840);
+      else if (event.type === 'archerShot') gameAudio.play('arrow');
       else if (event.type === 'arrowBlock' && event.durability > 0) woodHit();
       else if (event.type === 'shieldBreak') woodHit(true);
       else if (event.type === 'archerDeath') tone(180);
     }
+    gameAudio.setRuneLevel(
+      goals.reduce((charge, goal, index) => {
+        const slot = goal.slot ?? index,
+          player = players.find(
+            (candidate, playerIndex) => (candidate.slot ?? playerIndex) === slot,
+          );
+        return Math.max(charge, world.goalCharge(goal, player));
+      }, 0),
+    );
     const allFinished =
       players.length > 0 &&
       players.every(
