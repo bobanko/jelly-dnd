@@ -845,6 +845,9 @@ document
 document
   .querySelector('#film-grain')
   .addEventListener('change', (e) => (sceneRenderer.grain = e.target.checked));
+document
+  .querySelector('#ambient-dust')
+  .addEventListener('change', (e) => (sceneRenderer.dust = e.target.checked));
 function updateCameraUI() {
   document.querySelector('#camera-zoom-value').textContent = Math.round(zoom * 100) + '%';
   document.querySelector('#camera-pitch').value = targetPitch;

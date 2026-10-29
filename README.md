@@ -172,6 +172,7 @@ A drone continuously aims directly at its target in 3D. The beam ends at the nea
 - Coloured pass-through blocks use cached glass geometry and alpha blending with depth testing but no opaque depth writes or solid shadow casting. Their faces and runes are sorted with the jelly layers, so a character remains visible behind or inside the glass. Consecutive glass faces share a pass; they require no additional full-screen refraction textures or per-frame geometry rebuilds.
 - HDR intermediate buffers, bloom, Khronos PBR Neutral tone mapping, vignette, 4x MSAA and final dithering.
 - Subtle monochrome film grain animates at 24 Hz after tone mapping. Toggle “Film grain” in the developer panel opened with the backquote key. Reduced motion keeps the grain static; disabling it preserves the original output dithering.
+- Warm floating dust drifts above exposed surfaces in the menu, game and editor preview. A deterministic set of 64 softly glowing sprites animates on the GPU, respects scene depth and never creates gameplay colliders. “Floating dust” in the developer panel disables it; reduced motion freezes its drift.
 - The mesh overlay draws the actual tetrahedral edges rather than a decorative grid.
 - Skull, bone, bubble, crate, lift and spike geometry is built once in local coordinates. Frames reuse these meshes and one typed upload array, updating only transforms and bubble offsets. Camera rotation, physical skull motion and animated hazards keep the same appearance without rebuilding their triangles on the CPU.
 

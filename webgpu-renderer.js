@@ -1416,6 +1416,20 @@ const shared = `
   o.world=positionSize.xyz+(right*uv.x+up*uv.y)*positionSize.w;o.clip=scene.vp*vec4f(o.world,1.);
   o.normal=view;o.color=colorOpacity.rgb*2.5;o.material=info.x;o.local=vec3f(p.x*.3,-p.z*.3,colorOpacity.w);return o;
  }
+ @vertex fn dustVS(@builtin(vertex_index) vertex:u32,@location(4) mote:vec4f)->Out{
+  let corners=array<vec2f,6>(vec2f(-1,-1),vec2f(1,-1),vec2f(1,1),vec2f(-1,-1),vec2f(1,1),vec2f(-1,1));let uv=corners[vertex];
+  let phase=mote.w;let t=scene.options.z*.24+phase;
+  let drift=vec3f(sin(t)*.28,sin(t*.73+phase)*.16,cos(t*.85)*.28);
+  let right=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));let up=normalize(vec3f(scene.vp[0].y,scene.vp[1].y,scene.vp[2].y));
+  let size=.028+.022*fract(phase*13.71);var o:Out;
+  o.world=mote.xyz+drift+(right*uv.x+up*uv.y)*size;o.clip=scene.vp*vec4f(o.world,1.);
+  o.normal=vec3f(0,1,0);o.color=mix(vec3f(.8,.56,.25),vec3f(1.,.85,.53),fract(phase*7.13));
+  o.material=0.;o.local=vec3f(uv,.28+.16*(.5+.5*sin(t*.8+phase)));return o;
+ }
+ @fragment fn dustFS(o:Out)->@location(0) vec4f{
+  let radius=dot(o.local.xy,o.local.xy);let core=exp(-radius*18.);let halo=exp(-radius*4.)*(1.-smoothstep(.5,1.,sqrt(radius)));
+  return vec4f(o.color*2.,(core+halo*.2)*o.local.z);
+ }
  @fragment fn runeFS(o:Out)->@location(0) vec4f{
   let distance=runeDistance(o.local.xy,u32(o.material));let aa=max(.001,fwidth(distance));
   let stroke=1.-smoothstep(.022-aa,.022+aa,distance);let glow=exp(-distance*35.)*.22;
@@ -1878,6 +1892,7 @@ class Renderer {
     this.error = null;
     this.mesh = false;
     this.grain = true;
+    this.dust = true;
     this.filmData = new Float32Array(4);
     this.frames = 0;
     this.errors = [];
@@ -2079,6 +2094,18 @@ class Renderer {
     this.beamData = new Float32Array(16 * 12);
     this.beamBuffer = d.createBuffer({
       size: this.beamData.byteLength,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    this.dustPipeline = pipeline('dustVS', 'dustFS', 'none', 4, 'less', false, additive, [
+      {
+        arrayStride: 16,
+        stepMode: 'instance',
+        attributes: [{ shaderLocation: 4, offset: 0, format: 'float32x4' }],
+      },
+    ]);
+    this.dustData = new Float32Array(64 * 4);
+    this.dustBuffer = d.createBuffer({
+      size: this.dustData.byteLength,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
     this.portalHaloPipeline = pipeline(
@@ -2484,6 +2511,7 @@ class Renderer {
     }
   }
   buildScene(level) {
+    this.buildDust(level.world);
     const mesh = [],
       phaseMesh = [],
       blocks = (level.world.blocks || []).filter(
@@ -3438,9 +3466,43 @@ class Renderer {
     if (beams.length)
       this.device.queue.writeBuffer(this.beamBuffer, 0, this.beamData.buffer, 0, beams.length * 48);
   }
+  buildDust(world) {
+    const blocks = world.blocks || [],
+      occupied = new Set(blocks.map((b) => `${b.x},${b.y},${b.z}`)),
+      surfaces = blocks.length
+        ? blocks.filter((b) => !occupied.has(`${b.x},${b.y + 1},${b.z}`))
+        : [...world.floor].map((key) => {
+            const [x, z] = key.split(',').map(Number);
+            return { x, y: world.heightAt(x, z) ?? 0, z };
+          });
+    this.dustCount = surfaces.length ? 64 : 0;
+    let seed = 41;
+    const random = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    for (let i = 0; i < this.dustCount; i++) {
+      const surface = surfaces[Math.floor(random() * surfaces.length)];
+      this.dustData.set(
+        [
+          surface.x + (random() - 0.5) * 0.8,
+          surface.y + 0.35 + random() * 2.2,
+          surface.z + (random() - 0.5) * 0.8,
+          random() * Math.PI * 2,
+        ],
+        i * 4,
+      );
+    }
+    if (this.dustCount) this.device.queue.writeBuffer(this.dustBuffer, 0, this.dustData);
+  }
   drawEffects(pass, level, effectCount) {
     pass.setBindGroup(0, this.sceneGroup);
     pass.setBindGroup(1, this.skinGroups[0]);
+    if (this.dust && this.dustCount) {
+      pass.setPipeline(this.dustPipeline);
+      pass.setVertexBuffer(0, this.dustBuffer);
+      pass.draw(6, this.dustCount);
+    }
     if (effectCount) {
       pass.setPipeline(this.effectPipeline);
       pass.setVertexBuffer(0, this.effectBuffer);
@@ -3774,7 +3836,11 @@ class Renderer {
     }
     if (
       !order.length &&
-      (effectCount || this.beamCount || level.world.portals.length || level.goals.length)
+      (effectCount ||
+        this.beamCount ||
+        (this.dust && this.dustCount) ||
+        level.world.portals.length ||
+        level.goals.length)
     ) {
       const effects = encoder.beginRenderPass({
         colorAttachments: [

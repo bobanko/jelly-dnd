@@ -55,6 +55,7 @@ export default {
   'Показать решётку': 'Show mesh',
   'Коллайдеры уровня': 'Level colliders',
   Зернистость: 'Film grain',
+  'Пыль в воздухе': 'Floating dust',
   Камера: 'Camera',
   Проекция: 'Projection',
   Перспективная: 'Perspective',

@@ -59,10 +59,41 @@ try {
   await nextFrames();
   assert.deepEqual(await sample(), grain, 'the checkbox restores the same reduced-motion grain');
   await page.screenshot({ path: 'artifacts/atmosphere-grain-on.png' });
+  await page.locator('#film-grain').uncheck();
+  assert.equal(await page.locator('#ambient-dust').isChecked(), true);
+  assert.equal(await page.evaluate(() => sceneRenderer.dustCount), 64);
+  assert.ok(await page.evaluate(() => [...sceneRenderer.dustData].every(Number.isFinite)));
+  const features = await page.evaluate(() => JSON.stringify(world.featureSnapshot())),
+    dustSample = () => page.screenshot({ clip: { x: 150, y: 160, width: 650, height: 450 } });
+  await nextFrames();
+  const dusty = await dustSample();
+  await page.locator('#ambient-dust').uncheck();
+  await nextFrames();
+  assert.equal(await page.evaluate(() => sceneRenderer.dust), false);
+  assert.notDeepEqual(await dustSample(), dusty, 'dust contributes visible pixels to the scene');
+  await page.locator('#ambient-dust').check();
+  await nextFrames();
+  assert.deepEqual(await dustSample(), dusty, 'reduced motion freezes the dust at a stable pose');
+  assert.equal(await page.evaluate(() => JSON.stringify(world.featureSnapshot())), features);
+  await page.evaluate(() => {
+    const render = sceneRenderer.render.bind(sceneRenderer);
+    sceneRenderer.render = (...args) => {
+      args[4] = 8;
+      return render(...args);
+    };
+  });
+  await nextFrames();
+  assert.notDeepEqual(
+    await dustSample(),
+    dusty,
+    'the particles drift as presentation time advances',
+  );
+  assert.equal(await page.evaluate(() => JSON.stringify(world.featureSnapshot())), features);
+  await page.screenshot({ path: 'artifacts/atmosphere-dust.png' });
   assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: perspective menu, developer film-grain toggle, rendered pixel changes, reduced-motion stability and no WebGPU errors.',
+    'PASS: perspective menu, grain and dust developer toggles, visible particles, smooth presentation-time drift, reduced-motion stability, unchanged gameplay state and no WebGPU errors.',
   );
 } finally {
   await browser.close();
