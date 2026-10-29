@@ -82,6 +82,27 @@ test('color group bindings roundtrip and survive removing one of the same-color 
   assert.equal(world.spikeState(world.spikes[0]).dangerous, true);
 });
 
+test('spectral bridge type and colour roundtrip through the editor and runtime', () => {
+  const model = new Model(L.blank());
+  model.change(() =>
+    model.paint('bridge', 4, 3, { voxel: true, y: 0, type: 'spectral', color: 3 }),
+  );
+  const map = L.read(JSON.stringify(model.map));
+  assert.equal(map.bridges[0].type, 'spectral');
+  assert.equal(map.bridges[0].color, 3);
+  const runtime = L.instantiate(map, Physics, Soft);
+  assert.equal(runtime.bridges[0].type, 'spectral');
+  assert.equal(runtime.bridges[0].color, 3);
+  const legacy = L.copy(map);
+  delete legacy.bridges[0].type;
+  delete legacy.bridges[0].color;
+  assert.deepEqual(
+    L.read(legacy).bridges[0],
+    { ...map.bridges[0], type: 'wood', color: 1 },
+    'old bridges migrate to wood',
+  );
+});
+
 test('spike control settings roundtrip, survive repaint and reject malformed values', () => {
   const model = new Model(L.blank());
   model.change(() => model.paint('spikes', 2, 2, { voxel: true, y: 0 }));

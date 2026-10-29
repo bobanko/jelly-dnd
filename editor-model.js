@@ -185,7 +185,11 @@ export class Model {
         color: options.color || existing?.color || 'red',
       });
     if (key === 'bridges')
-      Object.assign(p, { plate: existing?.plate || options.plate || this.map.plates[0]?.id || '' });
+      Object.assign(p, {
+        plate: existing?.plate || options.plate || this.map.plates[0]?.id || '',
+        type: options.type === 'spectral' ? 'spectral' : 'wood',
+        color: Number.isInteger(options.color) ? options.color : 1,
+      });
     if (key === 'lifts') Object.assign(p, { base: y, top: existing?.top ?? Math.min(12, y + 1) });
     if (key === 'spikes') p.offset = existing?.offset || 0;
     if (key === 'conveyors')
@@ -299,7 +303,12 @@ export class Model {
     if (key === 'walls') Object.assign(p, { half: 0.5, base: floor.height, height: 1.4 });
     if (key === 'plates') Object.assign(p, { id: this.id('plate'), color: options.color || 'red' });
     if (key === 'bridges')
-      Object.assign(p, { plate: options.plate || this.map.plates[0]?.id || '', y: floor.height });
+      Object.assign(p, {
+        plate: options.plate || this.map.plates[0]?.id || '',
+        y: floor.height,
+        type: options.type === 'spectral' ? 'spectral' : 'wood',
+        color: Number.isInteger(options.color) ? options.color : 1,
+      });
     if (key === 'lifts')
       Object.assign(p, { base: floor.height, top: Math.min(3, floor.height + 1) });
     if (key === 'spikes')

@@ -184,6 +184,8 @@ function box(
             a = size[u] > size[v] ? t : s,
             b = size[u] > size[v] ? s : t;
           uv = [seed * 0.72 + a * 0.2, 0.04 + b * 0.92];
+        } else if (material === 16) {
+          uv = [s, t];
         }
         const brightness = shade ? shade(axis, sign, s, t) : 1;
         verts.push([
@@ -760,6 +762,13 @@ const spikeTints = [
   [0.95, 0.045, 0.025],
   [0.63, 0.12, 0.88],
   [0.95, 0.6, 0.025],
+];
+const phaseTints = [
+  [0.08, 0.88, 0.12],
+  [0.025, 0.48, 1],
+  [1, 0.045, 0.015],
+  [0.64, 0.07, 1],
+  [1, 0.67, 0.025],
 ];
 const spikeTint = (trap) =>
   trap.color === undefined ? [0.58, 0.63, 0.68] : spikeTints[trap.color];
@@ -1779,6 +1788,7 @@ const shared = `
   color+=vec3f(1.8,1.9,1.6)*pow(max(0.,dot(n,normalize(v+l))),85.);
   if(o.material>6.5&&o.material<14.5){color=o.color*2.2+vec3f(.16)*fresnel;}
   if(o.material>14.5){color=o.color*(.55+.7*max(0.,dot(n,l)));}
+  if(o.material>15.5&&o.material<16.5){let edge=min(min(o.local.x,1.-o.local.x),min(o.local.z,1.-o.local.z));let rim=1.-smoothstep(.035,.16,edge);return vec4f(color*(.75+rim*1.8)+vec3f(.18,.32,.48)*rim,.14+rim*.44+fresnel*.08);}
   return vec4f(color,clamp(o.local.x,0.,1.));
  }
  `;
@@ -2608,13 +2618,6 @@ class Renderer {
       for (let k = from; k < source.length; k += 12) target.push(...center, blockIndex);
       blockIndex++;
     };
-    const blockTints = [
-      [0.08, 0.88, 0.12],
-      [0.025, 0.48, 1],
-      [1, 0.045, 0.015],
-      [0.64, 0.07, 1],
-      [1, 0.67, 0.025],
-    ];
     this.phaseFaces = [];
     // The void fog starts beneath the lowest walkable top of the map.
     this.fogBase = blocks.reduce(
@@ -2668,10 +2671,10 @@ class Renderer {
         continue;
       if (b.color !== undefined) {
         const from = phaseMesh.length;
-        phaseBlock(phaseMesh, this.phaseFaces, b, blockTints[b.color]);
+        phaseBlock(phaseMesh, this.phaseFaces, b, phaseTints[b.color]);
         const support = level.world.heightAt(b.x, b.z, b.y - 0.99);
         if (support !== null && Math.abs(support - (b.y - 1)) < 0.01)
-          phaseGroundGlow(phaseMesh, this.phaseFaces, b, blockTints[b.color]);
+          phaseGroundGlow(phaseMesh, this.phaseFaces, b, phaseTints[b.color]);
         recordBlock(phaseAssembly, phaseMesh, from, [b.x, b.y - 0.5, b.z]);
         continue;
       }
@@ -2758,62 +2761,86 @@ class Renderer {
     if (phaseData.length) this.device.queue.writeBuffer(this.phaseBuffer, 0, phaseData);
   }
   bridges(level) {
-    const mesh = [];
-    level.bridges.forEach((bridge) => {
-      const from = mesh.length;
-      const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
-        x = bridge.x,
-        z = bridge.z,
-        height = (bridge.y || 0) - (1 - progress) * 0.72;
-      // Two dark oak beams keep the full silhouette readable while the bridge rises.
-      for (const side of [-1, 1])
-        box(
-          mesh,
-          [x + side * 0.31, -0.13, z],
-          [0.13, 0.2, 0.96],
-          [0.18, 0.105, 0.045],
-          0.014,
-          11,
-          2,
-        );
-      // Separate crosswise boards retain fixed UV scale and never stretch during motion.
-      for (let n = 0; n < 5; n++) {
-        const boardZ = z + (n - 2) * 0.19,
-          warm = n % 2 ? 0.018 : 0;
-        box(
-          mesh,
-          [x, -0.035 + (n % 3) * 0.002, boardZ],
-          [0.92, 0.1, 0.18],
-          [0.42 + warm, 0.225 + warm, 0.08],
-          0.012,
-          11,
-          2,
-        );
+    const wood = [],
+      spectral = [];
+    level.bridges
+      .filter((bridge) => bridge.type !== 'spectral')
+      .forEach((bridge) => {
+        const mesh = wood;
+        const from = mesh.length;
+        const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
+          x = bridge.x,
+          z = bridge.z,
+          height = (bridge.y || 0) - (1 - progress) * 0.72;
+        // Two dark oak beams keep the full silhouette readable while the bridge rises.
         for (const side of [-1, 1])
-          if (n === 0 || n === 4)
-            box(
-              mesh,
-              [x + side * 0.37, 0.022, boardZ],
-              [0.07, 0.025, 0.055],
-              [0.31, 0.23, 0.14],
-              0.004,
-              12,
-              1,
-            );
-      }
-      // Iron end brackets visually lock the deck into the banks.
-      for (const end of [-1, 1])
+          box(
+            mesh,
+            [x + side * 0.31, -0.13, z],
+            [0.13, 0.2, 0.96],
+            [0.18, 0.105, 0.045],
+            0.014,
+            11,
+            2,
+          );
+        // Separate crosswise boards retain fixed UV scale and never stretch during motion.
+        for (let n = 0; n < 5; n++) {
+          const boardZ = z + (n - 2) * 0.19,
+            warm = n % 2 ? 0.018 : 0;
+          box(
+            mesh,
+            [x, -0.035 + (n % 3) * 0.002, boardZ],
+            [0.92, 0.1, 0.18],
+            [0.42 + warm, 0.225 + warm, 0.08],
+            0.012,
+            11,
+            2,
+          );
+          for (const side of [-1, 1])
+            if (n === 0 || n === 4)
+              box(
+                mesh,
+                [x + side * 0.37, 0.022, boardZ],
+                [0.07, 0.025, 0.055],
+                [0.31, 0.23, 0.14],
+                0.004,
+                12,
+                1,
+              );
+        }
+        // Iron end brackets visually lock the deck into the banks.
+        for (const end of [-1, 1])
+          box(
+            mesh,
+            [x, 0.008, z + end * 0.445],
+            [0.82, 0.035, 0.045],
+            [0.19, 0.16, 0.13],
+            0.006,
+            12,
+            1,
+          );
+        for (let k = from; k < mesh.length; k += 12) mesh[k + 1] += height;
+      });
+    level.bridges
+      .filter((bridge) => bridge.type === 'spectral')
+      .forEach((bridge) => {
+        const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
+          height = (bridge.y || 0) - (1 - progress) * 0.72,
+          tint = phaseTints[bridge.color ?? 1] || phaseTints[1];
         box(
-          mesh,
-          [x, 0.008, z + end * 0.445],
-          [0.82, 0.035, 0.045],
-          [0.19, 0.16, 0.13],
-          0.006,
-          12,
-          1,
+          spectral,
+          [bridge.x, height - 0.055, bridge.z],
+          [0.92, 0.11, 0.96],
+          tint.map((v) => v * 1.25),
+          0.025,
+          16,
+          3,
+          { crisp: true },
         );
-      for (let k = from; k < mesh.length; k += 12) mesh[k + 1] += height;
-    });
+      });
+    const opaqueCount = wood.length / 12,
+      mesh = wood.concat(spectral),
+      spectralCount = spectral.length / 12;
     if (mesh.length) {
       const data = new Float32Array(mesh);
       if (data.byteLength > this.bridgeBuffer.size) {
@@ -2825,7 +2852,7 @@ class Renderer {
       }
       this.device.queue.writeBuffer(this.bridgeBuffer, 0, data);
     }
-    return mesh.length / 12;
+    return { opaqueCount, spectralCount };
   }
   buildProps(level, players) {
     const pieces = [],
@@ -3525,9 +3552,27 @@ class Renderer {
     this.device.queue.writeBuffer(this.effectBuffer, 0, new Float32Array(mesh));
     return mesh.length / 12;
   }
-  updateRunes(system) {
-    const runes = system?.runes || [],
-      count = Math.min(32, runes.length),
+  updateRunes(system, level) {
+    const runes = [...(system?.runes || [])];
+    for (const bridge of level.bridges.filter((p) => p.type === 'spectral')) {
+      const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
+        height = (bridge.y || 0) - (1 - progress) * 0.72,
+        color = phaseTints[bridge.color ?? 1] || phaseTints[1];
+      for (let i = 0; i < 3; i++) {
+        const phase =
+          ((level.world.featureTime || 0) * 0.22 + i / 3 + bridge.x * 0.071 + bridge.z * 0.037) % 1;
+        runes.push({
+          position: [bridge.x + (i - 1) * 0.25, height + 0.18 + phase * 0.72, bridge.z],
+          size: 0.11 + phase * 0.035,
+          color,
+          glyph: ((bridge.color ?? 1) + i) % 4,
+          opacity: (0.24 + progress * 0.56) * Math.sin(phase * Math.PI),
+          phase: i,
+          spectral: true,
+        });
+      }
+    }
+    const count = Math.min(32, runes.length),
       data = this.runeData;
     for (let i = 0; i < count; i++) {
       const p = runes[i],
@@ -3535,7 +3580,9 @@ class Renderer {
         t = p.age / p.life,
         enter = Math.min(1, p.age / 0.18),
         end = Math.max(0, Math.min(1, (1 - t) / 0.4)),
-        opacity = enter * enter * (3 - 2 * enter) * end * end * (3 - 2 * end) * 0.8;
+        opacity = p.spectral
+          ? p.opacity
+          : enter * enter * (3 - 2 * enter) * end * end * (3 - 2 * end) * 0.8;
       data[k] = p.position[0];
       data[k + 1] = p.position[1];
       data[k + 2] = p.position[2];
@@ -3545,7 +3592,7 @@ class Renderer {
       data[k + 6] = p.color[2];
       data[k + 7] = opacity;
       data[k + 8] = p.glyph;
-      data[k + 9] = Math.sin(p.phase + p.age * 0.9) * 0.12;
+      data[k + 9] = Math.sin(p.phase + (p.age || 0) * 0.9) * 0.12;
       data[k + 10] = data[k + 11] = 0;
     }
     if (count) this.device.queue.writeBuffer(this.runeBuffer, 0, data.buffer, 0, count * 48);
@@ -3786,10 +3833,10 @@ class Renderer {
     );
     d.queue.writeBuffer(this.nodes, 0, nodes);
     const assembling = !!level.assembly,
-      bridgeCount = assembling ? 0 : this.bridges(level),
+      bridgeDraw = assembling ? { opaqueCount: 0, spectralCount: 0 } : this.bridges(level),
       propCount = assembling ? 0 : this.props(level, players, angle, time, dt),
       effectCount = this.effects(level.effects, view);
-    this.updateRunes(level.effects);
+    this.updateRunes(level.effects, level);
     this.updateBeams(level);
     const encoder = d.createCommandEncoder();
     const computePass = encoder.beginComputePass();
@@ -3813,10 +3860,10 @@ class Renderer {
     shadowPass.setVertexBuffer(0, this.staticBuffer);
     shadowPass.setVertexBuffer(1, this.assemblyBuffer);
     shadowPass.draw(this.stoneCount);
-    if (bridgeCount) {
+    if (bridgeDraw.opaqueCount) {
       shadowPass.setPipeline(this.shadow);
       shadowPass.setVertexBuffer(0, this.bridgeBuffer);
-      shadowPass.draw(bridgeCount);
+      shadowPass.draw(bridgeDraw.opaqueCount);
     }
     shadowPass.end();
     const opaque = encoder.beginRenderPass({
@@ -3847,9 +3894,9 @@ class Renderer {
     opaque.setPipeline(this.opaque);
     if (!assembling && this.staticCount > this.stoneCount)
       opaque.draw(this.staticCount - this.stoneCount, 1, this.stoneCount);
-    if (bridgeCount) {
+    if (bridgeDraw.opaqueCount) {
       opaque.setVertexBuffer(0, this.bridgeBuffer);
-      opaque.draw(bridgeCount);
+      opaque.draw(bridgeDraw.opaqueCount);
     }
     opaque.setVertexBuffer(0, this.propBuffer);
     opaque.draw(propCount);
@@ -3862,6 +3909,29 @@ class Renderer {
       opaque.draw(6, torchCount);
     }
     opaque.end();
+    if (bridgeDraw.spectralCount) {
+      const spectral = encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: this.msaa.createView(),
+            resolveTarget: this.hdr.createView(),
+            loadOp: 'load',
+            storeOp: 'store',
+          },
+        ],
+        depthStencilAttachment: {
+          view: this.depth.createView(),
+          depthLoadOp: 'load',
+          depthStoreOp: 'store',
+        },
+      });
+      spectral.setPipeline(this.effectPipeline);
+      spectral.setBindGroup(0, this.sceneGroup);
+      spectral.setBindGroup(1, this.skinGroups[0]);
+      spectral.setVertexBuffer(0, this.bridgeBuffer);
+      spectral.draw(bridgeDraw.spectralCount, 1, bridgeDraw.opaqueCount);
+      spectral.end();
+    }
     const order = players.flatMap((p, i) =>
       assembling || p.state === 'dead'
         ? []

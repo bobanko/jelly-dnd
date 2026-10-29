@@ -275,6 +275,14 @@ function read(input) {
   list('bridges', (p) => ({
     plate: typeof p.plate === 'string' ? p.plate : '',
     y: number(p.y, 0, -2, 12),
+    type: p.type === 'spectral' ? 'spectral' : 'wood',
+    color:
+      p.type === 'spectral' &&
+      Number.isInteger(p.color) &&
+      p.color >= 0 &&
+      p.color < characters.length
+        ? p.color
+        : 1,
   }));
   list('lifts', (p) => ({ base: number(p.base, 0, -2, 12), top: number(p.top, 1, -2, 12) }));
   list('spikes', (p) => {

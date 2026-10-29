@@ -94,6 +94,8 @@ Stand on the golden plate to raise the opposite bridge. Moss opens the route for
 
 Bridges are full oak decks assembled from separate crosswise boards, under-deck beams and iron end brackets. They remain visible below the gap while inactive, then rise vertically as one mechanism when a plate is held; no geometry or wood texture grows out of a bank. A critically damped spring smooths starts, stops and reversals in roughly one second. Floor support and the debug collider appear only when the deck is close enough to the surrounding floor to be safely walkable. Undo restores height and movement velocity, while reset lowers both bridges. Moving bridge meshes are separate from cached static dungeon geometry.
 
+The editor can switch a bridge between the classic wooden deck and a thin spectral slab in any jelly colour. Spectral bridges reuse the colour-block rule: a matching-colour jelly passes through, while other jellies and crates can cross. Their translucent rim remains visible as the complete deck rises, and three softly rotating rune symbols continuously drift upward above it.
+
 Pressure plates consist of a circular coloured button and its dark metal rim/socket, seated directly on their supporting surface without a separate square stone tile. The bevelled button depresses smoothly under a jelly or crate, then rises on release; colour is retained in both states. The surface reuses the bundled stone atlas with a coloured material. Rims and buttons are cached geometry, and button movement updates only its transform without rebuilding dungeon decorations. The colours are identifiers; any supported body can activate either plate.
 
 ## Lifts, hazards and portals

@@ -244,6 +244,7 @@ function selectTool(value) {
     button.setAttribute('aria-pressed', String(button.dataset.tool === tool));
   $('active-tool').textContent = tools[tool]?.label || 'Переместить';
   $('conveyor-brush').hidden = tool !== 'conveyor';
+  $('bridge-brush').hidden = tool !== 'bridge';
   $('spike-brush').hidden = tool !== 'spikes';
   $('torch-brush').hidden = tool !== 'torch';
   refreshHover();
@@ -377,6 +378,40 @@ beltSpeed.setAttribute('aria-label', 'Скорость конвейера');
 speedLabel.append(beltSpeed);
 conveyorBrush.append(speedLabel);
 document.querySelector('.viewport-toolbar').append(conveyorBrush);
+const bridgeBrush = element('div', undefined, 'conveyor-brush');
+bridgeBrush.id = 'bridge-brush';
+bridgeBrush.hidden = true;
+bridgeBrush.dataset.object = 'bridge-brush';
+const bridgeType = { value: 'wood' },
+  bridgeColor = { value: 1 };
+choiceRadios(
+  bridgeBrush,
+  'Тип моста',
+  bridgeType.value,
+  [
+    ['wood', 'Деревянный'],
+    ['spectral', 'Спектральный'],
+  ],
+  (v) => {
+    bridgeType.value = v;
+    refreshHover();
+    invalidate();
+  },
+  'bridge-type-brush',
+);
+colorRadios(
+  bridgeBrush,
+  'Цвет спектрального моста',
+  bridgeColor.value,
+  L.characters.map((c, i) => [i, c.name, c.color]),
+  (v) => {
+    bridgeColor.value = Number(v);
+    refreshHover();
+    invalidate();
+  },
+  'bridge-color-brush',
+);
+document.querySelector('.viewport-toolbar').append(bridgeBrush);
 const spikeColors = [
   ['', 'Нейтральный', '#d4dbe5'],
   ...L.characters.map((c, i) => [String(i), c.name, c.color]),
@@ -588,6 +623,24 @@ function colorRadios(
           ?.focus({ preventScroll: true });
     };
     label.append(input);
+    options.append(label);
+  }
+  group.append(options);
+  card.append(group);
+}
+function choiceRadios(card, title, value, choices, onChange, groupName) {
+  const group = element('fieldset', undefined, 'camera-settings'),
+    options = element('div', undefined, 'projection-options');
+  group.append(element('legend', title));
+  for (const [v, text] of choices) {
+    const label = element('label'),
+      input = element('input');
+    input.type = 'radio';
+    input.name = groupName;
+    input.value = v;
+    input.checked = v === value;
+    input.onchange = () => onChange(v);
+    label.append(input, element('span', text));
     options.append(label);
   }
   group.append(options);
@@ -807,7 +860,26 @@ function renderProperties() {
         ),
       );
     }
-    if (key === 'bridges')
+    if (key === 'bridges') {
+      choiceRadios(
+        card,
+        'Тип моста',
+        p.type || 'wood',
+        [
+          ['wood', 'Деревянный'],
+          ['spectral', 'Спектральный'],
+        ],
+        (v) => set('type', v),
+        'bridge-type-' + card.dataset.object,
+      );
+      colorRadios(
+        card,
+        'Цвет спектрального моста',
+        p.color ?? 1,
+        L.characters.map((c, i) => [i, c.name, c.color]),
+        (v) => set('color', Number(v)),
+        'bridge-color-' + card.dataset.object,
+      );
       field(
         card,
         'Группа кнопок',
@@ -815,6 +887,7 @@ function renderProperties() {
         { values: [['', 'Не выбрана'], ...plateGroupOptions()] },
         (v) => set('plate', v),
       );
+    }
     if (key === 'lifts') {
       field(card, 'Нижний уровень', p.base, { min: -2, max: 12 }, (v) =>
         edit((map) => {
@@ -1314,6 +1387,7 @@ function paintCell(p, activeTool) {
             color: spikeColor.value === '' ? null : Number(spikeColor.value),
           }
         : {}),
+      ...(activeTool === 'bridge' ? { type: bridgeType.value, color: bridgeColor.value } : {}),
     });
     previewDirty = true;
     pickBounds = null;

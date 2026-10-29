@@ -276,6 +276,7 @@ function install(World) {
         minY: height - 0.2,
         maxY: height,
         kind: 'bridge',
+        ...(bridge.type === 'spectral' ? { color: bridge.color ?? 1 } : {}),
       };
     },
     blockSolid(body, block) {
@@ -314,6 +315,7 @@ function install(World) {
           const bounds = this.bridgeBounds(i);
           if (
             bounds &&
+            this.blockSolid(body, bounds) &&
             Math.abs(x - bounds.x) <= bounds.halfX &&
             Math.abs(z - bounds.z) <= bounds.halfZ + 1e-8
           )
@@ -338,6 +340,7 @@ function install(World) {
       if (bridge >= 0) {
         const bounds = this.bridgeBounds(bridge);
         return bounds &&
+          this.blockSolid(body, bounds) &&
           Math.abs(x - bounds.x) <= bounds.halfX &&
           Math.abs(z - bounds.z) <= bounds.halfZ + 1e-8
           ? bounds.maxY

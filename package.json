@@ -34,6 +34,7 @@
     "test:menu:browser": "node tests/browser-menu.js",
     "test:atmosphere:browser": "node tests/browser-atmosphere.js",
     "test:assembly:browser": "node tests/browser-assembly.js",
+    "test:bridges:browser": "node tests/browser-bridges.js",
     "test:start-camera:browser": "node tests/browser-start-camera.js",
     "test:camera:browser": "node tests/browser-shared-camera.js",
     "test:layout:browser": "node tests/browser-960.js",
