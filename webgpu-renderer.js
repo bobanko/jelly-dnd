@@ -1365,6 +1365,19 @@ const shared = `
  @group(0) @binding(5) var oakTexture:texture_2d<f32>;
  @group(0) @binding(6) var materialSampler:sampler;
  ${runeGlyphShader}
+ fn assemblyPosition(p:vec3f,block:vec4f)->vec3f{
+  if(scene.finish.z>=1.){return p;}
+  let t=clamp((scene.finish.z-block.w*.6)/.4,0.,1.);let remaining=pow(1.-t,3.);
+  let right=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));let up=normalize(vec3f(scene.vp[0].y,scene.vp[1].y,scene.vp[2].y));
+  let seed=hash(block.xyz+vec3f(17,3,41));let side=u32(floor(seed*6.));var direction=right;
+  switch(side){case 0u:{direction=-right;}case 1u:{direction=right;}case 2u:{direction=up;}case 3u:{direction=-up;}case 4u:{direction=vec3f(0,1,0);}default:{direction=vec3f(0,-1,0);}}
+  let distance=max(12.,length(scene.eye.xyz-block.xyz)*1.25);
+  return block.xyz+(p-block.xyz)*mix(1.,.7,remaining)+direction*distance*remaining;
+ }
+ @vertex fn assemblyVS(@location(0) p:vec3f,@location(1) n:vec3f,@location(2) color:vec3f,@location(3) material:vec3f,@location(4) block:vec4f)->Out{
+  let position=assemblyPosition(p,block);var o:Out;o.clip=scene.vp*vec4f(position,1);o.world=position;o.normal=n;o.color=color;o.material=material.x;o.local=vec3f(material.y,0,material.z);return o;
+ }
+ @vertex fn assemblyShadowVS(@location(0) p:vec3f,@location(4) block:vec4f)->@builtin(position) vec4f{return scene.lightVP*vec4f(assemblyPosition(p,block),1);}
  @vertex fn solidVS(@location(0) p:vec3f,@location(1) n:vec3f,@location(2) color:vec3f,@location(3) material:vec3f)->Out{
   var position=p;
   if(material.x>3.5&&material.x<4.5){
@@ -2034,17 +2047,39 @@ class Renderer {
         multisample: { count: samples },
       });
     this.opaque = pipeline('solidVS', 'solidFS');
-    this.stonePipeline = pipeline('solidVS', 'stoneFS');
+    const assemblyBuffers = [
+      ...vertexBuffers,
+      { arrayStride: 16, attributes: [{ shaderLocation: 4, offset: 0, format: 'float32x4' }] },
+    ];
+    this.stonePipeline = pipeline(
+      'assemblyVS',
+      'stoneFS',
+      'back',
+      4,
+      'less',
+      true,
+      undefined,
+      assemblyBuffers,
+    );
     this.skin = pipeline('softVS', 'skinFS');
     this.back = pipeline('softVS', 'backFS', 'front', 1, 'greater');
     this.effectPipeline = pipeline('solidVS', 'effectFS', 'back', 4, 'less', false, {
       color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
     });
-    this.phasePipeline = pipeline('solidVS', 'phaseFS', 'back', 4, 'less', false, {
-      color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-      alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-    });
+    this.phasePipeline = pipeline(
+      'assemblyVS',
+      'phaseFS',
+      'back',
+      4,
+      'less',
+      false,
+      {
+        color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+        alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      },
+      assemblyBuffers,
+    );
     const crystalBlend = {
       color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
@@ -2178,6 +2213,12 @@ class Renderer {
     this.shadow = d.createRenderPipeline({
       layout: d.createPipelineLayout({ bindGroupLayouts: [this.sceneLayout] }),
       vertex: { module: main, entryPoint: 'shadowVS', buffers: vertexBuffers },
+      primitive: { topology: 'triangle-list', cullMode: 'back' },
+      depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' },
+    });
+    this.assemblyShadow = d.createRenderPipeline({
+      layout: d.createPipelineLayout({ bindGroupLayouts: [this.sceneLayout] }),
+      vertex: { module: main, entryPoint: 'assemblyShadowVS', buffers: assemblyBuffers },
       primitive: { topology: 'triangle-list', cullMode: 'back' },
       depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' },
     });
@@ -2514,6 +2555,8 @@ class Renderer {
     this.buildDust(level.world);
     const mesh = [],
       phaseMesh = [],
+      assembly = [],
+      phaseAssembly = [],
       blocks = (level.world.blocks || []).filter(
         (b) =>
           !level.bridges.some((p) => p.x === b.x && p.z === b.z && p.y === b.y) &&
@@ -2522,6 +2565,11 @@ class Renderer {
       occupied = new Set(
         blocks.filter((b) => b.color === undefined).map((b) => [b.x, b.y, b.z].join(',')),
       );
+    let blockIndex = 0;
+    const recordBlock = (target, source, from, center) => {
+      for (let k = from; k < source.length; k += 12) target.push(...center, blockIndex);
+      blockIndex++;
+    };
     const blockTints = [
       [0.08, 0.88, 0.12],
       [0.025, 0.48, 1],
@@ -2581,12 +2629,15 @@ class Renderer {
       )
         continue;
       if (b.color !== undefined) {
+        const from = phaseMesh.length;
         phaseBlock(phaseMesh, this.phaseFaces, b, blockTints[b.color]);
         const support = level.world.heightAt(b.x, b.z, b.y - 0.99);
         if (support !== null && Math.abs(support - (b.y - 1)) < 0.01)
           phaseGroundGlow(phaseMesh, this.phaseFaces, b, blockTints[b.color]);
+        recordBlock(phaseAssembly, phaseMesh, from, [b.x, b.y - 0.5, b.z]);
         continue;
       }
+      const from = mesh.length;
       const n = ((((b.x * 73 + b.y * 31 + b.z * 137) % 19) + 19) % 19) / 19,
         color =
           b.y > 0
@@ -2597,10 +2648,12 @@ class Renderer {
         shade: occlusion(b),
         detail: mossAt,
       });
+      recordBlock(assembly, mesh, from, [b.x, b.y - 0.5, b.z]);
     }
     for (const key of level.floor) {
       const [x, z] = key.split(',').map(Number);
       if (level.bridges.some((b) => b.x === x && b.z === z)) continue;
+      const from = mesh.length;
       const height = 0;
       const noise = ((x * 73 + z * 137) % 19) / 19,
         color = [0.265 + noise * 0.04, 0.225 + noise * 0.035, 0.18 + noise * 0.03];
@@ -2615,8 +2668,10 @@ class Renderer {
           box(mesh, [x, y + span * 0.5, z], [0.97, span, 0.97], color, 0.045);
         }
       }
+      recordBlock(assembly, mesh, from, [x, height - 0.36, z]);
     }
-    for (const o of level.world.collisionBoxes().filter((o) => o.kind === 'wall'))
+    for (const o of level.world.collisionBoxes().filter((o) => o.kind === 'wall')) {
+      const from = mesh.length;
       box(
         mesh,
         [o.x, (o.minY + o.maxY) * 0.5, o.z],
@@ -2624,6 +2679,20 @@ class Renderer {
         o.half > 0.4 ? [0.12, 0.145, 0.18] : [0.105, 0.12, 0.115],
         0.045,
       );
+      recordBlock(assembly, mesh, from, [o.x, (o.minY + o.maxY) * 0.5, o.z]);
+    }
+    for (const [key, values] of [
+      ['assemblyBuffer', assembly],
+      ['phaseAssemblyBuffer', phaseAssembly],
+    ]) {
+      for (let i = 3; i < values.length; i += 4) values[i] /= Math.max(1, blockIndex - 1);
+      this[key]?.destroy();
+      this[key] = this.buffer(
+        new Float32Array(values.length ? values : [0, 0, 0, 0]),
+        GPUBufferUsage.VERTEX,
+      );
+    }
+    this.assemblyBlockCount = blockIndex;
     // Masonry comes first and uses the stone pipeline; decor follows in the same buffer.
     const decor = [];
     scatterDecor(decor, level, occupied);
@@ -3503,6 +3572,7 @@ class Renderer {
       pass.setVertexBuffer(0, this.dustBuffer);
       pass.draw(6, this.dustCount);
     }
+    if (level.assembly) return;
     if (effectCount) {
       pass.setPipeline(this.effectPipeline);
       pass.setVertexBuffer(0, this.effectBuffer);
@@ -3601,6 +3671,7 @@ class Renderer {
     uniforms.set([-2, 12, 9, 1], 36);
     uniforms[FINISH_OFFSET] = Math.max(0, Math.min(1, level.finishProgress || 0));
     uniforms[FINISH_OFFSET + 1] = this.fogBase ?? 0;
+    uniforms[FINISH_OFFSET + 2] = level.assembly?.progress ?? 1;
     (level.world.torches || [])
       .slice(0, 8)
       .forEach((p, i) => uniforms.set([...Levels.torchFrame(p).light, 1], TORCHES_OFFSET + i * 4));
@@ -3610,7 +3681,9 @@ class Renderer {
           p.x,
           (p.y || 0) + 0.42,
           p.z,
-          p.state === 'dead' ? 0 : 4 + (level.world.heightAt(p.x, p.z, (p.y || 0) + 0.2, p) || 0),
+          level.assembly || p.state === 'dead'
+            ? 0
+            : 4 + (level.world.heightAt(p.x, p.z, (p.y || 0) + 0.2, p) || 0),
         ],
         i === 4 ? BODY4_OFFSET : i === 3 ? BODY3_OFFSET : 40 + i * 4,
       ),
@@ -3668,8 +3741,9 @@ class Renderer {
         ),
     );
     d.queue.writeBuffer(this.nodes, 0, nodes);
-    const bridgeCount = this.bridges(level),
-      propCount = this.props(level, players, angle, time, dt),
+    const assembling = !!level.assembly,
+      bridgeCount = assembling ? 0 : this.bridges(level),
+      propCount = assembling ? 0 : this.props(level, players, angle, time, dt),
       effectCount = this.effects(level.effects, view);
     this.updateRunes(level.effects);
     this.updateBeams(level);
@@ -3690,11 +3764,13 @@ class Renderer {
     });
     // Only masonry casts shadows: tiny decor shadows are invisible, and half-buried pebbles
     // made this depth-only pass about 6 ms slower on an integrated Radeon.
-    shadowPass.setPipeline(this.shadow);
+    shadowPass.setPipeline(this.assemblyShadow);
     shadowPass.setBindGroup(0, this.shadowGroup);
     shadowPass.setVertexBuffer(0, this.staticBuffer);
+    shadowPass.setVertexBuffer(1, this.assemblyBuffer);
     shadowPass.draw(this.stoneCount);
     if (bridgeCount) {
+      shadowPass.setPipeline(this.shadow);
       shadowPass.setVertexBuffer(0, this.bridgeBuffer);
       shadowPass.draw(bridgeCount);
     }
@@ -3721,10 +3797,11 @@ class Renderer {
     opaque.setVertexBuffer(0, this.staticBuffer);
     if (this.stoneCount) {
       opaque.setPipeline(this.stonePipeline);
+      opaque.setVertexBuffer(1, this.assemblyBuffer);
       opaque.draw(this.stoneCount);
     }
     opaque.setPipeline(this.opaque);
-    if (this.staticCount > this.stoneCount)
+    if (!assembling && this.staticCount > this.stoneCount)
       opaque.draw(this.staticCount - this.stoneCount, 1, this.stoneCount);
     if (bridgeCount) {
       opaque.setVertexBuffer(0, this.bridgeBuffer);
@@ -3733,8 +3810,8 @@ class Renderer {
     opaque.setVertexBuffer(0, this.propBuffer);
     opaque.draw(propCount);
     opaque.setVertexBuffer(0, this.decorationBuffer);
-    opaque.draw(this.decorationCount);
-    const torchCount = Math.min(8, (level.world.torches || []).length);
+    if (!assembling) opaque.draw(this.decorationCount);
+    const torchCount = assembling ? 0 : Math.min(8, (level.world.torches || []).length);
     if (torchCount) {
       opaque.setPipeline(this.flamePipeline);
       opaque.setVertexBuffer(0, this.portalHaloBuffer);
@@ -3742,9 +3819,11 @@ class Renderer {
     }
     opaque.end();
     const order = players.flatMap((p, i) =>
-      p.state === 'dead' ? [] : [{ kind: 'jelly', i, center: [p.x, (p.y || 0) + 0.42, p.z] }],
+      assembling || p.state === 'dead'
+        ? []
+        : [{ kind: 'jelly', i, center: [p.x, (p.y || 0) + 0.42, p.z] }],
     );
-    order.push(...this.crystalPieces);
+    if (!assembling) order.push(...this.crystalPieces);
     for (const face of this.phaseFaces)
       if (
         dot(
@@ -3791,6 +3870,7 @@ class Renderer {
         glass.setBindGroup(0, this.sceneGroup);
         glass.setBindGroup(1, this.skinGroups[0]);
         glass.setVertexBuffer(0, this.phaseBuffer);
+        glass.setVertexBuffer(1, this.phaseAssemblyBuffer);
         do {
           const face = order[layer];
           glass.draw(face.count, 1, face.first);

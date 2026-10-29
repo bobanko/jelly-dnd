@@ -53,6 +53,8 @@ Run npm start (or node server.js), then open http://localhost:3000 in Chrome or 
 
 If the browser has no WebGPU adapter, an explanation appears instead of a blank scene. A lost GPU device also shows the fallback card. There is no silent return to the old 2D renderer.
 
+Each level opens with a two-second assembly: stone and coloured blocks arrive in sequence from the screen edges, above and below, with low arrivals emerging through the void fog. The GPU moves blocks and their shadows without changing physics geometry. Characters, mechanisms and decor appear once assembly finishes; hazards and the run timer remain paused until then. A movement key skips assembly, and reduced-motion settings show the completed level immediately. Restart does not replay the animation. `npm run test:assembly:browser` checks the construction frames, coloured blocks, pause, skip and reduced-motion paths on WebGPU.
+
 ## Level editor
 
 Open http://localhost:3000/editor.html or use the Editor link in the game header. The editor opens the first campaign map on first use and restores the most recent draft on subsequent visits. Choose a campaign map in the level panel and click ???????? ?????? to edit it; export preserves its filename. It uses WYSIWYG 3D with the game's WebGPU renderer, meshes, materials and colliders. Place, select, move and delete objects directly in the scene. The editor has no 2D mode or view switch. If WebGPU is unavailable, a message explains the problem; map properties, coordinates and import/export remain accessible.

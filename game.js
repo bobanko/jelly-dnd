@@ -44,6 +44,7 @@ let W,
   audioOn = readAudioPreference(),
   audio;
 const WIN_HOLD_SECONDS = 1;
+const LEVEL_ASSEMBLY_SECONDS = 2;
 const N = 12,
   colors = JellyLevels.characters.map((p) => p.color),
   names = JellyLevels.characters.map((p) => p.name);
@@ -316,6 +317,7 @@ function reset() {
   mechanismSounds.reset(world, bodies);
   soft.reset();
   effects.clear();
+  level.assembly = null;
   sceneRenderer.bridgeKey = undefined;
   accumulator = 0;
   players.forEach((p) =>
@@ -393,6 +395,7 @@ function inputs() {
 function simulate(dt, elapsed = dt) {
   const active = !(
     loadingActive ||
+    level.assembly ||
     menuOpen ||
     restartTransition ||
     won ||
@@ -543,6 +546,7 @@ addEventListener('keydown', (e) => {
     e.preventDefault();
     if (won || e.repeat || heldKeys.has(k) || !JellyPhysics.alive(players[movementKeys[k][0]]))
       return;
+    level.assembly = null;
     focusPlayer(movementKeys[k][0]);
     if (!heldKeys.size) {
       history.push(snapshot());
@@ -637,7 +641,7 @@ function createPlayerHints() {
 }
 function updatePlayerHints(dt) {
   if (!playerHints.length) return;
-  const inactive = menuOpen || won || loadingActive || restartTransition;
+  const inactive = menuOpen || won || loadingActive || restartTransition || level.assembly;
   const boxes = [];
   playerHints.forEach((hint, i) => {
     const p = players[i],
@@ -671,6 +675,7 @@ function frame(t) {
     fpsFrames = 0;
   }
   updateRestart(dt);
+  updateLevelAssembly(dt);
   if (cameraIntro) updateCameraIntro(dt);
   else
     angle = reducedMotion ? targetAngle : angle + (targetAngle - angle) * (1 - Math.exp(-dt * 11));
@@ -706,6 +711,7 @@ function frame(t) {
   requestAnimationFrame(frame);
 }
 function startCameraIntro() {
+  level.assembly = !menuOnly && !reducedMotion ? { progress: 0 } : null;
   if (menuOnly) return;
   targetAngle = LevelCamera.angle(definition);
   targetPitch = camera.pitch = LevelCamera.settings(definition).pitch;
@@ -716,6 +722,11 @@ function startCameraIntro() {
   }
   angle = targetAngle + Math.PI / 4;
   cameraIntro = { elapsed: 0, overview: 1 };
+}
+function updateLevelAssembly(dt) {
+  if (!level.assembly || loadingActive || menuOpen || document.hidden) return;
+  level.assembly.progress = Math.min(1, level.assembly.progress + dt / LEVEL_ASSEMBLY_SECONDS);
+  if (level.assembly.progress === 1) level.assembly = null;
 }
 function updateCameraIntro(dt) {
   if (!cameraIntro || loadingActive || menuOpen || document.hidden) return;
@@ -932,7 +943,7 @@ canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
     return;
   }
-  if (e.button !== 0) return;
+  if (e.button !== 0 || level.assembly) return;
   let closest = null,
     distance = Infinity;
   players.forEach((p, i) => {

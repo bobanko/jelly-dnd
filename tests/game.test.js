@@ -108,7 +108,7 @@ async function game(options = {}) {
   await entry.evaluate();
   if (!options.intro)
     entry.namespace.evaluateTest(
-      'cameraIntro=null;angle=targetAngle=LevelCamera.angle(definition);updateGameCamera(0,true)',
+      'cameraIntro=null;level.assembly=null;angle=targetAngle=LevelCamera.angle(definition);updateGameCamera(0,true)',
     );
   const codeFor = (key) =>
     ({
@@ -868,6 +868,39 @@ test('reduced motion starts straight without the opening orbit', async () => {
   assert.equal(g.run('cameraIntro'), null);
   assert.equal(g.run('angle'), -Math.PI / 4);
   assert.equal(g.run('targetAngle'), -Math.PI / 4);
+  assert.equal(g.run('level.assembly'), null);
+});
+
+test('level assembly pauses gameplay clocks and hazards until complete and pauses with the menu', async () => {
+  const g = await game({ map: defaultViewLevel(), intro: true });
+  const before = g.run('JSON.stringify({players,features:world.featureSnapshot()})');
+  assert.equal(g.run('level.assembly.progress'), 0);
+  g.run('simulate(.05);loadingActive=true;updateLevelAssembly(.5)');
+  assert.equal(g.run('level.assembly.progress'), 0);
+  g.run('loadingActive=false;updateLevelAssembly(.5);simulate(.05)');
+  assert.equal(g.run('level.assembly.progress'), 0.25);
+  assert.equal(g.run('runSeconds'), 0);
+  assert.equal(g.run('JSON.stringify({players,features:world.featureSnapshot()})'), before);
+  g.run('menuOpen=true;updateLevelAssembly(.5);menuOpen=false');
+  assert.equal(g.run('level.assembly.progress'), 0.25);
+  g.run('document.hidden=true;updateLevelAssembly(.5);document.hidden=false');
+  assert.equal(g.run('level.assembly.progress'), 0.25);
+  g.run('updateLevelAssembly(1.5)');
+  assert.equal(g.run('level.assembly'), null);
+  g.run('simulate(.05)');
+  assert.ok(g.run('runSeconds') > 0);
+});
+
+test('movement skips level assembly and restart does not replay it', async () => {
+  const g = await game({ map: defaultViewLevel(), intro: true });
+  g.key('w');
+  assert.equal(g.run('level.assembly'), null);
+  g.run('simulate(.05)');
+  assert.ok(g.run('runSeconds') > 0);
+  g.run('startCameraIntro();reset()');
+  assert.equal(g.run('level.assembly'), null);
+  const menu = await game({ menuOnly: true });
+  assert.equal(menu.run('level.assembly'), null);
 });
 
 test('authored starting view sets gameplay pitch and the destination of the opening orbit', async () => {
