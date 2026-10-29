@@ -689,7 +689,7 @@ class System {
         omega = mul(omega, Math.exp(-dt * 12));
         const face = nearestMovementFace(b.r, b.driveDirection || { x: 0, z: 0 });
         if (face) {
-          const targetOmega = Math.max(-2.8, Math.min(2.8, face.angle * 7));
+          const targetOmega = Math.max(-5.6, Math.min(5.6, face.angle * 14));
           omega[1] += (targetOmega - omega[1]) * (1 - Math.exp(-dt * 10));
         }
       }

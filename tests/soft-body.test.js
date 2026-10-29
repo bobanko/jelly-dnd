@@ -163,7 +163,7 @@ test('internal damping preserves rigid translation in free fall', () => {
   assert.ok(Math.abs(g.players[0].vz - 0.4) < 1e-6);
   assert.ok(g.players[0].vy < 0);
 });
-test('movement gently turns the nearest face toward its travel direction', () => {
+test('movement quickly turns the nearest face toward its travel direction', () => {
   const g = setup(),
     b = g.soft.get(g.players[0]),
     angle = Math.PI / 3,
@@ -177,7 +177,7 @@ test('movement gently turns the nearest face toward its travel direction', () =>
   });
   b.orientation();
   const initialError = Math.abs(Soft.nearestMovementFace(b.r, { x: 1, z: 0 }).angle);
-  g.step([{ x: 1, z: 0 }], 120);
+  g.step([{ x: 1, z: 0 }], 75);
   b.orientation();
   const finalError = Math.abs(Soft.nearestMovementFace(b.r, { x: 1, z: 0 }).angle);
   assert.ok(initialError > 0.5, `initial heading error ${initialError}`);
