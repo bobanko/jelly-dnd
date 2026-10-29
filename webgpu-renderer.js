@@ -798,7 +798,15 @@ function spikeSocket(mesh, x, z, tint) {
           vertices[2].map((v, k) => v - vertices[0][k]),
         ),
       );
-      for (const i of [0, 1, 2, 0, 2, 3]) mesh.push(...vertices[i], ...n, ...color, 24, 0, 0);
+      for (const i of [0, 1, 2, 0, 2, 3])
+        mesh.push(
+          ...vertices[i],
+          ...n,
+          ...color,
+          28,
+          (side + (i >= 2 ? 1 : 0)) / 4,
+          (band + (i === 1 || i === 2 ? 1 : 0)) / (profile.length - 1),
+        );
     }
   }
   box(mesh, [x, 0.004, z], [0.16, 0.006, 0.16], [0.008, 0.01, 0.012], 0.002, 13, 1);
@@ -823,7 +831,12 @@ function spike(mesh, x, y, z, tint) {
         ),
       ),
       color = tint.map((c) => c * (i % 2 ? 1 : 0.82));
-    for (const v of [p, top, q]) mesh.push(...v, ...n, ...color, 1, 0, 0);
+    for (const [v, u, height] of [
+      [p, 0, 0],
+      [top, 0.5, 1],
+      [q, 1, 0],
+    ])
+      mesh.push(...v, ...n, ...color, 27, u, height);
   }
 }
 function portalRing(mesh, x, y, z, color) {
@@ -1657,8 +1670,26 @@ const shared = `
  }
  @fragment fn solidFS(o:Out)->@location(0) vec4f{
   let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);let h=normalize(v+l);
-  var color=o.color;
+  var color=o.color;var metalWear=0.;
   let uv=o.local.xz;let dx=dpdx(uv);let dy=dpdy(uv);
+  let spikeMetal=o.material>26.5&&o.material<28.5;
+  if(spikeMetal){
+   // Face-local UVs keep pitting and tool marks attached while spikes slide or mount on walls.
+   let socket=o.material>27.5;let texScale=vec2f(select(.83,2.7,socket),.87);let texUV=vec2f(.51,.26)+fract(uv*texScale)*.22;
+   let texel=textureSampleGrad(stoneAtlas,materialSampler,texUV,dx*texScale*.22,dy*texScale*.22).rgb;
+   let relief=clamp(dot(texel,vec3f(.25,.6,.15))*3.6,0.,1.);
+   let edge=min(uv.x-uv.y*.5,1.-uv.y*.5-uv.x);
+   let bladeWear=max(1.-smoothstep(.008,.055,edge),smoothstep(.65,.98,uv.y)*.8);
+   let socketWear=1.-smoothstep(.025,.09,abs(uv.y-.5));
+   metalWear=select(bladeWear,socketWear,socket);
+   let root=select(1.-smoothstep(.05,.6,uv.y),smoothstep(.6,.95,uv.y),socket);
+   let patina=(1.-smoothstep(.18,.48,relief))*root;
+   let footprint=max(length(dx),length(dy));
+   let grooves=pow(.5+.5*sin(uv.x*310.+sin(uv.y*18.)*2.),18.)*(1.-smoothstep(.006,.035,footprint));
+   color=o.color*(.54+relief*.4)*(1.-grooves*.18);
+   color=mix(color,vec3f(.14,.075,.032),patina*.42);
+   color=mix(color,o.color*.55+vec3f(.2,.21,.19),metalWear*.5);
+  }
   if(o.material<.5||(o.material>16.5&&o.material<17.5)){
    let texel=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;color*=mix(vec3f(clamp(dot(texel,vec3f(.25,.6,.15))*3.6,.38,1.22)),texel*3.6,.2);
   }
@@ -1685,7 +1716,10 @@ const shared = `
   if(o.material>3.5&&o.material<4.5){result=color*(1.4+sin(scene.options.z*4.)*.08);}
   if(o.material>11.5&&o.material<12.5){result+=vec3f(.56,.4,.21)*pow(max(0.,dot(n,h)),45.);}
   if(o.material>13.5&&o.material<14.5){result+=color*.12+vec3f(.18)*pow(max(0.,dot(n,h)),80.);}
-  if(o.material>23.5&&o.material<24.5){result+=color*.3+vec3f(.25)*pow(max(0.,dot(n,h)),65.);}
+  if(spikeMetal){
+   let reflected=environment(reflect(-v,n));let gloss=pow(max(0.,dot(n,h)),mix(32.,85.,metalWear));
+   result+=reflected*mix(.045,.12,metalWear)+vec3f(.36,.33,.27)*gloss*lit.sun;
+  }
   if(o.material>4.5&&o.material<5.5){let portal=scene.portals[u32(o.local.x)];let activation=portal.animation.x;let charge=portal.position.w;let delta=o.world.xz-portal.position.xz;let radius=length(delta);let swirl=.5+.5*sin(atan2(delta.y,delta.x)*3.-radius*35.+portal.animation.y);let tint=mix(mix(vec3f(.19,.21,.24),color,.16),color,activation);result=(tint*(.55+swirl*mix(.35,1.8,activation))+vec3f(.06)*exp(-radius*12.))*mix(.7,.55+charge*1.9,activation);}
   if(o.material>7.5&&o.material<8.5){let portal=scene.portals[u32(o.local.x)];result=mix(mix(vec3f(.16,.18,.2),color,.12),color*(.65+portal.position.w*2.8),portal.animation.x);}
   if(o.material>9.5&&o.material<10.5){let goal=scene.goals[u32(o.local.x)];let charge=goal.position.w;
