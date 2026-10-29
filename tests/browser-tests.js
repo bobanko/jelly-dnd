@@ -39,7 +39,7 @@ import fs from 'node:fs';
       0,
     );
     // Both projections share follow/picking geometry; pitch and FOV are real camera controls.
-    await page.locator('.jelly-settings summary').click();
+    await page.keyboard.press('Backquote');
     assert.equal(await page.locator('#camera-mode input:checked').inputValue(), 'perspective');
     assert.equal(await page.locator('.camera-settings legend').textContent(), 'Камера');
     assert.equal(
@@ -112,7 +112,7 @@ import fs from 'node:fs';
       el.value = '45';
       el.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await page.locator('.jelly-settings summary').click();
+    await page.keyboard.press('Backquote');
     await page.locator('#sound svg').click();
     assert.equal(await page.locator('#sound').getAttribute('aria-pressed'), 'true');
     await page.locator('#sound svg').click();
@@ -385,13 +385,13 @@ import fs from 'node:fs';
     );
     await page.waitForTimeout(180);
     await page.screenshot({ path: 'artifacts/portal-reactivated.png' });
-    await page.locator('.jelly-settings summary').click();
+    await page.keyboard.press('Backquote');
     await page.locator('#colliders').check();
     assert.equal(await page.evaluate(() => sceneRenderer.colliders), true);
     await page.waitForTimeout(120);
     await page.screenshot({ path: 'artifacts/level-colliders.png' });
     await page.locator('#colliders').uncheck();
-    await page.locator('.jelly-settings summary').click();
+    await page.keyboard.press('Backquote');
     // The third refraction layer and physical red-player keys work independently.
     await page.evaluate(() => reset());
     await page.keyboard.press('Digit3');
@@ -661,7 +661,7 @@ import fs from 'node:fs';
     await page.waitForTimeout(200);
     await page.screenshot({ path: 'artifacts/mobile-webgpu.png' });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    await page.locator('.jelly-settings summary').click();
+    await page.keyboard.press('Backquote');
     await page.screenshot({ path: 'artifacts/mobile-camera-settings.png' });
     assert.ok(
       await page.evaluate(() => {

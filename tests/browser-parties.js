@@ -111,11 +111,11 @@ import fs from 'node:fs';
           before,
         ),
       );
-      await page.locator('.jelly-settings summary').click();
+      await page.keyboard.press('Backquote');
       await page.locator('#mesh').check();
       await page.waitForTimeout(70);
       await page.locator('#mesh').uncheck();
-      await page.locator('.jelly-settings summary').click();
+      await page.keyboard.press('Backquote');
       if (slots.length === 4) {
         await page.evaluate(() => {
           camera.x = 3.5;

@@ -342,6 +342,16 @@ test('shortcuts follow physical positions and movement ignores repeat and modifi
   assert.equal(g.run('heldKeys.size'), 0);
 });
 
+test('tilde toggles the complete developer settings panel without a collapsed state', async () => {
+  const g = await game();
+  g.run('document.querySelector(".jelly-settings").hidden=true');
+  g.key('`', 'Backquote');
+  assert.equal(g.run('document.querySelector(".jelly-settings").hidden'), false);
+  assert.equal(g.run('"open" in document.querySelector(".jelly-settings")'), false);
+  g.key('`', 'Backquote');
+  assert.equal(g.run('document.querySelector(".jelly-settings").hidden'), true);
+});
+
 test('red jelly uses physical IJKL positions on either keyboard layout with shared camera', async () => {
   for (const [key, code, axis, sign] of [
     ['ш', 'KeyI', 'z', -1],

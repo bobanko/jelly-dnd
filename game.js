@@ -509,7 +509,6 @@ addEventListener('keydown', (e) => {
     if (e.repeat) return;
     const panel = document.querySelector('.jelly-settings');
     panel.hidden = !panel.hidden;
-    panel.open = !panel.hidden;
     if (panel.hidden && panel.contains?.(document.activeElement))
       document.querySelector('#menu-button').focus?.({ preventScroll: true });
     return;
