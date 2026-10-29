@@ -2764,7 +2764,7 @@ class Renderer {
     const wood = [],
       spectral = [];
     level.bridges
-      .filter((bridge) => bridge.type !== 'spectral')
+      .filter((bridge) => bridge.color === undefined)
       .forEach((bridge) => {
         const mesh = wood;
         const from = mesh.length;
@@ -2822,7 +2822,7 @@ class Renderer {
         for (let k = from; k < mesh.length; k += 12) mesh[k + 1] += height;
       });
     level.bridges
-      .filter((bridge) => bridge.type === 'spectral')
+      .filter((bridge) => bridge.color !== undefined)
       .forEach((bridge) => {
         const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
           height = (bridge.y || 0) - (1 - progress) * 0.72,
@@ -3554,7 +3554,7 @@ class Renderer {
   }
   updateRunes(system, level) {
     const runes = [...(system?.runes || [])];
-    for (const bridge of level.bridges.filter((p) => p.type === 'spectral')) {
+    for (const bridge of level.bridges.filter((p) => p.color !== undefined)) {
       const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
         height = (bridge.y || 0) - (1 - progress) * 0.72,
         color = phaseTints[bridge.color ?? 1] || phaseTints[1];

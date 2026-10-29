@@ -12,8 +12,8 @@ map.spawns = [{ x: 1, y: 0, z: 1 }, { x: 2, y: 0, z: 1 }, null, null, null];
 map.goals = [{ x: 6, y: 0, z: 6 }, { x: 5, y: 0, z: 6 }, null, null, null];
 map.plates = [{ id: 'bridge-test', color: 'blue', x: 1, y: 0, z: 1 }];
 map.bridges = [
-  { x: 4, y: 0, z: 3, plate: 'bridge-test', type: 'spectral', color: 1 },
-  { x: 3, y: 0, z: 3, plate: 'bridge-test', type: 'wood', color: 1 },
+  { x: 4, y: 0, z: 3, plate: 'bridge-test', color: 1 },
+  { x: 3, y: 0, z: 3, plate: 'bridge-test' },
 ];
 const browser = await chromium.launch({
   headless: true,

@@ -577,7 +577,7 @@ test('bridge motion is independent of step size and mid-motion snapshots preserv
 
 test('spectral bridge supports every jelly except its matching colour', () => {
   const g = scene();
-  g.world.bridges.push({ x: 6, z: 6, y: 0, type: 'spectral', color: 1, progress: 1 });
+  g.world.bridges.push({ x: 6, z: 6, y: 0, color: 1, progress: 1 });
   assert.equal(g.world.heightAt(6, 6, 0.2, { slot: 0 }), 0);
   assert.equal(g.world.heightAt(6, 6, 0.2, { slot: 1 }), null);
   assert.equal(g.world.heightAt(6, 6, 0.2, { kind: 'crate' }), 0);

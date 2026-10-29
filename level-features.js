@@ -276,7 +276,7 @@ function install(World) {
         minY: height - 0.2,
         maxY: height,
         kind: 'bridge',
-        ...(bridge.type === 'spectral' ? { color: bridge.color ?? 1 } : {}),
+        ...(bridge.color === undefined ? {} : { color: bridge.color }),
       };
     },
     blockSolid(body, block) {

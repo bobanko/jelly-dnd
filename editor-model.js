@@ -187,8 +187,11 @@ export class Model {
     if (key === 'bridges')
       Object.assign(p, {
         plate: existing?.plate || options.plate || this.map.plates[0]?.id || '',
-        type: options.type === 'spectral' ? 'spectral' : 'wood',
-        color: Number.isInteger(options.color) ? options.color : 1,
+        ...(Number.isInteger(options.color)
+          ? { color: options.color }
+          : Number.isInteger(existing?.color)
+            ? { color: existing.color }
+            : {}),
       });
     if (key === 'lifts') Object.assign(p, { base: y, top: existing?.top ?? Math.min(12, y + 1) });
     if (key === 'spikes') p.offset = existing?.offset || 0;
@@ -306,8 +309,7 @@ export class Model {
       Object.assign(p, {
         plate: options.plate || this.map.plates[0]?.id || '',
         y: floor.height,
-        type: options.type === 'spectral' ? 'spectral' : 'wood',
-        color: Number.isInteger(options.color) ? options.color : 1,
+        ...(Number.isInteger(options.color) ? { color: options.color } : {}),
       });
     if (key === 'lifts')
       Object.assign(p, { base: floor.height, top: Math.min(3, floor.height + 1) });

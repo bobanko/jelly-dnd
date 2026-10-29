@@ -382,30 +382,18 @@ const bridgeBrush = element('div', undefined, 'conveyor-brush');
 bridgeBrush.id = 'bridge-brush';
 bridgeBrush.hidden = true;
 bridgeBrush.dataset.object = 'bridge-brush';
-const bridgeType = { value: 'wood' },
-  bridgeColor = { value: 1 };
-choiceRadios(
-  bridgeBrush,
-  'Тип моста',
-  bridgeType.value,
-  [
-    ['wood', 'Деревянный'],
-    ['spectral', 'Спектральный'],
-  ],
-  (v) => {
-    bridgeType.value = v;
-    refreshHover();
-    invalidate();
-  },
-  'bridge-type-brush',
-);
+const bridgeColor = { value: '' },
+  bridgeColors = [
+    ['', 'Обычный деревянный', '#cba778'],
+    ...L.characters.map((c, i) => [String(i), c.name, c.color]),
+  ];
 colorRadios(
   bridgeBrush,
-  'Цвет спектрального моста',
+  'Материал моста',
   bridgeColor.value,
-  L.characters.map((c, i) => [i, c.name, c.color]),
+  bridgeColors,
   (v) => {
-    bridgeColor.value = Number(v);
+    bridgeColor.value = v;
     refreshHover();
     invalidate();
   },
@@ -628,24 +616,6 @@ function colorRadios(
   group.append(options);
   card.append(group);
 }
-function choiceRadios(card, title, value, choices, onChange, groupName) {
-  const group = element('fieldset', undefined, 'camera-settings'),
-    options = element('div', undefined, 'projection-options');
-  group.append(element('legend', title));
-  for (const [v, text] of choices) {
-    const label = element('label'),
-      input = element('input');
-    input.type = 'radio';
-    input.name = groupName;
-    input.value = v;
-    input.checked = v === value;
-    input.onchange = () => onChange(v);
-    label.append(input, element('span', text));
-    options.append(label);
-  }
-  group.append(options);
-  card.append(group);
-}
 function renderProperties() {
   const root = $('properties');
   root.replaceChildren();
@@ -861,23 +831,16 @@ function renderProperties() {
       );
     }
     if (key === 'bridges') {
-      choiceRadios(
-        card,
-        'Тип моста',
-        p.type || 'wood',
-        [
-          ['wood', 'Деревянный'],
-          ['spectral', 'Спектральный'],
-        ],
-        (v) => set('type', v),
-        'bridge-type-' + card.dataset.object,
-      );
       colorRadios(
         card,
-        'Цвет спектрального моста',
-        p.color ?? 1,
-        L.characters.map((c, i) => [i, c.name, c.color]),
-        (v) => set('color', Number(v)),
+        'Материал моста',
+        p.color ?? '',
+        bridgeColors,
+        (v) =>
+          edit((map) => {
+            if (v === '') delete map.bridges[index].color;
+            else map.bridges[index].color = Number(v);
+          }),
         'bridge-color-' + card.dataset.object,
       );
       field(
@@ -1387,7 +1350,9 @@ function paintCell(p, activeTool) {
             color: spikeColor.value === '' ? null : Number(spikeColor.value),
           }
         : {}),
-      ...(activeTool === 'bridge' ? { type: bridgeType.value, color: bridgeColor.value } : {}),
+      ...(activeTool === 'bridge'
+        ? { color: bridgeColor.value === '' ? null : Number(bridgeColor.value) }
+        : {}),
     });
     previewDirty = true;
     pickBounds = null;
