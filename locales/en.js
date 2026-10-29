@@ -54,6 +54,7 @@ export default {
   Затухание: 'Damping',
   'Показать решётку': 'Show mesh',
   'Коллайдеры уровня': 'Level colliders',
+  Зернистость: 'Film grain',
   Камера: 'Camera',
   Проекция: 'Projection',
   Перспективная: 'Perspective',

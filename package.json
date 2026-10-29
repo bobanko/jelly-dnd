@@ -32,6 +32,7 @@
     "profile:browser": "node tests/browser-smoke.js",
     "profile:compare": "node tests/browser-performance.js",
     "test:menu:browser": "node tests/browser-menu.js",
+    "test:atmosphere:browser": "node tests/browser-atmosphere.js",
     "test:start-camera:browser": "node tests/browser-start-camera.js",
     "test:camera:browser": "node tests/browser-shared-camera.js",
     "test:layout:browser": "node tests/browser-960.js",

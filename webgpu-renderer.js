@@ -1803,6 +1803,7 @@ const post = `
  @group(0) @binding(0) var image:texture_2d<f32>;
  @group(0) @binding(1) var linearSampler:sampler;
  @group(0) @binding(2) var bloomImage:texture_2d<f32>;
+ @group(0) @binding(3) var<uniform> film:vec4f;
  const BLOOM_STRENGTH=.15;
  const VOID_COLOR=vec3f(${VOID_COLOR});
  // Indigo haze behind the diorama. The scene clears to zero alpha, so the sky only
@@ -1819,7 +1820,13 @@ const post = `
   hdr+=textureSampleLevel(bloomImage,linearSampler,uv,0.).rgb*BLOOM_STRENGTH;
   let vignette=1.-.24*smoothstep(.22,.8,length((uv-vec2f(.5))*vec2f(1.,.86)));hdr*=vignette;
   var c=tone(hdr);c=pow(max(c,vec3f(0)),vec3f(1./2.2));
-  var q=fract(vec3f(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);let noise=fract((q.x+q.y)*q.z)-.5;return vec4f(c+noise/255.,1);
+  var q=fract(vec3f(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);let noise=fract((q.x+q.y)*q.z)-.5;
+  // Monochrome film grain at 24 Hz, independent of the subtle static output dither.
+  let cell=floor(p.xy/1.35);let tick=floor(film.x*24.);
+  var g=fract(vec3f(cell.x,cell.y,tick)*.1031);g+=dot(g,g.yzx+33.33);
+  let grain=fract((g.x+g.y)*g.z)-.5;let luma=dot(c,vec3f(.2126,.7152,.0722));
+  c+=vec3f(grain*film.y*(.3+.7*sqrt(clamp(luma,0.,1.))));
+  return vec4f(clamp(c+noise/255.,vec3f(0),vec3f(1)),1);
  }
  `;
 // Bright emissive pixels feed a four-level dual-filter blur from quarter resolution down:
@@ -1870,6 +1877,8 @@ class Renderer {
     this.ready = false;
     this.error = null;
     this.mesh = false;
+    this.grain = true;
+    this.filmData = new Float32Array(4);
     this.frames = 0;
     this.errors = [];
   }
@@ -2151,6 +2160,7 @@ class Renderer {
       fragment: { module: finish, entryPoint: 'postFS', targets: [{ format: this.format }] },
       primitive: { topology: 'triangle-list' },
     });
+    this.filmUniform = this.buffer(this.filmData, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
     this.bloomLayout = d.createBindGroupLayout({
       entries: [
         { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: {} },
@@ -2447,6 +2457,7 @@ class Renderer {
         { binding: 0, resource: this.hdr.createView() },
         { binding: 1, resource: this.sampler },
         { binding: 2, resource: this.bloomViews[0] },
+        { binding: 3, resource: { buffer: this.filmUniform } },
       ],
     });
   }
@@ -3583,6 +3594,8 @@ class Renderer {
     });
     players.forEach((p, i) => (uniforms[BODY_SLOTS_OFFSET + i] = p.slot ?? i));
     d.queue.writeBuffer(this.uniform, 0, uniforms);
+    this.filmData.set([time, this.grain ? 0.045 : 0, 0, 0]);
+    d.queue.writeBuffer(this.filmUniform, 0, this.filmData);
     const nodes = new Float32Array(320 * 4);
     for (let i = 0; i < 5; i++) nodes[i * 256 + 3] = -1;
     players.forEach((p, i) =>
