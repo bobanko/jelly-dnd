@@ -232,66 +232,90 @@ function box(
       }
   }
 }
+const OAK_WOOD = [0.64, 0.355, 0.145],
+  OAK_FRAME = [0.8, 0.49, 0.225],
+  OAK_END_GRAIN = [0.69, 0.405, 0.19],
+  IRON_NAIL = [0.19, 0.135, 0.085];
+
+// Shared oak board: the crate and wooden bridge keep the same grain, wear and scratches.
+function oakPlank(mesh, center, size, color, seed, bevel = 0.009) {
+  const start = mesh.length,
+    vertical = size[1] > size[0];
+  box(mesh, center, size, color, bevel, 11, 3, {
+    crisp: true,
+    shade: (axis, sign, s, t) => {
+      const edge = Math.min(s, t, 1 - s, 1 - t);
+      return axis === 2 && sign > 0 ? 0.92 + Math.max(0, 1 - edge * 18) * 0.16 : 0.86;
+    },
+  });
+  // Shallow corner chips expose pale fibres without opening holes in the board.
+  for (let k = start; k < mesh.length; k += 12) {
+    const x = (mesh[k] - center[0]) / (size[0] * 0.5),
+      y = (mesh[k + 1] - center[1]) / (size[1] * 0.5),
+      corner =
+        Math.max(0, (x * (seed % 2 ? 1 : -1) - 0.76) / 0.24) *
+        Math.max(0, (y * (seed % 3 ? -1 : 1) - 0.76) / 0.24);
+    mesh[k + 2] -= corner * 0.007;
+    for (let c = 0; c < 3; c++) mesh[k + 6 + c] *= 1 + corner * 0.16;
+  }
+  // Sparse tapered scratches follow the timber, with a shadow and exposed fibre lip.
+  for (let i = 0; i < 3; i++) {
+    const across = Math.sin(seed * 12.7 + i * 7.3) * 0.3,
+      along = Math.sin(seed * 4.1 + i * 13.7) * 0.29,
+      length = Math.max(size[0], size[1]) * (0.09 + i * 0.035),
+      width = 0.0018 + (i % 2) * 0.001,
+      x = center[0] + (vertical ? across * size[0] : along * size[0]),
+      y = center[1] + (vertical ? along * size[1] : across * size[1]),
+      z = center[2] + size[2] * 0.5 + 0.0004;
+    for (const [offset, tint] of [
+      [0, [0.32, 0.16, 0.06]],
+      [width, [0.9, 0.61, 0.3]],
+    ]) {
+      for (const [u, v] of [
+        [-width, -length * 0.5],
+        [width, -length * 0.32],
+        [0, length * 0.5],
+      ])
+        mesh.push(
+          x + (vertical ? u + offset : -v),
+          y + (vertical ? v : u + offset),
+          z,
+          0,
+          0,
+          1,
+          ...tint,
+          11,
+          0.37,
+          0.46,
+        );
+    }
+  }
+}
+
+function bridgeOakPlank(mesh, center, size, color, seed, bevel = 0.009) {
+  const from = mesh.length;
+  oakPlank(mesh, [0, 0, 0], [size[0], size[2], size[1]], color, seed, bevel);
+  // Turn the face-local plank onto the XZ bridge deck without mirroring its triangles.
+  for (let k = from; k < mesh.length; k += 12)
+    for (const offset of [0, 3]) {
+      const x = mesh[k + offset],
+        y = mesh[k + offset + 1],
+        z = mesh[k + offset + 2];
+      mesh[k + offset] = (offset ? 0 : center[0]) + x;
+      mesh[k + offset + 1] = (offset ? 0 : center[1]) + z;
+      mesh[k + offset + 2] = (offset ? 0 : center[2]) - y;
+    }
+}
+
 function crateGeometry() {
   const mesh = [],
-    wood = [0.64, 0.355, 0.145],
-    frame = [0.8, 0.49, 0.225],
-    endGrain = [0.69, 0.405, 0.19],
-    nail = [0.19, 0.135, 0.085];
+    wood = OAK_WOOD,
+    frame = OAK_FRAME,
+    endGrain = OAK_END_GRAIN,
+    nail = IRON_NAIL;
   // Work in face-local coordinates so grain, wear and hardware tumble with the crate.
-  const plank = (center, size, color, seed, bevel = 0.009) => {
-    const start = mesh.length,
-      vertical = size[1] > size[0];
-    box(mesh, center, size, color, bevel, 11, 3, {
-      crisp: true,
-      shade: (axis, sign, s, t) => {
-        const edge = Math.min(s, t, 1 - s, 1 - t);
-        return axis === 2 && sign > 0 ? 0.92 + Math.max(0, 1 - edge * 18) * 0.16 : 0.86;
-      },
-    });
-    // Shallow corner chips expose pale fibres without opening holes in the box.
-    for (let k = start; k < mesh.length; k += 12) {
-      const x = (mesh[k] - center[0]) / (size[0] * 0.5),
-        y = (mesh[k + 1] - center[1]) / (size[1] * 0.5),
-        corner =
-          Math.max(0, (x * (seed % 2 ? 1 : -1) - 0.76) / 0.24) *
-          Math.max(0, (y * (seed % 3 ? -1 : 1) - 0.76) / 0.24);
-      mesh[k + 2] -= corner * 0.007;
-      for (let c = 0; c < 3; c++) mesh[k + 6 + c] *= 1 + corner * 0.16;
-    }
-    // Sparse tapered scratches follow the timber, with a shadow and exposed fibre lip.
-    for (let i = 0; i < 3; i++) {
-      const across = Math.sin(seed * 12.7 + i * 7.3) * 0.3,
-        along = Math.sin(seed * 4.1 + i * 13.7) * 0.29,
-        length = Math.max(size[0], size[1]) * (0.09 + i * 0.035),
-        width = 0.0018 + (i % 2) * 0.001,
-        x = center[0] + (vertical ? across * size[0] : along * size[0]),
-        y = center[1] + (vertical ? along * size[1] : across * size[1]),
-        z = center[2] + size[2] * 0.5 + 0.0004;
-      for (const [offset, tint] of [
-        [0, [0.32, 0.16, 0.06]],
-        [width, [0.9, 0.61, 0.3]],
-      ]) {
-        for (const [u, v] of [
-          [-width, -length * 0.5],
-          [width, -length * 0.32],
-          [0, length * 0.5],
-        ])
-          mesh.push(
-            x + (vertical ? u + offset : -v),
-            y + (vertical ? v : u + offset),
-            z,
-            0,
-            0,
-            1,
-            ...tint,
-            11,
-            0.37,
-            0.46,
-          );
-      }
-    }
-  };
+  const plank = (center, size, color, seed, bevel = 0.009) =>
+    oakPlank(mesh, center, size, color, seed, bevel);
   box(mesh, [0, 0, 0], [0.71, 0.71, 0.71], [0.19, 0.095, 0.032], 0.012, 11, 2);
   for (let axis = 0; axis < 3; axis++)
     for (const sign of [-1, 1]) {
@@ -2787,30 +2811,29 @@ class Renderer {
         const from = mesh.length;
         const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
           x = bridge.x,
-          z = bridge.z;
-        // Two dark oak beams keep the full silhouette readable while the bridge rises.
+          z = bridge.z,
+          seed = bridge.x * 31 + bridge.z * 17;
+        // The deck uses the crate's oak boards so all timber shares grain and wear.
         for (const side of [-1, 1])
-          box(
+          bridgeOakPlank(
             mesh,
             [x + side * 0.31, -0.13, z],
             [0.13, 0.2, 0.96],
-            [0.18, 0.105, 0.045],
+            OAK_FRAME.map((value) => value * 0.62),
+            seed + side,
             0.014,
-            11,
-            2,
           );
-        // Separate crosswise boards retain fixed UV scale and never stretch during motion.
+        // Separate crosswise boards retain fixed grain scale and never stretch during motion.
         for (let n = 0; n < 5; n++) {
           const boardZ = z + (n - 2) * 0.19,
-            warm = n % 2 ? 0.018 : 0;
-          box(
+            brightness = 0.9 + ((n * 3 + seed) % 5) * 0.045;
+          bridgeOakPlank(
             mesh,
             [x, -0.035 + (n % 3) * 0.002, boardZ],
             [0.92, 0.1, 0.18],
-            [0.42 + warm, 0.225 + warm, 0.08],
+            OAK_WOOD.map((value) => value * brightness),
+            seed + n + 5,
             0.012,
-            11,
-            2,
           );
           for (const side of [-1, 1])
             if (n === 0 || n === 4)
