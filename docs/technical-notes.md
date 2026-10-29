@@ -91,7 +91,7 @@ physics.js retains the original rigid solver as an independently tested baseline
 
 The HUD has a single speaker icon toggle, compact character rows and keyboard shortcut legends. Permanent gameplay explanations have been removed; live state announcements remain available to screen readers. Elevator slabs retain their lit trim without side guide posts.
 
-webgpu-renderer.js is a raw WebGPU/WGSL renderer with no Three.js:
+`webgpu-renderer.js` is the public entry point of a raw WebGPU/WGSL renderer with no Three.js; the code lives in `renderer/` (`renderer.js` core, `scene.js`, `props.js` and `effects.js` method groups, `geometry/` mesh builders, `shaders/` WGSL, plus `math.js`, `mesh.js`, `layout.js`, `assembly.js`):
 
 The current art direction follows the cosy fantasy-dungeon concept: one warm stone palette for floors and walls (walls slightly darker), chunky bevelled blocks, warm torch pools against a cool moonlit fill, glassy jelly and readable glowing interactive elements. Weathered bronze and oak decks with rivets remain on bridges/lifts. Automatic banners and gear reliefs have been removed. Banners can return as explicit editor decorations later; gears are reserved for future gameplay mechanisms. The compact game HUD uses parchment tones and aged-bronze borders. Physics, colour identities and level layouts remain shared with the editor.
 
