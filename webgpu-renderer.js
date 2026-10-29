@@ -844,36 +844,30 @@ const phaseTints = [
   [1, 0.67, 0.025],
 ];
 const spikeTint = (trap) =>
-  trap.color === undefined ? [0.58, 0.63, 0.68] : spikeTints[trap.color];
+  trap.color === undefined ? [0.36, 0.31, 0.27] : spikeTints[trap.color];
 function spikeSocket(mesh, x, z, tint) {
   const profile = [
-      [0.082, 0.003],
-      [0.125, 0.003],
-      [0.132, 0.011],
-      [0.121, 0.028],
-      [0.085, 0.028],
-      [0.08, 0.014],
-      [0.082, 0.003],
+      [0.094, 0.002],
+      [0.094, 0.018],
+      [0.112, 0.034],
+      [0.148, 0.034],
+      [0.165, 0.017],
+      [0.157, 0.003],
     ],
-    color = tint.map((c) => c * 0.72 + 0.02);
+    color = tint.map((c) => c * 0.62 + 0.018),
+    segments = 12;
   for (let band = 0; band < profile.length - 1; band++) {
     const [r0, y0] = profile[band],
-      [r1, y1] = profile[band + 1],
-      a = [
-        [-1, -1],
-        [1, -1],
-        [1, 1],
-        [-1, 1],
-      ];
-    for (let side = 0; side < 4; side++) {
-      const p = a[side],
-        q = a[(side + 1) % 4],
-        vertices = [
-          [x + p[0] * r0, y0, z + p[1] * r0],
-          [x + p[0] * r1, y1, z + p[1] * r1],
-          [x + q[0] * r1, y1, z + q[1] * r1],
-          [x + q[0] * r0, y0, z + q[1] * r0],
-        ];
+      [r1, y1] = profile[band + 1];
+    for (let side = 0; side < segments; side++) {
+      const a = (side / segments) * Math.PI * 2,
+        b = ((side + 1) / segments) * Math.PI * 2,
+        point = (angle, radius, y) => [
+          x + Math.cos(angle) * radius,
+          y,
+          z + Math.sin(angle) * radius,
+        ],
+        vertices = [point(a, r0, y0), point(a, r1, y1), point(b, r1, y1), point(b, r0, y0)];
       const n = normalize(
         cross(
           vertices[1].map((v, k) => v - vertices[0][k]),
@@ -886,37 +880,59 @@ function spikeSocket(mesh, x, z, tint) {
           ...n,
           ...color,
           28,
-          (side + (i >= 2 ? 1 : 0)) / 4,
+          (side + (i >= 2 ? 1 : 0)) / segments,
           (band + (i === 1 || i === 2 ? 1 : 0)) / (profile.length - 1),
         );
     }
   }
-  box(mesh, [x, 0.004, z], [0.16, 0.006, 0.16], [0.008, 0.01, 0.012], 0.002, 13, 1);
+  const center = [x, 0.001, z],
+    hole = [0.006, 0.007, 0.009];
+  for (let side = 0; side < segments; side++) {
+    const a = (side / segments) * Math.PI * 2,
+      b = ((side + 1) / segments) * Math.PI * 2,
+      edge = (angle) => [x + Math.cos(angle) * 0.096, 0.001, z + Math.sin(angle) * 0.096];
+    for (const point of [center, edge(b), edge(a)])
+      mesh.push(...point, 0, 1, 0, ...hole, 13, 0.5, 0.5);
+  }
 }
 function spike(mesh, x, y, z, tint) {
-  const profile = [
-    [-0.075, -0.075],
-    [0.075, -0.075],
-    [0.075, 0.075],
-    [-0.075, 0.075],
-  ];
-  for (let i = 0; i < profile.length; i++) {
-    const a = profile[i],
-      b = profile[(i + 1) % profile.length],
-      p = [x + a[0], y, z + a[1]],
-      q = [x + b[0], y, z + b[1]],
-      top = [x, y + 0.24, z],
+  const corners = (radius, height) => [
+      [x - radius, y + height, z - radius],
+      [x + radius, y + height, z - radius],
+      [x + radius, y + height, z + radius],
+      [x - radius, y + height, z + radius],
+    ],
+    base = corners(0.084, 0),
+    shoulder = corners(0.07, 0.032),
+    top = [x, y + 0.24, z];
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4,
+      lower = [base[i], shoulder[i], shoulder[j], base[j]],
+      lowerNormal = normalize(
+        cross(
+          lower[1].map((v, k) => v - lower[0][k]),
+          lower[2].map((v, k) => v - lower[0][k]),
+        ),
+      ),
+      p = shoulder[i],
+      q = shoulder[j],
       n = normalize(
         cross(
           top.map((v, k) => v - p[k]),
           q.map((v, k) => v - p[k]),
         ),
       ),
-      color = tint.map((c) => c * (i % 2 ? 1 : 0.82));
+      color = tint.map((c) => c * (i % 2 ? 1 : 0.8));
+    for (const index of [0, 1, 2, 0, 2, 3]) {
+      const v = lower[index],
+        u = index === 0 || index === 3 ? 0 : 1,
+        height = index === 0 || index === 3 ? 0 : 0.135;
+      mesh.push(...v, ...lowerNormal, ...color.map((c) => c * 0.72), 27, u, height);
+    }
     for (const [v, u, height] of [
-      [p, 0, 0],
+      [p, 0, 0.135],
       [top, 0.5, 1],
-      [q, 1, 0],
+      [q, 1, 0.135],
     ])
       mesh.push(...v, ...n, ...color, 27, u, height);
   }

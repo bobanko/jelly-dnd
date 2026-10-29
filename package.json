@@ -16,6 +16,7 @@
     "test:color-blocks:browser": "node tests/browser-color-blocks.js",
     "test:glass-blocks:browser": "node tests/browser-glass-blocks.js",
     "test:spikes:browser": "node tests/browser-spikes.js",
+    "test:spike-style:browser": "node tests/browser-spike-style.js",
     "test:torches:browser": "node tests/browser-torches.js",
     "test:drones:browser": "node tests/browser-drones.js",
     "test:portals:browser": "node tests/browser-portals.js",
