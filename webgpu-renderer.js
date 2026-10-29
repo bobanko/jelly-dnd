@@ -1444,7 +1444,7 @@ const shared = `
  }
  @vertex fn dustVS(@builtin(vertex_index) vertex:u32,@location(4) mote:vec4f)->Out{
   let corners=array<vec2f,6>(vec2f(-1,-1),vec2f(1,-1),vec2f(1,1),vec2f(-1,-1),vec2f(1,1),vec2f(-1,1));let uv=corners[vertex];
-  let phase=mote.w;let t=scene.options.z*.24+phase;
+  let phase=mote.w;let t=scene.options.z*.24*scene.options.w+phase;
   let drift=vec3f(sin(t)*.28,sin(t*.73+phase)*.16,cos(t*.85)*.28);
   let right=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));let up=normalize(vec3f(scene.vp[0].y,scene.vp[1].y,scene.vp[2].y));
   let size=.028+.022*fract(phase*13.71);var o:Out;
@@ -1883,7 +1883,7 @@ const post = `
   var c=tone(hdr);c=pow(max(c,vec3f(0)),vec3f(1./2.2));
   var q=fract(vec3f(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);let noise=fract((q.x+q.y)*q.z)-.5;
   // Monochrome film grain at 24 Hz, independent of the subtle static output dither.
-  let cell=floor(p.xy/1.35);let tick=floor(film.x*24.);
+  let cell=floor(p.xy/max(.5,film.z));let tick=floor(film.x*24.);
   var g=fract(vec3f(cell.x,cell.y,tick)*.1031);g+=dot(g,g.yzx+33.33);
   let grain=fract((g.x+g.y)*g.z)-.5;let luma=dot(c,vec3f(.2126,.7152,.0722));
   c+=vec3f(grain*film.y*(.3+.7*sqrt(clamp(luma,0.,1.))));
@@ -1940,6 +1940,10 @@ class Renderer {
     this.mesh = false;
     this.grain = true;
     this.dust = true;
+    this.grainStrength = 1;
+    this.grainSize = 1;
+    this.dustDensity = 1;
+    this.dustSpeed = 1;
     this.filmData = new Float32Array(4);
     this.frames = 0;
     this.errors = [];
@@ -3601,10 +3605,11 @@ class Renderer {
   drawEffects(pass, level, effectCount) {
     pass.setBindGroup(0, this.sceneGroup);
     pass.setBindGroup(1, this.skinGroups[0]);
-    if (this.dust && this.dustCount) {
+    const visibleDust = Math.round(this.dustCount * this.dustDensity);
+    if (this.dust && visibleDust) {
       pass.setPipeline(this.dustPipeline);
       pass.setVertexBuffer(0, this.dustBuffer);
-      pass.draw(6, this.dustCount);
+      pass.draw(6, visibleDust);
     }
     if (level.assembly) return;
     if (effectCount) {
@@ -3722,7 +3727,7 @@ class Renderer {
         i === 4 ? BODY4_OFFSET : i === 3 ? BODY3_OFFSET : 40 + i * 4,
       ),
     );
-    uniforms.set([w, h, time, this.mesh ? 1 : 0], 52);
+    uniforms.set([w, h, time, this.dustSpeed], 52);
     this.updatePortalVisuals(level, players, dt);
     level.world.portals.slice(0, PORTAL_LIMIT).forEach((p, i) => {
       const state = this.portalStates[i],
@@ -3763,7 +3768,12 @@ class Renderer {
     });
     players.forEach((p, i) => (uniforms[BODY_SLOTS_OFFSET + i] = p.slot ?? i));
     d.queue.writeBuffer(this.uniform, 0, uniforms);
-    this.filmData.set([time, this.grain ? 0.045 : 0, 0, 0]);
+    this.filmData.set([
+      time,
+      this.grain ? 0.045 * this.grainStrength : 0,
+      1.35 * this.grainSize,
+      0,
+    ]);
     d.queue.writeBuffer(this.filmUniform, 0, this.filmData);
     const nodes = new Float32Array(320 * 4);
     for (let i = 0; i < 5; i++) nodes[i * 256 + 3] = -1;

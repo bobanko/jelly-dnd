@@ -89,8 +89,48 @@
       <label class="mesh-toggle"
         ><input id="film-grain" type="checkbox" checked /> Зернистость</label
       >
+      <label for="grain-strength"
+        >Сила грейна<input
+          id="grain-strength"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value="100"
+        /><output id="grain-strength-value" for="grain-strength">100%</output></label
+      >
+      <label for="grain-size"
+        >Размер грейна<input
+          id="grain-size"
+          type="range"
+          min="50"
+          max="250"
+          step="5"
+          value="100"
+        /><output id="grain-size-value" for="grain-size">100%</output></label
+      >
       <label class="mesh-toggle"
         ><input id="ambient-dust" type="checkbox" checked /> Пыль в воздухе</label
+      >
+      <label for="dust-density"
+        >Количество пыли<input
+          id="dust-density"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value="100"
+        /><output id="dust-density-value" for="dust-density">100%</output></label
+      >
+      <label for="dust-speed"
+        >Скорость пыли<input
+          id="dust-speed"
+          type="range"
+          min="0"
+          max="200"
+          step="5"
+          value="100"
+        /><output id="dust-speed-value" for="dust-speed">100%</output></label
       >
       <fieldset class="camera-settings">
         <legend>Камера</legend>

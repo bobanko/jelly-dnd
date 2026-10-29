@@ -859,6 +859,16 @@ document
 document
   .querySelector('#ambient-dust')
   .addEventListener('change', (e) => (sceneRenderer.dust = e.target.checked));
+for (const [id, property] of [
+  ['grain-strength', 'grainStrength'],
+  ['grain-size', 'grainSize'],
+  ['dust-density', 'dustDensity'],
+  ['dust-speed', 'dustSpeed'],
+])
+  document.querySelector(`#${id}`).addEventListener('input', (e) => {
+    sceneRenderer[property] = Number(e.target.value) / 100;
+    document.querySelector(`#${id}-value`).textContent = e.target.value + '%';
+  });
 function updateCameraUI() {
   document.querySelector('#camera-zoom-value').textContent = Math.round(zoom * 100) + '%';
   document.querySelector('#camera-pitch').value = targetPitch;
