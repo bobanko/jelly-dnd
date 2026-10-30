@@ -3,25 +3,6 @@ import { OAK_WOOD, OAK_FRAME, bridgeOakPlank } from './geometry/wood.js';
 import { phaseTints } from './geometry/mechanisms.js';
 import { phaseBlock, phaseGroundGlow } from './geometry/runes.js';
 import { torchDecor, scatterDecor } from './geometry/decor.js';
-// Decorative stone columns under base cubes (cells with nothing anywhere below them),
-// fading into the void fog for depth. Deterministic per cell, so a level always looks the same.
-function levelPillars(blocks) {
-  const stone = blocks.filter((b) => b.color === undefined),
-    lowest = new Map();
-  for (const b of blocks) {
-    const key = b.x + ',' + b.z;
-    if (!lowest.has(key) || b.y < lowest.get(key).y) lowest.set(key, b);
-  }
-  const pillars = [];
-  for (const b of stone) {
-    if (lowest.get(b.x + ',' + b.z) !== b) continue;
-    const hash = Math.abs(Math.sin(b.x * 12.9898 + b.z * 78.233 + b.y * 37.719) * 43758.5453) % 1;
-    if (hash > 0.7) continue;
-    const depth = 3 + Math.floor((hash / 0.7) * 8);
-    for (let k = 1; k <= depth; k++) pillars.push({ x: b.x, y: b.y - k, z: b.z });
-  }
-  return pillars;
-}
 export const sceneMethods = {
   buildScene(level) {
     this.buildDust(level.world);
@@ -41,7 +22,8 @@ export const sceneMethods = {
           .filter((b) => b.color === undefined && !b.lava)
           .map((b) => [b.x, b.y, b.z].join(',')),
       ),
-      pillars = this.pillars ? levelPillars(blocks) : [];
+      // Solid wall columns are part of play and always drawn; the setting hides the rest.
+      pillars = (level.world.pillars || []).filter((p) => this.pillars || p.solid);
     for (const p of pillars) occupied.add([p.x, p.y, p.z].join(','));
     let blockIndex = 0;
     const lavaPools = [];

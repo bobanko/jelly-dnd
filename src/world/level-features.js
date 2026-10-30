@@ -408,7 +408,12 @@ function install(World) {
           maxY: b.y,
           kind: 'block',
           ...(b.color === undefined ? {} : { color: b.color }),
-        }));
+        }))
+        .concat(
+          (this.pillars || [])
+            .filter((p) => p.solid)
+            .map((p) => ({ x: p.x, z: p.z, half: 0.5, minY: p.y - 1, maxY: p.y, kind: 'block' })),
+        );
       boxes.push(...this._blockBoxes);
       if (this.blocks?.length) {
         for (let i = 0; i < this.bridges.length; i++) {

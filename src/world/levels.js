@@ -1,3 +1,4 @@
+import { levelPillars } from './pillars.js';
 import * as campaign from '../../levels/catalog.js';
 // Shared editable map format. No live physics state is stored in level files.
 const DRAFT_KEY = 'jelly-dnd.editor.v1',
@@ -520,6 +521,8 @@ function instantiate(map, Physics, Soft) {
   );
   for (const p of map.tiles) if (p.height) world.heights.set(`${p.x},${p.z}`, p.height);
   world.lifts = map.lifts.map((p) => ({ ...p, height: p.base, target: p.base }));
+  // Columns under the map: shared by physics (solid wall segments) and rendering.
+  world.pillars = levelPillars(world.blocks.filter((b) => !world.mountedAt(b.x, b.z, b.y)));
   world.spikes = copy(map.spikes);
   world.portals = copy(map.portals);
   world.conveyors = copy(map.conveyors);
