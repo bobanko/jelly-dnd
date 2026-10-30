@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 fs.mkdirSync('artifacts', { recursive: true });
+// Screenshot comparisons: a failing deepEqual on two PNG buffers builds a diff large
+// enough to exhaust memory, hiding which check failed.
+const assertSame = (a, b, message) => assert.ok(Buffer.from(a).equals(Buffer.from(b)), message),
+  assertDifferent = (a, b, message) => assert.ok(!Buffer.from(a).equals(Buffer.from(b)), message);
 const browser = await chromium.launch({
   headless: true,
   executablePath:
@@ -61,14 +65,14 @@ try {
   await nextFrames();
   assert.equal(await page.evaluate(() => sceneRenderer.filmData[1]), 0);
   const clean = await sample();
-  assert.notDeepEqual(grain, clean, 'grain changes the actual rendered image');
+  assertDifferent(grain, clean, 'grain changes the actual rendered image');
   await nextFrames();
-  assert.deepEqual(await sample(), clean, 'reduced motion leaves a stable image without grain');
+  assertSame(await sample(), clean, 'reduced motion leaves a stable image without grain');
   await page.screenshot({ path: 'artifacts/atmosphere-grain-off.png' });
   await page.locator('#film-grain').check();
   await page.evaluate(() => document.activeElement.blur());
   await nextFrames();
-  assert.deepEqual(await sample(), grain, 'the checkbox restores the same reduced-motion grain');
+  assertSame(await sample(), grain, 'the checkbox restores the same reduced-motion grain');
   await page.screenshot({ path: 'artifacts/atmosphere-grain-on.png' });
   await page.locator('#film-grain').uncheck();
   assert.equal(await page.locator('#ambient-dust').isChecked(), true);
@@ -94,6 +98,8 @@ try {
     ]),
     [3, 4, 3, 4, 384],
   );
+  // Key hints fade in over idle jellies after two seconds; keep them out of the samples.
+  await page.evaluate(() => (document.querySelector('#player-hints').style.display = 'none'));
   const features = await page.evaluate(() => JSON.stringify(world.featureSnapshot())),
     dustSample = () => page.screenshot({ clip: { x: 150, y: 160, width: 650, height: 450 } });
   await nextFrames();
@@ -101,10 +107,10 @@ try {
   await page.locator('#ambient-dust').uncheck();
   await nextFrames();
   assert.equal(await page.evaluate(() => sceneRenderer.dust), false);
-  assert.notDeepEqual(await dustSample(), dusty, 'dust contributes visible pixels to the scene');
+  assertDifferent(await dustSample(), dusty, 'dust contributes visible pixels to the scene');
   await page.locator('#ambient-dust').check();
   await nextFrames();
-  assert.deepEqual(await dustSample(), dusty, 'reduced motion freezes the dust at a stable pose');
+  assertSame(await dustSample(), dusty, 'reduced motion freezes the dust at a stable pose');
   assert.equal(await page.evaluate(() => JSON.stringify(world.featureSnapshot())), features);
   await page.evaluate(() => {
     const render = sceneRenderer.render.bind(sceneRenderer);
@@ -114,11 +120,7 @@ try {
     };
   });
   await nextFrames();
-  assert.notDeepEqual(
-    await dustSample(),
-    dusty,
-    'the particles drift as presentation time advances',
-  );
+  assertDifferent(await dustSample(), dusty, 'the particles drift as presentation time advances');
   assert.equal(await page.evaluate(() => JSON.stringify(world.featureSnapshot())), features);
   await page.screenshot({ path: 'artifacts/atmosphere-dust.png' });
   assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
