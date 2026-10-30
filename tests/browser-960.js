@@ -37,7 +37,7 @@ import assert from 'node:assert/strict';
           .locator('#loading-progress')
           .evaluate((node) => parseFloat(getComputedStyle(node).height) >= 14),
       );
-      await fits('#menu-title,#menu-root button,.menu-key-hints');
+      await fits('#menu-title,#menu-root button:not([hidden]),.menu-key-hints');
       await page.screenshot({ path: 'artifacts/menu-960-' + language + '.png' });
       await page.locator('#show-controls').click();
       assert.equal(await page.locator('#menu-help kbd').count(), 25);
