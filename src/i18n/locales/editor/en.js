@@ -132,6 +132,8 @@ export default {
   Янтарный: 'Amber',
   'Обычный камень': 'Plain stone',
   Лава: 'Lava',
+  'Другие карты': 'Other maps',
+  'Карту не удалось открыть:': 'Could not open the map:',
   'Желейки сгорают, ящики проезжают.': 'Jellies burn; crates ride across.',
   'Проходит только': 'Only passes',
   'Ящики не проходят.': 'Crates cannot pass.',

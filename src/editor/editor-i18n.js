@@ -38,7 +38,7 @@ export function initEditorI18n() {
       root.closest('script,style,textarea,[data-level-name]')
     )
       return;
-    for (const attr of ['title', 'aria-label', 'placeholder']) localizeValue(root, attr);
+    for (const attr of ['title', 'aria-label', 'placeholder', 'label']) localizeValue(root, attr);
     for (const child of root.childNodes) apply(child);
   }
   const switcher = document.createElement('div');
@@ -72,7 +72,7 @@ export function initEditorI18n() {
       childList: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ['title', 'aria-label', 'placeholder'],
+      attributeFilter: ['title', 'aria-label', 'placeholder', 'label'],
     });
   }
   observe();

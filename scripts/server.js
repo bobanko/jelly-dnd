@@ -5,6 +5,15 @@ const root = path.resolve(import.meta.dirname, '..');
 http
   .createServer((req, res) => {
     const name = req.url.split('?')[0] === '/' ? '/index.html' : req.url.split('?')[0];
+    // The editor's map list: every level JSON in levels/ (the build writes this file instead).
+    if (name === '/levels/index.json') {
+      const levels = fs
+        .readdirSync(path.join(root, 'levels'))
+        .filter((file) => /^[a-z0-9-]+\.json$/i.test(file) && file !== 'index.json')
+        .sort();
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.end(JSON.stringify({ levels }));
+    }
     const file = path.resolve(root, '.' + name);
     if (
       !file.startsWith(root + path.sep) ||

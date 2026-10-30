@@ -2035,13 +2035,36 @@ addEventListener('languagechange', () => {
     option.textContent = `${index}. ${L.displayName(L.standardLevel(index), JellyI18n.language)}`;
   }
 });
+// Maps in levels/ outside the campaign, listed by the dev server or the build's index.
+const otherMaps = element('optgroup');
+otherMaps.label = 'Другие карты';
+fetch('levels/index.json', { cache: 'no-store' })
+  .then((response) => (response.ok ? response.json() : { levels: [] }))
+  .then(({ levels = [] }) => {
+    for (const file of levels.filter((file) => !JellyLevelCatalog.standard.includes(file))) {
+      const option = element('option', file.replace(/\.json$/i, ''));
+      option.value = file;
+      otherMaps.append(option);
+    }
+    if (otherMaps.children.length) catalogSelect.append(otherMaps);
+    if ([...otherMaps.children].some((option) => option.value === sourceFilename))
+      catalogSelect.value = sourceFilename;
+  })
+  .catch(() => {});
 const openCatalogMap = element('button', 'Открыть карту');
 openCatalogMap.id = 'open-catalog-map';
-openCatalogMap.onclick = () =>
-  replaceMap(
-    L.standardLevel(JellyLevelCatalog.standard.indexOf(catalogSelect.value) + 1),
-    catalogSelect.value,
-  );
+openCatalogMap.onclick = async () => {
+  const file = catalogSelect.value,
+    index = JellyLevelCatalog.standard.indexOf(file);
+  if (index >= 0) return replaceMap(L.standardLevel(index + 1), file);
+  try {
+    const response = await fetch('levels/' + file, { cache: 'no-store' });
+    if (!response.ok) throw Error(response.status + ' ' + response.statusText);
+    replaceMap(L.read(await response.json()), file);
+  } catch (error) {
+    toast('Карту не удалось открыть: ' + error.message);
+  }
+};
 const mapActions = element('div', undefined, 'header-map-actions');
 mapActions.append(catalogPicker, openCatalogMap, $('new'));
 $('import').before(mapActions);

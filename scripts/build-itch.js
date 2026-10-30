@@ -82,6 +82,26 @@ for (const file of [...catalog.standard, ...catalog.extra]) {
   const errors = Levels.issues(map);
   if (errors.length) throw Error(file + ': ' + errors.join('\n'));
 }
+// Other maps in levels/ ship for the editor's map list; they only need to parse.
+const allLevels = fs
+  .readdirSync(path.join(root, 'levels'))
+  .filter((file) => /^[a-z0-9-]+\.json$/i.test(file) && file !== 'index.json')
+  .sort();
+for (const file of allLevels) {
+  if (files.has('levels/' + file)) continue;
+  try {
+    Levels.read(JSON.parse(fs.readFileSync(path.join(root, 'levels', file), 'utf8')));
+    add('levels/' + file);
+  } catch (error) {
+    console.warn('Skipping unreadable level ' + file + ': ' + error.message);
+  }
+}
+files.set(
+  'levels/index.json',
+  Buffer.from(
+    JSON.stringify({ levels: allLevels.filter((file) => files.has('levels/' + file)) }) + '\n',
+  ),
+);
 function assets(folder) {
   for (const entry of fs.readdirSync(path.join(root, folder), { withFileTypes: true })) {
     const name = folder + '/' + entry.name;
