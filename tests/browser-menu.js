@@ -32,10 +32,10 @@ import assert from 'node:assert/strict';
       return { moving: positions.every((p) => p.size > 10), arrows, impact };
     });
     assert.deepEqual(animation, { moving: true, arrows: true, impact: true });
-    const before = await page.evaluate(() => players.map((p) => [p.x, p.z]));
+    // The menu scene animates its jellies itself; movement keys must not drive them.
     await page.keyboard.press('w');
     await page.waitForTimeout(150);
-    assert.deepEqual(await page.evaluate(() => players.map((p) => [p.x, p.z])), before);
+    assert.deepEqual(await page.evaluate(() => [moves, heldKeys.size]), [0, 0]);
     await page.locator('#play').focus();
     await page.screenshot({ path: 'artifacts/menu-en.png' });
     await page.keyboard.press('ArrowDown');
@@ -62,9 +62,15 @@ import assert from 'node:assert/strict';
     );
     await page.screenshot({ path: 'artifacts/menu-ru.png' });
     await page.reload();
+    // Keys are ignored until loading finishes.
+    await page.waitForFunction(
+      () => typeof sceneRenderer !== 'undefined' && sceneRenderer.ready && !loadingActive,
+    );
     assert.equal(await page.locator('html').getAttribute('lang'), 'ru');
     await page.locator('[data-language=en]').click();
     await page.locator('#play').click();
+    // Park the pointer so hovering an item cannot take over the keyboard selection.
+    await page.mouse.move(1, 1);
     assert.equal(await page.locator('#menu-levels').isVisible(), true);
     assert.equal(await page.locator('[data-level="1"]').isEnabled(), true);
     assert.equal(await page.locator('[data-level="2"]').isDisabled(), true);
@@ -86,7 +92,7 @@ import assert from 'node:assert/strict';
     );
     assert.equal(await page.locator('#main-menu').isVisible(), false);
     assert.equal(await page.locator('#level-intro').isVisible(), false);
-    assert.equal(await page.locator('#level-intro-title').textContent(), 'First Steps');
+    assert.equal(await page.locator('#level-intro-title').textContent(), '1. First Steps');
     assert.notEqual(await page.evaluate(() => document.activeElement?.id), 'menu-button');
     await page.keyboard.press('w');
     assert.ok((await page.evaluate(() => moves)) > 0);
@@ -102,6 +108,8 @@ import assert from 'node:assert/strict';
     assert.equal(await page.evaluate(() => moves), 0);
     const complete = async () => {
       await page.evaluate(() => {
+        // This checks campaign progression, not each level: switch off its hazards.
+        for (const key of ['drones', 'archers', 'arrows', 'spikes']) world[key]?.splice(0);
         players.forEach((p) => {
           const goal = goals.find((g) => g.slot === p.slot);
           Object.assign(p, goal, { rx: goal.x, rz: goal.z, vx: 0, vz: 0 });
@@ -128,7 +136,7 @@ import assert from 'node:assert/strict';
     await page.waitForFunction(
       () => typeof sceneRenderer !== 'undefined' && sceneRenderer.ready && !loadingActive,
     );
-    assert.equal(await page.locator('#level-intro-title').textContent(), 'Helping Hands');
+    assert.equal(await page.locator('#level-intro-title').textContent(), '2. Helping Hands');
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('#play').textContent(), 'Resume');
     await page.keyboard.press('q');
@@ -141,10 +149,16 @@ import assert from 'node:assert/strict';
     await page.locator('#show-levels').click();
     await page.keyboard.press('q');
     assert.equal(await page.locator('#menu-root').isVisible(), true);
-    for (let id = 2; id <= 5; id++) {
+    // Every campaign level in order; the simulation waits for the level assembly to finish.
+    const levelCount = await page.evaluate(() => JellyLevels.standardNames.length);
+    for (let id = 2; id <= levelCount; id++) {
       await page.goto('http://localhost:3000/?level=' + id + '&play=1');
       await page.waitForFunction(
-        () => typeof sceneRenderer !== 'undefined' && sceneRenderer.ready && !loadingActive,
+        () =>
+          typeof sceneRenderer !== 'undefined' &&
+          sceneRenderer.ready &&
+          !loadingActive &&
+          !level.assembly,
       );
       assert.equal(await page.evaluate(() => mapError), null);
       assert.equal(
@@ -152,7 +166,7 @@ import assert from 'node:assert/strict';
         await page.evaluate((id) => JellyLevels.standardNames[id - 1], id),
       );
       await complete();
-      assert.equal(await page.evaluate(() => JellyProgress.unlocked), Math.min(5, id + 1));
+      assert.equal(await page.evaluate(() => JellyProgress.unlocked), Math.min(levelCount, id + 1));
     }
     assert.equal(await page.locator('#win-title').textContent(), 'Demo complete');
     assert.equal(await page.locator('#win-next').textContent(), 'Levels');
@@ -167,7 +181,11 @@ import assert from 'node:assert/strict';
         typeof previewRenderer !== 'undefined' &&
         previewRenderer.ready,
     );
-    assert.equal(await page.evaluate(() => model.map.name), 'The Sunken Sanctum');
+    // The editor opens the first campaign map on first use.
+    assert.equal(
+      await page.evaluate(() => model.map.name),
+      await page.evaluate(() => L.standardLevel(1).name),
+    );
     await page.goto('http://localhost:3000/?level=editor');
     await page.waitForFunction(() => typeof sceneRenderer !== 'undefined' && sceneRenderer.ready);
     assert.equal(await page.locator('#main-menu').isVisible(), false);
