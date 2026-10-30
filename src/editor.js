@@ -39,6 +39,7 @@ const groups = [
     [
       ['floor', '▣', 'Каменный куб'],
       ...L.characters.map((p, i) => ['color-' + i, phaseSymbols[i], p.name, p.color]),
+      ['lava', '≋', 'Лава', '#ff6a1a'],
     ],
   ],
   ['Декор', [['torch', '♨', 'Настенный факел', '#f7ba60']]],
@@ -89,7 +90,7 @@ const plateGroupOptions = () =>
   model.map.plates
     .filter((p, i, all) => all.findIndex((q) => q.color === p.color) === i)
     .map((p) => [p.color, plateGroupNames[p.color] || p.color]);
-const cubeTool = (value) => value === 'floor' || /^color-[0-4]$/.test(value);
+const cubeTool = (value) => value === 'floor' || value === 'lava' || /^color-[0-4]$/.test(value);
 const labels = {
   blocks: 'Каменный куб',
   tiles: 'Камень',
@@ -172,7 +173,7 @@ function toolIcon(id, glyph) {
   if (id === 'spikes')
     drawing =
       '<path d="M3 27 7 9l4 18 5-23 5 23 4-18 4 18Z" fill="currentColor" fill-opacity=".8" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M3 28h26v4H3Z" fill="currentColor" fill-opacity=".4" stroke="currentColor" stroke-width="1.3"/>';
-  if (id === 'floor' || id.startsWith('color-'))
+  if (id === 'floor' || id === 'lava' || id.startsWith('color-'))
     drawing =
       cube +
       (id === 'floor'
@@ -637,6 +638,7 @@ function renderProperties() {
     card.dataset.object = `${key}-${index}`;
     let label = labels[key];
     if (key === 'blocks' && p.color !== undefined) label = 'Энергетический блок';
+    if (key === 'blocks' && p.lava) label = 'Лава';
     if (key === 'spawns' || key === 'goals') label += ` · ${names[index]}`;
     if (key === 'pickups') label = p.kind === 'shield' ? 'Деревянный щит' : 'Железный меч';
     if (key === 'walls' && p.half < 0.4) label = 'Факел';
@@ -707,6 +709,7 @@ function renderProperties() {
       for (const [value, name, color] of [
         ['', 'Обычный камень', '#918878'],
         ...L.characters.map((c, i) => [String(i), c.name, c.color]),
+        ['lava', 'Лава', '#ff6a1a'],
       ]) {
         const label = element('label', undefined, 'color-swatch'),
           radio = element('input');
@@ -716,13 +719,16 @@ function renderProperties() {
         radio.name = 'block-color-' + index;
         radio.id = 'block-color-' + index + '-' + (value || 'stone');
         radio.value = value;
-        radio.checked = String(p.color ?? '') === value;
+        radio.checked = (p.lava ? 'lava' : String(p.color ?? '')) === value;
         radio.setAttribute('aria-label', name);
         radio.onchange = () => {
           const focused = document.activeElement === radio;
           edit((map) => {
-            if (value === '') delete map.blocks[index].color;
-            else map.blocks[index].color = Number(value);
+            const block = map.blocks[index];
+            delete block.color;
+            delete block.lava;
+            if (value === 'lava') block.lava = true;
+            else if (value !== '') block.color = Number(value);
           });
           if (focused) $(radio.id)?.focus({ preventScroll: true });
         };
@@ -735,6 +741,7 @@ function renderProperties() {
         card.append(
           element('p', `Проходит только ${names[p.color]}. Ящики не проходят.`, 'empty-state'),
         );
+      if (p.lava) card.append(element('p', 'Желейки сгорают, ящики проезжают.', 'empty-state'));
     }
     if (key === 'tiles')
       field(card, 'Высота пола', p.height, { min: 0, max: 3 }, (value) =>

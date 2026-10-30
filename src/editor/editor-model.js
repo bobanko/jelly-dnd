@@ -88,10 +88,18 @@ export class Model {
       this.erase(x, z, y);
       return;
     }
-    if (tool === 'floor' || tool === 'cube' || tool === 'wall' || /^color-[0-4]$/.test(tool)) {
+    if (
+      tool === 'floor' ||
+      tool === 'cube' ||
+      tool === 'wall' ||
+      tool === 'lava' ||
+      /^color-[0-4]$/.test(tool)
+    ) {
       const p = this.cube(x, y, z);
       if (tool.startsWith('color-')) p.color = Number(tool.slice(-1));
       else delete p.color;
+      if (tool === 'lava') p.lava = true;
+      else delete p.lava;
       return;
     }
     if (/^(spawn|goal)-[0-4]$/.test(tool)) {
@@ -230,7 +238,7 @@ export class Model {
       this.paintVoxel(tool, x, options.y ?? options.height ?? 0, z, options);
       return;
     }
-    if (options.voxel || tool === 'cube' || /^color-[0-4]$/.test(tool)) {
+    if (options.voxel || tool === 'cube' || tool === 'lava' || /^color-[0-4]$/.test(tool)) {
       this.paintVoxel(tool, x, options.y ?? options.height ?? 0, z, options);
       return;
     }

@@ -36,11 +36,15 @@ export const sceneMethods = {
           !level.world.lifts.some((p) => p.x === b.x && p.z === b.z && p.base === b.y),
       ),
       occupied = new Set(
-        blocks.filter((b) => b.color === undefined).map((b) => [b.x, b.y, b.z].join(',')),
+        // Lava sits lower than its neighbours, so their side faces above it stay lit stone.
+        blocks
+          .filter((b) => b.color === undefined && !b.lava)
+          .map((b) => [b.x, b.y, b.z].join(',')),
       ),
       pillars = this.pillars ? levelPillars(blocks) : [];
     for (const p of pillars) occupied.add([p.x, p.y, p.z].join(','));
     let blockIndex = 0;
+    const lavaPools = [];
     const blockAssemblyIndices = new Map(),
       recordBlock = (target, source, from, center, cell = center) => {
         blockAssemblyIndices.set(cell.join(','), blockIndex);
@@ -110,6 +114,17 @@ export const sceneMethods = {
         if (support !== null && Math.abs(support - (b.y - 1)) < 0.01)
           phaseGroundGlow(phaseMesh, this.phaseFaces, b, phaseTints[b.color]);
         recordBlock(phaseAssembly, phaseMesh, from, [b.x, b.y - 0.5, b.z], [b.x, b.y, b.z]);
+        continue;
+      }
+      if (b.lava) {
+        // A sunken stone basin; its lava surface goes into the decor buffer (solidFS).
+        const from = mesh.length;
+        box(mesh, [b.x, b.y - 0.57, b.z], [0.97, 0.86, 0.97], [0.17, 0.12, 0.1], 0.04, 0, 2, {
+          crisp: true,
+          shade: occlusion(b),
+        });
+        recordBlock(assembly, mesh, from, [b.x, b.y - 0.5, b.z], [b.x, b.y, b.z]);
+        lavaPools.push(b);
         continue;
       }
       const from = mesh.length;
@@ -189,6 +204,11 @@ export const sceneMethods = {
     }
     // Masonry comes first and uses the stone pipeline; decor follows in the same buffer.
     const decor = [];
+    for (const b of lavaPools) {
+      const from = decor.length;
+      box(decor, [b.x, b.y - 0.15, b.z], [1, 0.04, 1], [1, 0.4, 0.1], 0.002, 29, 1);
+      recordDecor(decor, from, b);
+    }
     scatterDecor(decor, level, occupied, recordDecor);
     for (const torch of level.world.torches || []) {
       const from = decor.length;

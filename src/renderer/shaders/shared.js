@@ -185,6 +185,17 @@ export const shared = `
  }
  // Arithmetic hash (no transcendental functions), cheap enough for per-pixel noise.
  fn hash(p:vec3f)->f32{var q=fract(p*.1031);q+=dot(q,q.zyx+31.32);return fract((q.x+q.y)*q.z);}
+ // Lava crust: Voronoi plates whose centres drift slowly. Returns the distance to the nearest
+ // plate centre and the gap to the second nearest (small along the glowing cracks).
+ fn lavaCells(p:vec2f)->vec2f{
+  let cell=floor(p);let f=fract(p);var d1=8.;var d2=8.;
+  for(var j=-1;j<=1;j++){for(var i=-1;i<=1;i++){
+   let g=vec2f(f32(i),f32(j));let seed=vec2f(hash(vec3f(cell+g,7.)),hash(vec3f(cell+g,13.)));
+   let center=g+.15+seed*.7+.1*sin(scene.options.z*.35+seed*6.28)-f;let d=length(center);
+   if(d<d1){d2=d1;d1=d;}else if(d<d2){d2=d;}
+  }}
+  return vec2f(d1,d2-d1);
+ }
  // The void fog below the lowest floor fades into the sky colour painted by the post pass.
  const VOID_COLOR=vec3f(${VOID_COLOR});
  fn voidFog(p:vec3f,color:vec3f)->vec3f{return mix(color,VOID_COLOR,smoothstep(.05,1.2,scene.finish.y-p.y)*.96);}
@@ -388,6 +399,14 @@ export const shared = `
     // Idle runes keep a soft neon glow, so every finish reads at a glance.
     result=color*(mix(1.1,2.8,charge)*(.93+.07*sin(scene.options.z*2.2+o.local.x*1.7))+inscribed*3.);
    }
+  }
+  if(o.material>28.5&&o.material<29.5){
+   // Emissive lava: dark cooled plates, reddish towards their rims, bright cracks between them.
+   let cells=lavaCells(o.world.xz*2.6);let pulse=.82+.18*sin(scene.options.z*1.6+cells.x*7.);
+   let crack=1.-smoothstep(.02,.11,cells.y);let rim=1.-smoothstep(.0,.3,cells.y);
+   let crust=mix(vec3f(.2,.032,.008),vec3f(.028,.009,.005),smoothstep(.05,.5,cells.x));
+   result=crust+vec3f(.9,.2,.03)*rim*rim*.55*pulse+vec3f(3.4,1.45,.28)*crack*pulse;
+   return vec4f(result,1.);
   }
   return vec4f(voidFog(o.world,result+marks),1.);
  }

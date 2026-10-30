@@ -197,7 +197,7 @@ export function scatterDecor(mesh, level, occupied, recordAssembly) {
     [-1, 0],
     [0, -1],
   ];
-  for (const b of (level.world.blocks || []).filter((b) => b.color === undefined)) {
+  for (const b of (level.world.blocks || []).filter((b) => b.color === undefined && !b.lava)) {
     const key = b.x + ',' + b.z,
       y = b.y;
     if (occupied.has([b.x, y + 1, b.z].join(',')) || taken.has(key)) continue;

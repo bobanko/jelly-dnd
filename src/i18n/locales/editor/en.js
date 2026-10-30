@@ -131,6 +131,8 @@ export default {
   'Цвет блока': 'Block color',
   Янтарный: 'Amber',
   'Обычный камень': 'Plain stone',
+  Лава: 'Lava',
+  'Желейки сгорают, ящики проезжают.': 'Jellies burn; crates ride across.',
   'Проходит только': 'Only passes',
   'Ящики не проходят.': 'Crates cannot pass.',
   'Высота пола': 'Floor height',

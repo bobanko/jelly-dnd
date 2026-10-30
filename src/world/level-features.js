@@ -623,14 +623,23 @@ function install(World) {
           const state = this.spikeState(s);
           return state.dangerous && this.spikeTouches(p, s, state.extension);
         });
-        if (spike) {
+        // A jelly whose centre rests on a lava block burns; crates ride over lava like floor.
+        const tx = Math.round(p.x),
+          tz = Math.round(p.z),
+          top = Math.round(p.y || 0),
+          lava =
+            this.lavaBlocks?.size &&
+            Math.abs((p.y || 0) - top) < 0.12 &&
+            this.lavaBlocks.has(`${tx},${top},${tz}`);
+        if (spike || lava) {
+          const reason = spike ? 'spikes' : 'lava';
           p.state = 'dead';
           p.deaths = (p.deaths || 0) + 1;
-          p.deathReason = 'spikes';
+          p.deathReason = reason;
           p.respawnTimer = 0.7;
           p.vx = p.vy = p.vz = 0;
           soft.get(p).velocities.forEach((v) => v.fill(0));
-          events.push({ type: 'death', reason: 'spikes', player: i });
+          events.push({ type: 'death', reason, player: i });
           return;
         }
         const source = this.portals.find(

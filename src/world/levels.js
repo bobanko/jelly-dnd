@@ -202,7 +202,13 @@ function read(input) {
       (!Number.isInteger(p.color) || p.color < 0 || p.color >= characters.length)
     )
       fail('Цвет куба должен соответствовать одному из персонажей.');
-    return { y: p.y, ...(p.color === undefined ? {} : { color: p.color }) };
+    if (p.lava !== undefined && p.lava !== true) fail('Флаг лавы куба должен быть true.');
+    if (p.lava && p.color !== undefined) fail('Куб не может быть одновременно лавой и цветным.');
+    return {
+      y: p.y,
+      ...(p.color === undefined ? {} : { color: p.color }),
+      ...(p.lava ? { lava: true } : {}),
+    };
   });
   list('tiles', (p) => ({ height: number(p.height, 0, 0, 3) }));
   list('walls', (p) => ({
@@ -372,6 +378,8 @@ function issues(map) {
       }
       if (!tile(p) || at(map.bridges, p) || at(map.lifts, p))
         result.push(`${label} должен стоять на постоянной площадке.`);
+      if (map.blocks?.some((b) => b.lava && b.x === p.x && b.z === p.z && b.y === height(p)))
+        result.push(`${label} не может стоять на лаве.`);
       if (
         map.blocks?.some((b) => b.x === p.x && b.z === p.z && b.y === height(p) && b.color === i) &&
         !map.tiles.some((t) => t.x === p.x && t.z === p.z && t.height === height(p))
@@ -505,6 +513,8 @@ function instantiate(map, Physics, Soft) {
     if (!world.blockColumns.has(key)) world.blockColumns.set(key, []);
     world.blockColumns.get(key).push(b.y);
   }
+  // Lava blocks are solid, but a jelly standing on one burns (see level-features).
+  world.lavaBlocks = new Set(world.blocks.filter((b) => b.lava).map((b) => `${b.x},${b.y},${b.z}`));
   world.blockColors = new Map(
     world.blocks.filter((b) => b.color !== undefined).map((b) => [`${b.x},${b.y},${b.z}`, b.color]),
   );

@@ -142,3 +142,26 @@ test('arrows and the rigid baseline still see coloured stone as solid for nonmat
     assert.equal(r.world.arrows.length, 0, 'stone consumes the actual swept arrow');
   }
 });
+
+test('lava blocks serialize, repaint and burn a jelly that steps on them, but carry crates', () => {
+  const m = new Model(room());
+  m.change(() => m.paint('lava', 3, 3, { y: 0 }));
+  assert.equal(m.at('blocks', 3, 3, 0).lava, true);
+  m.change(() => m.paint('color-1', 3, 3, { y: 0 }));
+  assert.equal(m.at('blocks', 3, 3, 0).lava, undefined, 'repainting replaces the material');
+  m.undo();
+  assert.deepEqual(L.read(JSON.stringify(m.map)), m.map);
+  assert.throws(() => L.read({ ...room(), blocks: [{ x: 3, y: 0, z: 3, lava: 1 }] }));
+  assert.throws(() => L.read({ ...room(), blocks: [{ x: 3, y: 0, z: 3, lava: true, color: 0 }] }));
+  const onLava = room();
+  onLava.blocks.find((b) => b.x === 1 && b.z === 3).lava = true;
+  assert.ok(L.issues(onLava).some((issue) => issue.includes('лаве')));
+  const r = runtime(m.map),
+    p = r.players[0];
+  const events = step(r, 360, [{ x: 1, z: 0 }]);
+  assert.ok(
+    events.some((e) => e.type === 'death' && e.reason === 'lava'),
+    'walking east from x=1 crosses the lava cell at x=3',
+  );
+  assert.ok(p.deaths >= 1);
+});
