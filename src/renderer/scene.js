@@ -215,7 +215,8 @@ export const sceneMethods = {
       torchDecor(decor, torch);
       recordDecor(decor, from, torch);
     }
-    assembly.push(...decorAssembly);
+    // A loop, not push(...decorAssembly): large maps exceed the call-stack argument limit.
+    for (const value of decorAssembly) assembly.push(value);
     for (const [key, values] of [
       ['assemblyBuffer', assembly],
       ['phaseAssemblyBuffer', phaseAssembly],
