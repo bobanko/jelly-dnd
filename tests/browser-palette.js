@@ -70,7 +70,10 @@ import fs from 'node:fs';
       await click(5, i + 1);
     }
     assert.equal(
-      await page.locator('#properties [data-object^=portals-] select').locator('option').count(),
+      // Portal colour is a row of swatch radios, one per colour.
+      await page
+        .locator('#properties [data-object^=portals-] .color-options input[type=radio]')
+        .count(),
       5,
     );
     assert.equal(await page.evaluate(() => model.map.portals.length), 10);

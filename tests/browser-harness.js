@@ -70,3 +70,42 @@ export const chromium = {
     return browser;
   },
 };
+
+// Editor checks were written against the original chamber, which is no longer the first
+// campaign map. Seed it (or another levels/ file) as the editor draft once per tab, so
+// reloads still exercise the draft the test itself saved.
+export async function seedEditorMap(page, file = '05-sunken-sanctum.json') {
+  const fs = await import('node:fs');
+  await page.addInitScript(
+    ({ map }) => {
+      if (sessionStorage.getItem('jelly-dnd.test-seeded')) return;
+      sessionStorage.setItem('jelly-dnd.test-seeded', '1');
+      localStorage.setItem('jelly-dnd.editor.v1', map);
+      localStorage.removeItem('jelly-dnd.editor.filename');
+    },
+    { map: fs.readFileSync(new URL('../levels/' + file, import.meta.url), 'utf8') },
+  );
+}
+
+// Plays a levels/ file through the editor playtest slot, so checks can use maps outside the
+// campaign (the original chamber) without unlocking progress. `edit` may adjust the map.
+export async function playMap(page, file = '05-sunken-sanctum.json', edit = (map) => map) {
+  const fs = await import('node:fs');
+  const map = edit(
+    JSON.parse(fs.readFileSync(new URL('../levels/' + file, import.meta.url), 'utf8')),
+  );
+  await page.addInitScript(
+    (json) => localStorage.setItem('jelly-dnd.play.v1', json),
+    JSON.stringify(map),
+  );
+  await page.goto('http://localhost:3000/?level=editor');
+  await page.waitForFunction(
+    () =>
+      typeof sceneRenderer !== 'undefined' &&
+      sceneRenderer.ready &&
+      !loadingActive &&
+      !level.assembly,
+    null,
+    { timeout: 60000 },
+  );
+}

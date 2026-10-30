@@ -17,6 +17,8 @@ import fs from 'node:fs';
       if (m.type() === 'error') errors.push(m.text());
     });
     await page.addInitScript(() => {
+      // The checks look up Russian editor labels; the editor now defaults to English.
+      localStorage.setItem('jelly-dnd.language', 'ru');
       if (!localStorage.getItem('jelly-dnd.editor.v1')) {
         const blocks = [];
         for (let x = 1; x <= 6; x++) for (let z = 1; z <= 6; z++) blocks.push({ x, y: 0, z });

@@ -51,9 +51,8 @@ import fs from 'node:fs';
         color,
       );
     }
-    await page
-      .getByLabel('\u0426\u0432\u0435\u0442 \u0431\u043b\u043e\u043a\u0430', { exact: true })
-      .selectOption('1');
+    // Block material is a row of swatch radios in the inspector.
+    await page.locator('#properties input[name^="block-color-"][value="1"]').first().check();
     assert.equal(await page.evaluate(() => model.at('blocks', 3, 7, 1).color), 1);
     await page.locator('#undo').click();
     assert.equal(await page.evaluate(() => model.at('blocks', 3, 7, 1).color), 3);
@@ -101,7 +100,7 @@ import fs from 'node:fs';
     assert.deepEqual(await page.evaluate(() => L.issues(model.map)), []);
     await page.locator('#play').click();
     await page.waitForURL('**/?level=editor');
-    await page.waitForFunction(() => sceneRenderer.ready);
+    await page.waitForFunction(() => sceneRenderer.ready && !loadingActive); // input is ignored while loading
     for (const key of ['KeyD', 'ArrowRight', 'KeyL', 'KeyH']) await page.keyboard.down(key);
     await page.waitForFunction(() => players.every((p) => p.x > 4.1), {}, { timeout: 20000 });
     for (const key of ['KeyD', 'ArrowRight', 'KeyL', 'KeyH']) await page.keyboard.up(key);
@@ -110,6 +109,7 @@ import fs from 'node:fs';
     );
     await page.screenshot({ path: 'artifacts/colour-blocks-passed.png' });
     await page.keyboard.press('KeyR');
+    await page.waitForFunction(() => restartTransition === null); // restart fades first
     // Move blue into the green lane and green aside: blue must hit green stone.
     await page.evaluate(() => {
       Object.assign(players[0], { x: 6, z: 3 });
@@ -122,6 +122,7 @@ import fs from 'node:fs';
     await page.keyboard.up('ArrowRight');
     assert.ok(await page.evaluate(() => players[1].x < 2.3));
     await page.keyboard.press('KeyR');
+    await page.waitForFunction(() => restartTransition === null); // restart fades first
     assert.ok(await page.evaluate(() => players.every((p) => Math.abs(p.x - 1) < 0.02)));
     assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
     assert.deepEqual(errors, []);

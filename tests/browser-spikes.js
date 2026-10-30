@@ -16,6 +16,8 @@ import fs from 'node:fs';
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(m.text());
     });
+    // The checks look up Russian editor labels; the editor now defaults to English.
+    await page.addInitScript(() => localStorage.setItem('jelly-dnd.language', 'ru'));
     await page.goto('http://localhost:3000/editor.html');
     await page.waitForFunction(() => view3d && previewRenderer?.ready && previewRuntime);
     await page.evaluate(() => {
@@ -52,8 +54,9 @@ import fs from 'node:fs';
         await page.evaluate(() => previewRenderer.frames),
       );
     };
+    await turn(0); // the editor now opens at a 45-degree view; these clicks assume a straight one
     await page.locator('[data-tool=spikes]').click();
-    await page.selectOption('#spike-color', '2');
+    await page.locator('input[name="color-spike-brush"][value="2"]').check();
     for (const [x, y, z, face] of [
       [3.5, 0.5, 3, 'east'],
       [3, 0.5, 3.5, 'south'],
@@ -81,7 +84,7 @@ import fs from 'node:fs';
     }
     assert.equal(await page.evaluate(() => model.map.spikes.length), 4);
     await turn(0);
-    await page.selectOption('#spike-color', '');
+    await page.locator('input[name="color-spike-brush"][value=""]').check();
     await click(5, 0, 4);
     assert.ok(
       await page.evaluate(() =>
@@ -90,19 +93,18 @@ import fs from 'node:fs';
         ),
       ),
     );
-    await page.locator('#properties').getByLabel('Цвет шипов', { exact: true }).selectOption('1');
-    await page.locator('#properties').getByLabel('Задержка, сек', { exact: true }).fill('1.2');
-    await page.locator('#properties').getByLabel('Задержка, сек', { exact: true }).press('Tab');
+    await page
+      .locator('#properties [data-object^=spikes-] .color-options input[value="1"]')
+      .first()
+      .check();
+    await page.locator('#properties').getByLabel('Сдвиг цикла, сек', { exact: true }).fill('1.2');
+    await page.locator('#properties').getByLabel('Сдвиг цикла, сек', { exact: true }).press('Tab');
     assert.equal(await page.evaluate(() => model.map.spikes.find((s) => s.x === 5).offset), 1.2);
     await page.locator('#undo').click();
     assert.equal(await page.evaluate(() => model.map.spikes.find((s) => s.x === 5).offset), 0);
     await page.locator('[data-tool=select]').click();
     await click(3, 1, 3);
-    await page
-      .locator('#properties')
-      .getByLabel('Крепление шипов', { exact: true })
-      .first()
-      .selectOption('top');
+    await page.locator('#properties input[name^="face-"][value="top"]').first().check();
     assert.ok(await page.evaluate(() => model.map.spikes.some((s) => s.x === 3 && !s.face)));
     await page.locator('#undo').click();
     await page.locator('[data-tool=spikes]').click();
@@ -111,7 +113,7 @@ import fs from 'node:fs';
       [4, 6, '0'],
       [5, 6, '3'],
     ]) {
-      await page.selectOption('#spike-color', color);
+      await page.locator(`input[name="color-spike-brush"][value="${color}"]`).check();
       await click(x, 0, z);
     }
     assert.equal(await page.evaluate(() => model.map.spikes.length), 8);
@@ -119,9 +121,11 @@ import fs from 'node:fs';
     await page.locator('[data-tool=select]').click();
     await page.waitForFunction(() => !previewDirty && previewRuntime.world.spikes.length === 8);
     assert.equal(
-      await page.evaluate(
-        () => previewRuntime.world.debugBoxes().filter((b) => b.kind === 'spikes').length,
-      ),
+      await page.evaluate(() => {
+        // The preview now runs the spike cycle; at time zero every timed trap is raised.
+        previewRuntime.world.featureTime = 0;
+        return previewRuntime.world.debugBoxes().filter((b) => b.kind === 'spikes').length;
+      }),
       32,
     );
     await page.screenshot({ path: 'artifacts/spikes-mounted-editor.png' });
@@ -152,7 +156,9 @@ import fs from 'node:fs';
     assert.deepEqual(await page.evaluate(() => model.map), JSON.parse(draft));
     await page.locator('#play').click();
     await page.waitForURL('**/?level=editor');
-    await page.waitForFunction(() => sceneRenderer.ready && sceneRenderer.frames > 3);
+    await page.waitForFunction(
+      () => sceneRenderer.ready && sceneRenderer.frames > 3 && !loadingActive,
+    );
     // With a blue/red party, WASD controls blue and arrows control red.
     await page.evaluate(() => {
       Object.assign(players[1], { x: 1.4, y: 0, z: 3 });
@@ -169,6 +175,7 @@ import fs from 'node:fs';
       ),
     );
     await page.keyboard.press('KeyR');
+    await page.waitForFunction(() => restartTransition === null); // restart fades first
     await page.evaluate(() => {
       Object.assign(players[0], { x: 1.4, y: 0, z: 3 });
       world.featureTime = 0;
@@ -181,6 +188,7 @@ import fs from 'node:fs';
     assert.ok(await page.evaluate(() => effects.particles.length > 0));
     await page.waitForFunction(() => players[0].state === 'alive');
     await page.keyboard.press('KeyR');
+    await page.waitForFunction(() => restartTransition === null); // restart fades first
     await page.evaluate(() => {
       Object.assign(players[0], { x: 4, y: 0, z: 4 });
       world.featureTime = 0;
