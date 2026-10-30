@@ -1,4 +1,4 @@
-import { chromium } from './browser-harness.js';
+import { chromium, seedEditorMap } from './browser-harness.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 (async () => {
@@ -16,6 +16,7 @@ import fs from 'node:fs';
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(m.text());
     });
+    await seedEditorMap(page); // the original chamber
     await page.goto('http://localhost:3000/editor.html');
     await page.waitForFunction(() => view3d && previewRenderer?.ready && previewRuntime);
     assert.equal(await page.locator('[data-tool=wall]').count(), 0);
@@ -29,7 +30,6 @@ import fs from 'node:fs';
     );
     await page.screenshot({ path: 'artifacts/voxel-migrated-chamber.png' });
     await page.locator('#new').click();
-    await page.selectOption('#map-size', '8');
     const place = async (x, y, z) =>
       page.evaluate((p) => edit(() => paintCell(p, 'floor')), { x, y, z });
     const screen = async (x, y, z) =>
@@ -164,7 +164,7 @@ import fs from 'node:fs';
     assert.deepEqual(await page.evaluate(() => L.issues(model.map)), []);
     await page.locator('#play').click();
     await page.waitForURL('**/?level=editor');
-    await page.waitForFunction(() => sceneRenderer.ready);
+    await page.waitForFunction(() => sceneRenderer.ready && !loadingActive); // input is ignored while loading
     await page.keyboard.down('KeyD');
     await page.waitForFunction(() => players[0].x > 4.3);
     await page.keyboard.up('KeyD');
@@ -180,12 +180,15 @@ import fs from 'node:fs';
     await page.keyboard.press('KeyZ');
     assert.ok(await page.evaluate(() => Math.abs(players[0].y) < 0.1));
     await page.keyboard.press('KeyR');
+    await page.waitForFunction(() => restartTransition === null); // restart fades first
     assert.ok(
       await page.evaluate(() => Math.abs(players[0].x - 1) < 0.1 && Math.abs(players[0].y) < 0.1),
     );
     assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
-    await page.locator('#editor-link').click();
+    await page.keyboard.press('Escape'); // the pause menu links to the editor
+    await page.locator('#open-editor').click();
     await page.waitForURL('**/editor.html');
+    await page.waitForFunction(() => typeof model !== 'undefined' && previewRuntime);
     await page.waitForFunction(() => previewRenderer?.ready && previewRuntime);
     await page.setViewportSize({ width: 390, height: 844 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
