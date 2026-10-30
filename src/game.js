@@ -932,11 +932,14 @@ document.querySelector('#level-pillars').addEventListener('change', (e) => {
 document
   .querySelector('#depth-glow')
   .addEventListener('change', (e) => (sceneRenderer.underglow = e.target.checked));
+for (const radio of document.querySelectorAll('[name=depth-glow-color]'))
+  radio.addEventListener('change', (e) => (sceneRenderer.depthGlowColor = e.target.value));
 for (const [id, property] of [
   ['grain-strength', 'grainStrength'],
   ['grain-size', 'grainSize'],
   ['dust-density', 'dustDensity'],
   ['dust-speed', 'dustSpeed'],
+  ['depth-glow-strength', 'depthGlowStrength'],
 ])
   document.querySelector(`#${id}`).addEventListener('input', (e) => {
     sceneRenderer[property] = Number(e.target.value) / 100;

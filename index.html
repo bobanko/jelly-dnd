@@ -115,12 +115,6 @@
       <label class="mesh-toggle"
         ><input id="ambient-dust" type="checkbox" checked /> Пыль в воздухе</label
       >
-      <label class="mesh-toggle"
-        ><input id="level-pillars" type="checkbox" checked /> Колонны под уровнем</label
-      >
-      <label class="mesh-toggle"
-        ><input id="depth-glow" type="checkbox" checked /> Свет из глубины</label
-      >
       <label for="dust-density"
         >Количество пыли<input
           id="dust-density"
@@ -140,6 +134,40 @@
           step="5"
           value="100"
         /><output id="dust-speed-value" for="dust-speed">100%</output></label
+      >
+      <label class="mesh-toggle"
+        ><input id="level-pillars" type="checkbox" checked /> Колонны под уровнем</label
+      >
+      <label class="mesh-toggle"
+        ><input id="depth-glow" type="checkbox" checked /> Свет из глубины</label
+      >
+      <div
+        id="depth-glow-color"
+        class="projection-options depth-glow-options"
+        role="radiogroup"
+        aria-label="Цвет света из глубины"
+      >
+        <label
+          ><input type="radio" name="depth-glow-color" value="warm" checked /><span
+            >Тёплый</span
+          ></label
+        ><label
+          ><input type="radio" name="depth-glow-color" value="cold" /><span>Холодный</span></label
+        ><label
+          ><input type="radio" name="depth-glow-color" value="arcane" /><span
+            >Магический</span
+          ></label
+        >
+      </div>
+      <label for="depth-glow-strength"
+        >Сила света из глубины<input
+          id="depth-glow-strength"
+          type="range"
+          min="0"
+          max="300"
+          step="5"
+          value="100"
+        /><output id="depth-glow-strength-value" for="depth-glow-strength">100%</output></label
       >
       <fieldset class="camera-settings">
         <legend>Камера</legend>

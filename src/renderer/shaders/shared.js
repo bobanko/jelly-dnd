@@ -7,7 +7,7 @@ export const VOID_COLOR = '.0026,.0034,.0068';
 export const shared = `
  struct Portal { position:vec4f, color:vec4f, animation:vec4f };
  struct Goal { position:vec4f, color:vec4f };
- struct Scene { vp:mat4x4f, lightVP:mat4x4f, eye:vec4f, light:vec4f, body0:vec4f, body1:vec4f, body2:vec4f, options:vec4f, portals:array<Portal,${PORTAL_LIMIT}>, goals:array<Goal,5>, torches:array<vec4f,8>, body3:vec4f, body4:vec4f, bodySlots:array<vec4f,2>, finish:vec4f, goalSlots:array<vec4f,2> };
+ struct Scene { vp:mat4x4f, lightVP:mat4x4f, eye:vec4f, light:vec4f, body0:vec4f, body1:vec4f, body2:vec4f, options:vec4f, portals:array<Portal,${PORTAL_LIMIT}>, goals:array<Goal,5>, torches:array<vec4f,8>, body3:vec4f, body4:vec4f, bodySlots:array<vec4f,2>, finish:vec4f, goalSlots:array<vec4f,2>, depthGlow:vec4f };
  @group(0) @binding(0) var<uniform> scene:Scene;
  struct Out { @builtin(position) clip:vec4f, @location(0) world:vec3f, @location(1) normal:vec3f, @location(2) color:vec3f, @location(3) material:f32, @location(4) local:vec3f };
  struct Vertex { position:vec4f, normal:vec4f, info:vec4f };
@@ -326,7 +326,7 @@ export const shared = `
   // most on faces turned down, so the abyss feels like something is burning there.
   let deep=scene.finish.y-o.world.y;
   let flicker=.8+.2*sin(scene.options.z*1.3+o.world.x*.9+o.world.z*1.3);
-  let underglow=vec3f(1.,.3,.06)*smoothstep(2.5,7.,deep)*(1.-smoothstep(8.,11.,deep))*(.15+.85*max(0.,-normal.y)+.2*(1.-abs(normal.y)))*flicker*scene.finish.w*stone.albedo*.9;
+  let underglow=scene.depthGlow.rgb*smoothstep(2.5,7.,deep)*(1.-smoothstep(8.,11.,deep))*(.15+.85*max(0.,-normal.y)+.2*(1.-abs(normal.y)))*flicker*scene.depthGlow.w*stone.albedo*.9;
   return vec4f(voidFog(o.world,result+lit.marks)+underglow,1.);
  }
  @fragment fn solidFS(o:Out)->@location(0) vec4f{

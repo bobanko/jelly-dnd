@@ -449,12 +449,14 @@ h2 {
 .camera-settings label:has(input:disabled) {
   opacity: 0.4;
 }
-.camera-settings .projection-options {
+.camera-settings .projection-options,
+.depth-glow-options {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
 }
-.camera-settings .projection-options label {
+.camera-settings .projection-options label,
+.depth-glow-options label {
   display: flex;
   justify-content: flex-start;
   gap: 4px;

@@ -10,6 +10,7 @@ import {
   FINISH_OFFSET,
   GOAL_SLOTS_OFFSET,
   SCENE_FLOATS,
+  DEPTH_GLOW_OFFSET,
   DUST_MOTES,
 } from './layout.js';
 import { dot, normalize, viewMatrix, cameraFrame } from './math.js';
@@ -24,6 +25,12 @@ import { latticeShader, colliderShader } from './shaders/debug.js';
 import { sceneMethods } from './scene.js';
 import { propsMethods } from './props.js';
 import { effectsMethods } from './effects.js';
+// Developer choices for the light from the depths, in linear HDR.
+const DEPTH_GLOW_COLORS = {
+  warm: [1, 0.3, 0.06],
+  cold: [0.22, 0.55, 1],
+  arcane: [0.68, 0.28, 1],
+};
 // Shared material atlases; `name` is the loading-screen label key.
 const MATERIALS = [
   { name: 'textureStone', file: 'dungeon-stone-atlas.png' },
@@ -44,6 +51,8 @@ class Renderer {
     // Decorative stone pillars under the level and the warm light far below them.
     this.pillars = true;
     this.underglow = true;
+    this.depthGlowColor = 'warm';
+    this.depthGlowStrength = 1;
     this.dustSpeed = 1;
     this.filmData = new Float32Array(4);
     this.frames = 0;
@@ -803,7 +812,13 @@ class Renderer {
     uniforms[FINISH_OFFSET] = Math.max(0, Math.min(1, level.finishProgress || 0));
     uniforms[FINISH_OFFSET + 1] = this.fogBase ?? 0;
     uniforms[FINISH_OFFSET + 2] = level.assembly?.progress ?? 1;
-    uniforms[FINISH_OFFSET + 3] = this.underglow ? 1 : 0;
+    uniforms.set(
+      [
+        ...(DEPTH_GLOW_COLORS[this.depthGlowColor] || DEPTH_GLOW_COLORS.warm),
+        this.underglow ? this.depthGlowStrength : 0,
+      ],
+      DEPTH_GLOW_OFFSET,
+    );
     (level.world.torches || [])
       .slice(0, 8)
       .forEach((p, i) => uniforms.set([...Levels.torchFrame(p).light, 1], TORCHES_OFFSET + i * 4));
