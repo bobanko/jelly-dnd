@@ -32,6 +32,7 @@
     "test:dice": "node tests/browser-dice.js",
     "profile:browser": "node tests/browser-smoke.js",
     "profile:compare": "node tests/browser-performance.js",
+    "profile:solver": "node tests/solver-fingerprint.js",
     "test:menu:browser": "node tests/browser-menu.js",
     "test:atmosphere:browser": "node tests/browser-atmosphere.js",
     "test:assembly:browser": "node tests/browser-assembly.js",

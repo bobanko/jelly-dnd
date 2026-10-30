@@ -106,6 +106,12 @@ import fs from 'node:fs';
       globalThis.pokeTimer = setInterval(() => soft.poke(players[0]), 350);
     });
     await measure('one-jelly-awake');
+    await page.evaluate(() => {
+      clearInterval(pokeTimer);
+      // Worst case for the CPU solver: every jelly keeps moving.
+      globalThis.pokeTimer = setInterval(() => players.forEach((p) => soft.poke(p)), 250);
+    });
+    await measure('all-jellies-awake');
     await page.evaluate(() => clearInterval(pokeTimer));
     fs.writeFileSync(
       'artifacts/performance-' + (process.env.PERF_LABEL || 'current') + '.json',
