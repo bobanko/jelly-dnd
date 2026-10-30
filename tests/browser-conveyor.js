@@ -1,4 +1,4 @@
-import { chromium } from './browser-harness.js';
+import { chromium, seedEditorMap } from './browser-harness.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 (async () => {
@@ -16,26 +16,39 @@ import fs from 'node:fs';
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(m.text());
     });
+    await seedEditorMap(page); // the original chamber
+    // The checks look up Russian editor labels; the editor now defaults to English.
+    await page.addInitScript(() => localStorage.setItem('jelly-dnd.language', 'ru'));
     await page.goto('http://localhost:3000/editor.html');
-    await page.waitForFunction(() => model.map.conveyors.length === 3);
-    await page.locator('#view-grid').click();
+    await page.waitForFunction(() => view3d && previewRenderer?.ready && previewRuntime);
+    // A flat 8x8 floor with three existing belts on row z = 5, seen straight on.
+    await page.evaluate(() => {
+      const m = L.blank();
+      m.name = 'Belts';
+      for (let x = 0; x < 8; x++) for (let z = 0; z < 8; z++) m.blocks.push({ x, y: 0, z });
+      m.spawns[0] = { x: 0, y: 0, z: 7 };
+      m.goals[0] = { x: 7, y: 0, z: 7 };
+      for (const x of [1, 2, 3]) m.conveyors.push({ x, y: 0, z: 5, dx: 1, dz: 0, speed: 0.85 });
+      replaceMap(m);
+      previewAngle = previewTargetAngle = 0;
+    });
+    await page.waitForFunction(() => !previewDirty && previewRuntime.world.conveyors.length === 3);
     await page.locator('[data-tool=conveyor]').click();
-    await page.selectOption('#belt-direction', '1,0');
+    // Belt direction is a visible radio group now, in the brush and in the inspector.
+    await page.locator('input[name="belt-direction"][value="1,0"]').check();
     await page.locator('#belt-speed').fill('1.1');
     await page.selectOption('#brush-shape', 'rectangle');
     const point = async (x, z) =>
       page.evaluate(
         ([x, z]) => {
-          const m = metrics();
-          return {
-            x: m.rect.left + m.x + (x + 0.5) * m.cell,
-            y: m.rect.top + m.y + (z + 0.5) * m.cell,
-          };
+          const r = document.getElementById('viewport').getBoundingClientRect(),
+            q = JellyGPU.projectPoint(screenFrame(), x, 0, z, r.width, r.height);
+          return { x: r.left + q.x, y: r.top + q.y };
         },
         [x, z],
       );
-    const a = await point(11, 12),
-      b = await point(14, 12);
+    const a = await point(2, 2),
+      b = await point(5, 2);
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
     await page.mouse.move(b.x, b.y, { steps: 8 });
@@ -44,7 +57,7 @@ import fs from 'node:fs';
     assert.ok(
       await page.evaluate(() =>
         model.map.conveyors
-          .filter((p) => p.z === 12)
+          .filter((p) => p.z === 2)
           .every((p) => p.dx === 1 && p.dz === 0 && p.speed === 1.1),
       ),
     );
@@ -52,26 +65,20 @@ import fs from 'node:fs';
     assert.equal(await page.evaluate(() => model.map.conveyors.length), 3);
     await page.locator('#redo').click();
     await page.locator('[data-tool=select]').click();
-    const p = await point(12, 12);
+    const p = await point(3, 2);
     await page.mouse.click(p.x, p.y);
-    await page.getByLabel('Направление ленты', { exact: true }).selectOption('0,-1');
-    assert.equal(await page.evaluate(() => model.at('conveyors', 12, 12).dz), -1);
-    await page.getByLabel('Направление ленты', { exact: true }).selectOption('1,0');
+    await page.locator('#properties input[name^="direction-"][value="0,-1"]').first().check();
+    assert.equal(await page.evaluate(() => model.at('conveyors', 3, 2).dz), -1);
+    await page.locator('#properties input[name^="direction-"][value="1,0"]').first().check();
     const speed = page.getByLabel('Скорость ленты, кл/с', { exact: true });
     await speed.fill('1.25');
     await speed.press('Tab');
-    assert.equal(await page.evaluate(() => model.at('conveyors', 12, 12).speed), 1.25);
+    assert.equal(await page.evaluate(() => model.at('conveyors', 3, 2).speed), 1.25);
     const data = await page.evaluate(() => model.map);
     await page.reload();
     await page.waitForFunction(() => model.map.conveyors.length === 7);
     assert.deepEqual(await page.evaluate(() => model.map), data);
-    await page.locator('#view-3d').click();
     await page.waitForFunction(() => previewRenderer?.ready && previewRuntime);
-    await page.evaluate(() => {
-      previewCamera.x = 12.5;
-      previewCamera.z = 12;
-      previewZoom = 2.5;
-    });
     await page.waitForTimeout(250);
     await page.screenshot({ path: 'artifacts/conveyor-editor-3d.png' });
     assert.ok(
@@ -103,7 +110,7 @@ import fs from 'node:fs';
     });
     await page.locator('#play').click();
     await page.waitForURL('**/?level=editor');
-    await page.waitForFunction(() => sceneRenderer.ready);
+    await page.waitForFunction(() => sceneRenderer.ready && !loadingActive); // input is ignored while loading
     await page.waitForFunction(
       () => players[0].x > 2.3 && players[1].x > 2.3 && crates[0].x > 3.2,
       null,
@@ -131,6 +138,7 @@ import fs from 'node:fs';
     });
     await page.screenshot({ path: 'artifacts/conveyor-playtest.png' });
     await page.keyboard.press('KeyR');
+    await page.waitForFunction(() => restartTransition === null); // restart fades first
     assert.ok(
       await page.evaluate(
         () => players[0].x < 1.1 && crates[0].x < 2.1 && world.conveyors.length === 18,
@@ -138,8 +146,10 @@ import fs from 'node:fs';
     );
     assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
     assert.deepEqual(errors, []);
-    await page.locator('#editor-link').click();
+    await page.keyboard.press('Escape'); // the pause menu links to the editor
+    await page.locator('#open-editor').click();
     await page.waitForURL('**/editor.html');
+    await page.waitForFunction(() => typeof model !== 'undefined' && previewRuntime);
     assert.equal(await page.evaluate(() => model.map.conveyors.length), 18);
     console.log(
       'PASS: conveyor brush/rectangle, direction and speed, undo/redo and draft roundtrip, connected 3D belt geometry/WGSL, automatic jelly and crate transport, countersteering, movement undo and reset. No browser or GPU errors.',
