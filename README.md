@@ -16,7 +16,6 @@ Play it on [itch.io](https://bobanko.itch.io/jellybones).
 
 - **WASD / Arrows / IJKL / TFGH** — move your jellies
 - **Q / E** — rotate camera
-- **1–4** — follow a character
 - **Mouse wheel** — zoom
 - **Z** — undo
 - **R** — restart
