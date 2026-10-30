@@ -1,6 +1,6 @@
 import { chromium } from './browser-harness.js';
 import assert from 'node:assert/strict';
-import L from '../levels.js';
+import L from '../src/world/levels.js';
 (async () => {
   const browser = await chromium.launch({
     headless: true,

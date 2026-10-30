@@ -1,8 +1,8 @@
-import Levels from '../levels.js';
+import Levels from '../src/world/levels.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { target } from '../shared-camera.js';
-import * as GPU from '../webgpu-renderer.js';
+import { target } from '../src/camera/shared-camera.js';
+import * as GPU from '../src/renderer/index.js';
 const map = {
   blocks: [
     { x: 1, z: 1 },

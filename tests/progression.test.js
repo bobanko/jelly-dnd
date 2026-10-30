@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { create, KEY, LEGACY_KEY } from '../progression.js';
+import { create, KEY, LEGACY_KEY } from '../src/game/progression.js';
 function store(initial = {}) {
   const values = new Map(Object.entries(initial));
   return {

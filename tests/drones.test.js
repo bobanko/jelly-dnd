@@ -1,12 +1,12 @@
-import * as EditorSpace from '../editor-space.js';
+import * as EditorSpace from '../src/editor/editor-space.js';
 import sunkenSanctum from '../levels/05-sunken-sanctum.json' with { type: 'json' };
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import L from '../levels.js';
-import * as P from '../physics.js';
-import * as S from '../soft-body.js';
-import { Model } from '../editor-model.js';
-import * as Effects from '../game-effects.js';
+import L from '../src/world/levels.js';
+import * as P from '../src/world/physics.js';
+import * as S from '../src/world/soft-body.js';
+import { Model } from '../src/editor/editor-model.js';
+import * as Effects from '../src/game/game-effects.js';
 function scene(slots = [1]) {
   const m = L.blank();
   m.size = 8;

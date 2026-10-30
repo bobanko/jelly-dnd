@@ -1,4 +1,4 @@
-import * as GPU from './webgpu-renderer.js';
+import * as GPU from '../renderer/index.js';
 const geometryCache = new WeakMap(),
   overviewCache = new WeakMap();
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));

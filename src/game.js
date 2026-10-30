@@ -1,13 +1,13 @@
-import JellyLevels from './levels.js';
-import { i18n as JellyI18n } from './i18n.js';
-import * as JellyGPU from './webgpu-renderer.js';
-import * as JellySoftBody from './soft-body.js';
-import * as JellyPhysics from './physics.js';
-import * as JellyEffects from './game-effects.js';
-import { GameAudio, MechanismSounds, SpikeSounds } from './game-audio.js';
-import * as JellySharedCamera from './shared-camera.js';
-import * as LevelCamera from './level-camera.js';
-import { createMenuScene } from './menu-scene.js';
+import JellyLevels from './world/levels.js';
+import { i18n as JellyI18n } from './i18n/i18n.js';
+import * as JellyGPU from './renderer/index.js';
+import * as JellySoftBody from './world/soft-body.js';
+import * as JellyPhysics from './world/physics.js';
+import * as JellyEffects from './game/game-effects.js';
+import { GameAudio, MechanismSounds, SpikeSounds } from './game/game-audio.js';
+import * as JellySharedCamera from './camera/shared-camera.js';
+import * as LevelCamera from './camera/level-camera.js';
+import { createMenuScene } from './game/menu-scene.js';
 import { menuOnly as JellyMenuOnly, progress as JellyProgress } from './runtime-context.js';
 
 const tr = (key) => JellyI18n?.t(key) ?? key;

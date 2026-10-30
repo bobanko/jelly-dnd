@@ -1,4 +1,4 @@
-import Levels from '../levels.js';
+import Levels from '../world/levels.js';
 import { box, lowSphere, sphere, rod } from './mesh.js';
 import { crateGeometry } from './geometry/wood.js';
 import { assemblyDropOffset, assemblyFloatOffset, assemblyRock } from './assembly.js';

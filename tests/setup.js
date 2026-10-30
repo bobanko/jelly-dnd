@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { configureMaps } from '../levels.js';
+import { configureMaps } from '../src/world/levels.js';
 import * as catalog from '../levels/catalog.js';
 export function readLevelFile(file) {
   return JSON.parse(fs.readFileSync(new URL('../levels/' + file, import.meta.url), 'utf8'));

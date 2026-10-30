@@ -1,16 +1,16 @@
-import JellyLevels from './levels.js';
-import { i18n as JellyI18n } from './i18n.js';
-import * as JellyGPU from './webgpu-renderer.js';
-import * as JellySoftBody from './soft-body.js';
-import * as JellyPhysics from './physics.js';
-import * as JellyEffects from './game-effects.js';
-import * as JellyEditorModel from './editor-model.js';
-import * as JellyEditorSpace from './editor-space.js';
-import * as JellyLevelFeatures from './level-features.js';
-import * as JellyLevelCatalog from './levels/catalog.js';
-import * as LevelCamera from './level-camera.js';
-import * as SharedCamera from './shared-camera.js';
-import { editorI18n as JellyEditorI18n } from './editor-i18n.js';
+import JellyLevels from './world/levels.js';
+import { i18n as JellyI18n } from './i18n/i18n.js';
+import * as JellyGPU from './renderer/index.js';
+import * as JellySoftBody from './world/soft-body.js';
+import * as JellyPhysics from './world/physics.js';
+import * as JellyEffects from './game/game-effects.js';
+import * as JellyEditorModel from './editor/editor-model.js';
+import * as JellyEditorSpace from './editor/editor-space.js';
+import * as JellyLevelFeatures from './world/level-features.js';
+import * as JellyLevelCatalog from '../levels/catalog.js';
+import * as LevelCamera from './camera/level-camera.js';
+import * as SharedCamera from './camera/shared-camera.js';
+import { editorI18n as JellyEditorI18n } from './editor/editor-i18n.js';
 
 const L = JellyLevels,
   M = JellyEditorModel,

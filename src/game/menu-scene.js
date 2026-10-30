@@ -1,6 +1,6 @@
-import JellyLevels from './levels.js';
-import * as JellyPhysics from './physics.js';
-import * as JellySoftBody from './soft-body.js';
+import JellyLevels from '../world/levels.js';
+import * as JellyPhysics from '../world/physics.js';
+import * as JellySoftBody from '../world/soft-body.js';
 import * as JellyEffects from './game-effects.js';
 
 /* A display diorama, independent of the playable level and its physics. */

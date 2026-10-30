@@ -1,4 +1,4 @@
-import { bridgePose } from '../level-features.js';
+import { bridgePose } from '../world/level-features.js';
 import { PORTAL_LIMIT } from './layout.js';
 import { dot } from './math.js';
 import { sphere, rod } from './mesh.js';

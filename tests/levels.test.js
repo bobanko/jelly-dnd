@@ -1,13 +1,13 @@
 import * as importedCatalog from '../levels/catalog.js';
 import sunkenSanctum from '../levels/05-sunken-sanctum.json' with { type: 'json' };
-import * as EditorSpace from '../editor-space.js';
+import * as EditorSpace from '../src/editor/editor-space.js';
 import { readLevelFile } from './setup.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import L from '../levels.js';
-import { Model } from '../editor-model.js';
-import * as Physics from '../physics.js';
-import * as Soft from '../soft-body.js';
+import L from '../src/world/levels.js';
+import { Model } from '../src/editor/editor-model.js';
+import * as Physics from '../src/world/physics.js';
+import * as Soft from '../src/world/soft-body.js';
 
 test('starting camera survives level roundtrip, voxel conversion, editor history and reset', () => {
   // The legacy Sunken Sanctum predates start cameras; campaign maps store authored views.

@@ -1,12 +1,12 @@
-import * as Physics from '../physics.js';
-import * as SoftBody from '../soft-body.js';
+import * as Physics from '../src/world/physics.js';
+import * as SoftBody from '../src/world/soft-body.js';
 import sunkenSanctum from '../levels/05-sunken-sanctum.json' with { type: 'json' };
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { World } from '../physics.js';
-import { System } from '../soft-body.js';
-import L from '../levels.js';
-import { Model } from '../editor-model.js';
+import { World } from '../src/world/physics.js';
+import { System } from '../src/world/soft-body.js';
+import L from '../src/world/levels.js';
+import { Model } from '../src/editor/editor-model.js';
 function scene(positions = [[2, 3, 0]], rigid = false) {
   const floor = new Set();
   for (let x = 0; x <= 10; x++) for (let z = 0; z <= 6; z++) floor.add(`${x},${z}`);

@@ -1,5 +1,5 @@
 import { chromium } from './browser-harness.js';
-import Levels from '../levels.js';
+import Levels from '../src/world/levels.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 

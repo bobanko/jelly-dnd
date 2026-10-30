@@ -1,4 +1,4 @@
-import * as levelFormat from './levels.js';
+import * as levelFormat from '../world/levels.js';
 
 const surface = ['plates', 'bridges', 'lifts', 'spikes', 'portals', 'conveyors'],
   props = ['crates', 'archers', 'pickups'];

@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import L from '../levels.js';
-import * as P from '../physics.js';
-import * as S from '../soft-body.js';
-import { Model } from '../editor-model.js';
+import L from '../src/world/levels.js';
+import * as P from '../src/world/physics.js';
+import * as S from '../src/world/soft-body.js';
+import { Model } from '../src/editor/editor-model.js';
 function chamber(count = 4) {
   const m = L.blank();
   m.size = 10;

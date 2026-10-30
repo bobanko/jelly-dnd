@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import * as S from '../editor-space.js';
-import * as GPU from '../webgpu-renderer.js';
-import L from '../levels.js';
+import * as S from '../src/editor/editor-space.js';
+import * as GPU from '../src/renderer/index.js';
+import L from '../src/world/levels.js';
 const make = (mode, angle, pitch = 50) =>
   S.frame({ x: 4, z: 4, mode, pitch, fov: 55 }, angle, 1100, 800, 60);
 const rayAt = (f, p) => {

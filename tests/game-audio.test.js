@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GameAudio, MechanismSounds, SpikeSounds } from '../game-audio.js';
-import { World } from '../physics.js';
+import { GameAudio, MechanismSounds, SpikeSounds } from '../src/game/game-audio.js';
+import { World } from '../src/world/physics.js';
 
 test('spike audio follows motion phases once and resets silently', () => {
   let stage = 'raised';

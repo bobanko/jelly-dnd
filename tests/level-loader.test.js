@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import Levels from '../levels.js';
+import Levels from '../src/world/levels.js';
 import * as catalog from '../levels/catalog.js';
-import { loadLevels } from '../level-loader.js';
-import * as editorModel from '../editor-model.js';
+import { loadLevels } from '../src/level-loader.js';
+import * as editorModel from '../src/editor/editor-model.js';
 async function boot({ entry = 'game.js', search = '', failure, deniedStorage = false } = {}) {
   const element = () => ({
     hidden: true,

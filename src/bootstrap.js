@@ -1,7 +1,7 @@
-import { initI18n, i18n } from './i18n.js';
-import { editorMessages } from './locales/editor/index.js';
-import { initEditorI18n, editorI18n } from './editor-i18n.js';
-import { loadBuildVersion } from './menu-scene.js';
+import { initI18n, i18n } from './i18n/i18n.js';
+import { editorMessages } from './i18n/locales/editor/index.js';
+import { initEditorI18n, editorI18n } from './editor/editor-i18n.js';
+import { loadBuildVersion } from './game/menu-scene.js';
 import { loadLevels } from './level-loader.js';
 
 const $entry = document.querySelector('script[type="module"][data-entry]');

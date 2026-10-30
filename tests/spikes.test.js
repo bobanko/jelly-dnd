@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import L from '../levels.js';
-import { Model } from '../editor-model.js';
-import * as P from '../physics.js';
-import * as Soft from '../soft-body.js';
-import * as Features from '../level-features.js';
+import L from '../src/world/levels.js';
+import { Model } from '../src/editor/editor-model.js';
+import * as P from '../src/world/physics.js';
+import * as Soft from '../src/world/soft-body.js';
+import * as Features from '../src/world/level-features.js';
 const faces = ['top', 'north', 'east', 'south', 'west'];
 function map() {
   const m = L.blank();

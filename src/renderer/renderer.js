@@ -1,4 +1,4 @@
-import Levels from '../levels.js';
+import Levels from '../world/levels.js';
 import {
   PORTAL_LIMIT,
   PORTAL_FLOATS,

@@ -1,6 +1,6 @@
-import * as GPU from './webgpu-renderer.js';
-import * as Features from './level-features.js';
-import Levels from './levels.js';
+import * as GPU from '../renderer/index.js';
+import * as Features from '../world/level-features.js';
+import Levels from '../world/levels.js';
 // Picking uses the same view-projection matrix as the game renderer.
 function inverse(matrix) {
   const rows = Array.from({ length: 4 }, (_, r) =>

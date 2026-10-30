@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { World } from '../physics.js';
-import { System } from '../soft-body.js';
-import { bridgePose } from '../level-features.js';
+import { World } from '../src/world/physics.js';
+import { System } from '../src/world/soft-body.js';
+import { bridgePose } from '../src/world/level-features.js';
 function scene(positions = [[2, 2, 0]]) {
   const floor = new Set();
   for (let x = 0; x <= 9; x++) for (let z = 0; z <= 9; z++) floor.add(`${x},${z}`);

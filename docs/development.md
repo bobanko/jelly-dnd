@@ -1,6 +1,21 @@
 # Разработка и сборка
 
-Дополнение к [README](../README.md): запуск, звук, форматирование, сборка и проверки.
+Дополнение к [README](../README.md): структура проекта, запуск, звук, форматирование, сборка и проверки.
+
+## Структура проекта
+
+- `index.html`, `editor.html` — страницы игры и редактора (остаются в корне: itch.io ищет `index.html` там).
+- `src/` — весь браузерный код. В корне папки точки входа: `bootstrap.js` (загрузка уровней и перевода), `game.js`, `editor.js`, а также `level-loader.js` и `runtime-context.js`.
+  - `src/world/` — формат карт и игровой мир: `levels.js`, `level-features.js`, `physics.js`, `soft-body.js`, `combat.js`.
+  - `src/game/` — звук, эффекты, сцена меню и прогресс кампании.
+  - `src/camera/` — общая камера игры и редактора, стартовые настройки камеры уровня.
+  - `src/editor/` — модель редактора, 3D picking и перевод редактора.
+  - `src/renderer/` — WebGPU-рендерер; `index.js` — его публичный вход, `geometry/` и `shaders/` — меши и WGSL.
+  - `src/i18n/` — система перевода и `locales/` со словарями.
+- `styles/` — CSS игры, редактора и общих подсказок клавиш (`controls.css`).
+- `levels/` — карты кампании в JSON и `catalog.js` с их порядком.
+- `assets/` — текстуры и звуки. `scripts/` — сервер разработки, сборка для itch.io, генерация звуков, проверка синтаксиса.
+- `tests/` — юнит- и браузерные тесты. `docs/` — эта документация и рабочие заметки.
 
 
 ## Run
@@ -9,7 +24,7 @@ All unit tests, browser checks, and profiling scripts live in [`tests/`](../test
 
 The development environment uses Node.js 26.7.0 (the current minimum is 22.13). Browser code, tests, server code, and release tooling use native ES modules with `import`/`export`; `package.json` declares `type: module`. Browser runtime files are served directly without bundling.
 
-Run npm start (or node server.js), then open http://localhost:3000 in Chrome or Edge with WebGPU enabled. No runtime packages, CDNs or external fonts are needed. Stone and oak textures are bundled in assets/materials/; their generation prompts and mapping details are documented there. Serve over localhost or HTTPS; opening a local HTML file is not the supported launch path.
+Run npm start (or node scripts/server.js), then open http://localhost:3000 in Chrome or Edge with WebGPU enabled. No runtime packages, CDNs or external fonts are needed. Stone and oak textures are bundled in assets/materials/; their generation prompts and mapping details are documented there. Serve over localhost or HTTPS; opening a local HTML file is not the supported launch path.
 
 If the browser has no WebGPU adapter, an explanation appears instead of a blank scene. A lost GPU device also shows the fallback card. There is no silent return to the old 2D renderer.
 

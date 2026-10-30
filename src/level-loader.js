@@ -1,8 +1,8 @@
 ﻿/* Load authored JSON maps before starting either the game or the editor. */
-import * as catalog from './levels/catalog.js';
-import Levels, { configureMaps } from './levels.js';
+import * as catalog from '../levels/catalog.js';
+import Levels, { configureMaps } from './world/levels.js';
 import { configureRuntime } from './runtime-context.js';
-import { create as createProgress } from './progression.js';
+import { create as createProgress } from './game/progression.js';
 
 export async function loadLevels({
   entryScript,

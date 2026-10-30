@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import L from '../levels.js';
-import * as P from '../physics.js';
-import * as S from '../soft-body.js';
+import L from '../src/world/levels.js';
+import * as P from '../src/world/physics.js';
+import * as S from '../src/world/soft-body.js';
 function scene(height = 0) {
   const map = L.blank();
   map.size = 8;

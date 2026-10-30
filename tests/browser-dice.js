@@ -6,7 +6,7 @@ import fs from 'node:fs';
 (async () => {
   fs.mkdirSync('artifacts', { recursive: true });
   const inlay = fs
-    .readFileSync('renderer/shaders/skin.js', 'utf8')
+    .readFileSync('src/renderer/shaders/skin.js', 'utf8')
     .match(/fn inlay\(p:vec3f\)[\s\S]*?(?=\s*@fragment fn backFS)/)?.[0];
   assert.ok(inlay, 'production inlay shader must be available');
   const browser = await chromium.launch({

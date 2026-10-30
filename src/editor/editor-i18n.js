@@ -1,6 +1,6 @@
 /* Translate editor presentation only. Map data and editable input values stay untouched. */
-import { i18n as JellyI18n, createTextTranslator } from './i18n.js';
-import { editorMessages } from './locales/editor/index.js';
+import { i18n as JellyI18n, createTextTranslator } from '../i18n/i18n.js';
+import { editorMessages } from '../i18n/locales/editor/index.js';
 
 export let editorI18n = null;
 

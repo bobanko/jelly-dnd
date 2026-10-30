@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import * as catalog from '../levels/catalog.js';
-import Levels from '../levels.js';
+import Levels from '../src/world/levels.js';
 const root = path.resolve(import.meta.dirname, '..'),
   files = new Map();
 const now = new Date();
@@ -53,8 +53,14 @@ for (const html of ['index.html', 'editor.html']) {
   for (const match of files
     .get(html)
     .toString()
-    .matchAll(/(?:src|href|data-entry)="([^"]+)"/g))
+    .matchAll(/(?:src|href)="([^"]+)"/g))
     if (/^[\w./-]+\.(?:js|css|html)$/.test(match[1])) add(match[1]);
+  // bootstrap.js imports its data-entry module relative to its own URL.
+  for (const match of files
+    .get(html)
+    .toString()
+    .matchAll(/src="([^"]+)"\s+data-entry="([^"]+)"/g))
+    add(path.posix.join(path.posix.dirname(match[1]), match[2]));
 }
 // Generate metadata inside the archive without changing source files.
 files.set('build-version.json', Buffer.from(JSON.stringify({ version: buildVersion }) + '\n'));

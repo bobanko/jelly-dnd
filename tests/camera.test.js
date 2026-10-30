@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cameraFrame, projectPoint } from '../webgpu-renderer.js';
+import { cameraFrame, projectPoint } from '../src/renderer/index.js';
 const frame = (mode = 'perspective', extra = {}, angle = 0, w = 1440, h = 1000) =>
   cameraFrame(
     { x: 5, z: 6, mode, pitch: 55, fov: 45, ...extra },

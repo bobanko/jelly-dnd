@@ -1,4 +1,4 @@
-import Levels from '../../levels.js';
+import Levels from '../../world/levels.js';
 import { cross, normalize } from '../math.js';
 import { box, lowSphere, sphere, rod } from '../mesh.js';
 import { arrowGeometry } from './equipment.js';

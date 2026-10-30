@@ -1,4 +1,4 @@
-import Levels from './levels.js';
+import Levels from '../world/levels.js';
 // Short-lived visual particles. They never become gameplay colliders.
 const palettes = [
   [0.12, 0.9, 0.16],

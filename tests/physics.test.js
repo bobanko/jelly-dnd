@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { World, SIZE, HALF, STEP } from '../physics.js';
+import { World, SIZE, HALF, STEP } from '../src/world/physics.js';
 const body = (x, z) => ({ x, z, vx: 0, vz: 0, impact: 0 });
 function arena() {
   const floor = new Set();

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { World } from '../physics.js';
-import { System } from '../soft-body.js';
+import { World } from '../src/world/physics.js';
+import { System } from '../src/world/soft-body.js';
 function scene() {
   const floor = new Set();
   for (let x = 0; x < 12; x++) for (let z = 0; z < 12; z++) floor.add(`${x},${z}`);

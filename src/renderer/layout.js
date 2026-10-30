@@ -1,4 +1,4 @@
-import Levels from '../levels.js';
+import Levels from '../world/levels.js';
 export const PORTAL_LIMIT = Levels.limits.portals,
   PORTAL_FLOATS = 12,
   GOALS_OFFSET = 56 + PORTAL_LIMIT * PORTAL_FLOATS,

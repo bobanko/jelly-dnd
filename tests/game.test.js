@@ -1,12 +1,12 @@
-import * as menuSceneModule from '../menu-scene.js';
-import * as SharedCamera from '../shared-camera.js';
-import * as LevelCamera from '../level-camera.js';
-import Levels from '../levels.js';
-import * as GameEffects from '../game-effects.js';
-import * as GameAudio from '../game-audio.js';
-import * as Physics from '../physics.js';
-import * as SoftBody from '../soft-body.js';
-import * as GPU from '../webgpu-renderer.js';
+import * as menuSceneModule from '../src/game/menu-scene.js';
+import * as SharedCamera from '../src/camera/shared-camera.js';
+import * as LevelCamera from '../src/camera/level-camera.js';
+import Levels from '../src/world/levels.js';
+import * as GameEffects from '../src/game/game-effects.js';
+import * as GameAudio from '../src/game/game-audio.js';
+import * as Physics from '../src/world/physics.js';
+import * as SoftBody from '../src/world/soft-body.js';
+import * as GPU from '../src/renderer/index.js';
 import sunkenSanctum from '../levels/05-sunken-sanctum.json' with { type: 'json' };
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -78,20 +78,20 @@ async function game(options = {}) {
   }
   const context = vm.createContext(sandbox);
   const dependencies = {
-    './levels.js': { default: Levels },
-    './physics.js': Physics,
-    './soft-body.js': SoftBody,
-    './game-effects.js': GameEffects,
-    './game-audio.js': { ...GameAudio, GameAudio: options.audioClass || GameAudio.GameAudio },
-    './webgpu-renderer.js': sandbox.JellyGPU,
-    './shared-camera.js': SharedCamera,
-    './level-camera.js': LevelCamera,
-    './menu-scene.js': menuSceneModule,
-    './i18n.js': { i18n: null },
+    './world/levels.js': { default: Levels },
+    './world/physics.js': Physics,
+    './world/soft-body.js': SoftBody,
+    './game/game-effects.js': GameEffects,
+    './game/game-audio.js': { ...GameAudio, GameAudio: options.audioClass || GameAudio.GameAudio },
+    './renderer/index.js': sandbox.JellyGPU,
+    './camera/shared-camera.js': SharedCamera,
+    './camera/level-camera.js': LevelCamera,
+    './game/menu-scene.js': menuSceneModule,
+    './i18n/i18n.js': { i18n: null },
     './runtime-context.js': { menuOnly: !!options.menuOnly, progress: null },
   };
   const source =
-    fs.readFileSync('game.js', 'utf8') +
+    fs.readFileSync('src/game.js', 'utf8') +
     '\nexport function evaluateTest(source){return eval(source);}';
   const entry = new vm.SourceTextModule(source, { context });
   await entry.link((specifier) => {

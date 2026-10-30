@@ -2,6 +2,7 @@ import { chromium, instrumentModule } from './browser-harness.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import * as catalog from '../levels/catalog.js';
 // Exercise a static HTTPS deployment in a cross-origin iframe, without server.js.
 
 const staticRoot = path.resolve(
@@ -28,15 +29,18 @@ const staticRoot = path.resolve(
     const scripts = new Set([
       'index.html',
       'editor.html',
-      'style.css',
-      'editor.css',
-      'controls.css',
+      'styles/style.css',
+      'styles/editor.css',
+      'styles/controls.css',
     ]);
     for (const html of ['index.html', 'editor.html'])
       for (const match of fs
         .readFileSync(path.join(staticRoot, html), 'utf8')
-        .matchAll(/(?:src|data-entry)="([^"]+\.js)"/g))
+        .matchAll(/src="([^"]+\.js)"(?:\s+data-entry="([^"]+)")?/g)) {
         scripts.add(match[1]);
+        // bootstrap.js loads its data-entry module relative to its own URL.
+        if (match[2]) scripts.add(path.posix.join(path.posix.dirname(match[1]), match[2]));
+      }
     for (const script of scripts)
       if (script.endsWith('.js')) {
         for (const match of fs
@@ -49,6 +53,7 @@ const staticRoot = path.resolve(
         relative = decodeURIComponent(url.pathname).replace(/^\/html\/123\//, '');
       const allowed =
         scripts.has(relative) ||
+        relative === 'build-version.json' ||
         /^levels\/[a-z0-9-]+\.json$/i.test(relative) ||
         /^assets\/materials\/[a-z0-9-]+\.png$/i.test(relative);
       const file = path.resolve(staticRoot, relative);
@@ -100,7 +105,12 @@ const staticRoot = path.resolve(
         typeof previewRenderer !== 'undefined' &&
         previewRenderer.ready,
     );
-    assert.equal(await frame.evaluate(() => model.map.name), 'The Sunken Sanctum');
+    // The editor opens the first campaign map on first use.
+    assert.equal(
+      await frame.evaluate(() => model.map.name),
+      JSON.parse(fs.readFileSync(path.join(staticRoot, 'levels', catalog.standard[0]), 'utf8'))
+        .name,
+    );
     assert.deepEqual(errors, []);
     assert.deepEqual(missing, []);
     console.log(

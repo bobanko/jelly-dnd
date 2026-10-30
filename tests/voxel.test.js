@@ -1,11 +1,11 @@
 import sunkenSanctum from '../levels/05-sunken-sanctum.json' with { type: 'json' };
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import L from '../levels.js';
-import { Model } from '../editor-model.js';
-import * as P from '../physics.js';
-import * as S from '../soft-body.js';
-import * as Space from '../editor-space.js';
+import L from '../src/world/levels.js';
+import { Model } from '../src/editor/editor-model.js';
+import * as P from '../src/world/physics.js';
+import * as S from '../src/world/soft-body.js';
+import * as Space from '../src/editor/editor-space.js';
 const runtime = (map) => L.instantiate(L.read(map), P, S);
 function room() {
   const m = L.blank();

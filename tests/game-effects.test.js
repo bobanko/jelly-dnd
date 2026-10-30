@@ -1,8 +1,8 @@
-import Levels from '../levels.js';
+import Levels from '../src/world/levels.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { System } from '../game-effects.js';
-import { World } from '../physics.js';
+import { System } from '../src/game/game-effects.js';
+import { World } from '../src/world/physics.js';
 const world = { heightAt: () => 0 },
   players = [{}],
   soft = {

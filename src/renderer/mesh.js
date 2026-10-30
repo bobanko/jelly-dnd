@@ -1,4 +1,4 @@
-import { bridgePose } from '../level-features.js';
+import { bridgePose } from '../world/level-features.js';
 import { dot, cross, normalize } from './math.js';
 export function rotateBridgeMesh(mesh, from, bridge, progress) {
   const pose = bridgePose(bridge, progress),

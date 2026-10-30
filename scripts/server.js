@@ -1,7 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-const root = import.meta.dirname;
+const root = path.resolve(import.meta.dirname, '..');
 http
   .createServer((req, res) => {
     const name = req.url.split('?')[0] === '/' ? '/index.html' : req.url.split('?')[0];
