@@ -1,4 +1,4 @@
-import { chromium } from './browser-harness.js';
+import { chromium, playMap } from './browser-harness.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 (async () => {
@@ -16,8 +16,8 @@ import fs from 'node:fs';
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(m.text());
     });
-    await page.goto('http://localhost:3000');
-    await page.waitForFunction(() => sceneRenderer.ready);
+    // The original chamber's archer, shield and sword; its drone would add unrelated deaths.
+    await playMap(page, '05-sunken-sanctum.json', (map) => ({ ...map, drones: [] }));
     await page.evaluate(() => {
       window.combatEvents = [];
       const burst = effects.burst.bind(effects);
@@ -103,6 +103,7 @@ import fs from 'node:fs';
     await page.waitForFunction(() => players[1].state === 'alive', null, { timeout: 7000 });
     assert.equal(await page.evaluate(() => players[1].deaths), 1);
     await page.keyboard.press('KeyR');
+    await page.waitForFunction(() => restartTransition === null); // restart fades first
     assert.ok(
       await page.evaluate(
         () =>
@@ -124,6 +125,12 @@ import fs from 'node:fs';
       woodHit = (broken) => {
         soundCalls.push(['wood', !!broken]);
         oldWood(broken);
+      };
+      // Shots play the recorded bow sample through the audio mixer.
+      const play = gameAudio.play.bind(gameAudio);
+      gameAudio.play = (name, ...rest) => {
+        soundCalls.push(['play', name]);
+        return play(name, ...rest);
       };
       Object.assign(players[1], { x: 8, z: 8, rx: 8, rz: 8 });
       soft.reset();
@@ -163,11 +170,14 @@ import fs from 'node:fs';
       [false, false, true],
     );
     assert.equal(
-      await page.evaluate(() => soundCalls.filter((c) => c[0] === 'tone' && c[1] === 840).length),
+      await page.evaluate(
+        () => soundCalls.filter((c) => c[0] === 'play' && c[1] === 'arrow').length,
+      ),
       3,
     );
     await page.screenshot({ path: 'artifacts/shield-breaking.png' });
     await page.keyboard.press('KeyR');
+    await page.waitForFunction(() => restartTransition === null); // restart fades first
     assert.ok(
       await page.evaluate(() => !world.pickups[0].destroyed && world.pickups[0].durability === 3),
     );
@@ -204,6 +214,7 @@ import fs from 'node:fs';
       ),
     );
     await page.keyboard.press('KeyR');
+    await page.waitForFunction(() => restartTransition === null); // restart fades first
     // The red jelly collects a sword with its own movement keys, then strikes forward.
     await page.keyboard.down('KeyJ');
     await page.waitForFunction(() => players[2].sword === 'iron-sword');
@@ -274,6 +285,7 @@ import fs from 'node:fs';
       ),
     );
     await page.keyboard.press('KeyR');
+    await page.waitForFunction(() => restartTransition === null); // restart fades first
     assert.ok(
       await page.evaluate(
         () =>
