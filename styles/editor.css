@@ -1257,3 +1257,48 @@ kbd {
   color: #142023;
   background: #aecb7e;
 }
+/*
+ * High-density desktop displays: enlarge the editor chrome the way the game HUD is enlarged
+ * (see --ui-density-scale in style.css). Only the panels, bars and footer are zoomed; the 3D
+ * viewport keeps its CSS-pixel size, so picking and the camera are unaffected. The full 2×
+ * needs a wide window, otherwise the side panels would squeeze the viewport.
+ */
+:root {
+  --editor-ui-scale: 1;
+}
+@media (min-width: 1025px) and (min-resolution: 1.5dppx) {
+  :root {
+    --editor-ui-scale: 1.25;
+  }
+}
+@media (min-width: 1728px) and (min-resolution: 1.5dppx) {
+  :root {
+    --editor-ui-scale: 1.5;
+  }
+}
+@media (min-width: 2000px) and (min-resolution: 2dppx) {
+  :root {
+    --editor-ui-scale: 2;
+  }
+}
+@media (min-width: 1025px) and (min-resolution: 1.5dppx) {
+  .topbar,
+  .palette,
+  .inspector,
+  .viewport-toolbar,
+  .viewport-footer {
+    zoom: var(--editor-ui-scale);
+  }
+  .workbench {
+    grid-template-columns:
+      calc(224px * var(--editor-ui-scale)) minmax(280px, 1fr)
+      calc(246px * var(--editor-ui-scale));
+  }
+}
+@media (min-width: 1025px) and (max-width: 1150px) and (min-resolution: 1.5dppx) {
+  .workbench {
+    grid-template-columns:
+      calc(190px * var(--editor-ui-scale)) minmax(250px, 1fr)
+      calc(215px * var(--editor-ui-scale));
+  }
+}

@@ -69,8 +69,41 @@ try {
   assert.equal(samples[2].button.width, samples[0].button.width * 2);
   assert.equal(samples[2].footer.height, samples[0].footer.height * 2);
   assert.equal(samples[2].canvas.width, samples[0].canvas.width);
+  // Editor: chrome grows with density (capped by window width), the viewport stays usable.
+  const editor = [];
+  for (const [width, height, density, scale] of [
+    [1440, 900, 1, 1],
+    [1440, 900, 2, 1.25],
+    [1728, 1117, 2, 1.5],
+    [2560, 1440, 2, 2],
+  ]) {
+    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: density }),
+      errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto('http://localhost:3000/editor.html');
+    await page.waitForSelector('.tool');
+    const sample = await page.evaluate(() => {
+      const rect = (selector) => document.querySelector(selector).getBoundingClientRect();
+      return {
+        scale: Number(
+          getComputedStyle(document.documentElement).getPropertyValue('--editor-ui-scale'),
+        ),
+        tool: rect('.tool').width,
+        viewport: { width: rect('#viewport').width, height: rect('#viewport').height },
+        overflow: document.documentElement.scrollWidth > innerWidth,
+      };
+    });
+    assert.equal(sample.scale, scale, `editor scale at ${width}px ×${density}`);
+    assert.equal(sample.overflow, false);
+    assert.ok(sample.viewport.width >= width * 0.55 && sample.viewport.height >= height * 0.6);
+    assert.deepEqual(errors, []);
+    editor.push(sample);
+    await page.close();
+  }
+  assert.ok(Math.abs(editor[1].tool - editor[0].tool * 1.25) < 1);
+  assert.ok(Math.abs(editor[3].tool - editor[0].tool * 2) < 1);
   console.log(
-    'PASS: 1×, 1.5× and Retina 2× HUD sizing, unchanged canvas and viewport-safe controls.',
+    'PASS: 1×, 1.5× and Retina 2× HUD sizing, unchanged canvas and viewport-safe controls; editor chrome scaled by density and window width.',
   );
 } finally {
   await browser.close();
