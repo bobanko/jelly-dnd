@@ -2031,3 +2031,53 @@ body:has(#win:not([hidden])) #run-skulls {
     border-color: #e9c46a;
   }
 }
+/* Victory: skulls pop in one after another, then the lost ones crack in turn. */
+#win:not([hidden]) #win-skulls .run-skull {
+  animation: win-skull-in 0.42s cubic-bezier(0.2, 0.8, 0.3, 1.35) var(--appear) both;
+}
+#win:not([hidden]) #win-skulls .run-skull.cracked {
+  animation:
+    win-skull-in 0.42s cubic-bezier(0.2, 0.8, 0.3, 1.35) var(--appear) both,
+    win-skull-crack 0.5s cubic-bezier(0.3, 0.7, 0.4, 1) var(--crack) both;
+}
+#win:not([hidden]) #win-skulls .cracked .skull-crack {
+  animation: win-crack-line 0.12s linear var(--crack) both;
+}
+@keyframes win-skull-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.4);
+  }
+}
+@keyframes win-skull-crack {
+  from {
+    color: #e9c46a;
+    opacity: 1;
+    filter: drop-shadow(0 0 6px #e9a83a88) drop-shadow(0 2px 0 #0008);
+  }
+  20% {
+    color: #fff3cf;
+    transform: scale(1.25) rotate(-10deg);
+    filter: drop-shadow(0 0 14px #ffd27a);
+  }
+  45% {
+    transform: scale(1.1) rotate(8deg);
+  }
+  70% {
+    transform: rotate(-3deg);
+  }
+}
+@keyframes win-crack-line {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #win:not([hidden]) #win-skulls .run-skull,
+  #win:not([hidden]) #win-skulls .cracked .skull-crack {
+    animation: none;
+  }
+}

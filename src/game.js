@@ -1183,7 +1183,13 @@ function refreshWin() {
     id === JellyLevels.standardNames.length ? 'demoComplete' : 'levelComplete',
   );
   document.querySelector('#win-level-name').textContent = currentLevelTitle();
-  skullRow(document.querySelector('#win-skulls'), skullsLeft());
+  // Skulls appear one by one, then the lost ones crack in turn.
+  const kept = skullsLeft();
+  skullRow(document.querySelector('#win-skulls'), kept);
+  [...document.querySelector('#win-skulls').children].forEach((skull, i) => {
+    skull.style.setProperty('--appear', 0.25 + i * 0.28 + 's');
+    skull.style.setProperty('--crack', 1.25 + (i - kept) * 0.4 + 's');
+  });
   document.querySelector('#win-next').textContent = tr(
     id && id < JellyLevels.standardNames.length
       ? 'nextLevel'
