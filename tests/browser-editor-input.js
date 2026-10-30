@@ -14,6 +14,8 @@ import assert from 'node:assert/strict';
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(m.text());
     });
+    // The checks look up Russian editor labels; the editor now defaults to English.
+    await page.addInitScript(() => localStorage.setItem('jelly-dnd.language', 'ru'));
     await page.goto('http://localhost:3000/editor.html');
     await page.waitForFunction(() => view3d && previewRenderer?.ready && previewRuntime);
     await page.waitForFunction((t) => cameraLast > t + 100, await page.evaluate(() => cameraLast));
@@ -156,7 +158,7 @@ import assert from 'node:assert/strict';
       renderPanels();
     });
     const delay = page.getByLabel(
-      '\u0417\u0430\u0434\u0435\u0440\u0436\u043a\u0430, \u0441\u0435\u043a',
+      '\u0421\u0434\u0432\u0438\u0433 \u0446\u0438\u043a\u043b\u0430, \u0441\u0435\u043a',
       { exact: true },
     );
     await delay.focus();
