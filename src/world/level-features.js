@@ -294,30 +294,32 @@ function install(World) {
         block.color === undefined || !body || body.kind === 'crate' || body.slot !== block.color
       );
     },
+    // A bridge or lift replaces the block or floor it is mounted on at height y.
+    mountedAt(tx, tz, y) {
+      for (const b of this.bridges)
+        if (b.x === tx && b.z === tz && Math.abs((b.y || 0) - y) < 0.01) return true;
+      for (const l of this.lifts)
+        if (l.x === tx && l.z === tz && Math.abs(l.base - y) < 0.01) return true;
+      return false;
+    },
     heightAt(x, z, ceiling = Infinity, body = null) {
       if (this.blocks?.length) {
+        // Called for every lattice node on every solver iteration: highest surface at or
+        // below the ceiling, found without temporary arrays.
         const tx = Math.floor(x + 0.5),
           tz = Math.floor(z + 0.5),
-          surfaces = [];
+          column = `${tx},${tz}`,
+          limit = ceiling + 0.001,
+          ownColor =
+            body && body.kind !== 'crate' && Number.isInteger(body.slot) && this.blockColors?.size;
+        let best = null;
         const ys = this.blockColumns
-          ? this.blockColumns.get(`${tx},${tz}`) || []
+          ? this.blockColumns.get(column) || []
           : this.blocks.filter((b) => b.x === tx && b.z === tz).map((b) => b.y);
         for (const y of ys) {
-          if (
-            body &&
-            body.kind !== 'crate' &&
-            Number.isInteger(body.slot) &&
-            this.blockColors?.size &&
-            this.blockColors.get(`${tx},${y},${tz}`) === body.slot
-          )
-            continue;
-          if (
-            !this.bridges.some(
-              (b) => b.x === tx && b.z === tz && Math.abs((b.y || 0) - y) < 0.01,
-            ) &&
-            !this.lifts.some((l) => l.x === tx && l.z === tz && Math.abs(l.base - y) < 0.01)
-          )
-            surfaces.push(y);
+          if (ownColor && this.blockColors.get(`${tx},${y},${tz}`) === body.slot) continue;
+          if (y <= limit && !this.mountedAt(tx, tz, y))
+            best = best === null ? y : Math.max(best, y);
         }
         for (let i = 0; i < this.bridges.length; i++) {
           const b = this.bridges[i];
@@ -327,28 +329,27 @@ function install(World) {
             bounds &&
             this.blockSolid(body, bounds) &&
             Math.abs(x - bounds.x) <= bounds.halfX &&
-            Math.abs(z - bounds.z) <= bounds.halfZ + 1e-8
+            Math.abs(z - bounds.z) <= bounds.halfZ + 1e-8 &&
+            bounds.maxY <= limit
           )
-            surfaces.push(bounds.maxY);
+            best = best === null ? bounds.maxY : Math.max(best, bounds.maxY);
         }
-        for (const l of this.lifts) if (l.x === tx && l.z === tz) surfaces.push(l.height);
-        const legacyY = this.heights.get(`${tx},${tz}`) || 0;
-        if (
-          this.floor.has(`${tx},${tz}`) &&
-          !this.bridges.some(
-            (b) => b.x === tx && b.z === tz && Math.abs((b.y || 0) - legacyY) < 0.01,
-          ) &&
-          !this.lifts.some((l) => l.x === tx && l.z === tz && Math.abs(l.base - legacyY) < 0.01)
-        )
-          surfaces.push(legacyY);
-        const possible = surfaces.filter((y) => y <= ceiling + 0.001);
-        return possible.length ? Math.max(...possible) : null;
+        for (const l of this.lifts)
+          if (l.x === tx && l.z === tz && l.height <= limit)
+            best = best === null ? l.height : Math.max(best, l.height);
+        if (this.floor.has(column)) {
+          const legacyY = this.heights.get(column) || 0;
+          if (legacyY <= limit && !this.mountedAt(tx, tz, legacyY))
+            best = best === null ? legacyY : Math.max(best, legacyY);
+        }
+        return best;
       }
       const tileX = Math.floor(x + 0.5),
-        tileZ = Math.floor(z + 0.5),
-        bridge = this.bridges.findIndex((b) => b.x === tileX && b.z === tileZ);
-      if (bridge >= 0) {
-        const bounds = this.bridgeBounds(bridge);
+        tileZ = Math.floor(z + 0.5);
+      for (let i = 0; i < this.bridges.length; i++) {
+        const b = this.bridges[i];
+        if (b.x !== tileX || b.z !== tileZ) continue;
+        const bounds = this.bridgeBounds(i);
         return bounds &&
           this.blockSolid(body, bounds) &&
           Math.abs(x - bounds.x) <= bounds.halfX &&
@@ -356,11 +357,11 @@ function install(World) {
           ? bounds.maxY
           : null;
       }
-      x = tileX;
-      z = tileZ;
-      if (this.solid(x, z)) return null;
-      const lift = this.lifts.find((l) => l.x === x && l.z === z);
-      return lift ? lift.height : this.heights.get(`${x},${z}`) || 0;
+      // No bridge here, so the tile is solid exactly when it is off the floor (see solid()).
+      const key = `${tileX},${tileZ}`;
+      if (!this.floor.has(key)) return null;
+      for (const l of this.lifts) if (l.x === tileX && l.z === tileZ) return l.height;
+      return this.heights.get(key) || 0;
     },
     supported(p) {
       const height = this.heightAt(p.x, p.z, (p.y || 0) + 0.2, p);
@@ -390,8 +391,7 @@ function install(World) {
     },
     collisionBoxes() {
       if (this._collisionCache) return this._collisionCache;
-      const boxes = [],
-        conveyorCells = new Set(this.conveyors.map((p) => `${p.x},${p.z}`));
+      const boxes = [];
       this._blockBoxes ??= (this.blocks || [])
         .filter(
           (b) =>
@@ -434,33 +434,61 @@ function install(World) {
             });
         }
       }
-      for (const key of this.floor) {
-        const [x, z] = key.split(',').map(Number),
-          legacyY = this.heights.get(key) || 0,
-          bridge = this.bridges.findIndex(
-            (b) =>
-              b.x === x &&
-              b.z === z &&
-              (!this.blocks?.length || Math.abs((b.y || 0) - legacyY) < 0.01),
-          );
-        if (bridge >= 0) {
-          const bounds = this.bridgeBounds(bridge);
-          if (bounds) boxes.push(bounds);
-          continue;
-        }
-        const lift = this.lifts.find(
+      // Which floor tiles carry a bridge or lift never changes during play, so the tile
+      // scan is cached; only bridge and lift boxes are rebuilt, keeping the original order.
+      const floorKey = this.floor.size + ',' + this.heights.size + ',' + !!this.blocks?.length;
+      if (this._floorTemplate?.key !== floorKey) {
+        const tiles = [],
+          conveyorCells = new Set(this.conveyors.map((p) => `${p.x},${p.z}`));
+        for (const key of this.floor) {
+          const [x, z] = key.split(',').map(Number),
+            legacyY = this.heights.get(key) || 0,
+            bridge = this.bridges.findIndex(
+              (b) =>
+                b.x === x &&
+                b.z === z &&
+                (!this.blocks?.length || Math.abs((b.y || 0) - legacyY) < 0.01),
+            );
+          if (bridge >= 0) {
+            tiles.push({ bridge });
+            continue;
+          }
+          const lift = this.lifts.find(
             (l) =>
               l.x === x && l.z === z && (!this.blocks?.length || Math.abs(l.base - legacyY) < 0.01),
-          ),
-          height = lift ? lift.height : legacyY;
-        boxes.push({
-          x,
-          z,
-          half: 0.5,
-          minY: lift ? height - 0.16 : -0.72,
-          maxY: height,
-          kind: lift ? 'lift' : conveyorCells.has(key) ? 'conveyor' : 'floor',
-        });
+          );
+          tiles.push(
+            lift
+              ? { lift, x, z }
+              : {
+                  box: {
+                    x,
+                    z,
+                    half: 0.5,
+                    minY: -0.72,
+                    maxY: legacyY,
+                    kind: conveyorCells.has(key) ? 'conveyor' : 'floor',
+                  },
+                },
+          );
+        }
+        this._floorTemplate = { key: floorKey, tiles };
+      }
+      for (const tile of this._floorTemplate.tiles) {
+        if (tile.box) boxes.push(tile.box);
+        else if (tile.lift)
+          boxes.push({
+            x: tile.x,
+            z: tile.z,
+            half: 0.5,
+            minY: tile.lift.height - 0.16,
+            maxY: tile.lift.height,
+            kind: 'lift',
+          });
+        else {
+          const bounds = this.bridgeBounds(tile.bridge);
+          if (bounds) boxes.push(bounds);
+        }
       }
       for (const o of this.obstacles)
         boxes.push({

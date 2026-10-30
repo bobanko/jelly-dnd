@@ -539,55 +539,88 @@ class System {
     return true;
   }
   pair(pa, pb, a, b) {
-    if (
-      pa.state === 'dead' ||
-      pb.state === 'dead' ||
-      (a.sleeping && b.sleeping) ||
-      len(sub(a.summarize(), b.summarize())) > 1.5
-    )
-      return;
+    if (pa.state === 'dead' || pb.state === 'dead' || (a.sleeping && b.sleeping)) return;
+    const ac = a.summarize(),
+      bc = b.summarize();
+    if (Math.hypot(ac[0] - bc[0], ac[1] - bc[1], ac[2] - bc[2]) > 1.5) return;
     if (this.stackContact(pa, pb, a, b)) return;
     let touching = false;
     // Symmetric node/rounded-body contacts. Contact corrections deform the lattice,
     // and their opposite impulses are distributed across the neighbour's mass.
-    for (const [src, dst] of [
-      [a, b],
-      [b, a],
-    ]) {
+    // Scalar form of the vector expressions, in the same arithmetic order.
+    for (let side = 0; side < 2; side++) {
+      const src = side ? b : a,
+        dst = side ? a : b,
+        r = dst.r,
+        c = dst.center,
+        half = dst.rigid ? 0.355 : 0.315,
+        rounding = dst.rigid ? 0.025 : 0.045;
       for (let nodeIndex = 0; nodeIndex < NODE_COUNT; nodeIndex++) {
         const node = src.positions[nodeIndex];
-        const worldDelta = sub(node, dst.center),
-          r = dst.r;
-        const d = [
-          r[0] * worldDelta[0] + r[3] * worldDelta[1] + r[6] * worldDelta[2],
-          r[1] * worldDelta[0] + r[4] * worldDelta[1] + r[7] * worldDelta[2],
-          r[2] * worldDelta[0] + r[5] * worldDelta[1] + r[8] * worldDelta[2],
-        ];
-        const q = d.map((v) => Math.abs(v) - (dst.rigid ? 0.355 : 0.315)),
-          outside = q.map((v) => Math.max(0, v)),
-          l = len(outside),
-          distance = l + Math.min(Math.max(...q), 0) - (dst.rigid ? 0.025 : 0.045);
+        const w0 = node[0] - c[0],
+          w1 = node[1] - c[1],
+          w2 = node[2] - c[2];
+        const d0 = r[0] * w0 + r[3] * w1 + r[6] * w2,
+          d1 = r[1] * w0 + r[4] * w1 + r[7] * w2,
+          d2 = r[2] * w0 + r[5] * w1 + r[8] * w2;
+        const q0 = Math.abs(d0) - half,
+          q1 = Math.abs(d1) - half,
+          q2 = Math.abs(d2) - half,
+          o0 = Math.max(0, q0),
+          o1 = Math.max(0, q1),
+          o2 = Math.max(0, q2),
+          l = Math.hypot(o0, o1, o2),
+          qMax = Math.max(q0, q1, q2),
+          distance = l + Math.min(qMax, 0) - rounding;
         if (distance >= 0) continue;
         touching = true;
-        let n;
-        if (l > 1e-7) n = outside.map((v, k) => (v / l) * Math.sign(d[k] || 1));
-        else {
-          const axis = q.indexOf(Math.max(...q));
-          n = [0, 0, 0];
-          n[axis] = Math.sign(d[axis] || 1);
+        let l0 = 0,
+          l1 = 0,
+          l2 = 0;
+        if (l > 1e-7) {
+          l0 = (o0 / l) * Math.sign(d0 || 1);
+          l1 = (o1 / l) * Math.sign(d1 || 1);
+          l2 = (o2 / l) * Math.sign(d2 || 1);
+        } else if (q0 === qMax) l0 = Math.sign(d0 || 1);
+        else if (q1 === qMax) l1 = Math.sign(d1 || 1);
+        else l2 = Math.sign(d2 || 1);
+        const n0 = r[0] * l0 + r[1] * l1 + r[2] * l2,
+          n1 = r[3] * l0 + r[4] * l1 + r[5] * l2,
+          n2 = r[6] * l0 + r[7] * l1 + r[8] * l2;
+        const push = Math.min(0.08, -distance) * 0.65,
+          p0 = n0 * push,
+          p1 = n1 * push,
+          p2 = n2 * push;
+        node[0] += p0;
+        node[1] += p1;
+        node[2] += p2;
+        for (const other of dst.positions) {
+          other[0] -= p0 / NODE_COUNT;
+          other[1] -= p1 / NODE_COUNT;
+          other[2] -= p2 / NODE_COUNT;
         }
-        n = mv(r, n);
-        const push = Math.min(0.08, -distance) * 0.65;
-        for (let k = 0; k < 3; k++) node[k] += n[k] * push;
-        for (const other of dst.positions)
-          for (let k = 0; k < 3; k++) other[k] -= (n[k] * push) / NODE_COUNT;
-        const relative = sub(sub(node, src.old[nodeIndex]), sub(dst.center, dst.previousCenter));
-        const tangent = sub(relative, mul(n, dot(relative, n))),
-          distanceMoved = len(tangent),
-          friction = Math.min(1, (push * 0.28) / (distanceMoved || 1));
-        for (let k = 0; k < 3; k++) node[k] -= tangent[k] * friction;
-        for (const other of dst.positions)
-          for (let k = 0; k < 3; k++) other[k] += (tangent[k] * friction) / NODE_COUNT;
+        const old = src.old[nodeIndex],
+          previous = dst.previousCenter,
+          r0 = node[0] - old[0] - (c[0] - previous[0]),
+          r1 = node[1] - old[1] - (c[1] - previous[1]),
+          r2 = node[2] - old[2] - (c[2] - previous[2]),
+          along = r0 * n0 + r1 * n1 + r2 * n2,
+          t0 = r0 - n0 * along,
+          t1 = r1 - n1 * along,
+          t2 = r2 - n2 * along,
+          distanceMoved = Math.hypot(t0, t1, t2),
+          friction = Math.min(1, (push * 0.28) / (distanceMoved || 1)),
+          f0 = t0 * friction,
+          f1 = t1 * friction,
+          f2 = t2 * friction;
+        node[0] -= f0;
+        node[1] -= f1;
+        node[2] -= f2;
+        for (const other of dst.positions) {
+          other[0] += f0 / NODE_COUNT;
+          other[1] += f1 / NODE_COUNT;
+          other[2] += f2 / NODE_COUNT;
+        }
       }
     }
     if (touching && a.rigid !== b.rigid && Math.abs(a.center[1] - b.center[1]) < 0.35) {
@@ -683,7 +716,13 @@ class System {
         b.calm = 0;
       }
       if (b.sleeping) return;
-      b.old = b.positions.map((p) => p.slice());
+      for (let n = 0; n < NODE_COUNT; n++) {
+        const node = b.positions[n],
+          old = b.old[n];
+        old[0] = node[0];
+        old[1] = node[1];
+        old[2] = node[2];
+      }
       b.previousCenter = b.center.slice();
       // Drive relative to the supporting body. Its displacement is added once below,
       // avoiding both sliding passengers and doubled carrier velocity.
@@ -761,9 +800,15 @@ class System {
       const center = b.summarize(),
         vcom = [0, 0, 0];
       b.orientation();
+      const inverseDt = 1 / dt;
       for (let n = 0; n < NODE_COUNT; n++) {
-        b.velocities[n] = mul(sub(b.positions[n], b.old[n]), 1 / dt);
-        b.velocities[n].forEach((v, k) => (vcom[k] += v / NODE_COUNT));
+        const v = b.velocities[n],
+          node = b.positions[n],
+          old = b.old[n];
+        for (let k = 0; k < 3; k++) {
+          v[k] = (node[k] - old[k]) * inverseDt;
+          vcom[k] += v[k] / NODE_COUNT;
+        }
       }
       if (b.support) {
         const support = this.get(b.support),
@@ -775,16 +820,25 @@ class System {
         }
       }
       // Remove only internal wobble, leaving translation and rigid angular motion intact.
-      let inertia = new Array(9).fill(0),
-        angular = [0, 0, 0];
-      b.positions.forEach((node, n) => {
-        const r = sub(node, center),
-          v = sub(b.velocities[n], vcom),
-          r2 = dot(r, r);
-        angular = add(angular, cross(r, v));
+      const inertia = new Array(9).fill(0),
+        angular = [0, 0, 0],
+        r = [0, 0, 0];
+      for (let n = 0; n < NODE_COUNT; n++) {
+        const node = b.positions[n],
+          velocity = b.velocities[n];
+        r[0] = node[0] - center[0];
+        r[1] = node[1] - center[1];
+        r[2] = node[2] - center[2];
+        const v0 = velocity[0] - vcom[0],
+          v1 = velocity[1] - vcom[1],
+          v2 = velocity[2] - vcom[2],
+          r2 = r[0] * r[0] + r[1] * r[1] + r[2] * r[2];
+        angular[0] += r[1] * v2 - r[2] * v1;
+        angular[1] += r[2] * v0 - r[0] * v2;
+        angular[2] += r[0] * v1 - r[1] * v0;
         for (let j = 0; j < 3; j++)
           for (let k = 0; k < 3; k++) inertia[j * 3 + k] += (j === k ? r2 : 0) - r[j] * r[k];
-      });
+      }
       const touchingGround = b.positions.some((node) => {
           const height = world.heightAt(node[0], node[2], node[1] + 0.06);
           return height !== null && Math.abs(node[1] - height - 0.035) < 0.025;
@@ -810,12 +864,20 @@ class System {
       }
       const damping = Math.exp(-dt * (3 + this.decay * 10));
       let energy = 0;
-      b.positions.forEach((node, n) => {
-        const rigid = add(vcom, cross(omega, sub(node, center))),
-          internal = sub(b.velocities[n], rigid);
-        b.velocities[n] = add(rigid, mul(internal, damping));
-        energy += dot(b.velocities[n], b.velocities[n]) / NODE_COUNT;
-      });
+      for (let n = 0; n < NODE_COUNT; n++) {
+        const node = b.positions[n],
+          v = b.velocities[n],
+          s0 = node[0] - center[0],
+          s1 = node[1] - center[1],
+          s2 = node[2] - center[2],
+          rigid0 = vcom[0] + (omega[1] * s2 - omega[2] * s1),
+          rigid1 = vcom[1] + (omega[2] * s0 - omega[0] * s2),
+          rigid2 = vcom[2] + (omega[0] * s1 - omega[1] * s0);
+        v[0] = rigid0 + (v[0] - rigid0) * damping;
+        v[1] = rigid1 + (v[1] - rigid1) * damping;
+        v[2] = rigid2 + (v[2] - rigid2) * damping;
+        energy += (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) / NODE_COUNT;
+      }
       Object.assign(p, {
         x: center[0],
         z: center[2],
