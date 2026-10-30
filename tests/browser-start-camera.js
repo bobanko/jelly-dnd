@@ -1,4 +1,4 @@
-import { chromium } from './browser-harness.js';
+import { chromium, seedEditorMap } from './browser-harness.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
@@ -12,12 +12,11 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } }),
     errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  // A map without an authored starting view (the first campaign map has one).
+  await seedEditorMap(page);
   await page.goto('http://localhost:3000/editor.html');
   await page.waitForFunction(() => previewRenderer?.ready && previewRuntime);
-  await page.evaluate(() => {
-    localStorage.setItem('jelly-dnd.language', 'ru');
-    localStorage.removeItem(L.DRAFT_KEY);
-  });
+  await page.evaluate(() => localStorage.setItem('jelly-dnd.language', 'ru'));
   await page.reload();
   await page.waitForFunction(() => previewRenderer?.ready && previewRuntime);
   await page.evaluate(() => {
