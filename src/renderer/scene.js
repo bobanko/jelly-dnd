@@ -3,6 +3,7 @@ import { OAK_WOOD, OAK_FRAME, bridgeOakPlank } from './geometry/wood.js';
 import { phaseTints } from './geometry/mechanisms.js';
 import { phaseBlock, phaseGroundGlow } from './geometry/runes.js';
 import { torchDecor, scatterDecor } from './geometry/decor.js';
+import { occluderCells } from './see-through.js';
 export const sceneMethods = {
   buildScene(level) {
     this.buildDust(level.world);
@@ -25,6 +26,7 @@ export const sceneMethods = {
       // Solid wall columns are part of play and always drawn; the setting hides the rest.
       pillars = (level.world.pillars || []).filter((p) => this.pillars || p.solid);
     for (const p of pillars) occupied.add([p.x, p.y, p.z].join(','));
+    this.occluders = occluderCells(level, blocks, pillars);
     let blockIndex = 0;
     const lavaPools = [];
     const blockAssemblyIndices = new Map(),

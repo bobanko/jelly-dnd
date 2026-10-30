@@ -11,6 +11,7 @@ import {
   GOAL_SLOTS_OFFSET,
   SCENE_FLOATS,
   DEPTH_GLOW_OFFSET,
+  REVEAL_OFFSET,
   DUST_MOTES,
 } from './layout.js';
 import { dot, normalize, viewMatrix, cameraFrame } from './math.js';
@@ -25,6 +26,7 @@ import { latticeShader, colliderShader } from './shaders/debug.js';
 import { sceneMethods } from './scene.js';
 import { propsMethods, PROP_FLOATS } from './props.js';
 import { effectsMethods } from './effects.js';
+import { hiddenFraction } from './see-through.js';
 // Developer choices for the light from the depths, in linear HDR.
 const DEPTH_GLOW_COLORS = {
   warm: [1, 0.3, 0.06],
@@ -36,6 +38,10 @@ const MATERIALS = [
   { name: 'textureStone', file: 'dungeon-stone-atlas.png' },
   { name: 'textureWood', file: 'crate-oak.png' },
 ];
+const smoothstep = (a, b, x) => {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
 class Renderer {
   constructor(canvas, soft) {
     this.canvas = canvas;
@@ -57,6 +63,10 @@ class Renderer {
     // Decorative stone pillars under the level and the warm light far below them.
     this.pillars = true;
     this.underglow = true;
+    // Jellies hidden behind masonry: 'halo' dissolves the stone in front, 'silhouette'
+    // draws their outline over it, 'off' leaves them hidden.
+    this.seeThrough = 'halo';
+    this.revealAmounts = [];
     this.depthGlowColor = 'warm';
     this.depthGlowStrength = 1;
     this.dustSpeed = 1;
@@ -263,6 +273,11 @@ class Renderer {
     );
     this.skin = pipeline('softVS', 'skinFS');
     this.back = pipeline('softVS', 'backFS', 'front', 1, 'greater');
+    // Only where the jelly is behind something already drawn; never writes depth.
+    this.silhouettePipeline = pipeline('softVS', 'silhouetteFS', 'back', 4, 'greater', false, {
+      color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
+    });
     this.effectPipeline = pipeline('solidVS', 'effectFS', 'back', 4, 'less', false, {
       color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
@@ -829,6 +844,22 @@ class Renderer {
       p.end();
     }
   }
+  // Halo strength per jelly: rises once nearly all of its lattice is hidden behind stone.
+  updateReveal(level, players, frame, dt, uniforms) {
+    const fade = level.reducedMotion ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 8);
+    players.slice(0, 5).forEach((p, i) => {
+      let target = 0;
+      const body = level.soft.get(p);
+      if (this.seeThrough === 'halo' && p.state !== 'dead' && this.occluders && body) {
+        // Every third node is enough to tell partly from fully hidden.
+        const points = body.positions.filter((_, n) => n % 3 === 0);
+        target = smoothstep(0.55, 0.95, hiddenFraction(this.occluders, points, frame));
+      }
+      const amount = (this.revealAmounts[i] || 0) + (target - (this.revealAmounts[i] || 0)) * fade;
+      this.revealAmounts[i] = amount < 0.002 ? 0 : amount;
+      if (body) uniforms.set([...body.center, this.revealAmounts[i]], REVEAL_OFFSET + i * 4);
+    });
+  }
   render(level, players, camera, angle, time, scale, dt = 1 / 60) {
     if (!this.ready) return;
     this.resize();
@@ -864,6 +895,7 @@ class Renderer {
       ],
       DEPTH_GLOW_OFFSET,
     );
+    this.updateReveal(level, players, frame, dt, uniforms);
     (level.world.torches || [])
       .slice(0, 8)
       .forEach((p, i) => uniforms.set([...Levels.torchFrame(p).light, 1], TORCHES_OFFSET + i * 4));
@@ -1023,6 +1055,19 @@ class Renderer {
     if (bridgeDraw.opaqueCount) {
       opaque.setVertexBuffer(0, this.bridgeBuffer);
       opaque.draw(bridgeDraw.opaqueCount);
+    }
+    // Before props: what is drawn later in front of the wall still covers the silhouette.
+    if (this.seeThrough === 'silhouette' && !assembling) {
+      opaque.setPipeline(this.silhouettePipeline);
+      opaque.setIndexBuffer(this.indexBuffer, 'uint32');
+      players.forEach((p, i) => {
+        if (
+          p.state !== 'dead' &&
+          jellyScale(level, i, level.plates.length + i, landingCount) >= 0.01
+        )
+          opaque.drawIndexed(this.indexCount, 1, 0, 0, i);
+      });
+      opaque.setPipeline(this.opaque);
     }
     if (propCount) {
       opaque.setPipeline(this.propPipeline);

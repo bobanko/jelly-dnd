@@ -37,6 +37,7 @@
     "test:atmosphere:browser": "node tests/browser-atmosphere.js",
     "test:assembly:browser": "node tests/browser-assembly.js",
     "test:bridges:browser": "node tests/browser-bridges.js",
+    "test:see-through:browser": "node tests/browser-see-through.js",
     "test:density:browser": "node tests/browser-density.js",
     "test:start-camera:browser": "node tests/browser-start-camera.js",
     "test:camera:browser": "node tests/browser-shared-camera.js",

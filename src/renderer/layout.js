@@ -10,6 +10,8 @@ export const PORTAL_LIMIT = Levels.limits.portals,
   GOAL_SLOTS_OFFSET = FINISH_OFFSET + 4,
   // Light from the depths: rgb colour and strength.
   DEPTH_GLOW_OFFSET = GOAL_SLOTS_OFFSET + 8,
-  SCENE_FLOATS = DEPTH_GLOW_OFFSET + 4;
+  // See-through halo per jelly: lattice centre and how hidden it is (0..1).
+  REVEAL_OFFSET = DEPTH_GLOW_OFFSET + 4,
+  SCENE_FLOATS = REVEAL_OFFSET + 20;
 // Floating dust motes at 100% density; the developer slider goes up to 300%.
 export const DUST_MOTES = 128;

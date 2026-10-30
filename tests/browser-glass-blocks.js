@@ -43,6 +43,8 @@ import fs from 'node:fs';
           previewTargetPitch = 38;
           Object.assign(previewCamera, { x: 3.5, z: 3.5, targetY: 0.5, pitch: 38, mode: 'ortho' });
           spatialGrid.checked = false;
+          // This check is about glass versus stone, not the see-through halo.
+          previewRenderer.seeThrough = 'off';
           $('connections').checked = false;
           hover = null;
           lastPointer = null;

@@ -932,6 +932,8 @@ document.querySelector('#level-pillars').addEventListener('change', (e) => {
 document
   .querySelector('#depth-glow')
   .addEventListener('change', (e) => (sceneRenderer.underglow = e.target.checked));
+for (const radio of document.querySelectorAll('[name=see-through]'))
+  radio.addEventListener('change', (e) => (sceneRenderer.seeThrough = e.target.value));
 for (const radio of document.querySelectorAll('[name=depth-glow-color]'))
   radio.addEventListener('change', (e) => (sceneRenderer.depthGlowColor = e.target.value));
 for (const [id, property] of [
