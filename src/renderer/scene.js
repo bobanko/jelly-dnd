@@ -259,16 +259,17 @@ export const sceneMethods = {
     }
     if (phaseData.length) this.device.queue.writeBuffer(this.phaseBuffer, 0, phaseData);
   },
-  bridges(level) {
+  // Bridge geometry is built once in its unfolded pose; frames that only rotate decks reuse it.
+  buildBridges(level) {
     const wood = [],
-      spectral = [];
+      spectral = [],
+      parts = [];
     level.bridges
       .filter((bridge) => bridge.color === undefined)
       .forEach((bridge) => {
         const mesh = wood;
         const from = mesh.length;
-        const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
-          x = bridge.x,
+        const x = bridge.x,
           z = bridge.z,
           seed = bridge.x * 31 + bridge.z * 17;
         // The deck uses the crate's oak boards so all timber shares grain and wear.
@@ -316,13 +317,12 @@ export const sceneMethods = {
             12,
             1,
           );
-        rotateBridgeMesh(mesh, from, bridge, progress);
+        parts.push({ bridge: level.bridges.indexOf(bridge), from, to: mesh.length });
       });
     level.bridges
       .filter((bridge) => bridge.color !== undefined)
       .forEach((bridge) => {
-        const progress = bridge.progress ?? (level.world.soft ? 0 : 1),
-          tint = phaseTints[bridge.color ?? 1] || phaseTints[1],
+        const tint = phaseTints[bridge.color ?? 1] || phaseTints[1],
           from = spectral.length;
         box(
           spectral,
@@ -334,22 +334,42 @@ export const sceneMethods = {
           3,
           { crisp: true },
         );
-        rotateBridgeMesh(spectral, from, bridge, progress);
-      });
-    const opaqueCount = wood.length / 12,
-      mesh = wood.concat(spectral),
-      spectralCount = spectral.length / 12;
-    if (mesh.length) {
-      const data = new Float32Array(mesh);
-      if (data.byteLength > this.bridgeBuffer.size) {
-        this.bridgeBuffer.destroy();
-        this.bridgeBuffer = this.device.createBuffer({
-          size: Math.ceil(data.byteLength / 65536) * 65536,
-          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        parts.push({
+          bridge: level.bridges.indexOf(bridge),
+          from: wood.length + from,
+          to: wood.length + spectral.length,
         });
-      }
-      this.device.queue.writeBuffer(this.bridgeBuffer, 0, data);
+      });
+    this.bridgeLocal = new Float32Array(wood.concat(spectral));
+    this.bridgeData = this.bridgeLocal.slice();
+    this.bridgeParts = parts;
+    this.bridgeDraw = { opaqueCount: wood.length / 12, spectralCount: spectral.length / 12 };
+    this.bridgeProgress = [];
+    if (this.bridgeData.byteLength > this.bridgeBuffer.size) {
+      this.bridgeBuffer.destroy();
+      this.bridgeBuffer = this.device.createBuffer({
+        size: Math.ceil(this.bridgeData.byteLength / 65536) * 65536,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      });
     }
-    return { opaqueCount, spectralCount };
+  },
+  bridges(level) {
+    const key = level.bridges.map((b) => [b.x, b.y || 0, b.z, b.color].join(':')).join('|');
+    if (this.bridgeMeshKey !== key) {
+      this.buildBridges(level);
+      this.bridgeMeshKey = key;
+    }
+    // Rotate and upload only while some deck is moving.
+    const progress = level.bridges.map((b) => b.progress ?? (level.world.soft ? 0 : 1));
+    if (progress.every((p, i) => p === this.bridgeProgress[i])) return this.bridgeDraw;
+    this.bridgeProgress = progress;
+    for (const part of this.bridgeParts) {
+      const deck = this.bridgeData.subarray(part.from, part.to);
+      deck.set(this.bridgeLocal.subarray(part.from, part.to));
+      rotateBridgeMesh(deck, 0, level.bridges[part.bridge], progress[part.bridge]);
+    }
+    if (this.bridgeData.length)
+      this.device.queue.writeBuffer(this.bridgeBuffer, 0, this.bridgeData);
+    return this.bridgeDraw;
   },
 };

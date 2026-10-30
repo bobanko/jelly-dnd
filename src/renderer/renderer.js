@@ -23,7 +23,7 @@ import { compute } from './shaders/compute.js';
 import { post, BLOOM_LEVELS, bloomShader, mipmapShader } from './shaders/post.js';
 import { latticeShader, colliderShader } from './shaders/debug.js';
 import { sceneMethods } from './scene.js';
-import { propsMethods } from './props.js';
+import { propsMethods, PROP_FLOATS } from './props.js';
 import { effectsMethods } from './effects.js';
 // Developer choices for the light from the depths, in linear HDR.
 const DEPTH_GLOW_COLORS = {
@@ -39,6 +39,12 @@ const MATERIALS = [
 class Renderer {
   constructor(canvas, soft) {
     this.canvas = canvas;
+    // Reading the canvas rectangle every frame forced a layout pass after each HUD update,
+    // so the size is cached until the canvas is resized.
+    if (typeof ResizeObserver !== 'undefined') {
+      this.sizeObserver = new ResizeObserver(() => (this.cssSize = null));
+      this.sizeObserver.observe(canvas);
+    }
     this.soft = soft;
     this.ready = false;
     this.error = null;
@@ -209,6 +215,28 @@ class Renderer {
         multisample: { count: samples },
       });
     this.opaque = pipeline('solidVS', 'solidFS');
+    const propBuffers = [
+      ...vertexBuffers,
+      {
+        arrayStride: PROP_FLOATS * 4,
+        stepMode: 'instance',
+        attributes: [4, 5, 6, 7].map((shaderLocation, k) => ({
+          shaderLocation,
+          offset: k * 16,
+          format: 'float32x4',
+        })),
+      },
+    ];
+    this.propPipeline = pipeline(
+      'propVS',
+      'solidFS',
+      'back',
+      4,
+      'less',
+      true,
+      undefined,
+      propBuffers,
+    );
     const assemblyBuffers = [
       ...vertexBuffers,
       { arrayStride: 16, attributes: [{ shaderLocation: 4, offset: 0, format: 'float32x4' }] },
@@ -257,15 +285,25 @@ class Renderer {
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
     };
     this.crystalBackPipeline = pipeline(
-      'solidVS',
+      'propVS',
       'crystalFS',
       'front',
       4,
       'less',
       false,
       crystalBlend,
+      propBuffers,
     );
-    this.crystalPipeline = pipeline('solidVS', 'crystalFS', 'back', 4, 'less', false, crystalBlend);
+    this.crystalPipeline = pipeline(
+      'propVS',
+      'crystalFS',
+      'back',
+      4,
+      'less',
+      false,
+      crystalBlend,
+      propBuffers,
+    );
     const additive = {
       color: { srcFactor: 'src-alpha', dstFactor: 'one', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
@@ -678,8 +716,15 @@ class Renderer {
     }
     d.queue.submit([encoder.finish()]);
   }
-  resize() {
+  canvasSize() {
+    if (this.cssSize) return this.cssSize;
     const rect = this.canvas.getBoundingClientRect(),
+      size = { width: rect.width, height: rect.height };
+    if (this.sizeObserver) this.cssSize = size;
+    return size;
+  }
+  resize() {
+    const rect = this.canvasSize(),
       width = Math.max(1, rect.width),
       height = Math.max(1, rect.height);
     const ratio = Math.min(devicePixelRatio || 1, 1.25, Math.sqrt(2e6 / (width * height))),
@@ -790,7 +835,7 @@ class Renderer {
     const d = this.device,
       w = this.canvas.width,
       h = this.canvas.height;
-    const rect = this.canvas.getBoundingClientRect(),
+    const rect = this.canvasSize(),
       frame = (this.cameraState = cameraFrame(camera, angle, rect.width, rect.height, scale)),
       { vp, view, eye } = frame;
     const extent = level.definition?.size ?? 12,
@@ -979,8 +1024,13 @@ class Renderer {
       opaque.setVertexBuffer(0, this.bridgeBuffer);
       opaque.draw(bridgeDraw.opaqueCount);
     }
-    opaque.setVertexBuffer(0, this.propBuffer);
-    opaque.draw(propCount);
+    if (propCount) {
+      opaque.setPipeline(this.propPipeline);
+      opaque.setVertexBuffer(0, this.propBuffer);
+      opaque.setVertexBuffer(1, this.propInstanceBuffer);
+      for (const piece of this.propDraws) opaque.draw(piece.count, 1, piece.first, piece.instance);
+      opaque.setPipeline(this.opaque);
+    }
     opaque.setVertexBuffer(0, this.decorationBuffer);
     if (!assembling) opaque.draw(this.decorationCount);
     const torchCount = assembling ? 0 : Math.min(8, (level.world.torches || []).length);
@@ -1052,10 +1102,11 @@ class Renderer {
         glass.setBindGroup(0, this.sceneGroup);
         glass.setBindGroup(1, this.skinGroups[0]);
         glass.setVertexBuffer(0, this.propBuffer);
+        glass.setVertexBuffer(1, this.propInstanceBuffer);
         glass.setPipeline(this.crystalBackPipeline);
-        glass.draw(crystal.count, 1, crystal.first);
+        glass.draw(crystal.count, 1, crystal.first, crystal.instance);
         glass.setPipeline(this.crystalPipeline);
-        glass.draw(crystal.count, 1, crystal.first);
+        glass.draw(crystal.count, 1, crystal.first, crystal.instance);
         if (layer === order.length - 1) this.drawEffects(glass, level, effectCount);
         glass.end();
         continue;

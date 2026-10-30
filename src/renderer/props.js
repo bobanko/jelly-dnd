@@ -21,6 +21,12 @@ import {
 } from './geometry/mechanisms.js';
 import { goalRune } from './geometry/runes.js';
 import { skullGeometry } from './geometry/skull.js';
+
+// One prop transform: [x, y, z, scale, row0, swing, row1, rock, row2, string pull], where
+// rowN is a row of the rotation matrix. Read by propVS as instance attributes 4–7.
+export const PROP_FLOATS = 16;
+const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+
 export const propsMethods = {
   buildProps(level, players) {
     const pieces = [],
@@ -231,15 +237,33 @@ export const propsMethods = {
     // Transparent shells occupy the tail of the same upload buffer. Opaque props
     // stop before that range; shells join the depth-sorted glass/jelly layers.
     crystals.forEach((mesh, i) => append('droneCrystal', i, mesh));
+    // Local meshes go to the GPU once. Each frame only per-piece transforms are uploaded,
+    // and propVS places the vertices (see PROP_FLOATS).
+    const data = new Float32Array(pieces.reduce((sum, p) => sum + p.data.length, 0));
+    let cursor = 0;
+    for (const piece of pieces) {
+      data.set(piece.data, cursor);
+      piece.first = cursor / 12;
+      piece.count = piece.data.length / 12;
+      cursor += piece.data.length;
+    }
     this.propPieces = pieces;
-    this.propData = new Float32Array(pieces.reduce((sum, p) => sum + p.data.length, 0));
-    if (this.propData.byteLength > this.propBuffer.size) {
+    this.propInstances = new Float32Array(Math.max(1, pieces.length) * PROP_FLOATS);
+    if (data.byteLength > this.propBuffer.size) {
       this.propBuffer.destroy();
       this.propBuffer = this.device.createBuffer({
-        size: this.propData.byteLength,
+        size: data.byteLength,
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
       });
     }
+    if (this.propInstances.byteLength > (this.propInstanceBuffer?.size ?? 0)) {
+      this.propInstanceBuffer?.destroy();
+      this.propInstanceBuffer = this.device.createBuffer({
+        size: this.propInstances.byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      });
+    }
+    this.device.queue.writeBuffer(this.propBuffer, 0, data);
   },
   props(level, players, angle, time, dt = 1 / 60) {
     const key = [
@@ -264,7 +288,7 @@ export const propsMethods = {
       this.platePress[i] =
         (this.platePress[i] || 0) + (target - (this.platePress[i] || 0)) * pressFade;
     });
-    const data = this.propData,
+    const instances = this.propInstances,
       c = Math.cos(angle),
       s = Math.sin(angle),
       rx = (c - s) * 0.7071,
@@ -276,14 +300,12 @@ export const propsMethods = {
       archerLandingStart = pickupLandingStart + level.world.pickups.length,
       droneLandingStart = archerLandingStart + level.world.archers.length,
       landingCount = droneLandingStart + (level.world.drones || []).length;
-    let cursor = 0,
-      opaqueCount = null;
+    let opaqueCount = 0;
     this.crystalPieces = [];
-    // Reuse immutable local meshes and one upload array. No per-frame tessellation
-    // or large JS number arrays for rigid decorations.
-    for (const piece of this.propPieces) {
-      const i = piece.index,
-        source = piece.data,
+    this.propDraws = [];
+    for (let instance = 0; instance < this.propPieces.length; instance++) {
+      const piece = this.propPieces[instance],
+        i = piece.index,
         landingIndex =
           piece.kind === 'pressureButton' || piece.kind === 'pressureSocket'
             ? i
@@ -345,15 +367,6 @@ export const propsMethods = {
         [x, y, z] = level.world.droneOrigin(level.world.drones[i]);
         const spin = level.reducedMotion ? 0 : time * 0.35;
         matrix = [Math.cos(spin), 0, Math.sin(spin), 0, 1, 0, -Math.sin(spin), 0, Math.cos(spin)];
-        if (piece.kind === 'droneCrystal') {
-          opaqueCount ??= cursor / 12;
-          this.crystalPieces.push({
-            kind: 'crystal',
-            center: [x, y, z],
-            first: cursor / 12,
-            count: source.length / 12,
-          });
-        }
       } else if (piece.kind === 'crate') {
         const p = level.crates[i];
         if (p.state === 'dead') continue;
@@ -435,62 +448,29 @@ export const propsMethods = {
         matrix = [0, 1, 2].flatMap((k) => [f.u[k], f.n[k], f.v[k]]);
       }
       if (dropOffset) y += dropOffset;
-      data.set(source, cursor);
-      if (swing) {
-        const c = Math.cos(swing),
-          s = Math.sin(swing);
-        for (let n = 0; n < source.length; n += 12)
-          for (const offset of [0, 3]) {
-            const k = cursor + n + offset,
-              a = data[k],
-              b = data[k + 1] + (offset ? 0 : 0.13);
-            data[k] = a * c - b * s;
-            data[k + 1] = a * s + b * c - (offset ? 0 : 0.13);
-          }
+      // Jellies turn their face to the camera about the vertical axis.
+      if (rotate) matrix = [rx, 0, fx, 0, 1, 0, rz, 0, fz];
+      matrix ||= IDENTITY;
+      const o = instance * PROP_FLOATS;
+      instances[o] = x;
+      instances[o + 1] = y;
+      instances[o + 2] = z;
+      instances[o + 3] = warp;
+      for (let row = 0; row < 3; row++)
+        for (let k = 0; k < 3; k++) instances[o + 4 + row * 4 + k] = matrix[row * 3 + k];
+      instances[o + 7] = swing;
+      instances[o + 11] = rock;
+      instances[o + 15] = stringPull;
+      const draw = { first: piece.first, count: piece.count, instance };
+      if (piece.kind === 'droneCrystal')
+        this.crystalPieces.push({ kind: 'crystal', center: [x, y, z], ...draw });
+      else {
+        this.propDraws.push(draw);
+        opaqueCount += piece.count;
       }
-      if (matrix) {
-        const rockC = Math.cos(rock),
-          rockS = Math.sin(rock);
-        for (let n = 0; n < source.length; n += 12) {
-          const k = cursor + n,
-            px = data[k] * rockC - data[k + 1] * rockS,
-            py = data[k] * rockS + data[k + 1] * rockC,
-            localZ =
-              (data[k + 2] - stringPull * Math.max(0, 1 - Math.abs(py - 0.57) / 0.38)) * warp,
-            nx = data[k + 3] * rockC - data[k + 4] * rockS,
-            ny = data[k + 3] * rockS + data[k + 4] * rockC,
-            nz = data[k + 5];
-          for (let axis = 0; axis < 3; axis++) {
-            const a = axis * 3;
-            data[k + axis] =
-              (axis === 0 ? x : axis === 1 ? y : z) +
-              matrix[a] * px * warp +
-              matrix[a + 1] * py * warp +
-              matrix[a + 2] * localZ;
-            data[k + 3 + axis] = matrix[a] * nx + matrix[a + 1] * ny + matrix[a + 2] * nz;
-          }
-        }
-      } else if (rotate) {
-        for (let n = 0; n < source.length; n += 12) {
-          const k = cursor + n;
-          data[k] = x + (rx * source[n] + fx * source[n + 2]) * warp;
-          data[k + 1] = y + source[n + 1] * warp;
-          data[k + 2] = z + (rz * source[n] + fz * source[n + 2]) * warp;
-          data[k + 3] = rx * source[n + 3] + fx * source[n + 5];
-          data[k + 5] = rz * source[n + 3] + fz * source[n + 5];
-        }
-      } else {
-        for (let n = 0; n < source.length; n += 12) {
-          const k = cursor + n;
-          data[k] = x + source[n] * warp;
-          data[k + 1] = y + source[n + 1] * warp;
-          data[k + 2] = z + source[n + 2] * warp;
-        }
-      }
-      cursor += source.length;
     }
-    const dynamicCount = opaqueCount ?? cursor / 12;
-    this.device.queue.writeBuffer(this.propBuffer, 0, data.buffer, 0, cursor * 4);
+    if (this.propPieces.length)
+      this.device.queue.writeBuffer(this.propInstanceBuffer, 0, instances);
     const decorationKey = [
       level.goals.length,
       level.plates.length,
@@ -613,6 +593,6 @@ export const propsMethods = {
       this.device.queue.writeBuffer(this.decorationBuffer, 0, decorations);
       this.decorationKey = decorationKey;
     }
-    return dynamicCount;
+    return opaqueCount;
   },
 };

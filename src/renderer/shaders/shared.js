@@ -32,7 +32,18 @@ export const shared = `
   let position=assemblyPosition(p,block);var o:Out;o.clip=scene.vp*vec4f(position,1);o.world=position;o.normal=n;o.color=color;o.material=material.x;o.local=vec3f(material.y,0,material.z);return o;
  }
  @vertex fn assemblyShadowVS(@location(0) p:vec3f,@location(4) block:vec4f)->@builtin(position) vec4f{return scene.lightVP*vec4f(assemblyPosition(p,block),1);}
- @vertex fn solidVS(@location(0) p:vec3f,@location(1) n:vec3f,@location(2) color:vec3f,@location(3) material:vec3f)->Out{
+ @vertex fn solidVS(@location(0) p:vec3f,@location(1) n:vec3f,@location(2) color:vec3f,@location(3) material:vec3f)->Out{return solid(p,n,color,material);}
+ // Props keep local meshes; the per-piece instance places them: sword swing about the grip,
+ // archer rocking and bowstring pull in local space, then scale, rotation rows and offset.
+ @vertex fn propVS(@location(0) p:vec3f,@location(1) n:vec3f,@location(2) color:vec3f,@location(3) material:vec3f,@location(4) place:vec4f,@location(5) row0:vec4f,@location(6) row1:vec4f,@location(7) row2:vec4f)->Out{
+  var q=p;var m=n;
+  if(row0.w!=0.){let c=cos(row0.w);let s=sin(row0.w);let b=q.y+.13;q=vec3f(q.x*c-b*s,q.x*s+b*c-.13,q.z);m=vec3f(m.x*c-m.y*s,m.x*s+m.y*c,m.z);}
+  if(row1.w!=0.){let c=cos(row1.w);let s=sin(row1.w);q=vec3f(q.x*c-q.y*s,q.x*s+q.y*c,q.z);m=vec3f(m.x*c-m.y*s,m.x*s+m.y*c,m.z);}
+  q.z-=row2.w*max(0.,1.-abs(q.y-.57)/.38);
+  let position=place.xyz+vec3f(dot(row0.xyz,q),dot(row1.xyz,q),dot(row2.xyz,q))*place.w;
+  return solid(position,vec3f(dot(row0.xyz,m),dot(row1.xyz,m),dot(row2.xyz,m)),color,material);
+ }
+ fn solid(p:vec3f,n:vec3f,color:vec3f,material:vec3f)->Out{
   var position=p;
   if(material.x>3.5&&material.x<4.5){
    let flicker=scene.options.z;
