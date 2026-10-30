@@ -1238,6 +1238,7 @@ function showMenuScreen(screen) {
   document.querySelector('#menu-help').hidden = !menuHelp;
   document.querySelector('#menu-levels').hidden = !menuLevelSelect;
   document.querySelector('#main-menu').classList.toggle('selecting-level', menuLevelSelect);
+  document.querySelector('#main-menu').classList.toggle('submenu', menuHelp || menuLevelSelect);
   selectMenuItem(0);
 }
 function showMenuHelp(show) {

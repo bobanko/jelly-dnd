@@ -45,7 +45,9 @@ import assert from 'node:assert/strict';
       await page.screenshot({ path: 'artifacts/controls-960-' + language + '.png' });
       await page.keyboard.press('q');
       await page.locator('#show-levels').click();
-      await fits('#menu-title,#menu-levels,#levels-back');
+      // Submenus hide the big title to give the level list the full height.
+      assert.equal(await page.locator('#menu-title').isVisible(), false);
+      await fits('#menu-levels,#levels-back');
       await page.screenshot({ path: 'artifacts/levels-960-' + language + '.png' });
       await page.locator('[data-level="1"]').click();
       await page.waitForURL('**/?level=1&play=1');

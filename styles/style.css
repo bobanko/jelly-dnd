@@ -959,10 +959,6 @@ footer {
   margin-top: 12px;
   font-size: 26px;
 }
-.selecting-level .menu-panel h1 {
-  font-size: clamp(68px, 7vw, 94px);
-  margin-bottom: 22px;
-}
 @media (max-width: 600px) {
   .menu-panel h1 {
     font-size: 82px;
@@ -973,9 +969,6 @@ footer {
   }
   .languages button {
     font-size: 22px;
-  }
-  .selecting-level .menu-panel h1 {
-    font-size: 66px;
   }
   .level-list button {
     font-size: 24px;
@@ -996,9 +989,6 @@ footer {
   }
   .languages {
     margin-top: 12px;
-  }
-  .selecting-level .menu-panel h1 {
-    font-size: 68px;
   }
   .level-list button {
     font-size: 25px;
@@ -1160,16 +1150,10 @@ html[lang='ru'] .menu-panel h1 {
   font-size: clamp(58px, 7.5vw, 100px);
   letter-spacing: -3px;
 }
-html[lang='ru'] .selecting-level .menu-panel h1 {
-  font-size: clamp(48px, 5.7vw, 76px);
-}
 @media (max-width: 600px) {
   html[lang='ru'] .menu-panel h1 {
     font-size: 58px;
     letter-spacing: -2px;
-  }
-  html[lang='ru'] .selecting-level .menu-panel h1 {
-    font-size: 48px;
   }
   .menu-panel h1 {
     font-size: 72px;
@@ -1439,11 +1423,6 @@ html[lang='ru'] .selecting-level .menu-panel h1 {
     font-size: 11px;
     padding: 4px 6px;
   }
-  .selecting-level .menu-panel h1,
-  html[lang='ru'] .selecting-level .menu-panel h1 {
-    font-size: 60px;
-    margin-bottom: 16px;
-  }
   #menu-levels h2 {
     font-size: 26px;
     margin-bottom: 10px;
@@ -1536,9 +1515,6 @@ html[lang='ru'] .selecting-level .menu-panel h1 {
   min-height: 0;
   max-height: 100%;
 }
-.selecting-level #menu-title {
-  flex-shrink: 0;
-}
 #menu-levels {
   display: flex;
   flex-direction: column;
@@ -1624,10 +1600,6 @@ html[lang='ru'] .selecting-level .menu-panel h1 {
   border-radius: 0;
   background: #cfa96b;
 }
-#main-menu:has(#menu-help:not([hidden])) .menu-panel h1 {
-  font-size: 72px;
-  margin-bottom: 20px;
-}
 #menu-help {
   max-width: 540px;
 }
@@ -1697,10 +1669,6 @@ html[lang='ru'] .selecting-level .menu-panel h1 {
   padding: 8px 18px;
 }
 @media (max-height: 720px) {
-  #main-menu:has(#menu-help:not([hidden])) .menu-panel h1 {
-    font-size: 56px;
-    margin-bottom: 14px;
-  }
   #menu-help h2 {
     font-size: 27px;
     margin-bottom: 10px;
@@ -1725,9 +1693,6 @@ html[lang='ru'] .selecting-level .menu-panel h1 {
     overflow-y: auto;
     align-items: flex-start;
     padding-bottom: 120px;
-  }
-  #main-menu:has(#menu-help:not([hidden])) .menu-panel h1 {
-    font-size: 54px;
   }
   .help-control {
     gap: 10px;
@@ -1955,4 +1920,12 @@ html[lang='ru'] .selecting-level .menu-panel h1 {
     overflow-y: auto;
     scrollbar-gutter: stable;
   }
+}
+/* Submenus drop the big title so levels and help get the full height; the 3D scene stays,
+   with a slightly deeper scrim behind the text. */
+#main-menu.submenu #menu-title {
+  display: none;
+}
+#main-menu.submenu {
+  background: linear-gradient(90deg, #101214fc, #101214ef 36%, #10121480 66%, #10121418);
 }
