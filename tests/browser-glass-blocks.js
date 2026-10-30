@@ -38,7 +38,6 @@ import fs from 'node:fs';
             });
           replaceMap(m);
           previewDirty = true;
-          previewFitHeight = 3;
           previewZoom = 1.45;
           previewAngle = previewTargetAngle = 0;
           previewTargetPitch = 38;

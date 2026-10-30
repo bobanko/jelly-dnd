@@ -128,12 +128,11 @@ let previewZoom = 1,
   previewFrame = 0;
 let pickBounds = null,
   lastPointer = null,
-  previewFitHeight = 0,
   spatialCells = null;
 const previewCamera = {
   x: (model.map.size - 1) / 2,
   z: (model.map.size - 1) / 2,
-  mode: 'ortho',
+  mode: 'perspective',
   pitch: model.map.camera?.pitch ?? 50,
   fov: 45,
 };
@@ -1550,30 +1549,78 @@ function areaBounds() {
     maxZ: Math.max(...points.map((p) => p.z)) + 3,
   };
 }
-let previewFitSize = 8;
+// The level's bounding box. fit() frames it; the camera stays put while the map is edited.
+let previewFitCorners = null,
+  previewFit = null;
+function levelCorners() {
+  const points = areaPoints();
+  if (!points.length) points.push({ x: -3, z: -3 }, { x: 3, z: 3 });
+  const xs = points.map((p) => p.x),
+    zs = points.map((p) => p.z),
+    ys = points.map((p) => p.y ?? p.height ?? p.base ?? 0),
+    x = [Math.min(...xs) - 0.5, Math.max(...xs) + 0.5],
+    y = [Math.min(...ys) - 1, Math.max(...ys) + 1.2],
+    z = [Math.min(...zs) - 0.5, Math.max(...zs) + 0.5];
+  return x.flatMap((px) => y.flatMap((py) => z.map((pz) => [px, py, pz])));
+}
 function fit() {
   stopStartViewPreview();
   previewZoom = 1;
-  const bounds = areaBounds();
-  previewCamera.x = (bounds.minX + bounds.maxX) / 2;
-  previewCamera.z = (bounds.minZ + bounds.maxZ) / 2;
-  previewFitSize = Math.max(bounds.maxX - bounds.minX + 1, bounds.maxZ - bounds.minZ + 1);
-  const ys = areaPoints().map((p) => p.y ?? p.height ?? p.base ?? 0);
-  previewFitHeight = ys.length ? Math.max(...ys) - Math.min(...ys) + 1 : 0;
-  previewCamera.targetY = ys.length ? (Math.max(...ys) + Math.min(...ys) - 1) / 2 : 0;
+  previewFitCorners = levelCorners();
+  previewFit = null;
+  const [x0, y0, z0] = previewFitCorners[0],
+    [x1, y1, z1] = previewFitCorners[7];
+  previewCamera.x = (x0 + x1) / 2;
+  previewCamera.z = (z0 + z1) / 2;
+  previewCamera.targetY = (y0 + y1) / 2;
   $('zoom-label').textContent = '100%';
   refreshHover();
   invalidate();
 }
+// Largest scale at which the whole level box projects inside the viewport with a margin,
+// centred vertically through frameY (as in the game camera). Works for both projections.
+function fitView(width, height) {
+  const margin = 0.05,
+    camera = { ...previewCamera, frameY: 0.5 };
+  let frameY = 0.5;
+  const fits = (scale) => {
+    const frame = S.frame(camera, previewAngle, width, height, scale),
+      points = previewFitCorners.map((corner) =>
+        JellyGPU.projectPoint(frame, ...corner, width, height),
+      ),
+      top = Math.min(...points.map((p) => p.y)),
+      bottom = Math.max(...points.map((p) => p.y));
+    frameY = 0.5 + (height * 0.5 - (top + bottom) / 2) / height;
+    return (
+      points.every((p) => p.visible && p.x >= width * margin && p.x <= width * (1 - margin)) &&
+      bottom - top <= height * (1 - 2 * margin)
+    );
+  };
+  let lower = 1,
+    upper = 1000;
+  if (!fits(upper)) {
+    for (let i = 0; i < 24; i++) {
+      const middle = Math.sqrt(lower * upper);
+      if (fits(middle)) lower = middle;
+      else upper = middle;
+    }
+    upper = lower;
+    fits(lower);
+  }
+  return { scale: upper, frameY };
+}
 function previewScale() {
   if (startViewPreview) return startViewPreview.scale;
-  const r = $('viewport').getBoundingClientRect();
-  return (
-    Math.min(
-      r.width / (previewFitSize * 1.65),
-      r.height / (previewFitSize * 1.3 + previewFitHeight * 0.6),
-    ) * previewZoom
-  );
+  const r = $('viewport').getBoundingClientRect(),
+    width = Math.max(1, r.width),
+    height = Math.max(1, r.height),
+    key = [width, height, previewCamera.mode, previewCamera.fov].join(':');
+  previewFitCorners ??= levelCorners();
+  if (previewFit?.key !== key) {
+    previewFit = { key, ...fitView(width, height) };
+    previewCamera.frameY = previewFit.frameY;
+  }
+  return previewFit.scale * previewZoom;
 }
 function drawSpatialOverlay() {
   const canvas = $('spatial-overlay'),
