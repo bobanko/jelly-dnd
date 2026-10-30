@@ -223,12 +223,16 @@ class System {
         const q = body.positions[Math.floor(random() * body.positions.length)],
           a = random() * Math.PI * 2,
           speed = 0.6 + random() * 1.8;
+        // Most pieces are small tumbling jelly cubes; the rest are droplets.
+        const cube = i % 3 !== 2;
         this.particles.push({
           kind: 'jelly',
+          cube,
           position: [...q],
           velocity: [Math.cos(a) * speed, 1 + random() * 2.2, Math.sin(a) * speed],
-          size: 0.075 + random() * 0.075,
+          size: cube ? 0.07 + random() * 0.08 : 0.035 + random() * 0.03,
           phase: random() * 6.28,
+          spin: (random() < 0.5 ? -1 : 1) * (5 + random() * 9),
           color: palettes[player.slot ?? event.player],
           age: 0,
           life,

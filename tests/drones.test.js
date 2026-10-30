@@ -61,14 +61,12 @@ test('all twenty-five colour pairs use colour immunity, death events, inventory 
         const effects = new Effects.System();
         effects.burst(events[0], r.players, r.soft);
         assert.equal(effects.lasers.length, 1);
-        const droplets = effects.particles.filter((p) => p.size < 0.075);
-        assert.ok(droplets.length > 0, 'lethal hits spray from the contact point');
-        assert.ok(droplets.every((p) => p.kind === 'jelly'));
-        assert.ok(
-          droplets.every((p) =>
-            p.position.every((v, k) => Math.abs(v - events[0].beam.to[k]) < 0.02),
-          ),
+        // Death pieces start inside the body; the beam's droplets start at its contact point.
+        const droplets = effects.particles.filter((p) =>
+          p.position.every((v, k) => Math.abs(v - events[0].beam.to[k]) < 0.02),
         );
+        assert.ok(droplets.length > 0, 'lethal hits spray from the contact point');
+        assert.ok(droplets.every((p) => p.kind === 'jelly' && p.size < 0.075));
         assert.ok(effects.particles.every((p) => p.color === droplets[0].color));
         effects.step(0.1, r.world);
         effects.step(0.1, r.world);

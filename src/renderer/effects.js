@@ -1,7 +1,7 @@
 import { bridgePose } from '../world/level-features.js';
 import { PORTAL_LIMIT, DUST_MOTES } from './layout.js';
 import { dot } from './math.js';
-import { sphere, rod } from './mesh.js';
+import { box, sphere, rod } from './mesh.js';
 import { beamColors } from './geometry/mobs.js';
 import { phaseTints, portalRing } from './geometry/mechanisms.js';
 export const effectsMethods = {
@@ -27,6 +27,31 @@ export const effectsMethods = {
           item.color,
           7,
         );
+      } else if (item.cube) {
+        // A mini jelly cube: rounded, translucent and tumbling about two axes.
+        const size = item.size * (0.7 + 0.3 * fade),
+          a = item.phase + item.age * item.spin,
+          b = item.phase * 1.7 + item.age * item.spin * 0.6,
+          ca = Math.cos(a),
+          sa = Math.sin(a),
+          cb = Math.cos(b),
+          sb = Math.sin(b),
+          rotation = [
+            [cb, sa * sb, ca * sb],
+            [0, ca, -sa],
+            [-sb, sa * cb, ca * cb],
+          ];
+        box(mesh, [0, 0, 0], [size, size, size], item.color, size * 0.3, 6, 2);
+        for (let k = from; k < mesh.length; k += 12)
+          for (const offset of [0, 3]) {
+            const p = mesh.slice(k + offset, k + offset + 3);
+            for (let axis = 0; axis < 3; axis++)
+              mesh[k + offset + axis] =
+                (offset ? 0 : item.position[axis]) +
+                rotation[axis][0] * p[0] +
+                rotation[axis][1] * p[1] +
+                rotation[axis][2] * p[2];
+          }
       } else if (item.position) {
         const a = item.phase + Math.min(item.age, 0.8) * 8,
           c = Math.cos(a),
@@ -82,7 +107,8 @@ export const effectsMethods = {
       for (let k = from; k < mesh.length; k += 12) {
         mesh[k + 9] =
           item.kind === 'bone' || item.kind === 'wood' ? 15 : item.kind === 'jelly' ? 6 : 7;
-        mesh[k + 10] = fade * (item.kind === 'bone' ? 1 : item.position ? 0.85 : 0.45);
+        mesh[k + 10] =
+          fade * (item.kind === 'bone' ? 1 : item.cube ? 0.72 : item.position ? 0.85 : 0.45);
         mesh[k + 11] = 0;
       }
     }
