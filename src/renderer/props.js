@@ -560,11 +560,24 @@ export const propsMethods = {
           dx = belt.dx || 0,
           dz = belt.dz ?? 1,
           code = dx > 0 ? 1 : dx < 0 ? 3 : dz < 0 ? 2 : 0;
+        // Neighbouring belts on the same floor: one ahead continues this belt, one behind
+        // or to a side that points here feeds it, so no roller or rail closes that edge.
+        const beltAt = (ox, oz) =>
+            level.world.conveyors.find(
+              (o) =>
+                o.x === belt.x + ox &&
+                o.z === belt.z + oz &&
+                (o.y ?? level.world.heightAt(o.x, o.z) ?? 0) === y,
+            ),
+          feeds = (o) => o && o.x + (o.dx || 0) === belt.x && o.z + (o.dz ?? 1) === belt.z;
         conveyorTile(mesh, {
           code,
           speed: belt.speed ?? 0.85,
-          openBack: !level.world.conveyorJoined(belt, -1),
-          openFront: !level.world.conveyorJoined(belt, 1),
+          openBack: !feeds(beltAt(-dx, -dz)),
+          openFront: !beltAt(dx, dz),
+          // Local side s lies at world offset (dz * s, -dx * s).
+          railLeft: !feeds(beltAt(-dz, dx)),
+          railRight: !feeds(beltAt(dz, -dx)),
         });
         for (let k = from; k < mesh.length; k += 12)
           for (const offset of [0, 3]) {

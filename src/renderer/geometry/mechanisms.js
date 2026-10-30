@@ -190,7 +190,10 @@ export function pressureSurface(mesh, center, profile, color, material, tile = 0
 // One straight conveyor tile in local space, moving towards +z. The belt's plates,
 // seams and chevrons are drawn by solidFS (material 16); rails, rivets and the end
 // rollers are geometry. Rollers close only the ends that do not join another belt.
-export function conveyorTile(mesh, { code, speed, openBack, openFront }) {
+export function conveyorTile(
+  mesh,
+  { code, speed, openBack, openFront, railLeft = true, railRight = true },
+) {
   const iron = [0.16, 0.14, 0.12],
     bronze = [0.34, 0.25, 0.15],
     from = mesh.length;
@@ -200,6 +203,7 @@ export function conveyorTile(mesh, { code, speed, openBack, openFront }) {
     mesh[k + 11] = speed;
   }
   for (const side of [-1, 1]) {
+    if (!(side < 0 ? railLeft : railRight)) continue;
     box(mesh, [side * 0.425, 0.024, 0], [0.075, 0.05, 1], iron, 0.014, 1, 2);
     box(mesh, [side * 0.425, 0.05, 0], [0.05, 0.008, 1], bronze, 0.003, 1, 1);
     for (const z of [-0.33, 0, 0.33])
@@ -213,6 +217,7 @@ export function conveyorTile(mesh, { code, speed, openBack, openFront }) {
     // A rounded roller across the belt end, with bolt heads on both rails.
     box(mesh, [0, 0.032, end * 0.455], [0.8, 0.07, 0.07], iron, 0.034, 1, 4);
     for (const side of [-1, 1])
-      box(mesh, [side * 0.425, 0.034, end * 0.455], [0.08, 0.08, 0.08], bronze, 0.04, 1, 4);
+      if (side < 0 ? railLeft : railRight)
+        box(mesh, [side * 0.425, 0.034, end * 0.455], [0.08, 0.08, 0.08], bronze, 0.04, 1, 4);
   }
 }

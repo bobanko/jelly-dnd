@@ -368,7 +368,7 @@ export const shared = `
    let across=dot(o.world.xz-round(o.world.xz),vec2f(axis.y,-axis.x));let track=dot(o.world.xz,axis)-scene.options.z*o.local.z;
    // Three tread plates per tile with wave-shaped seams, a lit leading bevel and an
    // engraved chevron pointing the way the belt moves.
-   let w=clamp(across/.38,-1.,1.);let plate=track*3.+.16*(1.-w*w);let f=fract(plate);
+   let w=clamp(across/.38,-1.,1.);let plate=track*3.+.15*clamp((.62-abs(w))/.22,0.,1.);let f=fract(plate);
    let seam=1.-smoothstep(.025,.075,min(f,1.-f));let bevel=smoothstep(.06,.1,f)*(1.-smoothstep(.1,.2,f));
    let grit=textureSampleGrad(stoneAtlas,materialSampler,vec2f(across*.9,fract(plate*.37))*.5+.25,dx,dy).rgb;
    let wear=clamp(dot(grit,vec3f(.25,.6,.15))*3.,.7,1.2);
