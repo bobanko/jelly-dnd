@@ -69,7 +69,7 @@ try {
   assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: four forged spikes per tile, separate round sockets without a shared frame, raised/retracted states and WebGPU rendering.',
+    'PASS: four forged spikes per tile, separate square sockets without a shared frame, raised/retracted states and WebGPU rendering.',
   );
 } finally {
   await browser.close();

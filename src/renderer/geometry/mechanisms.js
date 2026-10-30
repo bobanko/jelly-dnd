@@ -15,6 +15,7 @@ export const phaseTints = [
 ];
 export const spikeTint = (trap) =>
   trap.color === undefined ? [0.36, 0.31, 0.27] : spikeTints[trap.color];
+// A square socket matching the square spike base; the profile gives its rim a chamfer.
 export function spikeSocket(mesh, x, z, tint) {
   const profile = [
       [0.094, 0.002],
@@ -25,17 +26,19 @@ export function spikeSocket(mesh, x, z, tint) {
       [0.157, 0.003],
     ],
     color = tint.map((c) => c * 0.62 + 0.018),
-    segments = 12;
+    segments = 4,
+    // Corners on the diagonals keep the sides axis-aligned; profile values are half-widths.
+    corner = (side) => Math.PI / 4 + (side / segments) * Math.PI * 2;
   for (let band = 0; band < profile.length - 1; band++) {
     const [r0, y0] = profile[band],
       [r1, y1] = profile[band + 1];
     for (let side = 0; side < segments; side++) {
-      const a = (side / segments) * Math.PI * 2,
-        b = ((side + 1) / segments) * Math.PI * 2,
+      const a = corner(side),
+        b = corner(side + 1),
         point = (angle, radius, y) => [
-          x + Math.cos(angle) * radius,
+          x + Math.cos(angle) * radius * Math.SQRT2,
           y,
-          z + Math.sin(angle) * radius,
+          z + Math.sin(angle) * radius * Math.SQRT2,
         ],
         vertices = [point(a, r0, y0), point(a, r1, y1), point(b, r1, y1), point(b, r0, y0)];
       const n = normalize(
@@ -58,9 +61,13 @@ export function spikeSocket(mesh, x, z, tint) {
   const center = [x, 0.001, z],
     hole = [0.006, 0.007, 0.009];
   for (let side = 0; side < segments; side++) {
-    const a = (side / segments) * Math.PI * 2,
-      b = ((side + 1) / segments) * Math.PI * 2,
-      edge = (angle) => [x + Math.cos(angle) * 0.096, 0.001, z + Math.sin(angle) * 0.096];
+    const a = corner(side),
+      b = corner(side + 1),
+      edge = (angle) => [
+        x + Math.cos(angle) * 0.096 * Math.SQRT2,
+        0.001,
+        z + Math.sin(angle) * 0.096 * Math.SQRT2,
+      ];
     for (const point of [center, edge(b), edge(a)])
       mesh.push(...point, 0, 1, 0, ...hole, 13, 0.5, 0.5);
   }
