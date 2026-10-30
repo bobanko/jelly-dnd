@@ -174,7 +174,8 @@ test('teleport emits both endpoints at their own floor height and has a bounded 
     effects.rings.map((r) => r.center),
     [portal.source, portal.destination],
   );
-  assert.equal(effects.particles.length, 28);
+  // 14 sparks per endpoint, 14 collapsing at the entrance and a 26-spark wisp to the exit.
+  assert.equal(effects.particles.length, 68);
   for (let i = 0; i < 8; i++) effects.step(0.1, world);
   assert.equal(effects.rings.length + effects.particles.length, 0);
 });
@@ -184,7 +185,13 @@ test('teleport particles and rings match every portal colour', () => {
     const effects = new System();
     effects.burst({ ...portal, color: color.id }, players, soft);
     assert.ok(effects.rings.length && effects.particles.length);
-    for (const p of [...effects.rings, ...effects.particles]) assert.deepEqual(p.color, color.glow);
+    for (const p of effects.rings) assert.deepEqual(p.color, color.glow);
+    assert.ok(
+      effects.particles.filter(
+        (p) => p.color === color.glow || String(p.color) === String(color.glow),
+      ).length >= 28,
+      'endpoint sparks and most of the wisp take the portal colour',
+    );
   }
 });
 test('effects stay bounded during bursts and respect reduced motion', () => {
@@ -330,4 +337,22 @@ test('shield splinters fall and expire, while skeleton bones persist and gather 
   assert.ok(effects.bones.length > 0, 'undo to a dead skeleton reconstructs its bone fragments');
   effects.clear();
   assert.equal(effects.bones.length, 0);
+});
+
+test('portal hops and respawns hide the jelly, then grow it back with a slight overshoot', () => {
+  const effects = new System();
+  assert.equal(effects.warpScale(0), 1);
+  effects.burst({ ...portal, player: 0 }, players, soft);
+  assert.equal(effects.warpScale(0), 0, 'hidden while the wisp travels');
+  for (let i = 0; i < 5; i++) effects.step(0.1, world); // steps are capped at 0.1 s
+  const growing = effects.warpScale(0);
+  assert.ok(growing > 0.5 && growing < 1.2);
+  for (let i = 0; i < 5; i++) effects.step(0.1, world);
+  assert.equal(effects.warpScale(0), 1);
+  effects.burst({ type: 'respawn', player: 0 }, players, soft);
+  assert.equal(effects.warpScale(0), 0);
+  effects.step(0.1, world);
+  assert.ok(effects.warpScale(0) > 0);
+  effects.clear();
+  assert.equal(effects.warpScale(0), 1);
 });

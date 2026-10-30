@@ -730,6 +730,14 @@ function startCameraIntro() {
 function updateLevelAssembly(dt) {
   if (!level.assembly || loadingActive || menuOpen || document.hidden) return;
   level.assembly.progress = Math.min(1, level.assembly.progress + dt / LEVEL_ASSEMBLY_SECONDS);
+  // Each jelly is summoned with a ring and sparks as it starts to grow in place.
+  level.assembly.summoned ??= new Set();
+  players.forEach((p, i) => {
+    if (level.assembly.summoned.has(i) || JellyGPU.jellySummonProgress?.(level, players, i) == null)
+      return;
+    level.assembly.summoned.add(i);
+    effects.burst({ type: 'summon', player: i }, players, soft);
+  });
   if (level.assembly.progress === 1) level.assembly = null;
 }
 function updateCameraIntro(dt) {

@@ -3,4 +3,5 @@
 import { Renderer } from './renderer.js';
 import { viewMatrix, cameraFrame, projectPoint } from './math.js';
 import { surfaceBindings } from './geometry/surfaces.js';
-export { Renderer, viewMatrix, cameraFrame, projectPoint, surfaceBindings };
+import { jellySummonProgress } from './assembly.js';
+export { Renderer, viewMatrix, cameraFrame, projectPoint, surfaceBindings, jellySummonProgress };

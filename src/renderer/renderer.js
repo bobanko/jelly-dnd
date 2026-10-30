@@ -13,7 +13,7 @@ import {
   DUST_MOTES,
 } from './layout.js';
 import { dot, normalize, viewMatrix, cameraFrame } from './math.js';
-import { assemblyDropOffset } from './assembly.js';
+import { jellyScale } from './assembly.js';
 import { portalRing } from './geometry/mechanisms.js';
 import { colliderLines, surfaceBindings } from './geometry/surfaces.js';
 import { shared } from './shaders/shared.js';
@@ -878,20 +878,23 @@ class Renderer {
       level.world.archers.length +
       (level.world.drones || []).length;
     players.forEach((p, i) => {
-      const dropOffset = assemblyDropOffset(level.assembly, level.plates.length + i, landingCount);
-      level.soft
-        .get(p)
-        .positions.forEach((q, j) =>
-          nodes.set(
-            [
-              q[0],
-              p.state === 'dead' || dropOffset === null ? -100 : q[1] + dropOffset,
-              q[2],
-              p.slot ?? i,
-            ],
-            (i * 64 + j) * 4,
-          ),
-        );
+      const scale = jellyScale(level, i, level.plates.length + i, landingCount),
+        body = level.soft.get(p),
+        core = body.core;
+      // Scale the lattice about its centre for summoning and portal warps.
+      body.positions.forEach((q, j) =>
+        nodes.set(
+          p.state === 'dead' || scale < 0.01
+            ? [q[0], -100, q[2], p.slot ?? i]
+            : [
+                core[0] + (q[0] - core[0]) * scale,
+                core[1] + (q[1] - core[1]) * scale,
+                core[2] + (q[2] - core[2]) * scale,
+                p.slot ?? i,
+              ],
+          (i * 64 + j) * 4,
+        ),
+      );
     });
     d.queue.writeBuffer(this.nodes, 0, nodes);
     const assembling = !!level.assembly,
@@ -996,10 +999,10 @@ class Renderer {
       spectral.end();
     }
     const order = players.flatMap((p, i) => {
-      const dropOffset = assemblyDropOffset(level.assembly, level.plates.length + i, landingCount);
-      return p.state === 'dead' || dropOffset === null
+      const scale = jellyScale(level, i, level.plates.length + i, landingCount);
+      return p.state === 'dead' || scale < 0.01
         ? []
-        : [{ kind: 'jelly', i, center: [p.x, (p.y || 0) + 0.42 + dropOffset, p.z] }];
+        : [{ kind: 'jelly', i, center: [p.x, (p.y || 0) + 0.42, p.z] }];
     });
     order.push(...this.crystalPieces);
     for (const face of this.phaseFaces)

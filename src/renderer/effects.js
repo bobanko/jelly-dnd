@@ -13,6 +13,8 @@ export const effectsMethods = {
         (a, b) => dot(a.position || a.center, view) - dot(b.position || b.center, view),
       );
     for (const item of items) {
+      // Wisp sparks wait unseen at the entrance until their turn to leave.
+      if (item.kind === 'wisp' && item.age < item.lag) continue;
       const t = item.age / item.life,
         fade = item.kind === 'bone' ? 1 : 1 - t * t * (3 - 2 * t),
         from = mesh.length;

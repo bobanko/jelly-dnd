@@ -216,7 +216,9 @@ import fs from 'node:fs';
     await page.waitForFunction(() => players[0].deaths > 0 && players[0].state === 'alive', null, {
       timeout: 8000,
     });
-    assert.equal(await page.evaluate(() => effects.particles.length), 0);
+    // Death scraps are gone; the respawn's own summoning sparks fade within a second.
+    assert.ok(await page.evaluate(() => effects.particles.every((p) => p.kind === 'magic')));
+    await page.waitForFunction(() => effects.particles.length === 0, null, { timeout: 3000 });
     assert.ok(await page.evaluate(() => players[0].x < 3 && Math.abs(players[0].y) < 0.1));
     // Board the lift through normal held-key movement and step onto the upper floor.
     await page.evaluate(() => {
@@ -266,7 +268,9 @@ import fs from 'node:fs';
       { timeout: 5000 },
     );
     assert.equal(await page.evaluate(() => players[1].deaths), 0);
-    assert.equal(await page.evaluate(() => effects.particles.length), 0);
+    // Death scraps are gone; the respawn's own summoning sparks fade within a second.
+    assert.ok(await page.evaluate(() => effects.particles.every((p) => p.kind === 'magic')));
+    await page.waitForFunction(() => effects.particles.length === 0, null, { timeout: 3000 });
     // Isolate the trap crossing from the demo belt immediately south of it.
     // Cross while the first trap is fully hidden, then observe its warning and rise.
     await page.evaluate(() => {

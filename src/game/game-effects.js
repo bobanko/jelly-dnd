@@ -26,13 +26,29 @@ class System {
     this.laserTimers = new Map();
     this.runeTimers = [];
     this.runeActive = [];
+    // Per-player materialisation: hidden for `delay`, then grows from a point (visual only).
+    this.warps = [];
     this.seed = 1;
+  }
+  warp(player, delay = 0) {
+    this.warps[player] = { age: 0, delay: this.reducedMotion ? 0 : delay };
+  }
+  warpScale(player) {
+    const warp = this.warps[player];
+    if (!warp) return 1;
+    const t = (warp.age - warp.delay) / (this.reducedMotion ? 0.12 : 0.38);
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+    // Ease out with a slight overshoot, like the gel snapping into shape.
+    const u = t - 1;
+    return 1 + 2.4 * u * u * u + 1.4 * u * u;
   }
   random() {
     this.seed = (Math.imul(this.seed, 1664525) + 1013904223) >>> 0;
     return this.seed / 4294967296;
   }
   clear() {
+    this.warps = [];
     this.particles.length = 0;
     this.rings.length = 0;
     this.runes.length = 0;
@@ -249,7 +265,81 @@ class System {
           life: 0.18 + random() * 0.12,
         });
       }
-    } else if (event.type === 'portal') {
+    } else if (event.type === 'portal' || event.type === 'respawn' || event.type === 'summon') {
+      const player = players[event.player],
+        jelly = palettes[player?.slot ?? event.player];
+      // A portal hop: the jelly collapses into sparks at the entrance, a glowing wisp flies
+      // to the exit, and the jelly grows back there as the wisp arrives.
+      const travel = event.type === 'portal' ? 0.3 : 0;
+      // During the level assembly the renderer grows the jelly itself; only add the sparkle.
+      if (event.type !== 'summon') this.warp(event.player, travel);
+      if (!this.reducedMotion && event.type === 'portal') {
+        const [sx, sy, sz] = event.source,
+          [dx, dy, dz] = event.destination;
+        for (let i = 0; i < 14; i++) {
+          const a = random() * Math.PI * 2,
+            r = 0.3 + random() * 0.25,
+            life = 0.16 + random() * 0.1;
+          this.particles.push({
+            kind: 'magic',
+            position: [
+              sx + Math.cos(a) * r,
+              sy + 0.42 + (random() - 0.5) * 0.5,
+              sz + Math.sin(a) * r,
+            ],
+            velocity: [(-Math.cos(a) * r) / life, 0, (-Math.sin(a) * r) / life],
+            size: 0.03 + random() * 0.03,
+            phase: a,
+            color: jelly,
+            age: 0,
+            life,
+          });
+        }
+        // Three glowing strands spiral around an arc from entrance to exit; later sparks lag
+        // behind the leaders, so the wisp reads as a swirling comet with a tail.
+        for (let i = 0; i < 26; i++) {
+          const lag = (i % 9) * 0.018;
+          this.particles.push({
+            kind: 'wisp',
+            from: [sx, sy + 0.42, sz],
+            to: [dx, dy + 0.42, dz],
+            travel,
+            lag,
+            position: [sx, sy + 0.42, sz],
+            velocity: [0, 0, 0],
+            size: (0.09 - lag * 0.3) * (0.8 + random() * 0.4),
+            phase: Math.floor(i / 9) * 2.09 + random() * 0.3,
+            color: i % 3 ? Levels.portalColor(event.color).glow : jelly,
+            age: 0,
+            life: travel + lag,
+          });
+        }
+      }
+      if (event.type === 'respawn' || event.type === 'summon') {
+        // Summoned back: a ring and rising sparks at the spawn as the jelly grows in.
+        const center = [player.x, (player.y || 0) + 0.04, player.z];
+        this.rings.push({ center, color: jelly, age: 0, life: this.reducedMotion ? 0.25 : 0.6 });
+        for (let i = 0; i < (this.reducedMotion ? 0 : 16); i++) {
+          const a = random() * Math.PI * 2,
+            r = 0.2 + random() * 0.25;
+          this.particles.push({
+            kind: 'magic',
+            position: [
+              center[0] + Math.cos(a) * r,
+              center[1] + random() * 0.3,
+              center[2] + Math.sin(a) * r,
+            ],
+            velocity: [-Math.cos(a) * 0.4, 0.8 + random() * 1.4, -Math.sin(a) * 0.4],
+            size: 0.02 + random() * 0.03,
+            phase: a,
+            color: jelly,
+            age: 0,
+            life: 0.45 + random() * 0.25,
+          });
+        }
+      }
+    }
+    if (event.type === 'portal') {
       const color = Levels.portalColor(event.color).glow;
       for (const center of [event.source, event.destination]) {
         this.rings.push({
@@ -284,11 +374,29 @@ class System {
   step(dt, world, goals = [], players = []) {
     // Cap long background-tab gaps for stable presentation.
     dt = Math.min(Math.max(0, dt), 0.1);
+    for (const warp of this.warps) if (warp) warp.age += dt;
     for (const ray of this.lasers) ray.age += dt;
     this.lasers = this.lasers.filter((ray) => ray.age < ray.life);
     for (const p of this.particles) {
       p.age += dt;
       const previousY = p.position[1];
+      if (p.kind === 'wisp') {
+        const s = Math.max(0, Math.min(1, (p.age - p.lag) / p.travel)),
+          dx = p.to[0] - p.from[0],
+          dz = p.to[2] - p.from[2],
+          length = Math.hypot(dx, dz) || 1,
+          side = [-dz / length, 0, dx / length],
+          radius = 0.24 * Math.sin(Math.PI * s),
+          a = p.phase + s * 14,
+          lift = 0.7 * Math.sin(Math.PI * s);
+        for (let k = 0; k < 3; k++)
+          p.position[k] =
+            p.from[k] +
+            (p.to[k] - p.from[k]) * s +
+            side[k] * Math.cos(a) * radius +
+            (k === 1 ? lift + Math.sin(a) * radius : 0);
+        continue;
+      }
       if (p.kind === 'jelly' || p.kind === 'wood') p.velocity[1] -= 7 * dt;
       else if (p.kind === 'spark') p.velocity[1] -= 5 * dt;
       for (let k = 0; k < 3; k++) p.position[k] += p.velocity[k] * dt;

@@ -1,7 +1,7 @@
 import Levels from '../world/levels.js';
 import { box, lowSphere, sphere, rod } from './mesh.js';
 import { crateGeometry } from './geometry/wood.js';
-import { assemblyDropOffset, assemblyFloatOffset, assemblyRock } from './assembly.js';
+import { assemblyDropOffset, assemblyFloatOffset, assemblyRock, jellyScale } from './assembly.js';
 import { shieldGeometry, arrowGeometry, swordGeometry } from './geometry/equipment.js';
 import {
   beamColors,
@@ -319,17 +319,29 @@ export const propsMethods = {
                     : piece.kind === 'drone' || piece.kind === 'droneCrystal'
                       ? droneLandingStart + i
                       : null,
+        // Jellies and their gear grow in place (summoning, portal and respawn warps).
+        warp =
+          piece.kind === 'jelly' ||
+          piece.kind === 'bubble' ||
+          piece.kind === 'shield' ||
+          piece.kind === 'shieldCrack' ||
+          piece.kind === 'sword'
+            ? jellyScale(level, i, level.plates.length + i, landingCount)
+            : 1,
         dropOffset =
           landingIndex === null
             ? null
-            : piece.kind === 'drone' || piece.kind === 'droneCrystal'
-              ? assemblyFloatOffset(level.assembly, landingIndex, landingCount)
-              : assemblyDropOffset(level.assembly, landingIndex, landingCount),
+            : piece.kind === 'jelly' || piece.kind === 'bubble'
+              ? 0
+              : piece.kind === 'drone' || piece.kind === 'droneCrystal'
+                ? assemblyFloatOffset(level.assembly, landingIndex, landingCount)
+                : assemblyDropOffset(level.assembly, landingIndex, landingCount),
         rock =
           piece.kind.startsWith('archer') || piece.kind === 'nockedArrow'
             ? assemblyRock(level.assembly, landingIndex, landingCount)
             : 0;
       if (level.assembly && (landingIndex === null || dropOffset === null)) continue;
+      if (warp < 0.01) continue;
       let x = 0,
         y = 0,
         z = 0,
@@ -347,7 +359,9 @@ export const propsMethods = {
         rotate = piece.kind === 'jelly';
         if (piece.kind === 'bubble')
           y +=
-            ((piece.bubble * BUBBLE_SPACING + time * 0.03) % 0.51) - piece.bubble * BUBBLE_SPACING;
+            (((piece.bubble * BUBBLE_SPACING + time * 0.03) % 0.51) -
+              piece.bubble * BUBBLE_SPACING) *
+            warp;
       } else if (piece.kind === 'drone' || piece.kind === 'droneCrystal') {
         [x, y, z] = level.world.droneOrigin(level.world.drones[i]);
         const spin = level.reducedMotion ? 0 : time * 0.35;
@@ -462,7 +476,8 @@ export const propsMethods = {
           const k = cursor + n,
             px = data[k] * rockC - data[k + 1] * rockS,
             py = data[k] * rockS + data[k + 1] * rockC,
-            localZ = data[k + 2] - stringPull * Math.max(0, 1 - Math.abs(py - 0.57) / 0.38),
+            localZ =
+              (data[k + 2] - stringPull * Math.max(0, 1 - Math.abs(py - 0.57) / 0.38)) * warp,
             nx = data[k + 3] * rockC - data[k + 4] * rockS,
             ny = data[k + 3] * rockS + data[k + 4] * rockC,
             nz = data[k + 5];
@@ -470,8 +485,8 @@ export const propsMethods = {
             const a = axis * 3;
             data[k + axis] =
               (axis === 0 ? x : axis === 1 ? y : z) +
-              matrix[a] * px +
-              matrix[a + 1] * py +
+              matrix[a] * px * warp +
+              matrix[a + 1] * py * warp +
               matrix[a + 2] * localZ;
             data[k + 3 + axis] = matrix[a] * nx + matrix[a + 1] * ny + matrix[a + 2] * nz;
           }
@@ -479,18 +494,18 @@ export const propsMethods = {
       } else if (rotate) {
         for (let n = 0; n < source.length; n += 12) {
           const k = cursor + n;
-          data[k] = x + rx * source[n] + fx * source[n + 2];
-          data[k + 1] = y + source[n + 1];
-          data[k + 2] = z + rz * source[n] + fz * source[n + 2];
+          data[k] = x + (rx * source[n] + fx * source[n + 2]) * warp;
+          data[k + 1] = y + source[n + 1] * warp;
+          data[k + 2] = z + (rz * source[n] + fz * source[n + 2]) * warp;
           data[k + 3] = rx * source[n + 3] + fx * source[n + 5];
           data[k + 5] = rz * source[n + 3] + fz * source[n + 5];
         }
       } else {
         for (let n = 0; n < source.length; n += 12) {
           const k = cursor + n;
-          data[k] = x + source[n];
-          data[k + 1] = y + source[n + 1];
-          data[k + 2] = z + source[n + 2];
+          data[k] = x + source[n] * warp;
+          data[k + 1] = y + source[n + 1] * warp;
+          data[k + 2] = z + source[n + 2] * warp;
         }
       }
       cursor += source.length;
