@@ -31,6 +31,9 @@ export default {
   select: 'Выбрать',
   description: 'Кооперативная головоломка с желейными героями и древними механизмами.',
   play: 'Играть',
+  mainMenu: 'Главное меню',
+  loadingMenu: 'Загрузка меню…',
+  loadingEditor: 'Загрузка редактора…',
   resume: 'Продолжить',
   how: 'Как играть',
   instructions:

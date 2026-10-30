@@ -806,7 +806,7 @@ function updateLoading(progress, stage, files) {
 }
 // The next page may take a while on a slow connection: show its loading screen at once
 // and stop input instead of leaving the finished level visible and interactive.
-function navigate(url, title = '') {
+function navigate(url, title = '', stage = 'loadingLevel') {
   if (leaving) return;
   leaving = loadingActive = true;
   stopInput();
@@ -816,7 +816,7 @@ function navigate(url, title = '') {
   document.querySelector('#loading-spinner').hidden = false;
   if (JellyI18n) {
     showLoadingScreen(title);
-    document.querySelector('#loading-status').textContent = tr('loadingLevel');
+    document.querySelector('#loading-status').textContent = tr(stage);
     document.querySelector('#loading-detail').textContent = '';
     document.querySelector('#loading-progress').removeAttribute('value');
   }
@@ -1210,7 +1210,7 @@ function menuButtons() {
         ? '#menu-back'
         : menuLevelSelect
           ? '#menu-levels button:not(:disabled)'
-          : '#menu-root button',
+          : '#menu-root button:not([hidden])',
     ),
   ];
 }
@@ -1286,7 +1286,8 @@ if (JellyI18n) {
     const id = currentStandardLevel();
     if (id && id < JellyLevels.standardNames.length)
       navigate('?level=' + (id + 1) + '&play=1', levelTitle(id + 1));
-    else if (globalThis.location?.search?.includes('level=editor')) navigate('editor.html');
+    else if (globalThis.location?.search?.includes('level=editor'))
+      navigate('editor.html', '', 'loadingEditor');
     else {
       setMenu(true);
       showMenuScreen('levels');
@@ -1300,7 +1301,11 @@ if (JellyI18n) {
     hasPlayed ? setMenu(false) : showMenuScreen('levels');
   document.querySelector('#show-levels').onclick = () => showMenuScreen('levels');
   document.querySelector('#levels-back').onclick = () => showMenuScreen('root');
-  document.querySelector('#open-editor').onclick = () => navigate('editor.html');
+  document.querySelector('#open-editor').onclick = () =>
+    navigate('editor.html', '', 'loadingEditor');
+  // Leaving a level for the title screen ends the current run.
+  document.querySelector('#exit-to-menu').hidden = menuOnly;
+  document.querySelector('#exit-to-menu').onclick = () => navigate('./', '', 'loadingMenu');
   document.querySelectorAll('[data-level]').forEach(
     (button) =>
       (button.onclick = () => {

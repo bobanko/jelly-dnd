@@ -32,6 +32,9 @@ export default {
   description: 'A co-op puzzle adventure with wobbly heroes and ancient contraptions.',
   play: 'Play',
   resume: 'Resume',
+  mainMenu: 'Main menu',
+  loadingMenu: 'Loading menu…',
+  loadingEditor: 'Loading editor…',
   how: 'How to play',
   instructions:
     'Move with WASD / arrow keys / IJKL. Guide every jelly to its matching rune and hold still together. Play solo or share the keyboard with friends.',
