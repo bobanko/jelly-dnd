@@ -306,6 +306,7 @@ function reset(replayAssembly = false) {
   );
   runSeconds = 0;
   runDeaths.fill(0);
+  updateRunSkulls();
   history = [];
   moves = 0;
   won = false;
@@ -427,7 +428,10 @@ function simulate(dt, elapsed = dt) {
     for (const event of events) {
       if (event.player >= players.length) continue;
       effects.burst(event, players, soft);
-      if (event.type === 'death') runDeaths[event.player]++;
+      if (event.type === 'death') {
+        runDeaths[event.player]++;
+        updateRunSkulls();
+      }
       if (event.type === 'fall' || event.type === 'death') {
         for (const key of heldKeys) if (movementKeys[key][0] === event.player) heldKeys.delete(key);
         input[event.player] = { x: 0, z: 0 };
@@ -476,7 +480,7 @@ function simulate(dt, elapsed = dt) {
       tone(640);
       const current = currentStandardLevel();
       if (current && JellyProgress) {
-        JellyProgress.complete(current, runSeconds);
+        JellyProgress.complete(current, runSeconds, skullsLeft());
         updateLevelLocks();
       }
     }
@@ -1070,6 +1074,7 @@ function refreshLanguage() {
   if (loadingActive && !loadingFailed)
     document.querySelector('#loading-status').textContent = tr(loadingStage);
   updateSoundButton();
+  updateRunSkulls();
   if (JellyI18n) document.querySelector('#play').textContent = tr(hasPlayed ? 'resume' : 'play');
   document
     .querySelectorAll('[data-level-name]')
@@ -1119,6 +1124,40 @@ function statIcon(kind, slot) {
     '</svg>';
   return icon;
 }
+// The team starts each run with three golden skulls; every death cracks one. The level
+// counts as complete either way, and the best number kept is remembered per level.
+const RUN_SKULLS = 3;
+function skullsLeft() {
+  return Math.max(0, RUN_SKULLS - runDeaths.reduce((sum, deaths) => sum + deaths, 0));
+}
+function skullIcon(intact) {
+  const icon = document.createElement('span');
+  icon.className = 'run-skull' + (intact ? '' : ' cracked');
+  icon.setAttribute('aria-hidden', 'true');
+  icon.innerHTML =
+    '<svg viewBox="0 0 64 72" focusable="false"><path fill="currentColor" d="M32 2C14 2 3 14 3 31c0 12 5 20 14 24v13h30V55c9-4 14-12 14-24C61 14 50 2 32 2Z"/><g fill="#151819"><ellipse cx="20" cy="32" rx="9" ry="11" transform="rotate(-14 20 32)"/><ellipse cx="44" cy="32" rx="9" ry="11" transform="rotate(14 44 32)"/><path d="m32 42-5 10h10Z"/><path d="M24 59h3v11h-3zm13 0h3v11h-3z"/></g><path class="skull-crack" d="M35 3 29 15l7 7-9 9 4 6" fill="none" stroke="#151819" stroke-width="3.5" stroke-linejoin="round"/></svg>';
+  return icon;
+}
+function skullRow(host, kept) {
+  host.replaceChildren(...Array.from({ length: RUN_SKULLS }, (_, i) => skullIcon(i < kept)));
+  host.setAttribute('aria-label', tr('skullsKept') + ': ' + kept + ' / ' + RUN_SKULLS);
+}
+function updateRunSkulls() {
+  if (!JellyI18n) return;
+  const host = document.querySelector('#run-skulls'),
+    left = skullsLeft();
+  host.hidden = menuOnly;
+  if (host.children.length !== RUN_SKULLS) skullRow(host, left);
+  [...host.children].forEach((skull, i) => {
+    const cracked = i >= left;
+    // Rightmost skulls crack first, with a short shake and flash.
+    if (cracked && !skull.classList.contains('cracked')) skull.classList.add('cracked', 'breaking');
+    else if (!cracked) skull.classList.remove('cracked', 'breaking');
+  });
+  host.setAttribute('aria-label', tr('skullsKept') + ': ' + left + ' / ' + RUN_SKULLS);
+  // A restart brings all three back, so point at it once one has been lost.
+  document.querySelector('#restart-hint')?.classList.toggle('restart-ready', left < RUN_SKULLS);
+}
 function refreshWin() {
   const time = document.querySelector('#win-time');
   time.replaceChildren(statIcon('timer'), document.createTextNode(formatRunTime(runSeconds)));
@@ -1137,6 +1176,7 @@ function refreshWin() {
     id === JellyLevels.standardNames.length ? 'demoComplete' : 'levelComplete',
   );
   document.querySelector('#win-level-name').textContent = currentLevelTitle();
+  skullRow(document.querySelector('#win-skulls'), skullsLeft());
   document.querySelector('#win-next').textContent = tr(
     id && id < JellyLevels.standardNames.length
       ? 'nextLevel'
@@ -1189,6 +1229,15 @@ function updateLevelLocks() {
     const value = seconds == null ? '\u2014' : formatRunTime(seconds);
     best.replaceChildren(statIcon('timer'), document.createTextNode(value));
     best.setAttribute('aria-label', tr('bestTime') + ': ' + value);
+    const kept = JellyProgress?.bestSkulls?.(Number(button.dataset.level)) ?? null;
+    let skulls = button.querySelector('.level-skulls');
+    if (!skulls) {
+      skulls = document.createElement('span');
+      skulls.className = 'level-skulls';
+      best.after(skulls);
+    }
+    skulls.hidden = kept === null;
+    if (kept !== null) skullRow(skulls, kept);
     button.disabled = !!locked;
     button.classList.toggle('locked', !!locked);
     let icon = button.querySelector('.level-lock');
@@ -1282,6 +1331,7 @@ function setMenu(open) {
 }
 if (JellyI18n) {
   createPlayerHints();
+  updateRunSkulls();
   document.querySelector('#win-next').onclick = () => {
     const id = currentStandardLevel();
     if (id && id < JellyLevels.standardNames.length)

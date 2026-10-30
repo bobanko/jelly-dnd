@@ -15,7 +15,9 @@ function create(storage) {
     legacy = 1;
   const completed = new Set(),
     unlocked = new Set(),
-    bestTimes = {};
+    bestTimes = {},
+    // Most skulls kept intact in one run (0-3): fewer deaths keep more of them.
+    bestSkulls = {};
   try {
     const data = JSON.parse(storage?.getItem(KEY) || 'null');
     if (data?.version === 2 && Array.isArray(data.completed) && Array.isArray(data.unlocked)) {
@@ -24,6 +26,9 @@ function create(storage) {
       if (data.bestTimes && typeof data.bestTimes === 'object')
         for (const [file, time] of Object.entries(data.bestTimes))
           if (Number.isFinite(time) && time > 0) bestTimes[file] = time;
+      if (data.bestSkulls && typeof data.bestSkulls === 'object')
+        for (const [file, skulls] of Object.entries(data.bestSkulls))
+          if (Number.isInteger(skulls) && skulls >= 0 && skulls <= 3) bestSkulls[file] = skulls;
       saved = true;
     }
   } catch {}
@@ -41,6 +46,7 @@ function create(storage) {
           completed: [...completed],
           unlocked: [...unlocked],
           bestTimes,
+          bestSkulls,
         }),
       );
     } catch {}
@@ -68,11 +74,18 @@ function create(storage) {
     bestTime(id) {
       return bestTimes[order[id - 1]] ?? null;
     },
-    complete(id, seconds) {
+    bestSkulls(id) {
+      return bestSkulls[order[id - 1]] ?? null;
+    },
+    complete(id, seconds, skulls) {
       if (!this.canPlay(id)) return this.unlocked;
       if (Number.isFinite(seconds) && seconds > 0) {
         const file = order[id - 1];
         bestTimes[file] = Math.min(bestTimes[file] ?? Infinity, seconds);
+      }
+      if (Number.isInteger(skulls) && skulls >= 0 && skulls <= 3) {
+        const file = order[id - 1];
+        bestSkulls[file] = Math.max(bestSkulls[file] ?? 0, skulls);
       }
       completed.add(order[id - 1]);
       if (order[id]) unlocked.add(order[id]);

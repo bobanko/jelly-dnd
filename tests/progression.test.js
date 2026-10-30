@@ -87,3 +87,20 @@ test('best times persist by map identity and only improve on valid completion', 
   assert.equal(reordered.bestTime(2), 10);
   assert.equal(reordered.bestTime(1), null);
 });
+test('best skull counts keep the highest result per level file and survive reloads', () => {
+  const storage = store(),
+    p = progress(storage);
+  assert.equal(p.bestSkulls(1), null);
+  p.complete(1, 30, 1);
+  p.complete(1, 40, 3);
+  p.complete(1, 20, 2);
+  assert.equal(p.bestSkulls(1), 3);
+  assert.equal(p.bestTime(1), 20);
+  p.complete(2, 10, 0);
+  assert.equal(p.bestSkulls(2), 0);
+  const reloaded = progress(storage, ['b.json', 'a.json', 'c.json', 'd.json', 'e.json']);
+  assert.equal(reloaded.bestSkulls(2), 3, 'results follow the file, not the position');
+  assert.equal(reloaded.bestSkulls(1), 0);
+  p.complete(3, 10, 7);
+  assert.equal(p.bestSkulls(3), null, 'invalid counts are ignored');
+});

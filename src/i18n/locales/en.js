@@ -33,6 +33,7 @@ export default {
   play: 'Play',
   resume: 'Resume',
   mainMenu: 'Main menu',
+  skullsKept: 'Skulls kept',
   loadingMenu: 'Loading menu…',
   loadingEditor: 'Loading editor…',
   how: 'How to play',

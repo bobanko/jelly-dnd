@@ -29,6 +29,7 @@
       </svg>
     </div>
     <canvas id="scene" aria-label="Jelly & Bones"></canvas>
+    <div id="run-skulls" role="img" hidden></div>
     <div class="game-tools">
       <button id="menu-button" class="icon-button" title="Menu" aria-label="Menu">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -56,6 +57,7 @@
         <div class="win-panel">
           <h2 id="win-title" data-t="levelComplete"></h2>
           <p id="win-level-name"></p>
+          <div id="win-skulls" role="img"></div>
           <p id="win-time"></p>
           <div id="win-deaths"></div>
           <nav class="menu-items">
@@ -179,7 +181,7 @@
     <footer class="controls-footer screen-controls">
       <div class="controls">
         <span><kbd>Q</kbd><kbd>E</kbd> Поворот</span><span><kbd>Z</kbd> Отменить</span
-        ><span><kbd>R</kbd> Сначала</span>
+        ><span id="restart-hint"><kbd>R</kbd> Сначала</span>
       </div>
       <div class="moves"><b id="moves">00</b> ДВИЖЕНИЙ</div>
     </footer>
