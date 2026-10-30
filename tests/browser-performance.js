@@ -1,4 +1,4 @@
-import { chromium } from './browser-harness.js';
+import { chromium, playMap } from './browser-harness.js';
 import fs from 'node:fs';
 (async () => {
   fs.mkdirSync('artifacts', { recursive: true });
@@ -15,8 +15,8 @@ import fs from 'node:fs';
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(m.text());
     });
-    await page.goto('http://localhost:3000');
-    await page.waitForFunction(() => sceneRenderer.ready, null, { timeout: 30000 });
+    // The original chamber without its drone, whose beam keeps the green jelly from idling.
+    await playMap(page, '05-sunken-sanctum.json', (map) => ({ ...map, drones: [] }));
     await page.waitForFunction(() => bodies.every((p) => soft.get(p).sleeping), null, {
       timeout: 20000,
     });

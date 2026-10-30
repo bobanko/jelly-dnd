@@ -1,4 +1,4 @@
-import { chromium } from './browser-harness.js';
+import { chromium, playMap } from './browser-harness.js';
 import fs from 'node:fs';
 (async () => {
   fs.mkdirSync('artifacts', { recursive: true });
@@ -16,16 +16,8 @@ import fs from 'node:fs';
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(m.text());
   });
-  await page.goto('http://localhost:3000');
-  await page
-    .waitForFunction(
-      () =>
-        typeof sceneRenderer !== 'undefined' &&
-        (sceneRenderer.ready ||
-          document.querySelector('#gpu-status').textContent !== 'Подготавливаем свет и желе…'),
-      { timeout: 30000 },
-    )
-    .catch(() => {});
+  // The original chamber: three jellies, a crate and every mechanism.
+  await playMap(page);
   await page.waitForTimeout(500);
   await page.evaluate(() => {
     globalThis.profile = { physics: 0, render: 0, steps: 0, frames: 0 };
@@ -51,7 +43,7 @@ import fs from 'node:fs';
     JSON.stringify(
       await page.evaluate(() => ({
         ready: sceneRenderer.ready,
-        message: document.querySelector('#gpu-status').textContent,
+        message: document.querySelector('#loading-status').textContent,
         errors: [...new Set(sceneRenderer.errors)].slice(0, 5),
         frames: sceneRenderer.frames,
         adapter: sceneRenderer.adapterInfo,
