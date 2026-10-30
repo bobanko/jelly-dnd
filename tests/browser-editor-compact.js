@@ -11,6 +11,8 @@ import assert from 'node:assert/strict';
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } }),
       errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
+    // The checks look up Russian editor labels; the editor now defaults to English.
+    await page.addInitScript(() => localStorage.setItem('jelly-dnd.language', 'ru'));
     await page.goto('http://localhost:3000/editor.html');
     await page.waitForFunction(
       () =>
@@ -131,7 +133,7 @@ import assert from 'node:assert/strict';
         key === 'plates' ? value : Number(value),
       );
     }
-    await page.locator('[data-object="spikes-0"] input[type=radio][value=""]').check();
+    await page.locator('input[name="color-spikes-0"][value=""]').check(); // neutral colour, not the floor mount
     assert.equal(await page.evaluate(() => model.map.spikes[0].color), undefined);
     await page.locator('input[name="target-drones-0"][value="1"]').check();
     assert.equal(await page.evaluate(() => model.map.drones[0].target), 1);
@@ -143,10 +145,11 @@ import assert from 'node:assert/strict';
     await spikeCard.getByLabel('Цикл, сек (0 — постоянно)', { exact: true }).press('Tab');
     await spikeCard.getByLabel('Включены', { exact: true }).uncheck();
     assert.equal(await page.evaluate(() => L.read(model.map).spikes[0].enabled), false);
-    await spikeCard.getByLabel('Кнопка', { exact: true }).selectOption('test');
-    assert.equal(await page.evaluate(() => model.map.spikes[0].plate), 'test');
+    // Spikes link to a button group (the button's colour), chosen from visible swatches.
+    await page.locator('input[name="trigger-spikes-0"][value="amber"]').check();
+    assert.equal(await page.evaluate(() => model.map.spikes[0].plate), 'amber');
     assert.ok(await spikeCard.getByLabel('Включены', { exact: true }).isDisabled());
-    await spikeCard.getByLabel('Кнопка', { exact: true }).selectOption('');
+    await page.locator('input[name="trigger-spikes-0"][value=""]').check();
     assert.ok(await spikeCard.getByLabel('Включены', { exact: true }).isEnabled());
     for (const color of ['green', 'violet']) {
       await page.locator(`input[name="color-plates-0"][value="${color}"]`).check();
