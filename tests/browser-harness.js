@@ -55,9 +55,28 @@ async function inspectPage(page) {
   return page;
 }
 
+// Browser checks were written for Chrome on Windows. Elsewhere use CHROME_PATH or the
+// system Chrome, and drop the D3D11 backend flag, which disables WebGPU on macOS.
+const systemChrome = {
+  darwin: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  linux: '/usr/bin/google-chrome',
+};
+function portableLaunch(options = {}) {
+  if (process.platform === 'win32') return options;
+  const windowsChrome = /^[A-Z]:\//i.test(options.executablePath || '');
+  return {
+    ...options,
+    executablePath:
+      windowsChrome || !options.executablePath
+        ? process.env.CHROME_PATH || systemChrome[process.platform]
+        : options.executablePath,
+    args: options.args?.filter((arg) => !arg.startsWith('--use-angle=d3d')),
+  };
+}
+
 export const chromium = {
   async launch(options) {
-    const browser = await playwrightChromium.launch(options);
+    const browser = await playwrightChromium.launch(portableLaunch(options));
     const newPage = browser.newPage.bind(browser),
       newContext = browser.newContext.bind(browser);
     browser.newPage = async (options) => inspectPage(await newPage(options));

@@ -88,7 +88,12 @@ for (let i = 0; i < 1440; i++) {
 }
 // Recorded before the allocation-free rewrite of the solver hot paths (October 2026).
 // Change it only together with an intentional change of physics behaviour.
-const EXPECTED = '6f22df90 6ca53197 ef7d916c 7d4855bd',
+// Math.sin/cos/exp round differently on x64 and arm64, so each architecture has its own value
+// (arm64 recorded on Apple silicon from the same commit).
+const EXPECTED = {
+    x64: '6f22df90 6ca53197 ef7d916c 7d4855bd',
+    arm64: '6f22df90 8b1879ca 999225a5 6f16fcae',
+  }[process.arch],
   fingerprint = checkpoints.join(' ');
 console.log('fingerprint', fingerprint, fingerprint === EXPECTED ? '(matches)' : '(CHANGED)');
 if (fingerprint !== EXPECTED) {
