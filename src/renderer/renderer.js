@@ -41,6 +41,9 @@ class Renderer {
     this.grainStrength = 1;
     this.grainSize = 1;
     this.dustDensity = 1;
+    // Decorative stone pillars under the level and the warm light far below them.
+    this.pillars = true;
+    this.underglow = true;
     this.dustSpeed = 1;
     this.filmData = new Float32Array(4);
     this.frames = 0;
@@ -800,6 +803,7 @@ class Renderer {
     uniforms[FINISH_OFFSET] = Math.max(0, Math.min(1, level.finishProgress || 0));
     uniforms[FINISH_OFFSET + 1] = this.fogBase ?? 0;
     uniforms[FINISH_OFFSET + 2] = level.assembly?.progress ?? 1;
+    uniforms[FINISH_OFFSET + 3] = this.underglow ? 1 : 0;
     (level.world.torches || [])
       .slice(0, 8)
       .forEach((p, i) => uniforms.set([...Levels.torchFrame(p).light, 1], TORCHES_OFFSET + i * 4));

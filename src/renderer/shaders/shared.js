@@ -18,6 +18,8 @@ export const shared = `
  ${runeGlyphShader}
  fn assemblyPosition(p:vec3f,block:vec4f)->vec3f{
   if(scene.finish.z>=1.){return p;}
+  // Decorative pillars (order offset by 2) rise out of the fog once the level has formed.
+  if(block.w>1.5){let t=clamp((scene.finish.z-.62-(block.w-2.)*.22)/.16,0.,1.);return p-vec3f(0,9.*pow(1.-t,3.),0);}
   let blockProgress=clamp(scene.finish.z/${ASSEMBLY_BLOCK_END},0.,1.);
   let t=clamp((blockProgress-block.w*.6)/.4,0.,1.);let remaining=pow(1.-t,3.);
   let right=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));let up=normalize(vec3f(scene.vp[0].y,scene.vp[1].y,scene.vp[2].y));
@@ -309,7 +311,12 @@ export const shared = `
   let stone=stoneSurface(o.world,normal,o.color,atlas,value,vec2f(dpdxFine(value),dpdyFine(value)),uv,dp1,dp2,true,o.material/${STONE_DETAIL});
   let lit=dungeonLight(o.world,stone.normal,normal.y,stone.occlusion);
   let result=stone.albedo*lit.light+vec3f(.045,.05,.06)*pow(max(0.,dot(stone.normal,h)),26.)*lit.sun*stone.occlusion;
-  return vec4f(voidFog(o.world,result+lit.marks),1.);
+  // Optional warm light from far below the level: deep masonry catches it through the fog,
+  // most on faces turned down, so the abyss feels like something is burning there.
+  let deep=scene.finish.y-o.world.y;
+  let flicker=.8+.2*sin(scene.options.z*1.3+o.world.x*.9+o.world.z*1.3);
+  let underglow=vec3f(1.,.3,.06)*smoothstep(2.5,7.,deep)*(1.-smoothstep(8.,11.,deep))*(.15+.85*max(0.,-normal.y)+.2*(1.-abs(normal.y)))*flicker*scene.finish.w*stone.albedo*.9;
+  return vec4f(voidFog(o.world,result+lit.marks)+underglow,1.);
  }
  @fragment fn solidFS(o:Out)->@location(0) vec4f{
   let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);let h=normalize(v+l);

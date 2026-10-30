@@ -64,6 +64,8 @@ export default {
   'Формирование при рестарте': 'Assembly on restart',
   Зернистость: 'Film grain',
   'Пыль в воздухе': 'Floating dust',
+  'Колонны под уровнем': 'Pillars below the level',
+  'Свет из глубины': 'Light from the depths',
   'Сила грейна': 'Grain strength',
   'Размер грейна': 'Grain size',
   'Количество пыли': 'Dust amount',

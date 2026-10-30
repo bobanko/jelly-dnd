@@ -917,6 +917,13 @@ document
 document
   .querySelector('#ambient-dust')
   .addEventListener('change', (e) => (sceneRenderer.dust = e.target.checked));
+document.querySelector('#level-pillars').addEventListener('change', (e) => {
+  sceneRenderer.pillars = e.target.checked;
+  sceneRenderer.bridgeKey = undefined; // rebuild the static masonry
+});
+document
+  .querySelector('#depth-glow')
+  .addEventListener('change', (e) => (sceneRenderer.underglow = e.target.checked));
 for (const [id, property] of [
   ['grain-strength', 'grainStrength'],
   ['grain-size', 'grainSize'],

@@ -3,6 +3,25 @@ import { OAK_WOOD, OAK_FRAME, bridgeOakPlank } from './geometry/wood.js';
 import { phaseTints } from './geometry/mechanisms.js';
 import { phaseBlock, phaseGroundGlow } from './geometry/runes.js';
 import { torchDecor, scatterDecor } from './geometry/decor.js';
+// Decorative stone columns under base cubes (cells with nothing anywhere below them),
+// fading into the void fog for depth. Deterministic per cell, so a level always looks the same.
+function levelPillars(blocks) {
+  const stone = blocks.filter((b) => b.color === undefined),
+    lowest = new Map();
+  for (const b of blocks) {
+    const key = b.x + ',' + b.z;
+    if (!lowest.has(key) || b.y < lowest.get(key).y) lowest.set(key, b);
+  }
+  const pillars = [];
+  for (const b of stone) {
+    if (lowest.get(b.x + ',' + b.z) !== b) continue;
+    const hash = Math.abs(Math.sin(b.x * 12.9898 + b.z * 78.233 + b.y * 37.719) * 43758.5453) % 1;
+    if (hash > 0.7) continue;
+    const depth = 3 + Math.floor((hash / 0.7) * 8);
+    for (let k = 1; k <= depth; k++) pillars.push({ x: b.x, y: b.y - k, z: b.z });
+  }
+  return pillars;
+}
 export const sceneMethods = {
   buildScene(level) {
     this.buildDust(level.world);
@@ -18,7 +37,9 @@ export const sceneMethods = {
       ),
       occupied = new Set(
         blocks.filter((b) => b.color === undefined).map((b) => [b.x, b.y, b.z].join(',')),
-      );
+      ),
+      pillars = this.pillars ? levelPillars(blocks) : [];
+    for (const p of pillars) occupied.add([p.x, p.y, p.z].join(','));
     let blockIndex = 0;
     const blockAssemblyIndices = new Map(),
       recordBlock = (target, source, from, center, cell = center) => {
@@ -104,6 +125,37 @@ export const sceneMethods = {
       });
       recordBlock(assembly, mesh, from, [b.x, b.y - 0.5, b.z], [b.x, b.y, b.z]);
     }
+    const pillarFrom = blockIndex;
+    for (const b of pillars) {
+      if (
+        [
+          [1, 0, 0],
+          [-1, 0, 0],
+          [0, -1, 0],
+          [0, 0, 1],
+          [0, 0, -1],
+        ].every((d) => occupied.has([b.x + d[0], b.y + d[1], b.z + d[2]].join(',')))
+      )
+        continue;
+      const from = mesh.length,
+        n = ((((b.x * 73 + b.y * 31 + b.z * 137) % 19) + 19) % 19) / 19;
+      box(
+        mesh,
+        [b.x, b.y - 0.5, b.z],
+        [0.97, 1, 0.97],
+        [0.19 + n * 0.03, 0.163 + n * 0.026, 0.136 + n * 0.022],
+        0.06,
+        0,
+        2,
+        {
+          crisp: true,
+          shade: occlusion(b),
+          detail: mossAt,
+        },
+      );
+      recordBlock(assembly, mesh, from, [b.x, b.y - 0.5, b.z], [b.x, b.y, b.z]);
+    }
+    const pillarTo = blockIndex;
     for (const key of level.floor) {
       const [x, z] = key.split(',').map(Number);
       if (level.bridges.some((b) => b.x === x && b.z === z)) continue;
@@ -148,7 +200,14 @@ export const sceneMethods = {
       ['assemblyBuffer', assembly],
       ['phaseAssemblyBuffer', phaseAssembly],
     ]) {
-      for (let i = 3; i < values.length; i += 4) values[i] /= Math.max(1, blockIndex - 1);
+      for (let i = 3; i < values.length; i += 4) {
+        const index = values[i];
+        values[i] =
+          key === 'assemblyBuffer' && index >= pillarFrom && index < pillarTo
+            ? 2 + (index - pillarFrom) / Math.max(1, pillarTo - pillarFrom - 1)
+            : (index < pillarFrom ? index : index - pillarTo + pillarFrom) /
+              Math.max(1, blockIndex - (pillarTo - pillarFrom) - 1);
+      }
       this[key]?.destroy();
       this[key] = this.buffer(
         new Float32Array(values.length ? values : [0, 0, 0, 0]),
