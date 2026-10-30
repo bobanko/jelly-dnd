@@ -15,6 +15,18 @@ const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
 const len = (a) => Math.hypot(...a),
   ident = () => [1, 0, 0, 0, 1, 0, 0, 0, 1];
 const mv = (m, v) => [dot(m.slice(0, 3), v), dot(m.slice(3, 6), v), dot(m.slice(6, 9), v)];
+const SIXTH = 1 / 6;
+// Reusable 3x3 matrices for the solver hot paths. rotation() copies its input, so a
+// scratch matrix is never retained.
+const scratchA = new Array(9).fill(0),
+  scratchF = new Array(9).fill(0);
+// Row-major out = a · b, summed in the same order as the original accumulation loop.
+function multiply(a, b, out) {
+  for (let j = 0; j < 3; j++)
+    for (let k = 0; k < 3; k++)
+      out[j * 3 + k] = 0 + a[j * 3] * b[k] + a[j * 3 + 1] * b[3 + k] + a[j * 3 + 2] * b[6 + k];
+  return out;
+}
 function nearestMovementFace(r, direction) {
   const length = Math.hypot(direction.x, direction.z);
   if (length < 1e-8) return null;
@@ -43,7 +55,11 @@ function nearestMovementFace(r, direction) {
     angle: Math.atan2(best[1] * target[0] - best[0] * target[1], bestDot),
   };
 }
-const det = (m) => dot(m.slice(0, 3), cross(m.slice(3, 6), m.slice(6, 9)));
+// Row-major 3x3 determinant: row0 · (row1 × row2).
+const det = (m) =>
+  m[0] * (m[4] * m[8] - m[5] * m[7]) +
+  m[1] * (m[5] * m[6] - m[3] * m[8]) +
+  m[2] * (m[3] * m[7] - m[4] * m[6]);
 function inverse(m) {
   const d = det(m);
   if (Math.abs(d) < 1e-10) return ident();
@@ -213,87 +229,171 @@ class Lattice {
     this.state = p.state;
     this.deaths = p.deaths || 0;
   }
+  // The solver's hot paths below run per node or tetrahedron, several times per step.
+  // They work on scalars and shared scratch matrices to avoid temporary arrays; the
+  // arithmetic order matches the vector helpers so results stay bit-identical.
   shape(g, stiffness) {
-    const center = [0, 0, 0];
-    g.ids.forEach((i) => this.positions[i].forEach((v, k) => (center[k] += v / g.ids.length)));
-    const apq = new Array(9).fill(0);
-    g.ids.forEach((i, n) => {
-      const p = sub(this.positions[i], center),
+    const ids = g.ids,
+      count = ids.length,
+      positions = this.positions;
+    let cx = 0,
+      cy = 0,
+      cz = 0;
+    for (let n = 0; n < count; n++) {
+      const p = positions[ids[n]];
+      cx += p[0] / count;
+      cy += p[1] / count;
+      cz += p[2] / count;
+    }
+    const apq = scratchA.fill(0);
+    for (let n = 0; n < count; n++) {
+      const p = positions[ids[n]],
+        q = g.q[n],
+        px = p[0] - cx,
+        py = p[1] - cy,
+        pz = p[2] - cz;
+      apq[0] += px * q[0];
+      apq[1] += px * q[1];
+      apq[2] += px * q[2];
+      apq[3] += py * q[0];
+      apq[4] += py * q[1];
+      apq[5] += py * q[2];
+      apq[6] += pz * q[0];
+      apq[7] += pz * q[1];
+      apq[8] += pz * q[2];
+    }
+    const r = rotation(multiply(apq, g.inverse, scratchF));
+    for (let n = 0; n < count; n++) {
+      const p = positions[ids[n]],
         q = g.q[n];
-      for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) apq[j * 3 + k] += p[j] * q[k];
-    });
-    const f = new Array(9).fill(0);
-    for (let j = 0; j < 3; j++)
-      for (let k = 0; k < 3; k++)
-        for (let n = 0; n < 3; n++) f[j * 3 + k] += apq[j * 3 + n] * g.inverse[n * 3 + k];
-    const r = rotation(f);
-    for (let n = 0; n < g.ids.length; n++) {
-      const p = this.positions[g.ids[n]],
-        q = g.q[n];
-      for (let k = 0; k < 3; k++) {
-        const j = k * 3,
-          target = center[k] + r[j] * q[0] + r[j + 1] * q[1] + r[j + 2] * q[2];
-        p[k] += (target - p[k]) * stiffness;
-      }
+      p[0] += (cx + r[0] * q[0] + r[1] * q[1] + r[2] * q[2] - p[0]) * stiffness;
+      p[1] += (cy + r[3] * q[0] + r[4] * q[1] + r[5] * q[2] - p[1]) * stiffness;
+      p[2] += (cz + r[6] * q[0] + r[7] * q[1] + r[8] * q[2] - p[2]) * stiffness;
     }
     return r;
   }
   volume(t, lambda, dt) {
-    const [a, b, c, d] = t.ids.map((i) => this.positions[i]),
-      ab = sub(b, a),
-      ac = sub(c, a),
-      ad = sub(d, a),
-      v = dot(ab, cross(ac, ad)) / 6;
-    const gb = mul(cross(ac, ad), 1 / 6),
-      gc = mul(cross(ad, ab), 1 / 6),
-      gd = mul(cross(ab, ac), 1 / 6),
-      ga = mul(add(add(gb, gc), gd), -1),
-      gs = [ga, gb, gc, gd];
+    const ids = t.ids,
+      a = this.positions[ids[0]],
+      b = this.positions[ids[1]],
+      c = this.positions[ids[2]],
+      d = this.positions[ids[3]];
+    const abx = b[0] - a[0],
+      aby = b[1] - a[1],
+      abz = b[2] - a[2],
+      acx = c[0] - a[0],
+      acy = c[1] - a[1],
+      acz = c[2] - a[2],
+      adx = d[0] - a[0],
+      ady = d[1] - a[1],
+      adz = d[2] - a[2];
+    // Cross products ac×ad, ad×ab and ab×ac are the volume gradients of b, c and d.
+    const bx = acy * adz - acz * ady,
+      by = acz * adx - acx * adz,
+      bz = acx * ady - acy * adx,
+      v = (abx * bx + aby * by + abz * bz) / 6;
+    const gbx = bx * SIXTH,
+      gby = by * SIXTH,
+      gbz = bz * SIXTH,
+      gcx = (ady * abz - adz * aby) * SIXTH,
+      gcy = (adz * abx - adx * abz) * SIXTH,
+      gcz = (adx * aby - ady * abx) * SIXTH,
+      gdx = (aby * acz - abz * acy) * SIXTH,
+      gdy = (abz * acx - abx * acz) * SIXTH,
+      gdz = (abx * acy - aby * acx) * SIXTH,
+      gax = (gbx + gcx + gdx) * -1,
+      gay = (gby + gcy + gdy) * -1,
+      gaz = (gbz + gcz + gdz) * -1;
     const alpha = 2e-11 / (dt * dt),
-      denom = gs.reduce((s, g) => s + dot(g, g), alpha),
+      denom =
+        alpha +
+        (gax * gax + gay * gay + gaz * gaz) +
+        (gbx * gbx + gby * gby + gbz * gbz) +
+        (gcx * gcx + gcy * gcy + gcz * gcz) +
+        (gdx * gdx + gdy * gdy + gdz * gdz),
       dl = (-(v - t.volume) - alpha * lambda) / Math.max(1e-12, denom);
-    const bound = Math.max(...gs.map(len)) * Math.abs(dl),
+    const bound =
+        Math.max(
+          Math.hypot(gax, gay, gaz),
+          Math.hypot(gbx, gby, gbz),
+          Math.hypot(gcx, gcy, gcz),
+          Math.hypot(gdx, gdy, gdz),
+        ) * Math.abs(dl),
       limited = dl * Math.min(1, 0.045 / (bound || 1));
-    t.ids.forEach((id, j) => {
-      for (let k = 0; k < 3; k++) this.positions[id][k] += gs[j][k] * limited;
-    });
+    a[0] += gax * limited;
+    a[1] += gay * limited;
+    a[2] += gaz * limited;
+    b[0] += gbx * limited;
+    b[1] += gby * limited;
+    b[2] += gbz * limited;
+    c[0] += gcx * limited;
+    c[1] += gcy * limited;
+    c[2] += gcz * limited;
+    d[0] += gdx * limited;
+    d[1] += gdy * limited;
+    d[2] += gdz * limited;
     return lambda + limited;
   }
   strain() {
-    for (const e of edges) {
-      const a = this.positions[e.a],
-        b = this.positions[e.b],
-        d = sub(b, a),
-        l = len(d),
+    const positions = this.positions;
+    for (let i = 0; i < edges.length; i++) {
+      const e = edges[i],
+        a = positions[e.a],
+        b = positions[e.b],
+        dx = b[0] - a[0],
+        dy = b[1] - a[1],
+        dz = b[2] - a[2],
+        l = Math.hypot(dx, dy, dz),
         target = Math.max(e.length * 0.65, Math.min(e.length * 1.35, l));
       if (l > 1e-9 && l !== target) {
-        const correction = mul(d, ((l - target) / l) * 0.5);
-        for (let k = 0; k < 3; k++) {
-          a[k] += correction[k];
-          b[k] -= correction[k];
-        }
+        const s = ((l - target) / l) * 0.5,
+          cx = dx * s,
+          cy = dy * s,
+          cz = dz * s;
+        a[0] += cx;
+        a[1] += cy;
+        a[2] += cz;
+        b[0] -= cx;
+        b[1] -= cy;
+        b[2] -= cz;
       }
     }
   }
   summarize() {
-    this.center = [0, 0, 0];
-    this.positions.forEach((p) => p.forEach((v, k) => (this.center[k] += v / NODE_COUNT)));
+    let x = 0,
+      y = 0,
+      z = 0;
+    for (let n = 0; n < NODE_COUNT; n++) {
+      const p = this.positions[n];
+      x += p[0] / NODE_COUNT;
+      y += p[1] / NODE_COUNT;
+      z += p[2] / NODE_COUNT;
+    }
+    this.center = [x, y, z];
     return this.center;
   }
   orientation() {
     const points = this.rigid ? crateRest : rest,
-      shape = this.rigid ? crateShape : globalShape;
-    const a = new Array(9).fill(0);
+      shape = this.rigid ? crateShape : globalShape,
+      [cx, cy, cz] = this.center,
+      a = scratchA.fill(0);
     for (let n = 0; n < NODE_COUNT; n++) {
-      const p = sub(this.positions[n], this.center),
-        q = points[n];
-      for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) a[j * 3 + k] += p[j] * q[k];
+      const p = this.positions[n],
+        q = points[n],
+        px = p[0] - cx,
+        py = p[1] - cy,
+        pz = p[2] - cz;
+      a[0] += px * q[0];
+      a[1] += px * q[1];
+      a[2] += px * q[2];
+      a[3] += py * q[0];
+      a[4] += py * q[1];
+      a[5] += py * q[2];
+      a[6] += pz * q[0];
+      a[7] += pz * q[1];
+      a[8] += pz * q[2];
     }
-    const f = new Array(9).fill(0);
-    for (let j = 0; j < 3; j++)
-      for (let k = 0; k < 3; k++)
-        for (let n = 0; n < 3; n++) f[j * 3 + k] += a[j * 3 + n] * shape.inverse[n * 3 + k];
-    this.r = rotation(f);
+    this.r = rotation(multiply(a, shape.inverse, scratchF));
   }
   snapshot() {
     return {
