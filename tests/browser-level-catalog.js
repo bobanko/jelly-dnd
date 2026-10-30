@@ -28,11 +28,16 @@ import assert from 'node:assert/strict';
     await page.route('**/levels/' + first, (route) => route.fulfill({ json: map }));
     const ready = () =>
       page.waitForFunction(
-        () => typeof sceneRenderer !== 'undefined' && sceneRenderer.ready && !loadingActive,
+        () =>
+          typeof sceneRenderer !== 'undefined' &&
+          sceneRenderer.ready &&
+          !loadingActive &&
+          !level.assembly,
       );
     await page.goto('http://localhost:3000/');
     await ready();
-    assert.equal(await page.evaluate(() => definition.name), 'Only in map');
+    // The title screen runs a menu scene; the campaign maps themselves are loaded.
+    assert.equal(await page.evaluate(() => JellyLevels.standardLevel(1).name), 'Only in map');
     await page.locator('#show-levels').click();
     assert.equal(await page.locator('[data-level-name="1"]').textContent(), 'Only in map');
     assert.equal(await page.locator('[data-level="1"]').isEnabled(), true);
@@ -44,8 +49,10 @@ import assert from 'node:assert/strict';
     await page.locator('[data-level="1"]').click();
     await page.waitForURL('**/?level=1&play=1');
     await ready();
-    assert.equal(await page.locator('#level-intro-title').textContent(), 'RU map title');
+    assert.equal(await page.locator('#level-intro-title').textContent(), '1. RU map title');
     await page.evaluate(() => {
+      // Progression only: the reversed catalog starts with a hazardous level.
+      for (const key of ['drones', 'archers', 'arrows', 'spikes']) world[key]?.splice(0);
       players.forEach((p) =>
         Object.assign(
           p,
@@ -57,7 +64,8 @@ import assert from 'node:assert/strict';
       finishHold = WIN_HOLD_SECONDS - 0.01;
       simulate(0.05);
     });
-    assert.equal(await page.locator('#win-level-name').textContent(), 'RU map title');
+    await page.locator('#win').waitFor({ state: 'visible' }); // filled on the next frame
+    assert.equal(await page.locator('#win-level-name').textContent(), '1. RU map title');
     await page.locator('#win-next').click();
     await page.waitForURL('**/?level=2&play=1');
     await ready();
@@ -67,7 +75,8 @@ import assert from 'node:assert/strict';
     );
     await page.goto('http://localhost:3000/editor.html');
     await page.waitForFunction(() => typeof model !== 'undefined' && previewRenderer?.ready);
-    assert.equal(await page.locator('#catalog-map option').count(), catalog.standard.length);
+    // Campaign maps sit directly in the picker; other files in levels/ follow in a group.
+    assert.equal(await page.locator('#catalog-map > option').count(), catalog.standard.length);
     assert.equal(await page.evaluate(() => sourceFilename), first);
     const next = catalog.standard[1];
     await page.locator('#catalog-map').selectOption(next);
