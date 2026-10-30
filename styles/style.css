@@ -2012,6 +2012,13 @@ body:has(#win:not([hidden])) #run-skulls {
   filter: none;
 }
 /* Restart gives the team its three skulls back: draw the eye to it after a loss. */
+#restart-hint .restart-reason {
+  display: none;
+  color: #e9c46a;
+}
+#restart-hint.restart-ready .restart-reason {
+  display: inline;
+}
 #restart-hint.restart-ready kbd {
   animation: restart-ready 1.8s ease-in-out infinite;
 }

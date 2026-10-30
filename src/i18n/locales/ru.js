@@ -33,6 +33,7 @@ export default {
   play: 'Играть',
   mainMenu: 'Главное меню',
   skullsKept: 'Черепков цело',
+  restoreSkulls: ' · вернуть все черепа',
   loadingMenu: 'Загрузка меню…',
   loadingEditor: 'Загрузка редактора…',
   resume: 'Продолжить',

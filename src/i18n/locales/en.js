@@ -34,6 +34,7 @@ export default {
   resume: 'Resume',
   mainMenu: 'Main menu',
   skullsKept: 'Skulls kept',
+  restoreSkulls: ' · get all skulls back',
   loadingMenu: 'Loading menu…',
   loadingEditor: 'Loading editor…',
   how: 'How to play',
