@@ -2031,6 +2031,8 @@ catalogSelect.value = JellyLevelCatalog.standard.includes(sourceFilename)
 catalogPicker.append(catalogSelect);
 addEventListener('languagechange', () => {
   for (const option of catalogSelect.options) {
+    // Campaign maps only; "Other maps" keep their file names.
+    if (!option.dataset.levelName) continue;
     const index = Number(option.dataset.levelName);
     option.textContent = `${index}. ${L.displayName(L.standardLevel(index), JellyI18n.language)}`;
   }
