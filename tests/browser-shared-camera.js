@@ -18,7 +18,10 @@ import assert from 'node:assert/strict';
       await route.continue();
     });
     await page.goto('http://localhost:3000/?level=1&play=1');
-    await page.waitForFunction(() => document.querySelector('#loading-progress').value >= 0.65);
+    // Shaders finish while the gated textures hold the loading screen.
+    await page.waitForFunction(
+      () => document.querySelector('#loading-status').textContent === 'Loading textures…',
+    );
     assert.equal(await page.locator('#gpu-fallback').count(), 0);
     assert.match(await page.locator('#level-intro-title').textContent(), /^(?:1\. )?First Steps$/);
     assert.equal(await page.locator('#level-loading').isVisible(), true);
@@ -29,10 +32,18 @@ import assert from 'node:assert/strict';
     await page.waitForFunction(
       () => typeof sceneRenderer !== 'undefined' && sceneRenderer.ready && !loadingActive,
     );
-    assert.ok(await page.evaluate(() => angle <= 0 && angle >= -Math.PI / 4));
+    // The opening orbit eases from 45 degrees past the level's authored view onto it.
+    assert.ok(
+      await page.evaluate(() => {
+        const target = LevelCamera.angle(definition);
+        return angle <= target + Math.PI / 4 + 1e-9 && angle >= target - 1e-9;
+      }),
+    );
     await page.waitForFunction(() => cameraIntro === null);
     assert.ok(
-      await page.evaluate(() => Math.abs(angle + Math.PI / 4) < 0.0001 && targetAngle === angle),
+      await page.evaluate(
+        () => Math.abs(angle - LevelCamera.angle(definition)) < 0.0001 && targetAngle === angle,
+      ),
     );
     assert.equal(await page.locator('#level-intro').isVisible(), false);
     assert.equal(await page.locator('#level-loading').isVisible(), false);
