@@ -20,6 +20,7 @@ let winShown = false,
   winSelected = 0;
 let restartTransition = null;
 let loadingActive = false,
+  leaving = false,
   loadingFailed = false,
   loadingStage = 'loadingGraphics',
   autoZoom = 1;
@@ -771,17 +772,62 @@ function updateGameCamera(dt, snap = false) {
   autoZoom += (target.zoom - autoZoom) * smoothing;
   scale = Math.min(W / 16, H / 12) * zoom * autoZoom;
 }
-function updateLoading(progress, stage) {
+function showLoadingScreen(title) {
+  document.querySelector('#level-intro').hidden = false;
+  document.querySelector('#level-intro').classList.add('loading');
+  document.querySelector('#level-intro-title').textContent = title;
+  document.querySelector('#level-loading').hidden = false;
+}
+// Texture downloads, e.g. "Stone 1.2 / 3.4 MB", so a slow connection still shows progress.
+function loadingDetail(files = []) {
+  const megabytes = (bytes) => (bytes / 1048576).toFixed(1);
+  return files
+    .filter((file) => !file.done)
+    .map(
+      (file) =>
+        tr(file.name) +
+        ' ' +
+        megabytes(file.loaded) +
+        (file.total ? ' / ' + megabytes(file.total) : '') +
+        ' ' +
+        tr('megabytes'),
+    )
+    .join(' · ');
+}
+function updateLoading(progress, stage, files) {
   if (!JellyI18n) return;
   loadingActive = true;
   loadingStage = stage;
   if (menuOnly && !loadingFailed) return;
-  document.querySelector('#level-intro').hidden = false;
-  document.querySelector('#level-intro').classList.add('loading');
-  document.querySelector('#level-intro-title').textContent = currentLevelTitle();
-  document.querySelector('#level-loading').hidden = false;
+  showLoadingScreen(currentLevelTitle());
   document.querySelector('#loading-status').textContent = tr(stage);
+  document.querySelector('#loading-detail').textContent = loadingDetail(files);
   document.querySelector('#loading-progress').value = progress;
+}
+// The next page may take a while on a slow connection: show its loading screen at once
+// and stop input instead of leaving the finished level visible and interactive.
+function navigate(url, title = '') {
+  if (leaving) return;
+  leaving = loadingActive = true;
+  stopInput();
+  document.querySelector('#win').hidden = true;
+  document.querySelector('#main-menu').hidden = true;
+  document.querySelector('.jelly-settings').hidden = true;
+  document.querySelector('#loading-spinner').hidden = false;
+  if (JellyI18n) {
+    showLoadingScreen(title);
+    document.querySelector('#loading-status').textContent = tr('loadingLevel');
+    document.querySelector('#loading-detail').textContent = '';
+    document.querySelector('#loading-progress').removeAttribute('value');
+  }
+  globalThis.location.href = url;
+}
+// Returning with Back restores this page from the bfcache with its loading screen up.
+addEventListener('pageshow', (e) => {
+  if (e.persisted && leaving) globalThis.location.reload();
+});
+function levelTitle(id) {
+  return id + '. ' + JellyLevels.displayName(JellyLevels.standardLevel(id), JellyI18n?.language);
 }
 function gpuFailure(message) {
   document.querySelector('#loading-spinner').hidden = true;
@@ -804,6 +850,15 @@ sceneRenderer
     }
     startCameraIntro();
     updateGameCamera(0, true);
+    // Paint "Building the scene" before the geometry is built in one long task.
+    // The timeout keeps loading going in a background tab, where frames never come.
+    await new Promise((resolve) => {
+      const fallback = setTimeout(resolve, 100);
+      requestAnimationFrame(() => {
+        clearTimeout(fallback);
+        setTimeout(resolve, 0);
+      });
+    });
     // Build and submit the actual scene before revealing it or accepting input.
     if (menuOpen && menuScene) {
       const menuCamera = {
@@ -1229,9 +1284,8 @@ if (JellyI18n) {
   document.querySelector('#win-next').onclick = () => {
     const id = currentStandardLevel();
     if (id && id < JellyLevels.standardNames.length)
-      globalThis.location.href = '?level=' + (id + 1) + '&play=1';
-    else if (globalThis.location?.search?.includes('level=editor'))
-      globalThis.location.href = 'editor.html';
+      navigate('?level=' + (id + 1) + '&play=1', levelTitle(id + 1));
+    else if (globalThis.location?.search?.includes('level=editor')) navigate('editor.html');
     else {
       setMenu(true);
       showMenuScreen('levels');
@@ -1245,14 +1299,15 @@ if (JellyI18n) {
     hasPlayed ? setMenu(false) : showMenuScreen('levels');
   document.querySelector('#show-levels').onclick = () => showMenuScreen('levels');
   document.querySelector('#levels-back').onclick = () => showMenuScreen('root');
-  document.querySelector('#open-editor').onclick = () => {
-    globalThis.location.href = 'editor.html';
-  };
+  document.querySelector('#open-editor').onclick = () => navigate('editor.html');
   document.querySelectorAll('[data-level]').forEach(
     (button) =>
       (button.onclick = () => {
         if (!JellyProgress || JellyProgress.canPlay(Number(button.dataset.level)))
-          globalThis.location.href = '?level=' + button.dataset.level + '&play=1';
+          navigate(
+            '?level=' + button.dataset.level + '&play=1',
+            levelTitle(Number(button.dataset.level)),
+          );
       }),
   );
   document.querySelector('#menu-button').onclick = () => setMenu(true);

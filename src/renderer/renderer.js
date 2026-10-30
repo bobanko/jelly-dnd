@@ -18,11 +18,16 @@ import { colliderLines, surfaceBindings } from './geometry/surfaces.js';
 import { shared } from './shaders/shared.js';
 import { skin } from './shaders/skin.js';
 import { compute } from './shaders/compute.js';
-import { post, BLOOM_LEVELS, bloomShader } from './shaders/post.js';
+import { post, BLOOM_LEVELS, bloomShader, mipmapShader } from './shaders/post.js';
 import { latticeShader, colliderShader } from './shaders/debug.js';
 import { sceneMethods } from './scene.js';
 import { propsMethods } from './props.js';
 import { effectsMethods } from './effects.js';
+// Shared material atlases; `name` is the loading-screen label key.
+const MATERIALS = [
+  { name: 'textureStone', file: 'dungeon-stone-atlas.png' },
+  { name: 'textureWood', file: 'crate-oak.png' },
+];
 class Renderer {
   constructor(canvas, soft) {
     this.canvas = canvas;
@@ -51,7 +56,28 @@ class Renderer {
       throw Error('Браузер не предоставил WebGPU-адаптер. Проверьте аппаратное ускорение.');
     const d = (this.device = await adapter.requestDevice());
     this.adapterInfo = adapter.info;
-    this.onProgress?.(0.18, 'loadingShaders');
+    // Shaders and textures load in parallel; progress combines both so it never moves back.
+    const load = { shaders: 0, textures: 0, files: [] },
+      report = () =>
+        this.onProgress?.(
+          0.1 + 0.45 * load.shaders + 0.35 * load.textures,
+          load.shaders < 1 ? 'loadingShaders' : 'loadingTextures',
+          load.files,
+        );
+    const materials = Promise.all(
+      MATERIALS.map((material) =>
+        this.loadMaterialTexture(material, (file) => {
+          if (!load.files.includes(file)) load.files.push(file);
+          const total = load.files.reduce((sum, f) => sum + (f.total || 1), 0),
+            loaded = load.files.reduce((sum, f) => sum + (f.total ? f.loaded : f.done ? 1 : 0), 0);
+          load.textures = load.files.length < MATERIALS.length ? 0 : loaded / total;
+          report();
+        }),
+      ),
+    );
+    // Without a handler a failed download would reject unobserved while shaders compile.
+    materials.catch(() => {});
+    report();
     d.addEventListener('uncapturederror', (e) => {
       this.errors.push(e.error.message);
       console.error(e.error.message);
@@ -77,7 +103,6 @@ class Renderer {
       lattice = await module('XPBD lattice overlay', latticeShader),
       collider = await module('Level collision overlay', colliderShader),
       bloom = await module('Bloom', bloomShader);
-    this.onProgress?.(0.4, 'loadingScene');
     this.uniform = this.buffer(
       new Float32Array(SCENE_FLOATS),
       GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -99,15 +124,9 @@ class Renderer {
       size: 6750 * 48,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX,
     });
-    this.compute = d.createComputePipeline({
+    this.compute = d.createComputePipelineAsync({
       layout: 'auto',
       compute: { module: deform, entryPoint: 'deform' },
-    });
-    this.computeGroup = d.createBindGroup({
-      layout: this.compute.getBindGroupLayout(0),
-      entries: [this.nodes, this.restNodes, this.bindBuffer, this.deformed].map(
-        (buffer, binding) => ({ binding, resource: { buffer } }),
-      ),
     });
     this.sceneLayout = d.createBindGroupLayout({
       entries: [
@@ -164,7 +183,7 @@ class Renderer {
         ? vertexBuffers
         : [],
     ) =>
-      d.createRenderPipeline({
+      d.createRenderPipelineAsync({
         layout,
         vertex: { module: main, entryPoint: vertexEntry, buffers },
         fragment: {
@@ -350,19 +369,19 @@ class Renderer {
     ])
       halo.push(...p, 0, 1, 0, 1, 1, 1, 0, 0, 0);
     this.portalHaloBuffer = this.buffer(new Float32Array(halo), GPUBufferUsage.VERTEX);
-    this.shadow = d.createRenderPipeline({
+    this.shadow = d.createRenderPipelineAsync({
       layout: d.createPipelineLayout({ bindGroupLayouts: [this.sceneLayout] }),
       vertex: { module: main, entryPoint: 'shadowVS', buffers: vertexBuffers },
       primitive: { topology: 'triangle-list', cullMode: 'back' },
       depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' },
     });
-    this.assemblyShadow = d.createRenderPipeline({
+    this.assemblyShadow = d.createRenderPipelineAsync({
       layout: d.createPipelineLayout({ bindGroupLayouts: [this.sceneLayout] }),
       vertex: { module: main, entryPoint: 'assemblyShadowVS', buffers: assemblyBuffers },
       primitive: { topology: 'triangle-list', cullMode: 'back' },
       depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' },
     });
-    this.post = d.createRenderPipeline({
+    this.post = d.createRenderPipelineAsync({
       layout: 'auto',
       vertex: { module: finish, entryPoint: 'postVS' },
       fragment: { module: finish, entryPoint: 'postFS', targets: [{ format: this.format }] },
@@ -377,7 +396,7 @@ class Renderer {
     });
     const bloomLayout = d.createPipelineLayout({ bindGroupLayouts: [this.bloomLayout] });
     const bloomPipeline = (entryPoint, blend) =>
-      d.createRenderPipeline({
+      d.createRenderPipelineAsync({
         layout: bloomLayout,
         vertex: { module: bloom, entryPoint: 'bloomVS' },
         fragment: { module: bloom, entryPoint, targets: [{ format: 'rgba16float', blend }] },
@@ -389,7 +408,7 @@ class Renderer {
       color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
     });
-    this.latticePipeline = d.createRenderPipeline({
+    this.latticePipeline = d.createRenderPipelineAsync({
       layout: 'auto',
       vertex: { module: lattice, entryPoint: 'latticeVS' },
       fragment: {
@@ -411,14 +430,7 @@ class Renderer {
     const edgeData = new Uint32Array(this.soft.edges.flatMap((e) => [e.a, e.b]));
     this.edgeCount = edgeData.length;
     this.edgeBuffer = this.buffer(edgeData, GPUBufferUsage.STORAGE);
-    this.latticeGroup = d.createBindGroup({
-      layout: this.latticePipeline.getBindGroupLayout(0),
-      entries: [this.uniform, this.nodes, this.edgeBuffer].map((buffer, binding) => ({
-        binding,
-        resource: { buffer },
-      })),
-    });
-    this.colliderPipeline = d.createRenderPipeline({
+    this.colliderPipeline = d.createRenderPipelineAsync({
       layout: 'auto',
       vertex: {
         module: collider,
@@ -449,6 +461,30 @@ class Renderer {
       primitive: { topology: 'line-list' },
       multisample: { count: 4 },
     });
+    // Pipelines compile on background threads: a slow driver compiler no longer
+    // stalls the GPU process that also presents the page and its loading spinner.
+    const pending = Object.keys(this).filter((key) => this[key] instanceof Promise);
+    let compiled = 0;
+    await Promise.all(
+      pending.map(async (key) => {
+        this[key] = await this[key];
+        load.shaders = ++compiled / pending.length;
+        report();
+      }),
+    );
+    this.computeGroup = d.createBindGroup({
+      layout: this.compute.getBindGroupLayout(0),
+      entries: [this.nodes, this.restNodes, this.bindBuffer, this.deformed].map(
+        (buffer, binding) => ({ binding, resource: { buffer } }),
+      ),
+    });
+    this.latticeGroup = d.createBindGroup({
+      layout: this.latticePipeline.getBindGroupLayout(0),
+      entries: [this.uniform, this.nodes, this.edgeBuffer].map((buffer, binding) => ({
+        binding,
+        resource: { buffer },
+      })),
+    });
     this.colliderGroup = d.createBindGroup({
       layout: this.colliderPipeline.getBindGroupLayout(0),
       entries: [{ binding: 0, resource: { buffer: this.uniform } }],
@@ -468,15 +504,8 @@ class Renderer {
       magFilter: 'linear',
       minFilter: 'linear',
     });
-    this.onProgress?.(0.65, 'loadingTextures');
-    let texturesLoaded = 0;
-    [this.stoneTexture, this.woodTexture] = await Promise.all(
-      ['dungeon-stone-atlas.png', 'crate-oak.png'].map(async (name) => {
-        const texture = await this.loadMaterialTexture('assets/materials/' + name);
-        this.onProgress?.(0.65 + ++texturesLoaded * 0.12, 'loadingTextures');
-        return texture;
-      }),
-    );
+    report();
+    [this.stoneTexture, this.woodTexture] = await materials;
     this.materialSampler = d.createSampler({
       magFilter: 'linear',
       minFilter: 'linear',
@@ -540,7 +569,7 @@ class Renderer {
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
     this.ready = true;
-    this.onProgress?.(1, 'loadingReady');
+    this.onProgress?.(0.92, 'loadingScene', []);
     return this;
   }
   buffer(data, usage) {
@@ -555,10 +584,23 @@ class Renderer {
     b.unmap();
     return b;
   }
-  async loadMaterialTexture(url) {
-    const response = await fetch(url);
+  // Streams the download so the loading screen can show each texture's progress.
+  async loadMaterialTexture({ name, file }, onProgress) {
+    const url = 'assets/materials/' + file,
+      response = await fetch(url);
     if (!response.ok) throw Error('Cannot load material: ' + url);
-    const bitmap = await createImageBitmap(await response.blob()),
+    const status = { name, loaded: 0, total: Number(response.headers.get('content-length')) || 0 },
+      chunks = [];
+    onProgress(status);
+    const reader = response.body.getReader();
+    for (let chunk; !(chunk = await reader.read()).done;) {
+      chunks.push(chunk.value);
+      status.loaded += chunk.value.byteLength;
+      onProgress(status);
+    }
+    status.done = true;
+    onProgress(status);
+    const bitmap = await createImageBitmap(new Blob(chunks)),
       { width, height } = bitmap,
       mipLevelCount = 1 + Math.floor(Math.log2(Math.max(width, height)));
     const texture = this.device.createTexture({
@@ -571,19 +613,57 @@ class Renderer {
         GPUTextureUsage.COPY_DST |
         GPUTextureUsage.RENDER_ATTACHMENT,
     });
-    for (let mip = 0; mip < mipLevelCount; mip++) {
-      const w = Math.max(1, width >> mip),
-        h = Math.max(1, height >> mip),
-        canvas = new OffscreenCanvas(w, h),
-        ctx = canvas.getContext('2d');
-      ctx.drawImage(bitmap, 0, 0, w, h);
-      this.device.queue.copyExternalImageToTexture({ source: canvas }, { texture, mipLevel: mip }, [
-        w,
-        h,
-      ]);
-    }
+    this.device.queue.copyExternalImageToTexture({ source: bitmap }, { texture }, [width, height]);
     bitmap.close();
+    await this.generateMipmaps(texture);
     return texture;
+  }
+  // Each mip level is a bilinear half-size draw of the previous one, entirely on the GPU:
+  // resizing a large atlas on the CPU blocked the page for hundreds of milliseconds.
+  async generateMipmaps(texture) {
+    const d = this.device;
+    if (!this.mipmapper) {
+      const module = d.createShaderModule({ label: 'Mipmaps', code: mipmapShader });
+      this.mipmapper = {
+        sampler: d.createSampler({ magFilter: 'linear', minFilter: 'linear' }),
+        pipeline: d.createRenderPipelineAsync({
+          layout: 'auto',
+          vertex: { module, entryPoint: 'mipVS' },
+          fragment: { module, entryPoint: 'mipFS', targets: [{ format: texture.format }] },
+          primitive: { topology: 'triangle-list' },
+        }),
+      };
+    }
+    const pipeline = await this.mipmapper.pipeline,
+      encoder = d.createCommandEncoder({ label: 'Mipmaps' });
+    for (let mip = 1; mip < texture.mipLevelCount; mip++) {
+      const pass = encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: texture.createView({ baseMipLevel: mip, mipLevelCount: 1 }),
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      });
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(
+        0,
+        d.createBindGroup({
+          layout: pipeline.getBindGroupLayout(0),
+          entries: [
+            {
+              binding: 0,
+              resource: texture.createView({ baseMipLevel: mip - 1, mipLevelCount: 1 }),
+            },
+            { binding: 1, resource: this.mipmapper.sampler },
+          ],
+        }),
+      );
+      pass.draw(3);
+      pass.end();
+    }
+    d.queue.submit([encoder.finish()]);
   }
   resize() {
     const rect = this.canvas.getBoundingClientRect(),

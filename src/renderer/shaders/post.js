@@ -53,3 +53,14 @@ export const bloomShader = `
   return vec4f(c/12.,1.);
  }
  `;
+// Downsamples one mip level into the next; bilinear sampling at half size averages 2x2 texels.
+export const mipmapShader = `
+ struct MipVertex { @builtin(position) clip:vec4f, @location(0) uv:vec2f };
+ @group(0) @binding(0) var source:texture_2d<f32>;
+ @group(0) @binding(1) var linearSampler:sampler;
+ @vertex fn mipVS(@builtin(vertex_index) i:u32)->MipVertex{
+  let p=vec2f(f32((i<<1u)&2u),f32(i&2u))*2.-1.;
+  var o:MipVertex;o.clip=vec4f(p,0.,1.);o.uv=vec2f(p.x*.5+.5,.5-p.y*.5);return o;
+ }
+ @fragment fn mipFS(o:MipVertex)->@location(0) vec4f{return textureSample(source,linearSampler,o.uv);}
+ `;

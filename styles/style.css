@@ -1200,7 +1200,12 @@ html[lang='ru'] .selecting-level .menu-panel h1 {
   display: block;
   width: 100%;
   height: 100%;
+}
+/* Rotating the HTML box (not the SVG) keeps the animation on the compositor,
+   so the gear turns even while the main thread builds the scene. */
+#loading-spinner {
   animation: loading-gear-spin 2.4s linear infinite;
+  will-change: transform;
 }
 @keyframes loading-gear-spin {
   to {
@@ -1208,7 +1213,7 @@ html[lang='ru'] .selecting-level .menu-panel h1 {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  #loading-spinner svg {
+  #loading-spinner {
     animation: none;
   }
 }
@@ -1221,6 +1226,13 @@ html[lang='ru'] .selecting-level .menu-panel h1 {
   color: #c6b38e;
   white-space: pre-line;
   overflow-wrap: anywhere;
+}
+#loading-detail {
+  min-height: 1.4em;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #8f8166;
+  font-variant-numeric: tabular-nums;
 }
 #loading-progress {
   display: block;
