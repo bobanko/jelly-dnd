@@ -9,3 +9,5 @@ export const PORTAL_LIMIT = Levels.limits.portals,
   FINISH_OFFSET = BODY_SLOTS_OFFSET + 8,
   GOAL_SLOTS_OFFSET = FINISH_OFFSET + 4,
   SCENE_FLOATS = GOAL_SLOTS_OFFSET + 8;
+// Floating dust motes at 100% density; the developer slider goes up to 300%.
+export const DUST_MOTES = 128;

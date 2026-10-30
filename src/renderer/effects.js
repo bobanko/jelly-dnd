@@ -1,5 +1,5 @@
 import { bridgePose } from '../world/level-features.js';
-import { PORTAL_LIMIT } from './layout.js';
+import { PORTAL_LIMIT, DUST_MOTES } from './layout.js';
 import { dot } from './math.js';
 import { sphere, rod } from './mesh.js';
 import { beamColors } from './geometry/mobs.js';
@@ -159,34 +159,53 @@ export const effectsMethods = {
     if (beams.length)
       this.device.queue.writeBuffer(this.beamBuffer, 0, this.beamData.buffer, 0, beams.length * 48);
   },
+  // Motes fill the air around the whole level, past its edges, not only above its floor.
   buildDust(world) {
     const blocks = world.blocks || [],
-      occupied = new Set(blocks.map((b) => `${b.x},${b.y},${b.z}`)),
-      surfaces = blocks.length
-        ? blocks.filter((b) => !occupied.has(`${b.x},${b.y + 1},${b.z}`))
+      cells = blocks.length
+        ? blocks
         : [...world.floor].map((key) => {
             const [x, z] = key.split(',').map(Number);
             return { x, y: world.heightAt(x, z) ?? 0, z };
-          });
-    this.dustCount = surfaces.length ? 64 : 0;
+          }),
+      solid = new Set(blocks.map((b) => `${b.x},${b.y},${b.z}`));
+    this.dustCount = cells.length ? DUST_MOTES : 0;
+    if (!cells.length) return;
+    const margin = 4,
+      bounds = cells.reduce(
+        (r, c) => ({
+          minX: Math.min(r.minX, c.x),
+          maxX: Math.max(r.maxX, c.x),
+          minY: Math.min(r.minY, c.y),
+          maxY: Math.max(r.maxY, c.y),
+          minZ: Math.min(r.minZ, c.z),
+          maxZ: Math.max(r.maxZ, c.z),
+        }),
+        {
+          minX: Infinity,
+          maxX: -Infinity,
+          minY: Infinity,
+          maxY: -Infinity,
+          minZ: Infinity,
+          maxZ: -Infinity,
+        },
+      );
     let seed = 41;
     const random = () => {
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
       return seed / 4294967296;
     };
     for (let i = 0; i < this.dustData.length / 4; i++) {
-      const surface = surfaces[Math.floor(random() * surfaces.length)];
-      this.dustData.set(
-        [
-          surface.x + (random() - 0.5) * 0.8,
-          surface.y + 0.35 + random() * 2.2,
-          surface.z + (random() - 0.5) * 0.8,
-          random() * Math.PI * 2,
-        ],
-        i * 4,
-      );
+      let x, y, z;
+      // Motes inside masonry would only be hidden by the depth test.
+      do {
+        x = bounds.minX - margin + random() * (bounds.maxX - bounds.minX + margin * 2);
+        y = bounds.minY - 1 + random() * (bounds.maxY - bounds.minY + 5);
+        z = bounds.minZ - margin + random() * (bounds.maxZ - bounds.minZ + margin * 2);
+      } while (solid.has(`${Math.round(x)},${Math.ceil(y)},${Math.round(z)}`));
+      this.dustData.set([x, y, z, random() * Math.PI * 2], i * 4);
     }
-    if (this.dustCount) this.device.queue.writeBuffer(this.dustBuffer, 0, this.dustData);
+    this.device.queue.writeBuffer(this.dustBuffer, 0, this.dustData);
   },
   drawEffects(pass, level, effectCount) {
     pass.setBindGroup(0, this.sceneGroup);

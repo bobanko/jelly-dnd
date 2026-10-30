@@ -85,11 +85,15 @@ export const shared = `
   let corners=array<vec2f,6>(vec2f(-1,-1),vec2f(1,-1),vec2f(1,1),vec2f(-1,-1),vec2f(1,1),vec2f(-1,1));let uv=corners[vertex];
   let phase=mote.w;let t=scene.options.z*.24*scene.options.w+phase;
   let drift=vec3f(sin(t)*.28,sin(t*.73+phase)*.16,cos(t*.85)*.28);
+  // Every mote fades in, drifts and fades out, then reappears at another nearby spot.
+  let cycle=t*.11+fract(phase*.37);let life=fract(cycle);let respawn=floor(cycle)+phase*17.;
+  let jump=(fract(sin(vec3f(respawn,respawn*1.37,respawn*2.11))*43758.55)-.5)*vec3f(3.,1.4,3.);
+  let fade=smoothstep(0.,.2,life)*(1.-smoothstep(.7,1.,life));
   let right=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));let up=normalize(vec3f(scene.vp[0].y,scene.vp[1].y,scene.vp[2].y));
   let size=.028+.022*fract(phase*13.71);var o:Out;
-  o.world=mote.xyz+drift+(right*uv.x+up*uv.y)*size;o.clip=scene.vp*vec4f(o.world,1.);
+  o.world=mote.xyz+jump+drift+(right*uv.x+up*uv.y)*size;o.clip=scene.vp*vec4f(o.world,1.);
   o.normal=vec3f(0,1,0);o.color=mix(vec3f(.8,.56,.25),vec3f(1.,.85,.53),fract(phase*7.13));
-  o.material=0.;o.local=vec3f(uv,.28+.16*(.5+.5*sin(t*.8+phase)));return o;
+  o.material=0.;o.local=vec3f(uv,(.28+.16*(.5+.5*sin(t*.8+phase)))*fade);return o;
  }
  @fragment fn dustFS(o:Out)->@location(0) vec4f{
   let radius=dot(o.local.xy,o.local.xy);let core=exp(-radius*18.);let halo=exp(-radius*4.)*(1.-smoothstep(.5,1.,sqrt(radius)));

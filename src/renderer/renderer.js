@@ -10,6 +10,7 @@ import {
   FINISH_OFFSET,
   GOAL_SLOTS_OFFSET,
   SCENE_FLOATS,
+  DUST_MOTES,
 } from './layout.js';
 import { dot, normalize, viewMatrix, cameraFrame } from './math.js';
 import { assemblyDropOffset } from './assembly.js';
@@ -297,7 +298,7 @@ class Renderer {
         attributes: [{ shaderLocation: 4, offset: 0, format: 'float32x4' }],
       },
     ]);
-    this.dustData = new Float32Array(192 * 4);
+    this.dustData = new Float32Array(DUST_MOTES * 3 * 4);
     this.dustBuffer = d.createBuffer({
       size: this.dustData.byteLength,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,

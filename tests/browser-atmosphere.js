@@ -72,7 +72,7 @@ try {
   await page.screenshot({ path: 'artifacts/atmosphere-grain-on.png' });
   await page.locator('#film-grain').uncheck();
   assert.equal(await page.locator('#ambient-dust').isChecked(), true);
-  assert.equal(await page.evaluate(() => sceneRenderer.dustCount), 64);
+  assert.equal(await page.evaluate(() => sceneRenderer.dustCount), 128);
   assert.ok(await page.evaluate(() => [...sceneRenderer.dustData].every(Number.isFinite)));
   await page.locator('#dust-density').fill('40');
   await page.locator('#dust-speed').fill('150');
@@ -92,7 +92,7 @@ try {
       sceneRenderer.dustSpeed,
       sceneRenderer.dustData.length / 4,
     ]),
-    [3, 4, 3, 4, 192],
+    [3, 4, 3, 4, 384],
   );
   const features = await page.evaluate(() => JSON.stringify(world.featureSnapshot())),
     dustSample = () => page.screenshot({ clip: { x: 150, y: 160, width: 650, height: 450 } });
