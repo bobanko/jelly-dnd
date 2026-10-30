@@ -2033,29 +2033,74 @@ body:has(#win:not([hidden])) #run-skulls {
 }
 /* Victory: skulls pop in one after another, then the lost ones crack in turn. */
 #win:not([hidden]) #win-skulls .run-skull {
-  animation: win-skull-in 0.42s cubic-bezier(0.2, 0.8, 0.3, 1.35) var(--appear) both;
+  animation: win-skull-in 0.5s linear var(--appear) both;
 }
 #win:not([hidden]) #win-skulls .run-skull.cracked {
   animation:
-    win-skull-in 0.42s cubic-bezier(0.2, 0.8, 0.3, 1.35) var(--appear) both,
+    win-skull-in 0.5s linear var(--appear) both,
     win-skull-crack 0.5s cubic-bezier(0.3, 0.7, 0.4, 1) var(--crack) both;
 }
 #win:not([hidden]) #win-skulls .cracked .skull-crack {
   animation: win-crack-line 0.12s linear var(--crack) both;
 }
+/* Each skull drops towards the screen from the viewer's side, lands with a slight
+   squash and a flash ring, like level stars in mobile games. */
 @keyframes win-skull-in {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.4);
+    transform: scale(3.2);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.5);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(0.86);
+    filter: brightness(1.9) drop-shadow(0 0 14px #ffd27a);
+    animation-timing-function: ease-out;
+  }
+  86% {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+#win-skulls .run-skull {
+  position: relative;
+}
+#win:not([hidden]) #win-skulls .run-skull::after {
+  content: '';
+  position: absolute;
+  inset: -80%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    transparent 0 34%,
+    #ffe7a8cc 42%,
+    #ffd27a44 52%,
+    transparent 64%
+  );
+  opacity: 0;
+  pointer-events: none;
+  animation: win-skull-flash 0.45s ease-out calc(var(--appear) + 0.35s) both;
+}
+@keyframes win-skull-flash {
+  from {
+    opacity: 1;
+    transform: scale(0.35);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.25);
   }
 }
 @keyframes win-skull-crack {
+  /* No opacity here: before it starts it must not override the drop-in fade. */
   from {
     color: #e9c46a;
-    opacity: 1;
     filter: drop-shadow(0 0 6px #e9a83a88) drop-shadow(0 2px 0 #0008);
   }
   20% {
+    opacity: 1;
     color: #fff3cf;
     transform: scale(1.25) rotate(-10deg);
     filter: drop-shadow(0 0 14px #ffd27a);
@@ -2077,6 +2122,7 @@ body:has(#win:not([hidden])) #run-skulls {
 }
 @media (prefers-reduced-motion: reduce) {
   #win:not([hidden]) #win-skulls .run-skull,
+  #win:not([hidden]) #win-skulls .run-skull::after,
   #win:not([hidden]) #win-skulls .cracked .skull-crack {
     animation: none;
   }
