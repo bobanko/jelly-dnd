@@ -315,6 +315,7 @@ export const shared = `
   let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);let h=normalize(v+l);
   var color=o.color;var metalWear=0.;
   let uv=o.local.xz;let dx=dpdx(uv);let dy=dpdy(uv);
+  let pixel=max(length(dpdx(o.world)),length(dpdy(o.world)));
   let spikeMetal=o.material>26.5&&o.material<28.5;
   if(spikeMetal){
    // Face-local UVs keep pitting and tool marks attached while spikes slide or mount on walls.
@@ -347,9 +348,16 @@ export const shared = `
   if(o.material>15.5&&o.material<16.5){
    let axes=array<vec2f,4>(vec2f(0,1),vec2f(1,0),vec2f(0,-1),vec2f(-1,0));let axis=axes[min(u32(round(o.local.x)),3u)];
    let across=dot(o.world.xz-round(o.world.xz),vec2f(axis.y,-axis.x));let track=dot(o.world.xz,axis)-scene.options.z*o.local.z;
-   let groove=1.-smoothstep(.02,.055,abs(fract(track*5.)-.5));
-   let chevron=(1.-smoothstep(.035,.065,abs(fract((track+abs(across)*.7)*2.)-.5)))*(1.-smoothstep(.2,.24,abs(across)));
-   color=mix(vec3f(.18,.23,.18),vec3f(.035,.05,.04),groove)+chevron*vec3f(.55,.38,.12);
+   // Three tread plates per tile with wave-shaped seams, a lit leading bevel and an
+   // engraved chevron pointing the way the belt moves.
+   let w=clamp(across/.38,-1.,1.);let plate=track*3.+.16*(1.-w*w);let f=fract(plate);
+   let seam=1.-smoothstep(.025,.075,min(f,1.-f));let bevel=smoothstep(.06,.1,f)*(1.-smoothstep(.1,.2,f));
+   let grit=textureSampleGrad(stoneAtlas,materialSampler,vec2f(across*.9,fract(plate*.37))*.5+.25,dx,dy).rgb;
+   let wear=clamp(dot(grit,vec3f(.25,.6,.15))*3.,.7,1.2);
+   let arrow=abs(f-.72+.62*abs(w));let aa=max(pixel*3.,.004);
+   let chevron=(1.-smoothstep(.09-aa,.09+aa,arrow))*(1.-smoothstep(.5,.56,abs(w)))*(1.-seam);
+   color=o.color*wear*(1.+bevel*.9)*(1.-seam*.82);
+   color=mix(color,vec3f(.78,.46,.16)*(.85+.15*wear),chevron);
   }
   let lit=dungeonLight(o.world,n,n.y,1.);let light=lit.light;let marks=lit.marks;
   var result=color*light;

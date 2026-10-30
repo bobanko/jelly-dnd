@@ -17,6 +17,7 @@ import {
   spike,
   portalRing,
   pressureSurface,
+  conveyorTile,
 } from './geometry/mechanisms.js';
 import { goalRune } from './geometry/runes.js';
 export const propsMethods = {
@@ -559,34 +560,12 @@ export const propsMethods = {
           dx = belt.dx || 0,
           dz = belt.dz ?? 1,
           code = dx > 0 ? 1 : dx < 0 ? 3 : dz < 0 ? 2 : 0;
-        box(mesh, [0, 0.005, 0], [0.78, 0.018, 1], [0.18, 0.23, 0.18], 0.004, 16, 2);
-        for (let k = from; k < mesh.length; k += 12) {
-          mesh[k + 10] = code;
-          mesh[k + 11] = belt.speed ?? 0.85;
-        }
-        for (const side of [-1, 1]) {
-          box(mesh, [side * 0.435, 0.019, 0], [0.065, 0.045, 1], [0.22, 0.25, 0.23], 0.01, 12, 2);
-          for (const z of [-0.31, 0.31])
-            box(
-              mesh,
-              [side * 0.435, 0.046, z],
-              [0.026, 0.012, 0.027],
-              [0.5, 0.43, 0.29],
-              0.004,
-              12,
-              1,
-            );
-          if (!level.world.conveyorJoined(belt, side))
-            box(
-              mesh,
-              [0, 0.012, side * 0.46],
-              [0.8, 0.055, 0.075],
-              [0.24, 0.26, 0.23],
-              0.018,
-              12,
-              2,
-            );
-        }
+        conveyorTile(mesh, {
+          code,
+          speed: belt.speed ?? 0.85,
+          openBack: !level.world.conveyorJoined(belt, -1),
+          openFront: !level.world.conveyorJoined(belt, 1),
+        });
         for (let k = from; k < mesh.length; k += 12)
           for (const offset of [0, 3]) {
             const x = mesh[k + offset],

@@ -1,4 +1,5 @@
 import { cross, normalize } from '../math.js';
+import { box } from '../mesh.js';
 export const spikeTints = [
   [0.16, 0.75, 0.09],
   [0.045, 0.24, 0.95],
@@ -184,5 +185,34 @@ export function pressureSurface(mesh, center, profile, color, material, tile = 0
         ...vertex(b, r0, y0),
       );
     }
+  }
+}
+// One straight conveyor tile in local space, moving towards +z. The belt's plates,
+// seams and chevrons are drawn by solidFS (material 16); rails, rivets and the end
+// rollers are geometry. Rollers close only the ends that do not join another belt.
+export function conveyorTile(mesh, { code, speed, openBack, openFront }) {
+  const iron = [0.16, 0.14, 0.12],
+    bronze = [0.34, 0.25, 0.15],
+    from = mesh.length;
+  box(mesh, [0, 0.007, 0], [0.76, 0.022, 1], [0.13, 0.12, 0.11], 0.004, 16, 2);
+  for (let k = from; k < mesh.length; k += 12) {
+    mesh[k + 10] = code;
+    mesh[k + 11] = speed;
+  }
+  for (const side of [-1, 1]) {
+    box(mesh, [side * 0.425, 0.024, 0], [0.075, 0.05, 1], iron, 0.014, 1, 2);
+    box(mesh, [side * 0.425, 0.05, 0], [0.05, 0.008, 1], bronze, 0.003, 1, 1);
+    for (const z of [-0.33, 0, 0.33])
+      box(mesh, [side * 0.425, 0.055, z], [0.024, 0.012, 0.024], [0.62, 0.48, 0.28], 0.01, 1, 2);
+  }
+  for (const [end, open] of [
+    [-1, openBack],
+    [1, openFront],
+  ]) {
+    if (!open) continue;
+    // A rounded roller across the belt end, with bolt heads on both rails.
+    box(mesh, [0, 0.032, end * 0.455], [0.8, 0.07, 0.07], iron, 0.034, 1, 4);
+    for (const side of [-1, 1])
+      box(mesh, [side * 0.425, 0.034, end * 0.455], [0.08, 0.08, 0.08], bronze, 0.04, 1, 4);
   }
 }
