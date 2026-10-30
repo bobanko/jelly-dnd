@@ -20,6 +20,7 @@ import {
   conveyorTile,
 } from './geometry/mechanisms.js';
 import { goalRune } from './geometry/runes.js';
+import { skullGeometry } from './geometry/skull.js';
 export const propsMethods = {
   buildProps(level, players) {
     const pieces = [],
@@ -27,35 +28,13 @@ export const propsMethods = {
       bone = [0.88, 0.84, 0.65],
       dark = [0.018, 0.035, 0.027],
       r = [1, 0, 0],
-      front = [0, 0, 1],
-      basis = [r, [0, 1, 0], front];
+      front = [0, 0, 1];
     const append = (kind, index, mesh, extra = {}) =>
       pieces.push({ kind, index, data: new Float32Array(mesh), ...extra });
     for (let i = 0; i < players.length; i++) {
       const mesh = [],
         center = [0, 0, 0];
-      sphere(mesh, center, [0.145, 0.14, 0.126], bone, 1, basis);
-      sphere(
-        mesh,
-        [center[0], center[1] - 0.115, center[2]],
-        [0.095, 0.055, 0.095],
-        bone,
-        1,
-        basis,
-      );
-      for (const sign of [-1, 1]) {
-        const eye = center.map((v, k) => v + front[k] * 0.108 + r[k] * sign * 0.055);
-        eye[1] += 0.022;
-        sphere(mesh, eye, [0.036, 0.043, 0.022], dark, 1, basis);
-      }
-      const nose = center.map((v, k) => v + front[k] * 0.125);
-      nose[1] -= 0.042;
-      sphere(mesh, nose, [0.019, 0.022, 0.012], dark, 1, basis);
-      for (const t of [-1, 0, 1]) {
-        const tooth = center.map((v, k) => v + front[k] * 0.085 + r[k] * t * 0.047);
-        tooth[1] -= 0.152;
-        sphere(mesh, tooth, [0.018, 0.022, 0.022], bone, 1, basis);
-      }
+      skullGeometry(mesh, { bone, dark });
       for (const sign of [-1, 1]) {
         const tilt = sign * 0.38,
           axis = r.map((v, k) => v * Math.cos(tilt) + (k === 1 ? Math.sin(tilt) : 0)),

@@ -3,6 +3,7 @@ import { cross, normalize } from '../math.js';
 import { box, lowSphere, sphere, rod } from '../mesh.js';
 import { arrowGeometry } from './equipment.js';
 import { pressureSurface } from './mechanisms.js';
+import { skullGeometry, placeMesh } from './skull.js';
 // ===== Decor =====
 // Faceted pebble: a jittered octahedron, flat-shaded.
 export function pebble(mesh, center, size, color, seed, angle) {
@@ -68,25 +69,11 @@ export function decorBone(mesh, center, length, angle, color) {
       );
 }
 export function decorSkull(mesh, center, angle, bone) {
-  const s = 1.3,
-    f = [Math.sin(angle), 0, Math.cos(angle)],
-    r = [f[2], 0, -f[0]],
-    at = (a, b, c) => center.map((v, k) => v + (r[k] * a + f[k] * c + (k === 1 ? b : 0)) * s),
-    dark = [0.02, 0.018, 0.014],
-    size = (v) => v.map((x) => x * s);
-  sphere(mesh, at(0, 0.07, 0), size([0.075, 0.068, 0.082]), bone, 1, null, lowSphere);
-  sphere(mesh, at(0, 0.028, 0.045), size([0.05, 0.026, 0.045]), bone, 13, null, lowSphere);
-  for (const side of [-1, 1])
-    sphere(
-      mesh,
-      at(side * 0.03, 0.078, 0.068),
-      size([0.021, 0.023, 0.016]),
-      dark,
-      13,
-      null,
-      lowSphere,
-    );
-  sphere(mesh, at(0, 0.052, 0.079), size([0.01, 0.012, 0.008]), dark, 13, null, lowSphere);
+  // The shared skull at decor size, resting on the floor and turned towards `angle`.
+  const from = mesh.length,
+    scale = 0.66;
+  skullGeometry(mesh, { bone, dark: [0.02, 0.018, 0.014], scale });
+  placeMesh(mesh, from, [center[0], center[1] + 0.17 * scale, center[2]], angle);
 }
 export function decorArrow(mesh, center, angle) {
   const from = mesh.length,

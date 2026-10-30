@@ -1075,8 +1075,7 @@ function refreshLanguage() {
       if (letter.toLowerCase() === 'o' || letter === 'о') {
         const skull = document.createElement('span');
         skull.className = 'title-skull';
-        skull.innerHTML =
-          '<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path fill="currentColor" d="M32 2C14 2 3 14 3 31c0 12 5 20 14 24v13h30V55c9-4 14-12 14-24C61 14 50 2 32 2Z"/><g fill="#151819"><ellipse cx="20" cy="32" rx="9" ry="11" transform="rotate(-14 20 32)"/><ellipse cx="44" cy="32" rx="9" ry="11" transform="rotate(14 44 32)"/><path d="m32 42-5 10h10Z"/><path d="M24 59h3v11h-3zm13 0h3v11h-3z"/></g></svg>';
+        skull.innerHTML = skullSvg();
         bones.append(skull);
       } else bones.append(document.createTextNode(letter));
     }
@@ -1139,6 +1138,23 @@ function statIcon(kind, slot) {
     '</svg>';
   return icon;
 }
+// One skull drawing for the title and every skull counter; `crack` adds a hidden crack line.
+function skullSvg(crack = false) {
+  return (
+    '<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">' +
+    // Vault and face, cheek shading and a highlight on the crown.
+    '<path fill="currentColor" d="M32 3C17 3 6 13 6 28c0 7 2 12 5 15l1 7c0 3 3 5 6 5h2v5c0 3 2 5 5 5h14c3 0 5-2 5-5v-5h2c3 0 6-2 6-5l1-7c3-3 5-8 5-15C58 13 47 3 32 3Z"/>' +
+    '<path fill="#000" fill-opacity=".2" d="M8 34c1 6 4 10 8 12l-1 5c-4-3-7-9-7-17Zm48 0c-1 6-4 10-8 12l1 5c4-3 7-9 7-17ZM20 51h24v3H20Z"/>' +
+    '<path fill="#fff" fill-opacity=".3" d="M16 13c8-7 24-7 32 0-9-4-23-4-32 0Z"/>' +
+    // Slanted sockets, a heart-shaped nasal cavity, the mouth line and gaps between teeth.
+    '<g fill="#151819"><path d="M11 31c0-6 5-9 10-9 6 0 10 3 10 8 0 6-4 10-10 10-6 0-10-4-10-9Z"/><path d="M53 31c0-6-5-9-10-9-6 0-10 3-10 8 0 6 4 10 10 10 6 0 10-4 10-9Z"/><path d="M32 40c-2 0-5 5-5 8 0 2 2 2 5 0 3 2 5 2 5 0 0-3-3-8-5-8Z"/><path d="M20 56h24v2H20Z"/></g>' +
+    '<path fill="none" stroke="#151819" stroke-width="1.6" d="M26 53v9M32 53v10M38 53v9"/>' +
+    (crack
+      ? '<path class="skull-crack" d="M35 3 29 15l7 7-9 9 4 6" fill="none" stroke="#151819" stroke-width="3.5" stroke-linejoin="round"/>'
+      : '') +
+    '</svg>'
+  );
+}
 // The team starts each run with three golden skulls; every death cracks one. The level
 // counts as complete either way, and the best number kept is remembered per level.
 const RUN_SKULLS = 3;
@@ -1149,8 +1165,7 @@ function skullIcon(intact) {
   const icon = document.createElement('span');
   icon.className = 'run-skull' + (intact ? '' : ' cracked');
   icon.setAttribute('aria-hidden', 'true');
-  icon.innerHTML =
-    '<svg viewBox="0 0 64 72" focusable="false"><path fill="currentColor" d="M32 2C14 2 3 14 3 31c0 12 5 20 14 24v13h30V55c9-4 14-12 14-24C61 14 50 2 32 2Z"/><g fill="#151819"><ellipse cx="20" cy="32" rx="9" ry="11" transform="rotate(-14 20 32)"/><ellipse cx="44" cy="32" rx="9" ry="11" transform="rotate(14 44 32)"/><path d="m32 42-5 10h10Z"/><path d="M24 59h3v11h-3zm13 0h3v11h-3z"/></g><path class="skull-crack" d="M35 3 29 15l7 7-9 9 4 6" fill="none" stroke="#151819" stroke-width="3.5" stroke-linejoin="round"/></svg>';
+  icon.innerHTML = skullSvg(true);
   return icon;
 }
 function skullRow(host, kept) {

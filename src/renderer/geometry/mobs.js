@@ -1,6 +1,7 @@
 import { cross, normalize } from '../math.js';
 import { box, sphere, rod } from '../mesh.js';
 import { pressureSurface } from './mechanisms.js';
+import { skullGeometry, placeMesh } from './skull.js';
 export const beamColors = [
   [0.12, 1, 0.16],
   [0.035, 0.22, 1],
@@ -115,16 +116,18 @@ export function archerGeometry() {
       joint(a, w * 0.65);
       joint(b, w * 0.65);
     };
-  // Skull, separate jaw, sockets, nasal cavity and individual teeth.
-  sphere(mesh, [0, 1.04, 0], [0.158, 0.17, 0.14], bone);
-  sphere(mesh, [0, 0.905, 0.025], [0.108, 0.065, 0.108], bone);
-  for (const s of [-1, 1]) {
-    sphere(mesh, [s * 0.061, 1.06, 0.125], [0.046, 0.052, 0.025], dark);
-    sphere(mesh, [s * 0.061, 1.06, 0.148], [0.012, 0.016, 0.009], [1.6, 0.38, 0.035], 4);
-  }
-  sphere(mesh, [0, 0.996, 0.14], [0.022, 0.028, 0.012], dark);
-  for (const x of [-0.067, -0.022, 0.022, 0.067])
-    box(mesh, [x, 0.922, 0.12], [0.027, 0.037, 0.024], bone, 0.005, 1, 2);
+  // The shared skull, with embers glowing in its sockets.
+  const skullFrom = mesh.length,
+    sockets = skullGeometry(mesh, { bone, dark, scale: 1.12 });
+  for (const socket of sockets)
+    sphere(
+      mesh,
+      [socket[0], socket[1], socket[2] + 0.024],
+      [0.012, 0.016, 0.009],
+      [1.6, 0.38, 0.035],
+      4,
+    );
+  placeMesh(mesh, skullFrom, [0, 1.02, 0]);
   limb([0, 0.41, 0], [0, 0.88, 0], 0.055);
   for (let i = 0; i < 4; i++)
     for (const s of [-1, 1]) {
