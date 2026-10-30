@@ -3,18 +3,30 @@ export const skin = `
  @group(1) @binding(1) var backFaces:texture_2d<f32>;
  @group(1) @binding(2) var linearSampler:sampler;
  // Embedded ivory marks use rest coordinates, so they stretch with the actual gel.
- fn inlay(p:vec3f)->f32{
-  // Opposites sum to seven: +Y/-Y = 1/6, +Z/-Z = 2/5, +X/-X = 3/4.
+ fn inlay(p:vec3f)->f32{return pipShape(p).x;}
+ // Dice face of a rest-space point and its 2D face coordinates; opposite faces sum to seven:
+ // +Y/-Y = 1/6, +Z/-Z = 2/5, +X/-X = 3/4. Returns (mask, offset from the nearest pip centre / radius).
+ fn pipShape(p:vec3f)->vec3f{
   let a=abs(p);var face=p.xy;var count=select(5u,2u,p.z>=0.);
   if(a.x>=a.y&&a.x>=a.z){face=p.zy;count=select(4u,3u,p.x>=0.);}
   else if(a.y>=a.z){face=p.xz;count=select(6u,1u,p.y>=0.);}
-  var distance=10.;
-  if(count%2u==1u){distance=length(face);}
-  if(count==2u||count==3u){distance=min(distance,min(length(face-vec2f(-.185)),length(face-vec2f(.185))));}
-  if(count>=4u){distance=min(distance,length(abs(face)-vec2f(.185)));}
-  if(count==6u){distance=min(distance,length(vec2f(abs(face.x)-.185,face.y)));}
+  var nearest=vec2f(10.);
+  if(count%2u==1u){nearest=face;}
+  if(count==2u||count==3u){
+   for(var k=-1.;k<=1.;k+=2.){let d=face-vec2f(k*.185);if(length(d)<length(nearest)){nearest=d;}}
+  }
+  if(count>=4u){let d=(abs(face)-vec2f(.185))*sign(face);if(length(d)<length(nearest)){nearest=d;}}
+  if(count==6u){let d=vec2f((abs(face.x)-.185)*sign(face.x),face.y);if(length(d)<length(nearest)){nearest=d;}}
+  let radius=.058;let distance=length(nearest);
   let aa=max(.0015,fwidth(distance)*.8);
-  return 1.-smoothstep(.041-aa,.041+aa,distance);
+  return vec3f(1.-smoothstep(radius-aa,radius+aa,distance),nearest/radius);
+ }
+ // Projects a direction onto the same 2D face frame pipShape uses for this point.
+ fn faceFrame(p:vec3f,v:vec3f)->vec2f{
+  let a=abs(p);
+  if(a.x>=a.y&&a.x>=a.z){return v.zy;}
+  if(a.y>=a.z){return v.xz;}
+  return v.xy;
  }
  @fragment fn backFS(o:Out)->@location(0) vec4f{return vec4f(o.world,1.+inlay(o.local));}
  @fragment fn skinFS(o:Out)->@location(0) vec4f{
@@ -33,9 +45,18 @@ export const skin = `
   let background=textureSampleLevel(behind,linearSampler,refractedUV,0.).rgb;
   var color=background*transmission+pigment*(1.-transmission)*.55;
   let farInlay=clamp(exit.w-1.,0.,1.);
-  color=mix(color,vec3f(.65,.6,.33)*transmission+pigment*.11,farInlay*.22);
-  let frontInlay=inlay(o.local);
-  color=mix(color,vec3f(.72,.68,.42)*(.76+.24*max(0.,dot(n,normalize(scene.light.xyz-o.world))))+pigment*.07,frontInlay*.83);
+  color=mix(color,vec3f(.85,.82,.75)*transmission+pigment*.11,farInlay*.3);
+  // White pips read as concave dimples: the wall facing the light is bright, the near wall
+  // falls into shadow, a dark ring marks the edge and a small glint sits inside.
+  let pip=pipShape(o.local);let toLight=normalize(scene.light.xyz-o.world);
+  let lightDir=faceFrame(o.local,toLight);let lf=lightDir/max(length(lightDir),.001);
+  let q=pip.yz;let r=min(length(q),1.);
+  // The rim on the light's side casts a crescent shadow into the hollow.
+  let shadow=smoothstep(.5,1.02,length(q-lf*.42));
+  let litWall=smoothstep(.62,1.,r)*max(0.,-dot(q,lf))*.45;
+  let edge=1.-.35*smoothstep(.86,1.,r);let glint=exp(-dot(q+lf*.5,q+lf*.5)*18.)*.3;
+  let dimple=vec3f(.97,.95,.9)*(1.-.62*shadow)*edge*(.8+.2*max(0.,dot(n,toLight)))+vec3f(litWall+glint);
+  color=mix(color,dimple+pigment*.04,pip.x*.96);
   let f=.025+.975*pow(1.-max(0.,dot(n,-ray)),5.);
   color=mix(color,environment(reflect(ray,n)),min(.85,f*.78+.025));
   color+=pigment*pow(1.-max(0.,dot(n,-ray)),3.)*.34;
