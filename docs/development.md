@@ -50,6 +50,23 @@ npm run audio -- jelly-land
 
 Проверка утилиты без сети и кредитов: `node --test tests/elevenlabs.test.js`.
 
+## Векторизация изображений через Vectorizer.AI
+
+Локальная утилита `scripts/vectorize.js` переводит PNG/JPEG/WebP-референсы в SVG через [Vectorizer.AI API](https://vectorizer.ai/api/documentation). Используется при разработке (заголовок игры, иконки клавиш и мыши и т.п.); браузер ключей не видит, в игру попадают только готовые SVG.
+
+1. Скопируйте `.env.vectorizer.example` в `.env.vectorizer` и заполните `VECTORIZER_API_ID` и `VECTORIZER_API_SECRET` из личного кабинета. Не отправляйте ключи в чат.
+2. `npm run vectorize -- --check` проверяет ключи и показывает остаток кредитов.
+
+```sh
+npm run vectorize -- ref/title.png --preset title              # бесплатно, с водяным знаком
+npm run vectorize -- ref/title.png --preset title --production # 1 кредит, чистый SVG
+npm run vectorize -- ref/mouse.png --preset icon --set processing.max_colors=3 --dry-run
+```
+
+По умолчанию запрос идёт в режиме `test`: он бесплатный, поддерживает все параметры, но результат с водяным знаком, поэтому сохраняется в `artifacts/vectorize/<имя>.test.svg` (вне Git). Так удобно подбирать параметры; в выводе указано, сколько стоил бы production-запуск. `--production` сохраняет результат в `assets/icons/<имя>.svg` и не перезаписывает существующий файл без `--force` (проверка выполняется до траты кредита). Пресеты `title`, `icon`, `mono` находятся в `scripts/vectorize-presets.json`; `--set key=value` передаёт любой параметр API, например `processing.palette` для подгонки цветов под палитру игры. Автоматических повторов нет.
+
+Проверка утилиты без сети и кредитов: `node --test tests/vectorize.test.js`.
+
 ## Форматирование кода
 
 Prettier настроен для JavaScript, JSON, HTML и CSS: отступы в 2 пробела, одинарные кавычки в JavaScript, точки с запятой и окончания строк LF.

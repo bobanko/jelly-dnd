@@ -7,6 +7,7 @@
   "private": true,
   "scripts": {
     "audio": "node scripts/elevenlabs.js",
+    "vectorize": "node scripts/vectorize.js",
     "format": "prettier --write \"**/*.{js,mjs,cjs,json,html,css}\"",
     "format:check": "prettier --check \"**/*.{js,mjs,cjs,json,html,css}\"",
     "start": "node scripts/server.js",

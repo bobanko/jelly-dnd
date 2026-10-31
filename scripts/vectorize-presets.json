@@ -1,0 +1,19 @@
+{
+  "title": {
+    "processing.max_colors": 16,
+    "processing.shapes.min_area_px": 1,
+    "output.group_by": "color",
+    "output.shape_stacking": "stacked"
+  },
+  "icon": {
+    "processing.max_colors": 6,
+    "processing.shapes.min_area_px": 2,
+    "output.group_by": "color",
+    "output.shape_stacking": "stacked"
+  },
+  "mono": {
+    "processing.max_colors": 1,
+    "processing.shapes.min_area_px": 2,
+    "output.gap_filler.enabled": false
+  }
+}

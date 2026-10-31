@@ -6,3 +6,4 @@ playwright-report/
 dist/
 .env*
 !.env.elevenlabs.example
+!.env.vectorizer.example
