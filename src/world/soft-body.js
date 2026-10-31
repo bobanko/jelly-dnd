@@ -196,6 +196,14 @@ function boxRest(width) {
 const LARGE_WIDTH = 0.94;
 const crateRest = boxRest(WIDTH),
   largeRest = boxRest(LARGE_WIDTH);
+// Bottom nodes of a box lattice, and how far an overhanging sliding crate slips per solver
+// iteration (about 5 cells per second, well above a jelly's push).
+const SLIDE_BASE = [];
+for (let z = 0; z <= RES; z++) for (let x = 0; x <= RES; x++) SLIDE_BASE.push(index(x, 0, z));
+// A respawning crate reappears this far above its spawn and falls into place.
+const CRATE_RESPAWN_DROP = 0.9;
+const SLIP_STEP = 0.008,
+  SLIDE_INSET = 0.06;
 // Height of a body's lattice centre above its feet (p.y).
 const bodyLift = (p) => (p.kind === 'crate' && p.large ? LARGE_WIDTH / 2 + 0.04 : 0.42);
 function group(ids, points = rest) {
@@ -508,16 +516,14 @@ class System {
   }
   contacts(world, p, b) {
     if (p.state === 'dead') return;
-    // A sliding crate cannot tip, so it rests on the floor only while its centre is over it;
-    // past an edge it drops straight down instead of hanging on a corner.
-    const floor =
-      !b.slides || world.heightAt(b.center[0], b.center[2], (p.y || 0) + 0.2, p) !== null;
+    const level = b.slides ? this.slideSupport(world, p, b) : null;
     for (let i = 0; i < NODE_COUNT; i++) {
       const node = b.positions[i];
       const height = world.heightAt(node[0], node[2], (p.y || 0) + 0.2, p),
         old = b.old[i];
       if (
-        floor &&
+        (level === null ||
+          (level !== false && height !== null && Math.abs(height - level) < 0.1)) &&
         height !== null &&
         height <= (p.y || 0) + 0.2 &&
         node[1] < height + 0.035 &&
@@ -552,6 +558,49 @@ class System {
         }
       }
     }
+  }
+  // A sliding crate cannot tip. It stands still while at least three quarters of its base
+  // (12 of the 16 bottom nodes) is over the highest surface beneath it. With between a quarter
+  // and three quarters it keeps resting there but slips towards the drop; with a quarter or
+  // less it falls (b.airborne), straight down. Returns the supporting height, or false.
+  slideSupport(world, p, b) {
+    // Only surfaces at or below its base hold it: a rim it has already sunk past is a wall.
+    const ceiling = b.center[1] - LARGE_WIDTH / 2 + 0.05,
+      // Sampled slightly inside the base, so a crate lined up over a one-cell pit (0.94 in
+      // 1.0) is not held up by a rim it only grazes.
+      heights = SLIDE_BASE.map((n) => {
+        const node = b.positions[n],
+          inset = 1 - SLIDE_INSET / (LARGE_WIDTH / 2);
+        return world.heightAt(
+          b.center[0] + (node[0] - b.center[0]) * inset,
+          b.center[2] + (node[2] - b.center[2]) * inset,
+          ceiling,
+          p,
+        );
+      }),
+      top = Math.max(...heights.map((h) => (h === null ? -Infinity : h))),
+      supported = heights.map((h) => h !== null && h > top - 0.1),
+      count = supported.filter(Boolean).length;
+    // One edge row of the base (or less) on a rim is not enough to hold it: it drops, and the
+    // small overlap with the rim is pushed out by the block collision on the way down.
+    b.airborne = count <= 4;
+    if (b.airborne) return false;
+    if (count < 12) {
+      let dx = 0,
+        dz = 0;
+      SLIDE_BASE.forEach((n, k) => {
+        if (supported[k]) return;
+        dx += b.positions[n][0] - b.center[0];
+        dz += b.positions[n][2] - b.center[2];
+      });
+      const length = Math.hypot(dx, dz);
+      if (length > 1e-6)
+        for (const node of b.positions) {
+          node[0] += (dx / length) * SLIP_STEP;
+          node[2] += (dz / length) * SLIP_STEP;
+        }
+    }
+    return top;
   }
   stackContact(pa, pb, a, b) {
     if (pa.state === 'dead' || pb.state === 'dead') return false;
@@ -708,9 +757,11 @@ class System {
         p.respawnTimer -= dt;
         const spawn = p.respawnTimer <= 0 && world.respawnPosition(p, players);
         if (spawn) {
+          // A crate is teleported back above its spawn and drops into place.
+          const crate = p.kind === 'crate';
           Object.assign(p, spawn, {
-            state: 'alive',
-            y: spawn.y || 0,
+            state: crate ? 'falling' : 'alive',
+            y: (spawn.y || 0) + (crate ? CRATE_RESPAWN_DROP : 0),
             vy: 0,
             vx: 0,
             vz: 0,
@@ -850,6 +901,11 @@ class System {
           v[k] = (node[k] - old[k]) * inverseDt;
           vcom[k] += v[k] / NODE_COUNT;
         }
+      }
+      // A sliding crate leaves a ledge only once clear of it, then drops straight down.
+      if (b.slides && b.airborne) {
+        vcom[0] = 0;
+        vcom[2] = 0;
       }
       if (b.support) {
         const support = this.get(b.support),

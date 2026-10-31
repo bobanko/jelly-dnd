@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { World } from '../src/world/physics.js';
 import * as Soft from '../src/world/soft-body.js';
 import L from '../src/world/levels.js';
+import * as P from '../src/world/physics.js';
 
 function scene(specs) {
   const floor = new Set();
@@ -72,12 +73,39 @@ test('a large crate pushed off a platform drops straight down and lands upright'
   assert.equal(g.bodies[1].state, 'alive');
 });
 
-test('a large crate stays on a ledge while its centre is over it', () => {
-  const g = scene([large({ x: 6.3, y: 1 })]);
+test('a large crate stands while at most a third of it overhangs a ledge', () => {
+  const g = scene([large({ x: 6.25, y: 1 })]);
   for (const x of [4, 5, 6]) for (const z of [3, 4, 5]) g.world.heights.set(`${x},${z}`, 1);
   g.step([], 240);
   assert.equal(g.bodies[0].state, 'alive');
   assert.ok(Math.abs(g.bodies[0].y - 1) < 0.05, 'still on the ledge: ' + g.bodies[0].y);
+});
+
+test('a large crate overhanging a ledge by more than a third slips off it', () => {
+  const g = scene([large({ x: 6.4, y: 1 })]);
+  for (const x of [4, 5, 6]) for (const z of [3, 4, 5]) g.world.heights.set(`${x},${z}`, 1);
+  g.step([], 300);
+  assert.ok(g.bodies[0].x > 6.9, 'slid off the edge: ' + g.bodies[0].x);
+  assert.ok(Math.abs(g.bodies[0].y) < 0.05, 'landed below: ' + g.bodies[0].y);
+  assert.equal(g.bodies[0].state, 'alive');
+});
+
+test('a large crate pushed into a one-cell pit fills it and can be walked over', () => {
+  const m = L.blank();
+  m.size = 10;
+  for (let x = 0; x < 10; x++)
+    for (let z = 0; z < 7; z++) if (x !== 5 || z !== 3) m.blocks.push({ x, y: 0, z });
+  m.blocks.push({ x: 5, y: -1, z: 3 });
+  m.crates.push({ x: 3, y: 0, z: 3, large: true });
+  m.spawns[0] = { x: 2, y: 0, z: 3 };
+  m.goals[0] = { x: 9, y: 0, z: 6 };
+  const r = L.instantiate(L.read(m), P, Soft),
+    crate = r.crates[0],
+    jelly = r.players[0];
+  for (let i = 0; i < 420; i++) r.world.step(r.bodies, [{ x: 1, z: 0 }]);
+  assert.ok(Math.abs(crate.x - 5) < 0.1 && Math.abs(crate.z - 3) < 0.1, 'centred in the pit');
+  assert.ok(Math.abs(crate.y + 1) < 0.05, 'resting on the pit floor: ' + crate.y);
+  assert.ok(jelly.x > 6.5 && jelly.state === 'alive', 'the jelly crossed: ' + jelly.x);
 });
 
 test('a jelly can ride on top of a large crate', () => {
@@ -98,4 +126,19 @@ test('map files keep the large flag and the small crate stays the default', () =
     [false, true],
   );
   assert.equal('large' in read.crates[0], false);
+});
+
+test('a destroyed crate is teleported back above its spawn and drops into place', () => {
+  for (const kind of [{}, { large: true }]) {
+    const g = scene([{ kind: 'crate', x: 6, ...kind, spawn: { x: 6, z: 4, y: 0 } }]),
+      crate = g.bodies[0];
+    g.step([], 60);
+    Object.assign(crate, { state: 'dead', respawnTimer: 0 });
+    g.step([], 1);
+    assert.equal(crate.state, 'falling', 'reappears in the air');
+    assert.ok(crate.y > 0.7, 'above its spawn: ' + crate.y);
+    g.step([], 200);
+    assert.equal(crate.state, 'alive');
+    assert.ok(Math.abs(crate.y) < 0.05 && Math.abs(crate.x - 6) < 0.05, 'landed on its spawn');
+  }
 });
