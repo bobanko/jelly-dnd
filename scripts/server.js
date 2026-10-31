@@ -38,6 +38,7 @@ http
           '.js': 'text/javascript',
           '.json': 'application/json; charset=utf-8',
           '.png': 'image/png',
+          '.svg': 'image/svg+xml',
           '.mp3': 'audio/mpeg',
         }[path.extname(file)] || 'application/octet-stream',
       );
