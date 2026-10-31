@@ -64,7 +64,7 @@ class Renderer {
     this.pillars = true;
     this.underglow = true;
     // Jellies hidden behind masonry: 'halo' dissolves the stone in front, 'silhouette'
-    // draws their outline over it, 'off' leaves them hidden.
+    // draws their tinted shape over it, 'outline' only the cube's edges, 'off' hides them.
     this.seeThrough = 'halo';
     this.revealAmounts = [];
     this.depthGlowColor = 'warm';
@@ -274,10 +274,20 @@ class Renderer {
     this.skin = pipeline('softVS', 'skinFS');
     this.back = pipeline('softVS', 'backFS', 'front', 1, 'greater');
     // Only where the jelly is behind something already drawn; never writes depth.
-    this.silhouettePipeline = pipeline('softVS', 'silhouetteFS', 'back', 4, 'greater', false, {
+    const overlay = {
       color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
-    });
+    };
+    this.silhouettePipeline = pipeline(
+      'softVS',
+      'silhouetteFS',
+      'back',
+      4,
+      'greater',
+      false,
+      overlay,
+    );
+    this.outlinePipeline = pipeline('softVS', 'outlineFS', 'back', 4, 'greater', false, overlay);
     this.effectPipeline = pipeline('solidVS', 'effectFS', 'back', 4, 'less', false, {
       color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
@@ -1057,8 +1067,10 @@ class Renderer {
       opaque.draw(bridgeDraw.opaqueCount);
     }
     // Before props: what is drawn later in front of the wall still covers the silhouette.
-    if (this.seeThrough === 'silhouette' && !assembling) {
-      opaque.setPipeline(this.silhouettePipeline);
+    if ((this.seeThrough === 'silhouette' || this.seeThrough === 'outline') && !assembling) {
+      opaque.setPipeline(
+        this.seeThrough === 'outline' ? this.outlinePipeline : this.silhouettePipeline,
+      );
       opaque.setIndexBuffer(this.indexBuffer, 'uint32');
       players.forEach((p, i) => {
         if (

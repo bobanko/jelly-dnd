@@ -43,7 +43,7 @@ try {
   });
   await page.waitForTimeout(2000);
   const shots = {};
-  for (const mode of ['halo', 'silhouette', 'off']) {
+  for (const mode of ['halo', 'silhouette', 'outline', 'off']) {
     await page.evaluate((mode) => (sceneRenderer.seeThrough = mode), mode);
     await page.waitForTimeout(1200);
     const amounts = await page.evaluate(() => sceneRenderer.revealAmounts);
@@ -55,13 +55,14 @@ try {
         amounts.every((v) => v < 0.01),
         mode + ' never opens the stone',
       );
-    shots[mode] = await page.screenshot();
+    shots[mode] = await page.screenshot({ path: `artifacts/see-through-${mode}.png` });
   }
-  assert.ok(!shots.halo.equals(shots.off) && !shots.silhouette.equals(shots.off));
+  for (const mode of ['halo', 'silhouette', 'outline']) assert.ok(!shots[mode].equals(shots.off));
+  assert.ok(!shots.outline.equals(shots.silhouette));
   assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: halo opens masonry only in front of fully hidden jellies (under the floor and behind a wall), silhouette draws through stone, off hides them; no GPU errors.',
+    'PASS: halo opens masonry only in front of fully hidden jellies (under the floor and behind a wall), silhouette and outline draw through stone, off hides them; no GPU errors.',
   );
 } finally {
   await browser.close();

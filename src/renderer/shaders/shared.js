@@ -327,13 +327,10 @@ export const shared = `
  }
  // See-through halo: masonry in front of a hidden jelly dissolves in a screen-space disc
  // around it. An ordered dither keeps this an opaque pass; the floor it stands on stays.
- // Returns a glow in the jelly's colour for the rim of the opening.
- fn halo(frag:vec4f,world:vec3f)->vec3f{
+ fn halo(frag:vec4f,world:vec3f){
   let right=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));
   let bayer=array<f32,16>(0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.);
   let cell=vec2u(frag.xy)%4u;let threshold=(bayer[cell.y*4u+cell.x]+.5)/16.;
-  let colors=array<vec3f,5>(vec3f(.045,.72,.095),vec3f(.025,.15,.95),vec3f(.95,.055,.025),vec3f(.58,.045,.92),vec3f(.95,.61,.025));
-  var glow=vec3f(0.);
   for(var i=0u;i<5u;i++){
    let r=scene.reveal[i];
    if(r.w<=0.||world.y<r.y-.3){continue;}
@@ -344,14 +341,11 @@ export const shared = `
    let edge=vec2f(e.x/e.w*.5+.5,.5-e.y/e.w*.5)*scene.options.xy;
    let d=length(frag.xy-centre)/max(length(edge-centre),1.);
    if(1.-r.w*(1.-smoothstep(.84,.96,d))<threshold){discard;}
-   let slot=u32(scene.bodySlots[i/4u][i%4u]);
-   glow+=colors[min(slot,4u)]*r.w*smoothstep(.84,.97,d)*(1.-smoothstep(.97,1.25,d))*.4;
   }
-  return glow;
  }
  // Dedicated pass for the static masonry keeps the heavier stone code out of solidFS.
  @fragment fn stoneFS(o:Out)->@location(0) vec4f{
-  let rim=halo(o.clip,o.world);
+  halo(o.clip,o.world);
   let normal=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let h=normalize(v+normalize(scene.light.xyz-o.world));
   let uv=o.local.xz;let dx=dpdx(uv);let dy=dpdy(uv);let dp1=dpdx(o.world);let dp2=dpdy(o.world);
   let atlas=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;let value=dot(atlas,vec3f(.25,.6,.15));
@@ -363,7 +357,7 @@ export const shared = `
   let deep=scene.finish.y-o.world.y;
   let flicker=.8+.2*sin(scene.options.z*1.3+o.world.x*.9+o.world.z*1.3);
   let underglow=scene.depthGlow.rgb*smoothstep(2.5,7.,deep)*(1.-smoothstep(8.,11.,deep))*(.15+.85*max(0.,-normal.y)+.2*(1.-abs(normal.y)))*flicker*scene.depthGlow.w*stone.albedo*.9;
-  return vec4f(voidFog(o.world,result+lit.marks)+underglow+rim,1.);
+  return vec4f(voidFog(o.world,result+lit.marks)+underglow,1.);
  }
  // Silhouette of a jelly behind masonry (drawn with depthCompare 'greater'): a tinted fill
  // with a bright rim, so its shape and colour read through the wall.
@@ -372,6 +366,15 @@ export const shared = `
   let v=select(normalize(vec3f(scene.vp[0].z,scene.vp[1].z,scene.vp[2].z)),normalize(scene.eye.xyz-o.world),scene.eye.w>.5);
   let rim=pow(1.-abs(dot(n,v)),2.);
   return vec4f(o.color*(.5+1.6*rim),.28+.5*rim);
+ }
+ // Outline variant: only the cube's edges, found from the unrounded rest-space surface point
+ // (two coordinates at the cube's half size), with no fill on the faces.
+ @fragment fn outlineFS(o:Out)->@location(0) vec4f{
+  let a=abs(o.local)/.38;
+  let e=max(max(min(a.x,a.y),min(a.y,a.z)),min(a.x,a.z));
+  let aa=max(fwidth(e),.002);let line=smoothstep(.92-aa,.92+aa,e);
+  if(line<.01){discard;}
+  return vec4f(o.color*2.2,line*.95);
  }
  @fragment fn solidFS(o:Out)->@location(0) vec4f{
   let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);let h=normalize(v+l);
