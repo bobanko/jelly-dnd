@@ -444,7 +444,7 @@ function issues(map) {
           result.push(`Настенным шипам ${p.x}, ${p.y}, ${p.z} нужен блок крепления.`);
         continue;
       }
-      if (!tile(p)) result.push(`Нет пола под объектом ${p.x}, ${p.z}.`);
+      if (key !== 'bridges' && !tile(p)) result.push(`Нет пола под объектом ${p.x}, ${p.z}.`);
       if (at(map.walls, p)) result.push(`Объект ${p.x}, ${p.z} перекрыт стеной.`);
       if (key !== 'bridges' && at(map.bridges, p))
         result.push(`Объект ${p.x}, ${p.z} стоит на мосту.`);

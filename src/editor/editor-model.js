@@ -70,9 +70,12 @@ export class Model {
           ) < 0.01),
     );
   }
-  cube(x, y, z) {
+  layer(y) {
     if (!Number.isInteger(y) || y < -2 || y > 12)
       throw new Error('Слой Y должен быть целым от −2 до 12.');
+  }
+  cube(x, y, z) {
+    this.layer(y);
     let p = this.at('blocks', x, z, y);
     if (!p) {
       if (this.map.blocks.length >= levelFormat.limits.blocks)
@@ -176,7 +179,9 @@ export class Model {
     if (!existing && this.map[key].length >= levelFormat.limits[key])
       throw new Error('Достигнут лимит объектов.');
     if (key === 'portals' && existing?.color === tool.slice(7)) return;
-    this.cube(x, y, z);
+    // A bridge spans its cell on its own; everything else stands on a stone cube.
+    if (key === 'bridges') this.layer(y);
+    else this.cube(x, y, z);
     const groups = surface.includes(key)
       ? surface
       : props.includes(key)
@@ -383,7 +388,8 @@ export class Model {
       if (voxel) {
         if (key === 'blocks') {
           if (!Number.isInteger(height)) throw new Error('Y должен быть целым.');
-        } else if (key !== 'drones') this.cube(x, height, z);
+        } else if (key === 'bridges') this.layer(height);
+        else if (key !== 'drones') this.cube(x, height, z);
         const delta = height - (p.y || 0);
         Object.assign(p, { x, y: height, z });
         if (key === 'walls') p.base += delta;

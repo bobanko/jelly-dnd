@@ -160,3 +160,20 @@ test('lift and portal support their selected XYZ layer, with an independent lowe
   );
   assert.deepEqual(L.issues(m.map), []);
 });
+
+test('a bridge is placed on its own, without a stone cube in its cell', () => {
+  const m = new Model(room());
+  m.change(() => m.erase(4, 3, 0));
+  const cubes = m.map.blocks.length;
+  m.change(() => m.paint('plate', 2, 2, { y: 0 }));
+  m.change(() => m.paint('bridge', 4, 3, { y: 0 }));
+  assert.equal(m.map.blocks.length, cubes, 'no cube added under the bridge');
+  assert.equal(m.map.bridges.length, 1);
+  assert.ok(!L.issues(m.map).some((issue) => issue.includes('Нет пола')));
+  const r = runtime(m.map),
+    bridge = r.world.bridges[0];
+  bridge.progress = 1;
+  assert.ok(Math.abs(r.world.heightAt(4, 3, 1) - 0) < 0.05, 'the lowered deck is the floor');
+  bridge.progress = 0;
+  assert.equal(r.world.heightAt(4, 3, 1), null, 'a raised bridge leaves a gap');
+});
