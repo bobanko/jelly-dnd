@@ -18,13 +18,22 @@ const L = JellyLevels,
   $ = (id) => document.getElementById(id);
 let startupError = '';
 const filenameKey = 'jelly-dnd.editor.filename';
-let sourceFilename = JellyLevelCatalog?.standard[0] || null;
-let initial = L.standardLevel(1);
+let requestedLevel = 0;
 try {
-  const saved = localStorage.getItem(L.DRAFT_KEY);
-  if (saved) {
-    initial = L.read(saved);
-    sourceFilename = localStorage.getItem(filenameKey) || null;
+  requestedLevel = Number(sessionStorage.getItem(L.EDITOR_LEVEL_KEY));
+  sessionStorage.removeItem(L.EDITOR_LEVEL_KEY);
+  if (!Number.isInteger(requestedLevel) || !JellyLevelCatalog.standard[requestedLevel - 1])
+    requestedLevel = 0;
+} catch {}
+let sourceFilename = JellyLevelCatalog?.standard[requestedLevel ? requestedLevel - 1 : 0] || null;
+let initial = L.standardLevel(requestedLevel || 1);
+try {
+  if (!requestedLevel) {
+    const saved = localStorage.getItem(L.DRAFT_KEY);
+    if (saved) {
+      initial = L.read(saved);
+      sourceFilename = localStorage.getItem(filenameKey) || null;
+    }
   }
 } catch (error) {
   startupError = 'Черновик не удалось открыть: ' + error.message;

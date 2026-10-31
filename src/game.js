@@ -1209,6 +1209,14 @@ function currentLevelTitle() {
     name = JellyLevels.displayName(definition, JellyI18n?.language);
   return id ? `${id}. ${name}` : name;
 }
+function openEditor() {
+  const id = menuOnly ? 0 : currentStandardLevel();
+  try {
+    if (id) globalThis.sessionStorage?.setItem(JellyLevels.EDITOR_LEVEL_KEY, String(id));
+    else globalThis.sessionStorage?.removeItem(JellyLevels.EDITOR_LEVEL_KEY);
+  } catch {}
+  navigate('editor.html', '', 'loadingEditor');
+}
 function formatRunTime(seconds) {
   const n = Math.floor((seconds + 1e-9) * 100);
   return `${Math.floor(n / 6000)}:${String(Math.floor(n / 100) % 60).padStart(2, '0')}.${String(n % 100).padStart(2, '0')}`;
@@ -1491,8 +1499,7 @@ if (JellyI18n) {
     hasPlayed ? setMenu(false) : showMenuScreen('levels');
   document.querySelector('#show-levels').onclick = () => showMenuScreen('levels');
   document.querySelector('#levels-back').onclick = () => showMenuScreen('root');
-  document.querySelector('#open-editor').onclick = () =>
-    navigate('editor.html', '', 'loadingEditor');
+  document.querySelector('#open-editor').onclick = openEditor;
   // Leaving a level for the title screen ends the current run.
   document.querySelector('#exit-to-menu').hidden = menuOnly;
   document.querySelector('#exit-to-menu').onclick = () => navigate('./', '', 'loadingMenu');

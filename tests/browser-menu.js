@@ -181,10 +181,10 @@ import assert from 'node:assert/strict';
         typeof previewRenderer !== 'undefined' &&
         previewRenderer.ready,
     );
-    // The editor opens the first campaign map on first use.
+    // Opening the editor from a paused campaign run carries over that campaign map.
     assert.equal(
       await page.evaluate(() => model.map.name),
-      await page.evaluate(() => L.standardLevel(1).name),
+      await page.evaluate((id) => L.standardLevel(id).name, levelCount),
     );
     await page.goto('http://localhost:3000/?level=editor');
     await page.waitForFunction(() => typeof sceneRenderer !== 'undefined' && sceneRenderer.ready);

@@ -2,7 +2,8 @@ import { levelPillars } from './pillars.js';
 import * as campaign from '../../levels/catalog.js';
 // Shared editable map format. No live physics state is stored in level files.
 const DRAFT_KEY = 'jelly-dnd.editor.v1',
-  PLAY_KEY = 'jelly-dnd.play.v1';
+  PLAY_KEY = 'jelly-dnd.play.v1',
+  EDITOR_LEVEL_KEY = 'jelly-dnd.editor.open-level';
 const copy = (value) => JSON.parse(JSON.stringify(value));
 const characters = [
   { name: 'Мох', color: '#9ddd56', glyph: 'ᛉ', keys: 'W A S D' },
@@ -619,6 +620,7 @@ function forGame(storage, search = '') {
 const api = {
   DRAFT_KEY,
   PLAY_KEY,
+  EDITOR_LEVEL_KEY,
   characters,
   portalColors,
   portalColor,
@@ -644,6 +646,7 @@ export default api;
 export {
   DRAFT_KEY,
   PLAY_KEY,
+  EDITOR_LEVEL_KEY,
   characters,
   portalColors,
   portalColor,
