@@ -53,11 +53,14 @@ export async function loadLevels({
     catalog.standard.forEach((file, index) => {
       const $button = document.createElement('button');
       $button.dataset.level = String(index + 1);
-      $button.append(String(index + 1).padStart(2, '0') + ' ');
+      const $label = document.createElement('span');
+      $label.className = 'level-label';
+      $label.append(String(index + 1).padStart(2, '0'));
       const $name = document.createElement('span');
       $name.dataset.levelName = String(index + 1);
       $name.textContent = Levels.displayName(maps[index + 1], i18n?.language);
-      $button.append($name);
+      $label.append($name);
+      $button.append($label);
       $list.append($button);
     });
   }

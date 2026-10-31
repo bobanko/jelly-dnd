@@ -1346,35 +1346,41 @@ function handleWinKey(e) {
 function updateLevelLocks() {
   document.querySelectorAll('[data-level]').forEach((button) => {
     const locked = JellyProgress && !JellyProgress.canPlay(Number(button.dataset.level));
-    let best = button.querySelector('.level-best');
+    let stats = button.querySelector('.level-stats');
+    if (!stats) {
+      stats = document.createElement('span');
+      stats.className = 'level-stats';
+      button.append(stats);
+    }
+    let best = stats.querySelector('.level-best');
     if (!best) {
       best = document.createElement('span');
       best.className = 'level-best';
-      button.append(best);
+      stats.append(best);
     }
     const seconds = JellyProgress?.bestTime(Number(button.dataset.level));
     const value = seconds == null ? '\u2014' : formatRunTime(seconds);
     best.replaceChildren(statIcon('timer'), document.createTextNode(value));
     best.setAttribute('aria-label', tr('bestTime') + ': ' + value);
     const kept = JellyProgress?.bestSkulls?.(Number(button.dataset.level)) ?? null;
-    let skulls = button.querySelector('.level-skulls');
+    let skulls = stats.querySelector('.level-skulls');
     if (!skulls) {
       skulls = document.createElement('span');
       skulls.className = 'level-skulls';
-      best.after(skulls);
+      stats.append(skulls);
     }
     skulls.hidden = kept === null;
     if (kept !== null) skullRow(skulls, kept);
     button.disabled = !!locked;
     button.classList.toggle('locked', !!locked);
-    let icon = button.querySelector('.level-lock');
+    let icon = stats.querySelector('.level-lock');
     if (!icon) {
       icon = document.createElement('span');
       icon.className = 'level-lock';
       icon.setAttribute('aria-hidden', 'true');
       icon.innerHTML =
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
-      button.append(icon);
+      stats.append(icon);
     }
     icon.hidden = !locked;
   });

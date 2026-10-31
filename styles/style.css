@@ -954,7 +954,7 @@ footer {
   color: #fff0ce;
   box-shadow: inset 4px 0 #e2bb75;
 }
-.level-list button span {
+.level-list [data-level-name] {
   margin-left: 14px;
 }
 #levels-back {
@@ -1480,7 +1480,7 @@ html[lang='ru'] .menu-panel h1 {
     font-size: 24px;
     padding: 8px 14px;
   }
-  .level-list button span {
+  .level-list [data-level-name] {
     margin-left: 10px;
   }
   #levels-back {
@@ -1554,6 +1554,7 @@ html[lang='ru'] .menu-panel h1 {
 .selecting-level .menu-panel {
   display: flex;
   flex-direction: column;
+  width: min(760px, 50vw);
   height: 100%;
   min-height: 0;
   max-height: 100%;
@@ -1579,6 +1580,19 @@ html[lang='ru'] .menu-panel h1 {
 }
 .level-list button {
   flex-shrink: 0;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.level-label {
+  display: inline-flex;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.level-stats {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-left: auto;
 }
 #levels-back {
   flex-shrink: 0;
@@ -1601,6 +1615,9 @@ html[lang='ru'] .menu-panel h1 {
 @media (max-width: 600px) {
   #main-menu.selecting-level {
     padding-bottom: 90px;
+  }
+  .selecting-level .menu-panel {
+    width: 100%;
   }
 }
 /* Menu title, help cards and a readable loading indicator. */
