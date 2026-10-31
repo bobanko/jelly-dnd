@@ -61,6 +61,24 @@ test('mechanism audio follows physical button transitions and bridge extension o
   assert.deepEqual(sounds.update(world, [body]), []);
 });
 
+test('lift audio follows each new movement direction once', () => {
+  const lift = { x: 2, z: 3, height: 0 },
+    world = { plates: [], bridges: [], lifts: [lift], held: new Set() },
+    sounds = new MechanismSounds();
+  sounds.reset(world, []);
+  lift.height = 0.1;
+  assert.equal(sounds.update(world, [])[0].name, 'liftUp');
+  lift.height = 0.2;
+  assert.deepEqual(sounds.update(world, []), []);
+  assert.deepEqual(sounds.update(world, []), []);
+  lift.height = 0.1;
+  assert.equal(sounds.update(world, [])[0].name, 'liftDown');
+  lift.height = 0;
+  assert.deepEqual(sounds.update(world, []), []);
+  sounds.reset(world, []);
+  assert.deepEqual(sounds.update(world, []), []);
+});
+
 test('jelly collision audio plays once when a new contact begins', () => {
   const players = [
       { x: 0, y: 0, z: 0, state: 'alive' },
@@ -161,7 +179,7 @@ test('samples preload once, deduplicate simultaneous traps, and stop on mute or 
   assert.equal(audio.play('land'), null);
   audio.setEnabled(true);
   await audio.loading;
-  assert.equal(fetch.mock.callCount(), 20);
+  assert.equal(fetch.mock.callCount(), 23);
   audio.setActive(false);
   assert.ok(started.every((source) => source.stopped));
   assert.equal(audio.play('portal'), null);
@@ -181,7 +199,7 @@ test('missing audio files do not prevent gameplay or cause deferred playback', a
   audio.setEnabled(true);
   await audio.loading;
   assert.equal(audio.play('land'), null);
-  assert.equal(warn.mock.callCount(), 20);
+  assert.equal(warn.mock.callCount(), 23);
 });
 
 test('quiet movement loops fade with their level and stop with gameplay', async (t) => {
@@ -285,7 +303,7 @@ test('rune ambience fades toward charge and stops with the game audio', async (t
   assert.equal(sources.length, 1);
   audio.setRuneLevel(0.75);
   assert.equal(sources.length, 2);
-  assert.ok(Math.abs(targets.at(-1).value - 0.48) < 1e-9);
+  assert.ok(Math.abs(targets.at(-1).value - 0.68) < 1e-9);
   assert.equal(targets.at(-1).constant, 0.18);
   const targetCount = targets.length;
   audio.setRuneLevel(0.75);

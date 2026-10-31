@@ -118,5 +118,23 @@
     "duration_seconds": 0.7,
     "loop": false,
     "prompt_influence": 0.7
+  },
+  "level-build": {
+    "text": "A three second cozy fantasy level assembly sequence. Several heavy stone blocks fly through soft air with low rounded whooshes and settle into place with muted stone thuds, building rhythmically from sparse to complete. End with one warm restrained low magical chord that gently signals the level is ready. Smooth background game sound, no crashes, debris, sharp impacts, bright fanfare, drums, voice or long reverb.",
+    "duration_seconds": 3.2,
+    "loop": false,
+    "prompt_influence": 0.7
+  },
+  "lift-up": {
+    "text": "A compact fantasy stone lift rising for about two seconds. Soft low mechanical stone movement with a smooth gently ascending pitch and subtle wooden tension, ending in a quiet padded stop. Restrained background game sound. No harsh grinding, alarm, metal screech, crash, voice, music or reverb.",
+    "duration_seconds": 2.2,
+    "loop": false,
+    "prompt_influence": 0.7
+  },
+  "lift-down": {
+    "text": "A compact fantasy stone lift descending for about two seconds. Soft low mechanical stone movement with a smooth gently descending pitch and subtle wooden release, ending in a quiet padded stop. Restrained background game sound. No harsh grinding, alarm, metal screech, crash, voice, music or reverb.",
+    "duration_seconds": 2.2,
+    "loop": false,
+    "prompt_influence": 0.7
   }
 }

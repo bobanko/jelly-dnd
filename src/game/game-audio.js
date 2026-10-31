@@ -9,8 +9,11 @@ const clips = {
   jellySlap: ['jelly-slap-2026-10-31T04-10-52-826Z.mp3', 0.24],
   jellyWobble: ['jelly-wobble-2026-10-31T04-10-50-817Z.mp3', 0.3],
   land: ['jelly-land-2026-10-29T00-18-45-533Z.mp3', 0.5],
+  levelBuild: ['level-build-2026-10-31T04-13-57-829Z.mp3', 0.36],
+  liftDown: ['lift-down-2026-10-31T04-14-02-593Z.mp3', 0.2],
+  liftUp: ['lift-up-2026-10-31T04-14-00-314Z.mp3', 0.2],
   portal: ['portal-2026-10-29T00-12-36-751Z.mp3', 0.38],
-  rune: ['finish-rune-2026-10-29T00-11-31-512Z.mp3', 0.48],
+  rune: ['finish-rune-2026-10-29T00-11-31-512Z.mp3', 0.68],
   skullCrack: ['skull-crack-2026-10-31T04-08-13-562Z.mp3', 0.42],
   rise: ['spikes-2026-10-28T23-57-14-327Z.mp3', 0.18],
   retract: ['spikes-retract-2026-10-28T23-57-21-491Z.mp3', 0.18],
@@ -49,6 +52,8 @@ export class MechanismSounds {
   reset(world, bodies) {
     this.plates = world.plates.map((plate) => this.platePressed(world, bodies, plate));
     this.bridges = world.bridges.map((_, i) => world.held.has(i));
+    this.liftHeights = (world.lifts || []).map((lift) => lift.height);
+    this.liftDirections = (world.lifts || []).map(() => 0);
   }
   platePressed(world, bodies, plate) {
     const height = plate.y ?? world.heightAt(plate.x, plate.z) ?? 0;
@@ -61,7 +66,7 @@ export class MechanismSounds {
     );
   }
   update(world, bodies) {
-    if (!this.plates || !this.bridges) this.reset(world, bodies);
+    if (!this.plates || !this.bridges || !this.liftHeights) this.reset(world, bodies);
     const events = [];
     world.plates.forEach((plate, i) => {
       const pressed = this.platePressed(world, bodies, plate);
@@ -74,6 +79,14 @@ export class MechanismSounds {
       if (extended && !this.bridges[i]) events.push({ name: 'bridge', object: bridge });
       if (!extended && this.bridges[i]) events.push({ name: 'bridgeRetract', object: bridge });
       this.bridges[i] = extended;
+    });
+    (world.lifts || []).forEach((lift, i) => {
+      const delta = lift.height - this.liftHeights[i],
+        direction = Math.abs(delta) < 1e-6 ? 0 : Math.sign(delta);
+      if (direction && direction !== this.liftDirections[i])
+        events.push({ name: direction > 0 ? 'liftUp' : 'liftDown', object: lift });
+      this.liftHeights[i] = lift.height;
+      this.liftDirections[i] = direction;
     });
     return events;
   }
@@ -172,6 +185,12 @@ export class GameAudio {
     this.loopLevels.clear();
     this.loopStates.clear();
     this.lastPlayed.clear();
+  }
+  stopSource(source) {
+    if (!source || !this.sources.has(source)) return;
+    source.stop();
+    this.sources.delete(source);
+    this.presentationSources.delete(source);
   }
   updateWind() {
     if (this.enabled && this.active && !this.wind) this.wind = this.play('wind');

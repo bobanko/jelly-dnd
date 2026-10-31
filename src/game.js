@@ -618,6 +618,7 @@ addEventListener('keydown', (e) => {
     e.preventDefault();
     if (won || e.repeat || heldKeys.has(k) || !JellyPhysics.alive(players[movementKeys[k][0]]))
       return;
+    stopLevelAssemblySound();
     level.assembly = null;
     focusPlayer(movementKeys[k][0]);
     if (!heldKeys.size) {
@@ -828,8 +829,16 @@ function startCameraIntro() {
 function crateFlashCenter(p, above) {
   return [p.x, (p.y || 0) + JellySoftBody.bodyLift(p) + above, p.z];
 }
+function stopLevelAssemblySound() {
+  if (!level.assembly) return;
+  gameAudio.stopSource(level.assembly.audioSource);
+  level.assembly.audioSource = null;
+  level.assembly.soundFinished = true;
+}
 function updateLevelAssembly(dt) {
   if (!level.assembly || loadingActive || menuOpen || document.hidden) return;
+  if (!level.assembly.audioSource && !level.assembly.soundFinished)
+    level.assembly.audioSource = gameAudio.playUI('levelBuild');
   level.assembly.progress = Math.min(1, level.assembly.progress + dt / LEVEL_ASSEMBLY_SECONDS);
   // Each jelly is summoned with a ring and sparks as it starts to grow in place.
   level.assembly.summoned ??= new Set();
@@ -1484,6 +1493,7 @@ function menuBackdrop() {
 }
 function setMenu(open) {
   const backdrop = menuBackdrop();
+  if (open) stopLevelAssemblySound();
   menuOpen = open;
   // Switching between the title scene and the level rebuilds the renderer's scene.
   if (backdrop !== menuBackdrop()) {

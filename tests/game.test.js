@@ -901,6 +901,39 @@ test('level assembly pauses gameplay clocks and hazards until complete and pause
   assert.ok(g.run('runSeconds') > 0);
 });
 
+class AssemblyTestAudio extends GameAudio.GameAudio {
+  setEnabled(enabled) {
+    this.enabled = enabled;
+  }
+  playUI(name) {
+    this.played ??= [];
+    const source = {
+      stop() {
+        this.stopped = true;
+      },
+    };
+    this.played.push({ name, source });
+    return source;
+  }
+  stopSource(source) {
+    source?.stop();
+  }
+}
+
+test('level assembly starts its sound once and movement stops it with the animation', async () => {
+  const g = await game({
+    map: defaultViewLevel(),
+    intro: true,
+    audioClass: AssemblyTestAudio,
+    storage: { getItem: () => 'true' },
+  });
+  g.run('updateLevelAssembly(.1);updateLevelAssembly(.1)');
+  assert.deepEqual(g.run('gameAudio.played.map(({name})=>name)'), ['levelBuild']);
+  g.key('w');
+  assert.equal(g.run('gameAudio.played[0].source.stopped'), true);
+  assert.equal(g.run('level.assembly'), null);
+});
+
 test('movement skips level assembly and restart replays it only when enabled', async () => {
   const g = await game({ map: defaultViewLevel(), intro: true });
   g.key('w');
