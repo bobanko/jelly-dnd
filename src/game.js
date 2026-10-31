@@ -1009,6 +1009,9 @@ document
   .querySelector('#colliders')
   .addEventListener('change', (e) => (sceneRenderer.colliders = e.target.checked));
 document
+  .querySelector('#object-colliders')
+  .addEventListener('change', (e) => (sceneRenderer.objectColliders = e.target.checked));
+document
   .querySelector('#film-grain')
   .addEventListener('change', (e) => (sceneRenderer.grain = e.target.checked));
 document

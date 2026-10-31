@@ -1966,7 +1966,8 @@ function previewTick(t) {
   if (previewDirty) rebuildPreview();
   previewRuntime.world.featureTime += dt;
   previewRuntime.world.stepSpikes(previewRuntime.bodies, dt);
-  previewRenderer.colliders = $('preview-colliders').checked;
+  // The editor's single toggle shows both the masonry and the object colliders.
+  previewRenderer.colliders = previewRenderer.objectColliders = $('preview-colliders').checked;
   previewRenderer.render(
     previewRuntime,
     previewRuntime.players,

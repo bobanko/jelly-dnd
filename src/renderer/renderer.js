@@ -42,6 +42,8 @@ const smoothstep = (a, b, x) => {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
+// Collider kinds that are level masonry: cubes, floor tiles (also under belts), walls.
+const STONE_COLLIDERS = new Set(['block', 'floor', 'conveyor', 'wall']);
 class Renderer {
   constructor(canvas, soft) {
     this.canvas = canvas;
@@ -1275,11 +1277,16 @@ class Renderer {
       lattice.draw(this.edgeCount, players.length);
       lattice.end();
     }
-    if (this.colliders || this.mesh) {
-      const lines = colliderLines([
-        ...level.world.debugBoxes(),
-        ...level.world.interactiveDebugBoxes(),
-      ]);
+    if (this.colliders || this.objectColliders) {
+      // Level colliders are the masonry only; everything else is the object overlay.
+      const stone = (box) => STONE_COLLIDERS.has(box.kind),
+        boxes = level.world.debugBoxes(),
+        lines = colliderLines([
+          ...(this.colliders ? boxes.filter(stone) : []),
+          ...(this.objectColliders
+            ? [...boxes.filter((box) => !stone(box)), ...level.world.interactiveDebugBoxes()]
+            : []),
+        ]);
       if (lines.byteLength > this.colliderBuffer.size) {
         this.colliderBuffer.destroy();
         this.colliderBuffer = d.createBuffer({
