@@ -697,7 +697,7 @@ function frame(t) {
   effects.step(dt, world, goals, players);
   updateGameCamera(dt);
   level.won = won;
-  if (menuOpen && menuScene) {
+  if (menuBackdrop()) {
     menuScene.animate(dt);
     const menuCamera = {
       x: 3.1,
@@ -894,7 +894,7 @@ sceneRenderer
       });
     });
     // Build and submit the actual scene before revealing it or accepting input.
-    if (menuOpen && menuScene) {
+    if (menuBackdrop()) {
       const menuCamera = {
         x: 3.1,
         z: 4.8,
@@ -1373,13 +1373,20 @@ function handleMenuKey(e) {
     else if (hasPlayed) setMenu(false);
   }
 }
+// The title scene with the archer stands behind the menu on the title page and before the
+// first play; a pause menu opened during play shows the level itself, frozen behind it.
+function menuBackdrop() {
+  return menuOpen && menuScene && (menuOnly || !hasPlayed);
+}
 function setMenu(open) {
-  if (menuOpen !== open) {
+  const backdrop = menuBackdrop();
+  menuOpen = open;
+  // Switching between the title scene and the level rebuilds the renderer's scene.
+  if (backdrop !== menuBackdrop()) {
     sceneRenderer.bridgeKey = undefined;
     sceneRenderer.propGeometryKey = undefined;
     sceneRenderer.decorationKey = undefined;
   }
-  menuOpen = open;
   stopInput();
   document.querySelector('#main-menu').hidden = !open;
   document.body?.classList.toggle('menu-open', open);
