@@ -179,8 +179,8 @@ export class Model {
     if (!existing && this.map[key].length >= levelFormat.limits[key])
       throw new Error('Достигнут лимит объектов.');
     if (key === 'portals' && existing?.color === tool.slice(7)) return;
-    // A bridge spans its cell on its own; everything else stands on a stone cube.
-    if (key === 'bridges') this.layer(y);
+    // Bridges and lifts fill their cell on their own; everything else stands on a stone cube.
+    if (key === 'bridges' || key === 'lifts') this.layer(y);
     else this.cube(x, y, z);
     const groups = surface.includes(key)
       ? surface
@@ -388,7 +388,7 @@ export class Model {
       if (voxel) {
         if (key === 'blocks') {
           if (!Number.isInteger(height)) throw new Error('Y должен быть целым.');
-        } else if (key === 'bridges') this.layer(height);
+        } else if (key === 'bridges' || key === 'lifts') this.layer(height);
         else if (key !== 'drones') this.cube(x, height, z);
         const delta = height - (p.y || 0);
         Object.assign(p, { x, y: height, z });

@@ -351,6 +351,13 @@ function read(input) {
   });
   if (new Set(map.pickups.map((p) => p.id)).size !== map.pickups.length)
     fail('Идентификаторы предметов должны быть уникальными.');
+  // Bridges and lifts fill their own cell. Older maps also kept a stone cube there, which
+  // play and rendering always ignored; drop it so the editor no longer shows or counts it.
+  map.blocks = map.blocks.filter(
+    (b) =>
+      !map.bridges.some((q) => q.x === b.x && q.z === b.z && (q.y ?? 0) === b.y) &&
+      !map.lifts.some((q) => q.x === b.x && q.z === b.z && q.base === b.y),
+  );
   return map;
 }
 function issues(map) {
@@ -444,7 +451,8 @@ function issues(map) {
           result.push(`Настенным шипам ${p.x}, ${p.y}, ${p.z} нужен блок крепления.`);
         continue;
       }
-      if (key !== 'bridges' && !tile(p)) result.push(`Нет пола под объектом ${p.x}, ${p.z}.`);
+      if (key !== 'bridges' && key !== 'lifts' && !tile(p))
+        result.push(`Нет пола под объектом ${p.x}, ${p.z}.`);
       if (at(map.walls, p)) result.push(`Объект ${p.x}, ${p.z} перекрыт стеной.`);
       if (key !== 'bridges' && at(map.bridges, p))
         result.push(`Объект ${p.x}, ${p.z} стоит на мосту.`);

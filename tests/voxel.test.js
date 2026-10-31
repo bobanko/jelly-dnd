@@ -177,3 +177,19 @@ test('a bridge is placed on its own, without a stone cube in its cell', () => {
   bridge.progress = 0;
   assert.equal(r.world.heightAt(4, 3, 1), null, 'a raised bridge leaves a gap');
 });
+
+test('lifts are placed without a cube, and old maps lose cubes hidden under bridges and lifts', () => {
+  const m = new Model(room());
+  m.change(() => m.erase(5, 5, 0));
+  const cubes = m.map.blocks.length;
+  m.change(() => m.paint('lift', 5, 5, { y: 0 }));
+  assert.equal(m.map.blocks.length, cubes, 'no cube added in the lift cell');
+  assert.ok(!L.issues(m.map).some((issue) => issue.includes('Нет пола')));
+  const old = room();
+  old.plates.push({ x: 2, y: 0, z: 2, id: 'p', color: 'red' });
+  old.bridges.push({ x: 4, y: 0, z: 3, plate: 'p' });
+  old.lifts.push({ x: 5, y: 0, z: 5, base: 0, top: 1 });
+  const read = L.read(JSON.stringify(old));
+  assert.equal(read.blocks.length, old.blocks.length - 2);
+  assert.ok(!read.blocks.some((b) => (b.x === 4 && b.z === 3) || (b.x === 5 && b.z === 5)));
+});
