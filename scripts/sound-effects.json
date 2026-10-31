@@ -136,5 +136,23 @@
     "duration_seconds": 2.2,
     "loop": false,
     "prompt_influence": 0.7
+  },
+  "torch-swoosh": {
+    "text": "One classic small fantasy torch ignition: a quick soft sweep of fire through air, then a warm rounded flame whoosh that catches and settles immediately. Smooth and restrained, close game sound. No match strike, explosion, roar, sharp crackle, voice, music or reverb.",
+    "duration_seconds": 1,
+    "loop": false,
+    "prompt_influence": 0.7
+  },
+  "portal-whoosh": {
+    "text": "One soft magical teleport whoosh for a small creature. Air folds inward with a smooth low airy sweep, passes through a warm spectral shimmer and releases in a short gentle outward whoosh. Rounded, mysterious and restrained. No coins, bells, glass, electric zap, explosion, voice, music or long reverb.",
+    "duration_seconds": 1.2,
+    "loop": false,
+    "prompt_influence": 0.7
+  },
+  "crystal-energy": {
+    "text": "Seamless quiet loop of a magical crystal emitting a continuous energy beam. Soft low electrical glow, smooth luminous hum and delicate flowing current with slow subtle movement. Calm background ambience, evenly sustained and unobtrusive. No crackling arcs, sharp zaps, alarm, melody, voice or dramatic changes.",
+    "duration_seconds": 8,
+    "loop": true,
+    "prompt_influence": 0.6
   }
 }

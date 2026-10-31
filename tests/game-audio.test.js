@@ -179,7 +179,7 @@ test('samples preload once, deduplicate simultaneous traps, and stop on mute or 
   assert.equal(audio.play('land'), null);
   audio.setEnabled(true);
   await audio.loading;
-  assert.equal(fetch.mock.callCount(), 23);
+  assert.equal(fetch.mock.callCount(), 24);
   audio.setActive(false);
   assert.ok(started.every((source) => source.stopped));
   assert.equal(audio.play('portal'), null);
@@ -199,7 +199,7 @@ test('missing audio files do not prevent gameplay or cause deferred playback', a
   audio.setEnabled(true);
   await audio.loading;
   assert.equal(audio.play('land'), null);
-  assert.equal(warn.mock.callCount(), 23);
+  assert.equal(warn.mock.callCount(), 24);
 });
 
 test('quiet movement loops fade with their level and stop with gameplay', async (t) => {

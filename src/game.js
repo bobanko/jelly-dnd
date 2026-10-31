@@ -472,6 +472,10 @@ function simulate(dt, elapsed = dt) {
           : level;
       }, 0),
     );
+    gameAudio.setLoopLevel(
+      'crystalEnergy',
+      world.droneBeams?.length ? Math.min(1, 0.65 + (world.droneBeams.length - 1) * 0.12) : 0,
+    );
     for (const { name, spike } of spikeSounds.update(world)) {
       const distance = Math.min(...players.map((p) => Math.hypot(p.x - spike.x, p.z - spike.z)));
       if (distance < 8) gameAudio.play(name, 1 / (1 + distance * 0.3));
