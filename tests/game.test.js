@@ -903,6 +903,21 @@ test('level assembly pauses gameplay clocks and hazards until complete and pause
   assert.ok(g.run('runSeconds') > 0);
 });
 
+test('initial jelly summons use each player respawn tone once', async () => {
+  const g = await game({ map: defaultViewLevel(), intro: true });
+  g.run(`
+    globalThis.spawnTones=[];
+    tone=frequency=>globalThis.spawnTones.push(frequency);
+    updateLevelAssembly(LEVEL_ASSEMBLY_SECONDS)
+  `);
+  const expected = Array.from({ length: g.run('players.length') }, (_, index) =>
+    index ? 400 : 300,
+  );
+  assert.equal(g.run('JSON.stringify(globalThis.spawnTones)'), JSON.stringify(expected));
+  g.run('updateLevelAssembly(1)');
+  assert.equal(g.run('JSON.stringify(globalThis.spawnTones)'), JSON.stringify(expected));
+});
+
 class AssemblyTestAudio extends GameAudio.GameAudio {
   setEnabled(enabled) {
     this.enabled = enabled;

@@ -186,6 +186,9 @@ function tone(freq) {
   if (audio.state === 'suspended') return;
   playProceduralSound(audio, { type: 'tone', frequency: freq });
 }
+function respawnTone(player) {
+  tone(player ? 400 : 300);
+}
 function woodHit(broken = false) {
   if (!audioOn) return;
   audio ??= new AudioContext();
@@ -472,7 +475,7 @@ function simulate(dt, elapsed = dt) {
         for (const key of heldKeys) if (movementKeys[key][0] === event.target) heldKeys.delete(key);
         input[event.target] = { x: 0, z: 0 };
         woodHit();
-      } else if (event.type === 'respawn') tone(event.player ? 400 : 300);
+      } else if (event.type === 'respawn') respawnTone(event.player);
       else if (event.type === 'portal') gameAudio.play('portal');
       else if (event.type === 'land') {
         gameAudio.play('land');
@@ -811,6 +814,7 @@ function updateLevelAssembly(dt) {
       return;
     level.assembly.summoned.add(i);
     effects.burst({ type: 'summon', player: i }, players, soft);
+    respawnTone(i);
   });
   // Crates are teleported in: a white flash above the cell they then drop onto.
   crates.forEach((p, i) => {
