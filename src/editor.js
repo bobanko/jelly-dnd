@@ -58,6 +58,7 @@ const groups = [
     'Объекты',
     [
       ['crate', '⊠', 'Ящик', '#cba778'],
+      ['crate-large', '⧈', 'Большой ящик', '#a98552'],
       ['archer', '☠', 'Лучник', '#ded3b2'],
       ['drone', '♜', 'Кристаллический дрон', '#c98cff'],
       ['shield', '◈', 'Щит', '#cba778'],
@@ -180,6 +181,24 @@ function toolIcon(id, glyph) {
         : '<text x="22" y="25" fill="currentColor" font-size="12" text-anchor="middle">' +
           glyph +
           '</text>');
+  else if (id === 'crate-large')
+    // Heavy crate: a full cube with braced boards and iron corner caps.
+    drawing =
+      cube +
+      '<path d="M3 11 16 30M16 18 3 23M16 30 29 11M16 18l13 5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-opacity=".75"/>' +
+      [
+        [16, 3],
+        [3, 10],
+        [29, 10],
+        [16, 17],
+        [3, 24],
+        [29, 24],
+        [16, 31],
+      ]
+        .map(
+          ([x, y]) => `<rect x="${x - 2}" y="${y - 2}" width="4" height="4" fill="currentColor"/>`,
+        )
+        .join('');
   else if (id.startsWith('spawn-'))
     drawing =
       cube +
@@ -1861,15 +1880,17 @@ function drawSpatialOverlay() {
   const y = hover.y ?? layer;
   square(hover, y + 0.045, color, fill, active !== 'select');
   const height =
-    active === 'crate' || active.startsWith('spawn-')
-      ? 0.84
-      : active === 'archer'
-        ? 1.2
-        : cubeTool(active) || moveObject?.key === 'blocks'
-          ? 1
-          : moveObject?.key === 'crates'
-            ? 0.84
-            : 0;
+    active === 'crate-large'
+      ? 0.98
+      : active === 'crate' || active.startsWith('spawn-')
+        ? 0.84
+        : active === 'archer'
+          ? 1.2
+          : cubeTool(active) || moveObject?.key === 'blocks'
+            ? 1
+            : moveObject?.key === 'crates'
+              ? 0.84
+              : 0;
   if (height) {
     const cube = cubeTool(active) || moveObject?.key === 'blocks',
       top = cube ? y + 0.045 : y + height,

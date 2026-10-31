@@ -116,9 +116,9 @@ function boxes(map) {
         add(
           { ...p, y, pickIndex },
           key,
-          key === 'archers' ? 0.26 : 0.4,
+          key === 'archers' ? 0.26 : p.large ? 0.48 : 0.4,
           y,
-          y + (key === 'archers' ? 1.2 : 0.84),
+          y + (key === 'archers' ? 1.2 : p.large ? 0.98 : 0.84),
         );
       }
   for (const key of ['goals', 'plates', 'bridges', 'lifts', 'portals', 'conveyors', 'pickups'])

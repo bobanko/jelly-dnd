@@ -109,8 +109,8 @@ function rotation(a) {
   }
   return r.every(Number.isFinite) ? r : ident();
 }
-function rounded(p, radius = RADIUS) {
-  const b = WIDTH / 2 - radius,
+function rounded(p, radius = RADIUS, width = WIDTH) {
+  const b = width / 2 - radius,
     c = p.map((v) => Math.max(-b, Math.min(b, v))),
     d = sub(p, c),
     l = len(d);
@@ -174,20 +174,30 @@ for (let z = 0; z < RES; z++)
           }
       }
     }
-const crateRest = [];
-for (let z = 0; z <= RES; z++)
-  for (let y = 0; y <= RES; y++)
-    for (let x = 0; x <= RES; x++)
-      crateRest.push(
-        rounded(
-          [
-            (x / RES) * WIDTH - WIDTH / 2,
-            (y / RES) * WIDTH - WIDTH / 2,
-            (z / RES) * WIDTH - WIDTH / 2,
-          ],
-          0.025,
-        ),
-      );
+function boxRest(width) {
+  const points = [];
+  for (let z = 0; z <= RES; z++)
+    for (let y = 0; y <= RES; y++)
+      for (let x = 0; x <= RES; x++)
+        points.push(
+          rounded(
+            [
+              (x / RES) * width - width / 2,
+              (y / RES) * width - width / 2,
+              (z / RES) * width - width / 2,
+            ],
+            0.025,
+            width,
+          ),
+        );
+  return points;
+}
+// Large crates almost fill a cell and slide without turning (see Lattice.slide).
+const LARGE_WIDTH = 0.94;
+const crateRest = boxRest(WIDTH),
+  largeRest = boxRest(LARGE_WIDTH);
+// Height of a body's lattice centre above its feet (p.y).
+const bodyLift = (p) => (p.kind === 'crate' && p.large ? LARGE_WIDTH / 2 + 0.04 : 0.42);
 function group(ids, points = rest) {
   const center = [0, 0, 0];
   ids.forEach((i) => points[i].forEach((v, k) => (center[k] += v / ids.length)));
@@ -210,9 +220,15 @@ class Lattice {
   }
   reset(p) {
     this.rigid = p.kind === 'crate';
-    this.positions = (this.rigid ? crateRest : rest).map((q) => [
+    this.slides = this.rigid && !!p.large;
+    this.lift = bodyLift(p);
+    // Half size of the rounded box that other bodies collide with, and its corner radius.
+    this.half = this.slides ? LARGE_WIDTH / 2 - 0.025 : this.rigid ? 0.355 : 0.315;
+    this.rounding = this.rigid ? 0.025 : 0.045;
+    this.extent = this.slides ? LARGE_WIDTH / 2 : WIDTH / 2;
+    this.positions = (this.slides ? largeRest : this.rigid ? crateRest : rest).map((q) => [
       q[0] + p.x,
-      q[1] + 0.42 + (p.y || 0),
+      q[1] + this.lift + (p.y || 0),
       q[2] + p.z,
     ]);
     this.velocities = rest.map(() => [p.vx || 0, p.vy || 0, p.vz || 0]);
@@ -220,7 +236,7 @@ class Lattice {
     this.sleeping = false;
     this.calm = 0;
     this.r = ident();
-    this.center = [p.x, 0.42 + (p.y || 0), p.z];
+    this.center = [p.x, this.lift + (p.y || 0), p.z];
     this.previousCenter = this.center.slice();
     this.core = this.center.slice();
     this.coreVelocity = [0, 0, 0];
@@ -372,7 +388,23 @@ class Lattice {
     this.center = [x, y, z];
     return this.center;
   }
+  // Large crates: rigid translation only. Nodes return to the rest box around their centre.
+  slide() {
+    const [cx, cy, cz] = this.summarize();
+    for (let n = 0; n < NODE_COUNT; n++) {
+      const p = this.positions[n],
+        q = largeRest[n];
+      p[0] = cx + q[0];
+      p[1] = cy + q[1];
+      p[2] = cz + q[2];
+    }
+    this.r = ident();
+  }
   orientation() {
+    if (this.slides) {
+      this.r = ident();
+      return;
+    }
     const points = this.rigid ? crateRest : rest,
       shape = this.rigid ? crateShape : globalShape,
       [cx, cy, cz] = this.center,
@@ -476,11 +508,16 @@ class System {
   }
   contacts(world, p, b) {
     if (p.state === 'dead') return;
+    // A sliding crate cannot tip, so it rests on the floor only while its centre is over it;
+    // past an edge it drops straight down instead of hanging on a corner.
+    const floor =
+      !b.slides || world.heightAt(b.center[0], b.center[2], (p.y || 0) + 0.2, p) !== null;
     for (let i = 0; i < NODE_COUNT; i++) {
       const node = b.positions[i];
       const height = world.heightAt(node[0], node[2], (p.y || 0) + 0.2, p),
         old = b.old[i];
       if (
+        floor &&
         height !== null &&
         height <= (p.y || 0) + 0.2 &&
         node[1] < height + 0.035 &&
@@ -521,7 +558,8 @@ class System {
     const ac = a.summarize(),
       bc = b.summarize(),
       dy = ac[1] - bc[1];
-    if (Math.abs(dy) < 0.36 || Math.abs(ac[0] - bc[0]) > 0.66 || Math.abs(ac[2] - bc[2]) > 0.66)
+    const reach = a.slides || b.slides ? a.extent + b.extent - 0.1 : 0.66;
+    if (Math.abs(dy) < 0.36 || Math.abs(ac[0] - bc[0]) > reach || Math.abs(ac[2] - bc[2]) > reach)
       return false;
     const upper = dy > 0 ? a : b,
       lower = dy > 0 ? b : a;
@@ -553,8 +591,8 @@ class System {
         dst = side ? a : b,
         r = dst.r,
         c = dst.center,
-        half = dst.rigid ? 0.355 : 0.315,
-        rounding = dst.rigid ? 0.025 : 0.045;
+        half = dst.half,
+        rounding = dst.rounding;
       for (let nodeIndex = 0; nodeIndex < NODE_COUNT; nodeIndex++) {
         const node = src.positions[nodeIndex];
         const w0 = node[0] - c[0],
@@ -689,7 +727,7 @@ class System {
       }
       if (
         Math.hypot(p.x - b.center[0], p.z - b.center[2]) > 0.25 ||
-        Math.abs((p.y || 0) + 0.42 - b.center[1]) > 0.5
+        Math.abs((p.y || 0) + b.lift - b.center[1]) > 0.5
       )
         b.reset(p);
       b.collisionBoxes = world
@@ -771,8 +809,11 @@ class System {
         const b = lattices[i];
         if (p.state === 'dead' || b.sleeping) return;
         if (p.kind === 'crate') {
-          b.r = b.shape(crateShape, 1);
-          b.summarize();
+          if (b.slides) b.slide();
+          else {
+            b.r = b.shape(crateShape, 1);
+            b.summarize();
+          }
           this.contacts(world, p, b);
           return;
         }
@@ -846,7 +887,8 @@ class System {
         crateGrounded = b.rigid && touchingGround,
         stableCratePush = b.pushingCrate && touchingGround;
       let omega = mv(inverse(inertia), angular);
-      if (b.rigid)
+      if (b.slides) omega = [0, 0, 0];
+      else if (b.rigid)
         omega = mul(omega, Math.exp(-dt * (stableCratePush ? 50 : crateGrounded ? 2.5 : 0.12)));
       else if (p.state === 'alive') {
         omega = mul(omega, Math.exp(-dt * 12));
@@ -862,7 +904,9 @@ class System {
           omega[1] += (targetOmega - omega[1]) * (1 - Math.exp(-dt * response));
         }
       }
-      const damping = Math.exp(-dt * (3 + this.decay * 10));
+      const damping = Math.exp(-dt * (3 + this.decay * 10)),
+        // A sliding crate moves as one piece: no internal wobble survives the step.
+        keep = b.slides ? 0 : damping;
       let energy = 0;
       for (let n = 0; n < NODE_COUNT; n++) {
         const node = b.positions[n],
@@ -873,15 +917,15 @@ class System {
           rigid0 = vcom[0] + (omega[1] * s2 - omega[2] * s1),
           rigid1 = vcom[1] + (omega[2] * s0 - omega[0] * s2),
           rigid2 = vcom[2] + (omega[0] * s1 - omega[1] * s0);
-        v[0] = rigid0 + (v[0] - rigid0) * damping;
-        v[1] = rigid1 + (v[1] - rigid1) * damping;
-        v[2] = rigid2 + (v[2] - rigid2) * damping;
+        v[0] = rigid0 + (v[0] - rigid0) * keep;
+        v[1] = rigid1 + (v[1] - rigid1) * keep;
+        v[2] = rigid2 + (v[2] - rigid2) * keep;
         energy += (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) / NODE_COUNT;
       }
       Object.assign(p, {
         x: center[0],
         z: center[2],
-        y: center[1] - 0.42,
+        y: center[1] - b.lift,
         vx: vcom[0],
         vz: vcom[2],
         vy: vcom[1],
@@ -931,6 +975,8 @@ class System {
 }
 export {
   System,
+  bodyLift,
+  LARGE_WIDTH,
   Lattice,
   rest,
   tets,

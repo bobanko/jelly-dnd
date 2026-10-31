@@ -159,3 +159,16 @@ export function crateGeometry() {
     }
   return mesh;
 }
+// Large crate: the oak crate grown to almost a full cell (outer half ≈ 0.49 against the
+// 0.47 collision box) with iron corner caps, so it reads as heavy and distinct from the
+// small, tumbling crate.
+export function largeCrateGeometry() {
+  const mesh = crateGeometry(),
+    scale = 1.15;
+  for (let k = 0; k < mesh.length; k += 12) for (let n = 0; n < 3; n++) mesh[k + n] *= scale;
+  for (const x of [-1, 1])
+    for (const y of [-1, 1])
+      for (const z of [-1, 1])
+        box(mesh, [x * 0.42, y * 0.42, z * 0.42], [0.15, 0.15, 0.15], IRON_NAIL, 0.02, 12, 2);
+  return mesh;
+}

@@ -139,6 +139,7 @@ export class Model {
             spikes: 'spikes',
             conveyor: 'conveyors',
             crate: 'crates',
+            'crate-large': 'crates',
             archer: 'archers',
             shield: 'pickups',
             sword: 'pickups',
@@ -214,6 +215,7 @@ export class Model {
         firstShot: existing?.firstShot ?? 1.6,
       });
     if (key === 'pickups') Object.assign(p, { id: existing?.id || this.id(tool), kind: tool });
+    if (key === 'crates' && tool === 'crate-large') p.large = true;
     this.map[key].push(p);
   }
   ensureFloor(x, z, height = 0) {
@@ -278,6 +280,7 @@ export class Model {
             spikes: 'spikes',
             conveyor: 'conveyors',
             crate: 'crates',
+            'crate-large': 'crates',
             archer: 'archers',
             shield: 'pickups',
             sword: 'pickups',
@@ -331,6 +334,7 @@ export class Model {
     if (key === 'portals') p.color = tool.slice(7);
     if (key === 'archers') Object.assign(p, { dx: 0, dz: 1, interval: 2.4, firstShot: 1.6 });
     if (key === 'pickups') Object.assign(p, { id: this.id(tool), kind: tool });
+    if (key === 'crates' && tool === 'crate-large') p.large = true;
     this.map[key].push(p);
   }
   eraseObject(key, index) {

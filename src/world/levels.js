@@ -316,7 +316,7 @@ function read(input) {
     if (!portalColor(p.color)) fail('Неизвестный цвет портала.');
     return { color: p.color };
   });
-  list('crates', () => ({}));
+  list('crates', (p) => (p.large ? { large: true } : {}));
   list('drones', (p) => {
     const color = p.color ?? 3,
       target = p.target ?? -1;

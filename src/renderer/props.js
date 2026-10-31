@@ -1,6 +1,7 @@
 import Levels from '../world/levels.js';
 import { box, lowSphere, sphere, rod } from './mesh.js';
-import { crateGeometry } from './geometry/wood.js';
+import { crateGeometry, largeCrateGeometry } from './geometry/wood.js';
+import { bodyLift } from '../world/soft-body.js';
 import { assemblyDropOffset, assemblyFloatOffset, assemblyRock, jellyScale } from './assembly.js';
 import { shieldGeometry, arrowGeometry, swordGeometry } from './geometry/equipment.js';
 import {
@@ -78,7 +79,8 @@ export const propsMethods = {
         append('bubble', i, mesh, { bubble: j });
       }
     }
-    for (let i = 0; i < (level.crates || []).length; i++) append('crate', i, crateGeometry());
+    for (let i = 0; i < (level.crates || []).length; i++)
+      append('crate', i, level.crates[i].large ? largeCrateGeometry() : crateGeometry());
     for (let i = 0; i < (level.world.drones || []).length; i++) {
       const geometry = droneGeometry(beamColors[level.world.drones[i].color]);
       append('drone', i, geometry.mesh);
@@ -268,7 +270,7 @@ export const propsMethods = {
   props(level, players, angle, time, dt = 1 / 60) {
     const key = [
       players.length,
-      (level.crates || []).length,
+      (level.crates || []).map((p) => (p.large ? 'L' : 'c')).join(''),
       level.world.lifts.length,
       level.world.spikes.length,
       level.plates.length,
@@ -371,7 +373,7 @@ export const propsMethods = {
         const p = level.crates[i];
         if (p.state === 'dead') continue;
         x = p.x;
-        y = (p.y || 0) + 0.42;
+        y = (p.y || 0) + bodyLift(p);
         z = p.z;
         matrix = level.soft.get(p).r;
       } else if (
