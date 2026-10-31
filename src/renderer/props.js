@@ -2,7 +2,13 @@ import Levels from '../world/levels.js';
 import { box, lowSphere, sphere, rod } from './mesh.js';
 import { crateGeometry, largeCrateGeometry } from './geometry/wood.js';
 import { bodyLift } from '../world/soft-body.js';
-import { assemblyDropOffset, assemblyFloatOffset, assemblyRock, jellyScale } from './assembly.js';
+import {
+  assemblyCrateArrival,
+  assemblyDropOffset,
+  assemblyFloatOffset,
+  assemblyRock,
+  jellyScale,
+} from './assembly.js';
 import { shieldGeometry, arrowGeometry, swordGeometry } from './geometry/equipment.js';
 import {
   beamColors,
@@ -306,7 +312,7 @@ export const propsMethods = {
     this.crystalPieces = [];
     this.propDraws = [];
     for (let instance = 0; instance < this.propPieces.length; instance++) {
-      const piece = this.propPieces[instance],
+      let piece = this.propPieces[instance],
         i = piece.index,
         landingIndex =
           piece.kind === 'pressureButton' || piece.kind === 'pressureSocket'
@@ -343,6 +349,11 @@ export const propsMethods = {
           piece.kind.startsWith('archer') || piece.kind === 'nockedArrow'
             ? assemblyRock(level.assembly, landingIndex, landingCount)
             : 0;
+      // Crates are teleported in above their cells and drop into place.
+      if (piece.kind === 'crate' && level.assembly) {
+        dropOffset = assemblyCrateArrival(level.assembly, landingIndex, landingCount);
+        if (dropOffset === null) continue;
+      }
       if (level.assembly && (landingIndex === null || dropOffset === null)) continue;
       if (warp < 0.01) continue;
       let x = 0,

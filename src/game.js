@@ -426,6 +426,13 @@ function simulate(dt, elapsed = dt) {
         );
     }
     for (const event of events) {
+      // A destroyed crate comes back the way it first arrived: a flash, then a drop.
+      if (event.type === 'respawn' && bodies[event.player]?.kind === 'crate')
+        effects.burst(
+          { type: 'crateTeleport', center: crateFlashCenter(bodies[event.player], 0) },
+          players,
+          soft,
+        );
       if (event.player >= players.length) continue;
       effects.burst(event, players, soft);
       if (event.type === 'death') {
@@ -727,6 +734,10 @@ function startCameraIntro() {
   angle = targetAngle + Math.PI / 4;
   cameraIntro = { elapsed: 0, overview: 1 };
 }
+// Centre of a crate (raised by `above` cells), where its teleport flash bursts.
+function crateFlashCenter(p, above) {
+  return [p.x, (p.y || 0) + JellySoftBody.bodyLift(p) + above, p.z];
+}
 function updateLevelAssembly(dt) {
   if (!level.assembly || loadingActive || menuOpen || document.hidden) return;
   level.assembly.progress = Math.min(1, level.assembly.progress + dt / LEVEL_ASSEMBLY_SECONDS);
@@ -737,6 +748,17 @@ function updateLevelAssembly(dt) {
       return;
     level.assembly.summoned.add(i);
     effects.burst({ type: 'summon', player: i }, players, soft);
+  });
+  // Crates are teleported in: a white flash above the cell they then drop onto.
+  crates.forEach((p, i) => {
+    const key = 'crate-' + i;
+    if (
+      level.assembly.summoned.has(key) ||
+      JellyGPU.crateArrivalProgress?.(level, players, i) == null
+    )
+      return;
+    level.assembly.summoned.add(key);
+    effects.burst({ type: 'crateTeleport', center: crateFlashCenter(p, 0.9) }, players, soft);
   });
   if (level.assembly.progress === 1) level.assembly = null;
 }

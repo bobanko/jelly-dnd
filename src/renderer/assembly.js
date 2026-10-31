@@ -61,3 +61,33 @@ export function jellySummonProgress(level, players, index) {
     (level.world.drones || []).length;
   return assemblyLandingProgress(level.assembly, level.plates.length + index, count);
 }
+// Crate arrival during the level assembly: teleported in above its cell with a white flash
+// (game.js), it hangs for a moment, falls under gravity and bounces once. Returns the height
+// above its cell, or null before it appears.
+export const CRATE_DROP_HEIGHT = 0.9;
+// Landing progress of crate `index`, in the renderer's landing order (after the jellies).
+export function crateArrivalProgress(level, players, index) {
+  const count =
+    level.plates.length +
+    players.length +
+    (level.crates || []).length +
+    level.world.pickups.length +
+    level.world.archers.length +
+    (level.world.drones || []).length;
+  return assemblyLandingProgress(
+    level.assembly,
+    level.plates.length + players.length + index,
+    count,
+  );
+}
+export function assemblyCrateArrival(assembly, index, count) {
+  const t = assemblyLandingProgress(assembly, index, count);
+  if (t === null) return null;
+  if (t < 0.15) return CRATE_DROP_HEIGHT;
+  if (t < 0.6) {
+    const s = (t - 0.15) / 0.45;
+    return CRATE_DROP_HEIGHT * (1 - s * s);
+  }
+  const u = (t - 0.6) / 0.4;
+  return 0.36 * u * (1 - u);
+}

@@ -343,6 +343,49 @@ class System {
         }
       }
     }
+    if (event.type === 'crateTeleport') {
+      // A mage's teleport: a white flash swallowing the crate, sparks bursting off its sides
+      // in every direction, and a shock ring at its feet.
+      const white = [1, 0.97, 0.9],
+        [x, y, z] = event.center;
+      this.rings.push({
+        center: [x, y - 0.45, z],
+        color: white,
+        age: 0,
+        life: this.reducedMotion ? 0.25 : 0.5,
+      });
+      for (const [size, life] of [
+        [0.66, 0.16],
+        [0.5, 0.26],
+      ])
+        this.particles.push({
+          kind: 'magic',
+          position: [x, y, z],
+          velocity: [0, 0, 0],
+          size,
+          phase: 0,
+          color: white,
+          age: 0,
+          life,
+        });
+      for (let i = 0; i < (this.reducedMotion ? 0 : 24); i++) {
+        const a = random() * Math.PI * 2,
+          up = random() * 2 - 1,
+          side = Math.sqrt(1 - up * up),
+          direction = [Math.cos(a) * side, up, Math.sin(a) * side],
+          speed = 1.4 + random() * 2;
+        this.particles.push({
+          kind: 'magic',
+          position: direction.map((d, k) => event.center[k] + d * 0.5),
+          velocity: direction.map((d) => d * speed),
+          size: 0.025 + random() * 0.035,
+          phase: a,
+          color: white,
+          age: 0,
+          life: 0.3 + random() * 0.3,
+        });
+      }
+    }
     if (event.type === 'portal') {
       const color = Levels.portalColor(event.color).glow;
       for (const center of [event.source, event.destination]) {

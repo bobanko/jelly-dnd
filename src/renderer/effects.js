@@ -247,12 +247,14 @@ export const effectsMethods = {
       pass.setVertexBuffer(0, this.dustBuffer);
       pass.draw(6, visibleDust);
     }
-    if (level.assembly) return;
+    // Particles and rings show during the level assembly too: jellies are summoned and crates
+    // teleported in with them. Runes and beams wait until the level has formed.
     if (effectCount) {
       pass.setPipeline(this.effectPipeline);
       pass.setVertexBuffer(0, this.effectBuffer);
       pass.draw(effectCount);
     }
+    if (level.assembly) return;
     if (this.runeCount) {
       pass.setPipeline(this.runePipeline);
       pass.setVertexBuffer(0, this.portalHaloBuffer);
