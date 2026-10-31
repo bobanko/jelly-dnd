@@ -292,6 +292,11 @@ class Renderer {
       color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
     });
+    // Spawn ghosts show through whatever stands on the spawn.
+    this.ghostPipeline = pipeline('solidVS', 'effectFS', 'none', 4, 'always', false, {
+      color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+    });
     this.phasePipeline = pipeline(
       'assemblyVS',
       'phaseFS',
@@ -854,6 +859,27 @@ class Renderer {
       p.end();
     }
   }
+  // Jellies ready to respawn whose spawn is taken: ghost outlines in their colours.
+  spawnGhosts(players, time) {
+    const colors = [
+      [0.045, 0.72, 0.095],
+      [0.025, 0.15, 0.95],
+      [0.95, 0.055, 0.025],
+      [0.58, 0.045, 0.92],
+      [0.95, 0.61, 0.025],
+    ];
+    return players.flatMap((p, i) =>
+      p.state === 'dead' && p.respawnBlocked && p.spawn
+        ? [
+            {
+              center: [p.spawn.x, (p.spawn.y || 0) + 0.42, p.spawn.z],
+              color: colors[p.slot ?? i] || colors[0],
+              alpha: 0.45 + 0.25 * Math.sin(time * 5),
+            },
+          ]
+        : [],
+    );
+  }
   // Halo strength per jelly: rises once nearly all of its lattice is hidden behind stone.
   updateReveal(level, players, frame, dt, uniforms) {
     const fade = level.reducedMotion ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 8);
@@ -1002,7 +1028,7 @@ class Renderer {
     const assembling = !!level.assembly,
       bridgeDraw = assembling ? { opaqueCount: 0, spectralCount: 0 } : this.bridges(level),
       propCount = this.props(level, players, angle, time, dt),
-      effectCount = this.effects(level.effects, view);
+      effectCount = this.effects(level.effects, view, this.spawnGhosts(players, time));
     this.updateRunes(level.effects, level);
     this.updateBeams(level);
     const encoder = d.createCommandEncoder();

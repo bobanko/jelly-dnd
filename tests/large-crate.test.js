@@ -142,3 +142,21 @@ test('a destroyed crate is teleported back above its spawn and drops into place'
     assert.ok(Math.abs(crate.y) < 0.05 && Math.abs(crate.x - 6) < 0.05, 'landed on its spawn');
   }
 });
+
+test('a jelly waits for its spawn to clear and then appears exactly on it', () => {
+  const g = scene([
+      { x: 6, spawn: { x: 6, z: 4, y: 0 } },
+      large({ x: 6, spawn: { x: 9, z: 4, y: 0 } }),
+    ]),
+    [jelly, crate] = g.bodies;
+  Object.assign(jelly, { state: 'dead', respawnTimer: 0, x: 6, y: -5 });
+  g.step([], 30);
+  assert.equal(jelly.state, 'dead', 'a large crate stands on the spawn');
+  assert.equal(jelly.respawnBlocked, true, 'the renderer can show a ghost');
+  Object.assign(crate, { x: 9 });
+  g.soft.get(crate).reset(crate);
+  g.step([], 2);
+  assert.equal(jelly.state, 'alive');
+  assert.equal(jelly.respawnBlocked, false);
+  assert.ok(Math.abs(jelly.x - 6) < 0.01 && Math.abs(jelly.z - 4) < 0.01, 'exactly on its spawn');
+});

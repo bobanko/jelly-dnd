@@ -704,46 +704,47 @@ function install(World) {
       this._collisionCache = null;
       return events;
     },
+    // Bodies come back only on their own spawn. While it is blocked (another body on it, a
+    // raised spike, a wall) they wait and retry every step; nothing is pushed aside.
     respawnPosition(p, bodies) {
-      const candidates = [{ ...p.spawn }];
-      for (let radius = 1; radius <= 2; radius++)
-        for (let x = -radius; x <= radius; x++)
-          for (let z = -radius; z <= radius; z++)
-            if (Math.max(Math.abs(x), Math.abs(z)) === radius)
-              candidates.push({ x: p.spawn.x + x, z: p.spawn.z + z });
-      for (const c of candidates) {
-        const height = this.heightAt(
+      const c = { ...p.spawn },
+        height = this.heightAt(
           c.x,
           c.z,
           this.blocks?.length ? (p.spawn.y ?? 0) + 0.2 : Infinity,
           p,
         );
-        if (height === null) continue;
-        c.y = height;
-        if (
-          this.spikes.some((s) => this.spikeTouches({ ...p, ...c }, s)) ||
-          this.portals.some((portal) => near(c, portal, 0.5))
+      if (height === null) return;
+      c.y = height;
+      if (
+        this.spikes.some((s) => this.spikeTouches({ ...p, ...c }, s)) ||
+        this.portals.some((portal) => near(c, portal, 0.5))
+      )
+        return;
+      if (
+        this.collisionBoxes().some(
+          (o) =>
+            this.blockSolid(p, o) &&
+            (o.kind === 'wall' || o.kind === 'archer' || o.kind === 'block') &&
+            height + 0.03 < o.maxY &&
+            height + 0.84 > o.minY &&
+            near(c, o, 0.36 + o.half + 0.015),
         )
-          continue;
-        if (
-          this.collisionBoxes().some(
-            (o) =>
-              this.blockSolid(p, o) &&
-              (o.kind === 'wall' || o.kind === 'archer' || o.kind === 'block') &&
-              height + 0.03 < o.maxY &&
-              height + 0.84 > o.minY &&
-              near(c, o, 0.36 + o.half + 0.015),
-          )
+      )
+        return;
+      // Footprints: jellies and small crates are 0.76 wide, large crates 0.94.
+      const half = (q) => (q.kind === 'crate' && q.large ? 0.47 : 0.38);
+      if (
+        bodies.some(
+          (b) =>
+            b !== p &&
+            b.state !== 'dead' &&
+            near(c, b, half(p) + half(b) - 0.02) &&
+            Math.abs((b.y || 0) - height) < 0.75,
         )
-          continue;
-        if (
-          bodies.some(
-            (b) => b !== p && alive(b) && near(c, b, 0.74) && Math.abs((b.y || 0) - height) < 0.75,
-          )
-        )
-          continue;
-        return c;
-      }
+      )
+        return;
+      return c;
     },
   });
 }

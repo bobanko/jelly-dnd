@@ -140,14 +140,18 @@ test('closed bridges cause a fall; powered bridges hold grounded cubes only', ()
   w.step(b, []);
   assert.equal(b[0].state, 'falling');
 });
-test('respawn finds a free nearby tile when the starting point is occupied', () => {
+test('respawn waits on an occupied spawn and never picks a nearby tile', () => {
   const w = arena(),
     a = body(2, 2),
     b = body(2, 2);
   Object.assign(a, { state: 'dead', spawn: { x: 2, z: 2 }, respawnTimer: 0, y: -4, deaths: 1 });
   w.step([a, b], []);
+  assert.equal(a.state, 'dead', 'the spawn is taken, so it waits');
+  b.x = 5;
+  w.step([a, b], []);
   assert.equal(a.state, 'alive');
-  assert.ok(Math.hypot(a.x - 2, a.z - 2) > 0);
+  assert.equal(a.x, 2);
+  assert.equal(a.z, 2);
   separated([a, b]);
   supported(w, a);
 });

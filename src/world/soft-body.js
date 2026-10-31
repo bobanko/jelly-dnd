@@ -756,6 +756,8 @@ class System {
       if (p.state === 'dead') {
         p.respawnTimer -= dt;
         const spawn = p.respawnTimer <= 0 && world.respawnPosition(p, players);
+        // Ready but the spawn is taken: the renderer shows a ghost there.
+        p.respawnBlocked = p.respawnTimer <= 0 && !spawn;
         if (spawn) {
           // A crate is teleported back above its spawn and drops into place.
           const crate = p.kind === 'crate';
@@ -770,6 +772,7 @@ class System {
             portalLock: null,
             portalCooldown: 0,
             deathReason: null,
+            respawnBlocked: false,
           });
           b.reset(p);
           events.push({ type: 'respawn', player: i });

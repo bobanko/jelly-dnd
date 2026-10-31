@@ -5,13 +5,18 @@ import { box, sphere, rod } from './mesh.js';
 import { beamColors } from './geometry/mobs.js';
 import { phaseTints, portalRing } from './geometry/mechanisms.js';
 export const effectsMethods = {
-  effects(system, view) {
-    if (!system || (!system.particles.length && !system.rings.length && !system.bones?.length))
-      return 0;
+  effects(system, view, ghosts = []) {
+    if (
+      !ghosts.length &&
+      (!system || (!system.particles.length && !system.rings.length && !system.bones?.length))
+    )
+      return (this.ghostFirst = 0);
     const mesh = [],
-      items = [...system.particles, ...system.rings, ...(system.bones || [])].sort(
-        (a, b) => dot(a.position || a.center, view) - dot(b.position || b.center, view),
-      );
+      items = [
+        ...(system?.particles || []),
+        ...(system?.rings || []),
+        ...(system?.bones || []),
+      ].sort((a, b) => dot(a.position || a.center, view) - dot(b.position || b.center, view));
     for (const item of items) {
       // Wisp sparks wait unseen at the entrance until their turn to leave.
       if (item.kind === 'wisp' && item.age < item.lag) continue;
@@ -112,6 +117,25 @@ export const effectsMethods = {
         mesh[k + 11] = 0;
       }
     }
+    // A jelly waiting for its blocked spawn: a pulsing outline of its cube where it will appear.
+    // These go last and are drawn over everything (see drawEffects), since whatever blocks the
+    // spawn usually hides it.
+    this.ghostFirst = mesh.length / 12;
+    for (const ghost of ghosts) {
+      const from = mesh.length,
+        [x, y, z] = ghost.center,
+        h = 0.38,
+        corner = (i) => [x + (i & 1 ? h : -h), y + (i & 2 ? h : -h), z + (i & 4 ? h : -h)];
+      for (let i = 0; i < 8; i++)
+        for (const bit of [1, 2, 4])
+          if (!(i & bit)) rod(mesh, corner(i), corner(i | bit), 0.012, ghost.color, 7);
+      for (let k = from; k < mesh.length; k += 12) {
+        mesh[k + 9] = 7;
+        mesh[k + 10] = ghost.alpha;
+        mesh[k + 11] = 0;
+      }
+    }
+    if (!mesh.length) return 0;
     this.device.queue.writeBuffer(this.effectBuffer, 0, new Float32Array(mesh));
     return mesh.length / 12;
   },
@@ -250,9 +274,16 @@ export const effectsMethods = {
     // Particles and rings show during the level assembly too: jellies are summoned and crates
     // teleported in with them. Runes and beams wait until the level has formed.
     if (effectCount) {
-      pass.setPipeline(this.effectPipeline);
+      const ghostFirst = Math.min(this.ghostFirst ?? effectCount, effectCount);
       pass.setVertexBuffer(0, this.effectBuffer);
-      pass.draw(effectCount);
+      if (ghostFirst) {
+        pass.setPipeline(this.effectPipeline);
+        pass.draw(ghostFirst);
+      }
+      if (effectCount > ghostFirst) {
+        pass.setPipeline(this.ghostPipeline);
+        pass.draw(effectCount - ghostFirst, 1, ghostFirst);
+      }
     }
     if (level.assembly) return;
     if (this.runeCount) {
