@@ -4,7 +4,10 @@ const clips = {
   bridgeRetract: ['bridge-retract-2026-10-29T00-06-39-624Z.mp3', 0.18],
   buttonPress: ['button-press-2026-10-29T00-09-56-757Z.mp3', 0.65],
   buttonRelease: ['button-release-2026-10-29T00-10-01-533Z.mp3', 0.36],
+  crateSlide: ['crate-slide-2026-10-31T04-10-47-644Z.mp3', 0.16],
   death: ['jelly-death-2026-10-28T23-58-40-459Z.mp3', 0.35],
+  jellySlap: ['jelly-slap-2026-10-31T04-10-52-826Z.mp3', 0.24],
+  jellyWobble: ['jelly-wobble-2026-10-31T04-10-50-817Z.mp3', 0.3],
   land: ['jelly-land-2026-10-29T00-18-45-533Z.mp3', 0.5],
   portal: ['portal-2026-10-29T00-12-36-751Z.mp3', 0.38],
   rune: ['finish-rune-2026-10-29T00-11-31-512Z.mp3', 0.48],
@@ -76,6 +79,37 @@ export class MechanismSounds {
   }
 }
 
+export class JellyCollisionSounds {
+  touching(players) {
+    const contacts = new Set();
+    for (let i = 0; i < players.length; i++)
+      for (let j = i + 1; j < players.length; j++) {
+        const a = players[i],
+          b = players[j];
+        if (
+          a.state !== 'dead' &&
+          b.state !== 'dead' &&
+          Math.abs((a.y || 0) - (b.y || 0)) < 0.5 &&
+          Math.hypot(a.x - b.x, a.z - b.z) < 0.82
+        )
+          contacts.add(i + ':' + j);
+      }
+    return contacts;
+  }
+  reset(players) {
+    this.contacts = this.touching(players);
+  }
+  update(players) {
+    const contacts = this.touching(players),
+      events = [];
+    if (!this.contacts) this.contacts = contacts;
+    for (const pair of contacts)
+      if (!this.contacts.has(pair)) events.push({ name: 'jellyWobble', pair });
+    this.contacts = contacts;
+    return events;
+  }
+}
+
 export class GameAudio {
   constructor(context) {
     this.context = context;
@@ -85,6 +119,8 @@ export class GameAudio {
     this.sources = new Set();
     this.presentationSources = new Set();
     this.lastPlayed = new Map();
+    this.loopLevels = new Map();
+    this.loopStates = new Map();
     this.runeLevel = 0;
   }
   setEnabled(enabled) {
@@ -101,6 +137,7 @@ export class GameAudio {
             this.buffers.set(name, buffer);
             if (name === 'wind') this.updateWind();
             if (name === 'rune') this.updateRune();
+            if (this.loopLevels.has(name)) this.updateLoop(name);
           } catch {
             console.warn('Could not load game sound: ' + file);
           }
@@ -110,6 +147,7 @@ export class GameAudio {
     if (!enabled) this.stop();
     this.updateWind();
     this.updateRune();
+    this.updateLoops();
   }
   setActive(active) {
     if (this.active === active) return;
@@ -117,6 +155,7 @@ export class GameAudio {
     if (!active) this.stop(false);
     this.updateWind();
     this.updateRune();
+    this.updateLoops();
   }
   stop(includePresentation = true) {
     for (const source of [...this.sources]) {
@@ -130,6 +169,8 @@ export class GameAudio {
     this.runeGain = null;
     this.runeTarget = undefined;
     this.runeLevel = 0;
+    this.loopLevels.clear();
+    this.loopStates.clear();
     this.lastPlayed.clear();
   }
   updateWind() {
@@ -177,6 +218,49 @@ export class GameAudio {
         context.currentTime,
         target > parameter.value ? 0.18 : 0.32,
       );
+    else parameter.value = target;
+  }
+  setLoopLevel(name, level) {
+    if (!clips[name]) return;
+    this.loopLevels.set(name, Math.max(0, Math.min(1, Number(level) || 0)));
+    this.updateLoop(name);
+  }
+  updateLoops() {
+    for (const name of this.loopLevels.keys()) this.updateLoop(name);
+  }
+  updateLoop(name) {
+    if (!this.enabled || !this.active || !this.buffers.has(name)) return;
+    const context = this.context();
+    if (context.state === 'suspended') return;
+    const level = this.loopLevels.get(name) || 0;
+    let state = this.loopStates.get(name);
+    if (!state) {
+      if (level <= 0.02) return;
+      const source = context.createBufferSource(),
+        gain = context.createGain();
+      source.buffer = this.buffers.get(name);
+      source.loop = true;
+      gain.gain.value = 0;
+      source.connect(gain).connect(context.destination);
+      this.sources.add(source);
+      state = { source, gain, target: undefined };
+      this.loopStates.set(name, state);
+      source.onended = () => {
+        this.sources.delete(source);
+        if (this.loopStates.get(name)?.source === source) this.loopStates.delete(name);
+        source.disconnect();
+        gain.disconnect();
+      };
+      source.start(context.currentTime);
+    }
+    const parameter = state.gain.gain,
+      target = level > 0.02 ? clips[name][1] * level : 0;
+    if (target === state.target) return;
+    state.target = target;
+    if (parameter.cancelAndHoldAtTime) parameter.cancelAndHoldAtTime(context.currentTime);
+    else parameter.cancelScheduledValues?.(context.currentTime);
+    if (parameter.setTargetAtTime)
+      parameter.setTargetAtTime(target, context.currentTime, target > parameter.value ? 0.12 : 0.2);
     else parameter.value = target;
   }
   play(name, volume = 1, delay = 0) {

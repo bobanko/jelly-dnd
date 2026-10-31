@@ -100,5 +100,23 @@
     "duration_seconds": 0.6,
     "loop": false,
     "prompt_influence": 0.7
+  },
+  "crate-slide": {
+    "text": "Seamless quiet loop of a wooden crate being pushed slowly over an old smooth stone floor. Low soft wood rumble, muffled friction and sparse rounded creaks, steady and unobtrusive. Background game feedback with no sharp scrape, impact, crash, metal, voice, music or reverb.",
+    "duration_seconds": 3,
+    "loop": true,
+    "prompt_influence": 0.65
+  },
+  "jelly-wobble": {
+    "text": "Two soft gel cubes gently bumping together once. A small rounded rubbery wobble, quiet wet boop and brief elastic jiggle, friendly and understated. Short isolated game sound with no splash, pop, squeak, sharp impact, voice, music or reverb.",
+    "duration_seconds": 0.7,
+    "loop": false,
+    "prompt_influence": 0.65
+  },
+  "jelly-slap": {
+    "text": "One small soft jelly body landing on stone. A gentle low wet slap layered with a compact cushioned gel thump, rounded and quiet, designed to sit underneath another landing sound. Short isolated effect. No metal, splash, squeak, sharp click, voice, music or reverb.",
+    "duration_seconds": 0.7,
+    "loop": false,
+    "prompt_influence": 0.7
   }
 }

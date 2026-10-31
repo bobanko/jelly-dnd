@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GameAudio, MechanismSounds, SpikeSounds } from '../src/game/game-audio.js';
+import {
+  GameAudio,
+  JellyCollisionSounds,
+  MechanismSounds,
+  SpikeSounds,
+} from '../src/game/game-audio.js';
 import { World } from '../src/world/physics.js';
 
 test('spike audio follows motion phases once and resets silently', () => {
@@ -54,6 +59,24 @@ test('mechanism audio follows physical button transitions and bridge extension o
   );
   sounds.reset(world, [body]);
   assert.deepEqual(sounds.update(world, [body]), []);
+});
+
+test('jelly collision audio plays once when a new contact begins', () => {
+  const players = [
+      { x: 0, y: 0, z: 0, state: 'alive' },
+      { x: 1, y: 0, z: 0, state: 'alive' },
+    ],
+    sounds = new JellyCollisionSounds();
+  sounds.reset(players);
+  players[1].x = 0.8;
+  assert.equal(sounds.update(players)[0].name, 'jellyWobble');
+  assert.deepEqual(sounds.update(players), []);
+  players[1].x = 1;
+  assert.deepEqual(sounds.update(players), []);
+  players[1].x = 0.78;
+  assert.equal(sounds.update(players)[0].name, 'jellyWobble');
+  players[1].state = 'dead';
+  assert.deepEqual(sounds.update(players), []);
 });
 
 test('button spikes play sound once at each animation start, including reversals and undo', () => {
@@ -138,7 +161,7 @@ test('samples preload once, deduplicate simultaneous traps, and stop on mute or 
   assert.equal(audio.play('land'), null);
   audio.setEnabled(true);
   await audio.loading;
-  assert.equal(fetch.mock.callCount(), 17);
+  assert.equal(fetch.mock.callCount(), 20);
   audio.setActive(false);
   assert.ok(started.every((source) => source.stopped));
   assert.equal(audio.play('portal'), null);
@@ -158,7 +181,61 @@ test('missing audio files do not prevent gameplay or cause deferred playback', a
   audio.setEnabled(true);
   await audio.loading;
   assert.equal(audio.play('land'), null);
-  assert.equal(warn.mock.callCount(), 17);
+  assert.equal(warn.mock.callCount(), 20);
+});
+
+test('quiet movement loops fade with their level and stop with gameplay', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => ({
+    ok: true,
+    arrayBuffer: async () => new ArrayBuffer(4),
+  }));
+  const sources = [],
+    targets = [],
+    context = {
+      currentTime: 2,
+      state: 'running',
+      destination: {},
+      resume: async () => {},
+      decodeAudioData: async () => ({}),
+      createBufferSource() {
+        return {
+          connect(gain) {
+            return gain;
+          },
+          disconnect() {},
+          start() {
+            sources.push(this);
+          },
+          stop() {
+            this.stopped = true;
+          },
+        };
+      },
+      createGain: () => ({
+        gain: {
+          value: 0,
+          cancelScheduledValues() {},
+          setTargetAtTime(value, time, constant) {
+            targets.push({ value, time, constant });
+            this.value = value;
+          },
+        },
+        connect() {},
+        disconnect() {},
+      }),
+    };
+  const audio = new GameAudio(() => context);
+  audio.setActive(true);
+  audio.setEnabled(true);
+  await audio.loading;
+  audio.setLoopLevel('crateSlide', 0.5);
+  assert.equal(sources.at(-1).loop, true);
+  assert.ok(Math.abs(targets.at(-1).value - 0.08) < 1e-9);
+  audio.setLoopLevel('crateSlide', 0);
+  assert.equal(targets.at(-1).value, 0);
+  assert.equal(targets.at(-1).constant, 0.2);
+  audio.setActive(false);
+  assert.ok(sources.every((source) => source.stopped));
 });
 
 test('rune ambience fades toward charge and stops with the game audio', async (t) => {

@@ -4,7 +4,12 @@ import * as JellyGPU from './renderer/index.js';
 import * as JellySoftBody from './world/soft-body.js';
 import * as JellyPhysics from './world/physics.js';
 import * as JellyEffects from './game/game-effects.js';
-import { GameAudio, MechanismSounds, SpikeSounds } from './game/game-audio.js';
+import {
+  GameAudio,
+  JellyCollisionSounds,
+  MechanismSounds,
+  SpikeSounds,
+} from './game/game-audio.js';
 import * as JellySharedCamera from './camera/shared-camera.js';
 import * as LevelCamera from './camera/level-camera.js';
 import { createMenuScene } from './game/menu-scene.js';
@@ -81,8 +86,10 @@ const { start, players, crates, bodies, plates, goals, bridges, floor, world, so
 const gameAudio = new GameAudio(() => (audio ??= new AudioContext()));
 const spikeSounds = new SpikeSounds();
 const mechanismSounds = new MechanismSounds();
+const jellyCollisionSounds = new JellyCollisionSounds();
 spikeSounds.reset(world);
 mechanismSounds.reset(world, bodies);
+jellyCollisionSounds.reset(players);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) gameAudio.setActive(false);
 });
@@ -358,6 +365,7 @@ function reset(replayAssembly = false) {
   gameAudio.stop();
   spikeSounds.reset(world);
   mechanismSounds.reset(world, bodies);
+  jellyCollisionSounds.reset(players);
   soft.reset();
   effects.clear();
   level.assembly = replayAssembly && !menuOnly && !reducedMotion ? { progress: 0 } : null;
@@ -402,6 +410,7 @@ function undo() {
   gameAudio.stop();
   spikeSounds.reset(world);
   mechanismSounds.reset(world, bodies);
+  jellyCollisionSounds.reset(players);
   soft.restore(bodies, previous.soft);
   bodies.forEach((p) => {
     if (!p.launchTimer) soft.get(p).velocities.forEach((v) => v.fill(0));
@@ -453,6 +462,16 @@ function simulate(dt, elapsed = dt) {
   const input = inputs();
   while (accumulator >= JellyPhysics.STEP && !won) {
     const events = world.step(bodies, input);
+    for (const { name } of jellyCollisionSounds.update(players)) gameAudio.play(name);
+    gameAudio.setLoopLevel(
+      'crateSlide',
+      crates.reduce((level, crate) => {
+        const speed = Math.hypot(crate.vx || 0, crate.vz || 0);
+        return soft.get(crate).pushingCrate && world.supported(crate)
+          ? Math.max(level, Math.min(1, speed / 0.9))
+          : level;
+      }, 0),
+    );
     for (const { name, spike } of spikeSounds.update(world)) {
       const distance = Math.min(...players.map((p) => Math.hypot(p.x - spike.x, p.z - spike.z)));
       if (distance < 8) gameAudio.play(name, 1 / (1 + distance * 0.3));
@@ -491,8 +510,10 @@ function simulate(dt, elapsed = dt) {
         woodHit();
       } else if (event.type === 'respawn') tone(event.player ? 400 : 300);
       else if (event.type === 'portal') gameAudio.play('portal');
-      else if (event.type === 'land') gameAudio.play('land');
-      else if (event.type === 'pickup') tone(720);
+      else if (event.type === 'land') {
+        gameAudio.play('land');
+        gameAudio.play('jellySlap');
+      } else if (event.type === 'pickup') tone(720);
       else if (event.type === 'archerShot') gameAudio.play('arrow');
       else if (event.type === 'arrowBlock' && event.durability > 0) woodHit();
       else if (event.type === 'shieldBreak') woodHit(true);
