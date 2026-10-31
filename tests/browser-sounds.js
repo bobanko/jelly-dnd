@@ -22,6 +22,9 @@ import assert from 'node:assert/strict';
     await loopButton.click();
     assert.equal(await page.locator('[data-sound="wind"].playing').count(), 0);
 
+    await page.locator('[data-sound="uiMove"] .sound-play').click();
+    await page.locator('[data-sound="uiMove"].playing').waitFor();
+
     const toneButton = page.locator('[data-sound="victoryTone"] .sound-play');
     await toneButton.click();
     await page.locator('[data-sound="victoryTone"].playing').waitFor();
