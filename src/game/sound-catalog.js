@@ -12,11 +12,11 @@ const sample = (id, file, volume, category, title, description, loop = false) =>
 export const soundCatalog = [
   sample(
     'uiMove',
-    'ui-move-2026-10-31T04-25-43-750Z.mp3',
-    0.13,
+    'ui-move-2026-10-31T12-49-27-313Z.mp3',
+    0.1,
     'interface',
     'Навигация по меню',
-    'Еле заметный сухой чик без звона при смене выбранной кнопки.',
+    'Короткий нейтральный микроклик без тона при смене выбранной кнопки.',
   ),
   sample(
     'uiConfirm',

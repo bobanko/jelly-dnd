@@ -90,7 +90,7 @@
     "prompt_influence": 0.7
   },
   "ui-move": {
-    "text": "One extremely subtle menu navigation tick. A tiny dry low chik from a felt-covered mechanism with a barely audible soft air puff, short and muted with no tonal sustain. Quiet background interface feedback, almost imperceptible and suitable for rapid repeated navigation. No bell, chime, glass, sparkle, pitch, ringing, coin, keyboard, sharp click, voice, music or reverb.",
+    "text": "One minimal neutral UI navigation tick. A very short soft broadband micro-click with a rounded attack and immediate decay, dry, centred and almost imperceptible, suitable for rapid repeated menu movement. Abstract interface feedback with no recognisable material or tonal character. No air puff, whoosh, bell, chime, glass, sparkle, pitch, ringing, coin, keyboard, mechanical switch, sharp transient, voice, music or reverb.",
     "duration_seconds": 0.5,
     "loop": false,
     "prompt_influence": 0.65
