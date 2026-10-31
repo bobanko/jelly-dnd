@@ -559,10 +559,10 @@ class System {
       }
     }
   }
-  // A sliding crate cannot tip. It stands still while at least three quarters of its base
-  // (12 of the 16 bottom nodes) is over the highest surface beneath it. With between a quarter
-  // and three quarters it keeps resting there but slips towards the drop; with a quarter or
-  // less it falls (b.airborne), straight down. Returns the supporting height, or false.
+  // A sliding crate cannot tip. It stands still while at least half of its base (8 of the 16
+  // bottom nodes) is over the highest surface beneath it, so over a straight edge it can hang
+  // out by about two thirds. With less it slips towards the drop, and with a quarter or less it
+  // falls (b.airborne), straight down. Returns the supporting height, or false.
   slideSupport(world, p, b) {
     // Only surfaces at or below its base hold it: a rim it has already sunk past is a wall.
     const ceiling = b.center[1] - LARGE_WIDTH / 2 + 0.05,
@@ -585,7 +585,7 @@ class System {
     // small overlap with the rim is pushed out by the block collision on the way down.
     b.airborne = count <= 4;
     if (b.airborne) return false;
-    if (count < 12) {
+    if (count < 8) {
       let dx = 0,
         dz = 0;
       SLIDE_BASE.forEach((n, k) => {

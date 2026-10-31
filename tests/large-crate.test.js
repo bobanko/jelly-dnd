@@ -73,16 +73,17 @@ test('a large crate pushed off a platform drops straight down and lands upright'
   assert.equal(g.bodies[1].state, 'alive');
 });
 
-test('a large crate stands while at most a third of it overhangs a ledge', () => {
-  const g = scene([large({ x: 6.25, y: 1 })]);
+test('a large crate stands while it overhangs a ledge by up to about two thirds', () => {
+  // Ledge edge at x = 6.5; the crate is 0.94 wide, so x = 6.55 hangs out by 0.55 of it.
+  const g = scene([large({ x: 6.55, y: 1 })]);
   for (const x of [4, 5, 6]) for (const z of [3, 4, 5]) g.world.heights.set(`${x},${z}`, 1);
   g.step([], 240);
   assert.equal(g.bodies[0].state, 'alive');
   assert.ok(Math.abs(g.bodies[0].y - 1) < 0.05, 'still on the ledge: ' + g.bodies[0].y);
 });
 
-test('a large crate overhanging a ledge by more than a third slips off it', () => {
-  const g = scene([large({ x: 6.4, y: 1 })]);
+test('a large crate overhanging a ledge by more than two thirds slips off it', () => {
+  const g = scene([large({ x: 6.72, y: 1 })]);
   for (const x of [4, 5, 6]) for (const z of [3, 4, 5]) g.world.heights.set(`${x},${z}`, 1);
   g.step([], 300);
   assert.ok(g.bodies[0].x > 6.9, 'slid off the edge: ' + g.bodies[0].x);
