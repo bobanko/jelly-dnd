@@ -1312,6 +1312,47 @@ html[lang='ru'] .menu-panel h1 {
   grid-column: 3;
   grid-row: 2;
 }
+/* Over the ghost of a jelly whose spawn is taken: a glowing, unsteady question mark. */
+.spawn-question {
+  position: absolute;
+  transform: translate(-50%, -52%);
+  font:
+    700 1em/1 Georgia,
+    'Times New Roman',
+    serif;
+  color: var(--jelly-color);
+  text-shadow:
+    0 0 6px var(--jelly-color),
+    0 0 14px color-mix(in srgb, var(--jelly-color) 60%, transparent);
+  animation: spawn-question-flicker 1.7s infinite;
+}
+@keyframes spawn-question-flicker {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  18% {
+    opacity: 0.45;
+  }
+  24% {
+    opacity: 0.8;
+  }
+  52% {
+    opacity: 0.6;
+  }
+  58% {
+    opacity: 0.3;
+  }
+  63% {
+    opacity: 0.75;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spawn-question {
+    animation: none;
+    opacity: 0.75;
+  }
+}
 .menu-open #player-hints,
 .level-won #player-hints {
   visibility: hidden;

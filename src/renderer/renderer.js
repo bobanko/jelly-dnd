@@ -292,11 +292,8 @@ class Renderer {
       color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
     });
-    // Spawn ghosts show through whatever stands on the spawn.
-    this.ghostPipeline = pipeline('solidVS', 'effectFS', 'none', 4, 'always', false, {
-      color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-      alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-    });
+    // Spawn ghosts: the cube edges of a waiting jelly, shown through whatever stands there.
+    this.ghostPipeline = pipeline('softVS', 'ghostFS', 'back', 4, 'always', false, overlay);
     this.phasePipeline = pipeline(
       'assemblyVS',
       'phaseFS',
@@ -859,38 +856,6 @@ class Renderer {
       p.end();
     }
   }
-  // Jellies ready to respawn whose spawn is taken: ghost outlines in their colours.
-  spawnGhosts(players, time, frame) {
-    const colors = [
-      [0.045, 0.72, 0.095],
-      [0.025, 0.15, 0.95],
-      [0.95, 0.055, 0.025],
-      [0.58, 0.045, 0.92],
-      [0.95, 0.61, 0.025],
-    ];
-    return players.flatMap((p, i) =>
-      p.state === 'dead' && p.respawnBlocked && p.spawn
-        ? [
-            {
-              center: [p.spawn.x, (p.spawn.y || 0) + 0.42, p.spawn.z],
-              // Direction to the camera from the ghost itself, so its outline and question
-              // mark stay true in perspective.
-              view: frame.perspective
-                ? normalize(
-                    frame.eye.map((v, k) => v - [p.spawn.x, (p.spawn.y || 0) + 0.42, p.spawn.z][k]),
-                  )
-                : frame.view,
-              color: colors[p.slot ?? i] || colors[0],
-              // An uneven flicker, like a picture that will not quite form.
-              alpha: Math.max(
-                0.15,
-                Math.min(0.9, 0.5 + 0.2 * Math.sin(time * 5.3) + 0.15 * Math.sin(time * 17.1 + i)),
-              ),
-            },
-          ]
-        : [],
-    );
-  }
   // Halo strength per jelly: rises once nearly all of its lattice is hidden behind stone.
   updateReveal(level, players, frame, dt, uniforms) {
     const fade = level.reducedMotion ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 8);
@@ -1010,11 +975,21 @@ class Renderer {
     const nodes = new Float32Array(320 * 4);
     for (let i = 0; i < 5; i++) nodes[i * 256 + 3] = -1;
     const layout = landingLayout(level, players.length),
-      landingCount = layout.count;
+      landingCount = layout.count,
+      ghost = (p) => p.state === 'dead' && p.respawnBlocked && p.spawn;
+    this.ghostPlayers = players.flatMap((p, i) => (ghost(p) ? [i] : []));
     players.forEach((p, i) => {
       const scale = jellyScale(level, i, layout.jellies + i, landingCount),
         body = level.soft.get(p),
         core = body.core;
+      // A jelly waiting for its blocked spawn is shown as a ghost there: its rest lattice.
+      if (ghost(p)) {
+        const center = [p.spawn.x, (p.spawn.y || 0) + 0.42, p.spawn.z];
+        this.soft.rest.forEach((q, j) =>
+          nodes.set([...q.map((v, k) => v + center[k]), p.slot ?? i], (i * 64 + j) * 4),
+        );
+        return;
+      }
       // Scale the lattice about its centre for summoning and portal warps.
       body.positions.forEach((q, j) =>
         nodes.set(
@@ -1034,7 +1009,7 @@ class Renderer {
     const assembling = !!level.assembly,
       bridgeDraw = this.bridges(level, layout),
       propCount = this.props(level, players, angle, time, dt),
-      effectCount = this.effects(level.effects, view, this.spawnGhosts(players, time, frame));
+      effectCount = this.effects(level.effects, view);
     this.updateRunes(level.effects, level);
     this.updateBeams(level);
     const encoder = d.createCommandEncoder();

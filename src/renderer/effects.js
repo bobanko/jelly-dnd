@@ -1,17 +1,13 @@
 import { bridgePose } from '../world/level-features.js';
 import { PORTAL_LIMIT, DUST_MOTES } from './layout.js';
-import { dot, normalize, cross } from './math.js';
+import { dot } from './math.js';
 import { box, sphere, rod } from './mesh.js';
 import { beamColors } from './geometry/mobs.js';
 import { phaseTints, portalRing } from './geometry/mechanisms.js';
 export const effectsMethods = {
-  effects(system, view, ghosts = []) {
-    const cameraView = view;
-    if (
-      !ghosts.length &&
-      (!system || (!system.particles.length && !system.rings.length && !system.bones?.length))
-    )
-      return (this.ghostFirst = 0);
+  effects(system, view) {
+    if (!system || (!system.particles.length && !system.rings.length && !system.bones?.length))
+      return 0;
     const mesh = [],
       items = [
         ...(system?.particles || []),
@@ -115,45 +111,6 @@ export const effectsMethods = {
           item.kind === 'bone' || item.kind === 'wood' ? 15 : item.kind === 'jelly' ? 6 : 7;
         mesh[k + 10] =
           fade * (item.kind === 'bone' ? 1 : item.cube ? 0.72 : item.position ? 0.85 : 0.45);
-        mesh[k + 11] = 0;
-      }
-    }
-    // A jelly waiting for its blocked spawn: a pulsing outline of its cube where it will appear.
-    // These go last and are drawn over everything (see drawEffects), since whatever blocks the
-    // spawn usually hides it.
-    this.ghostFirst = mesh.length / 12;
-    for (const ghost of ghosts) {
-      const view = ghost.view || cameraView,
-        from = mesh.length,
-        [x, y, z] = ghost.center,
-        h = 0.38,
-        corner = (i) => [x + (i & 1 ? h : -h), y + (i & 2 ? h : -h), z + (i & 4 ? h : -h)];
-      // Only the cube's outline as the camera sees it: edges between a face turned towards
-      // the camera and one turned away.
-      for (let i = 0; i < 8; i++)
-        for (let axis = 0; axis < 3; axis++) {
-          const bit = 1 << axis;
-          if (i & bit) continue;
-          const [b, c] = [0, 1, 2].filter((k) => k !== axis),
-            facing = (k) => (i & (1 << k) ? 1 : -1) * view[k] > 0;
-          if (facing(b) !== facing(c)) rod(mesh, corner(i), corner(i | bit), 0.014, ghost.color, 7);
-        }
-      // A question mark in the middle, facing the camera.
-      const right = normalize([view[2], 0, -view[0]]),
-        up = cross(view, right),
-        glyph = 1.35,
-        at = ([u, v]) => ghost.center.map((c, k) => c + (right[k] * u + up[k] * v) * glyph),
-        curve = [165, 130, 95, 60, 25, -10, -45].map((a) => [
-          Math.cos((a * Math.PI) / 180) * 0.09,
-          0.08 + Math.sin((a * Math.PI) / 180) * 0.09,
-        ]);
-      curve.push([0.012, -0.03], [0, -0.065]);
-      for (let k = 1; k < curve.length; k++)
-        rod(mesh, at(curve[k - 1]), at(curve[k]), 0.024, ghost.color, 7);
-      sphere(mesh, at([0, -0.13]), [0.034, 0.034, 0.034], ghost.color, 7);
-      for (let k = from; k < mesh.length; k += 12) {
-        mesh[k + 9] = 7;
-        mesh[k + 10] = ghost.alpha;
         mesh[k + 11] = 0;
       }
     }
@@ -296,16 +253,16 @@ export const effectsMethods = {
     // Particles and rings show during the level assembly too: jellies are summoned and crates
     // teleported in with them. Runes and beams wait until the level has formed.
     if (effectCount) {
-      const ghostFirst = Math.min(this.ghostFirst ?? effectCount, effectCount);
+      pass.setPipeline(this.effectPipeline);
       pass.setVertexBuffer(0, this.effectBuffer);
-      if (ghostFirst) {
-        pass.setPipeline(this.effectPipeline);
-        pass.draw(ghostFirst);
-      }
-      if (effectCount > ghostFirst) {
-        pass.setPipeline(this.ghostPipeline);
-        pass.draw(effectCount - ghostFirst, 1, ghostFirst);
-      }
+      pass.draw(effectCount);
+    }
+    // A jelly waiting for its blocked spawn: its cube's edges, flickering at the spawn and
+    // drawn over whatever stands there (lattice placed there in render()).
+    if (this.ghostPlayers?.length && !level.assembly) {
+      pass.setPipeline(this.ghostPipeline);
+      pass.setIndexBuffer(this.indexBuffer, 'uint32');
+      for (const i of this.ghostPlayers) pass.drawIndexed(this.indexCount, 1, 0, 0, i);
     }
     if (level.assembly) return;
     if (this.runeCount) {

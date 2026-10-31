@@ -24,7 +24,8 @@ let loadingActive = false,
   loadingFailed = false,
   loadingStage = 'loadingGraphics',
   autoZoom = 1;
-let playerHints = [];
+let playerHints = [],
+  spawnMarks = [];
 let cameraIntro = null;
 const canvas = document.querySelector('#scene');
 const reducedMotion =
@@ -649,8 +650,35 @@ function createPlayerHints() {
     document.querySelector('#player-hints').append(node);
     return { node, idle: 0 };
   });
+  // A question mark over the ghost of a jelly whose spawn is taken (see the renderer).
+  spawnMarks = players.map((p) => {
+    const mark = document.createElement('span');
+    mark.className = 'spawn-question';
+    mark.textContent = '?';
+    mark.hidden = true;
+    mark.setAttribute('aria-hidden', 'true');
+    mark.style.setProperty('--jelly-color', colors[p.slot]);
+    document.querySelector('#player-hints').append(mark);
+    return mark;
+  });
+}
+function updateSpawnMarks() {
+  spawnMarks.forEach((mark, i) => {
+    const p = players[i],
+      point =
+        p.state === 'dead' && p.respawnBlocked && !level.assembly && p.spawn
+          ? project(p.spawn.x, (p.spawn.y || 0) + 0.42, p.spawn.z)
+          : null;
+    mark.hidden = !point?.visible;
+    if (mark.hidden) return;
+    mark.style.left = point.x + 'px';
+    mark.style.top = point.y + 'px';
+    // About half the cube's height on screen.
+    mark.style.fontSize = Math.max(14, point.scale * 0.5) + 'px';
+  });
 }
 function updatePlayerHints(dt) {
+  updateSpawnMarks();
   if (!playerHints.length) return;
   const inactive = menuOpen || won || loadingActive || restartTransition || level.assembly;
   const boxes = [];
