@@ -10,18 +10,39 @@ export function colliderLines(boxes) {
       conveyor: [0.7, 0.9, 0.3],
       spikes: [1, 0.1, 0.12],
       portal: [0.85, 0.2, 1],
+      jelly: [0.25, 1, 0.55],
+      crate: [1, 0.52, 0.12],
+      torch: [1, 0.35, 0.08],
+      plate: [1, 0.82, 0.18],
+      goal: [0.2, 1, 0.9],
+      pickup: [0.95, 0.45, 1],
     };
   for (const b of boxes) {
     const c = colors[b.kind] || colors.wall,
       points = [];
     for (let y = 0; y < 2; y++)
       for (let z = 0; z < 2; z++)
-        for (let x = 0; x < 2; x++)
-          points.push([
-            b.x + (x ? 1 : -1) * (b.halfX ?? b.half),
-            y ? b.maxY : b.minY,
-            b.z + (z ? 1 : -1) * (b.halfZ ?? b.half),
-          ]);
+        for (let x = 0; x < 2; x++) {
+          if (b.center && b.axes && b.halfSize) {
+            const signs = [x ? 1 : -1, y ? 1 : -1, z ? 1 : -1];
+            points.push(
+              b.center.map(
+                (value, axis) =>
+                  value +
+                  b.axes.reduce(
+                    (sum, direction, localAxis) =>
+                      sum + direction[axis] * b.halfSize[localAxis] * signs[localAxis],
+                    0,
+                  ),
+              ),
+            );
+          } else
+            points.push([
+              b.x + (x ? 1 : -1) * (b.halfX ?? b.half),
+              y ? b.maxY : b.minY,
+              b.z + (z ? 1 : -1) * (b.halfZ ?? b.half),
+            ]);
+        }
     for (let i = 0; i < 8; i++)
       for (const bit of [1, 2, 4])
         if (!(i & bit)) data.push(...points[i], ...c, ...points[i | bit], ...c);

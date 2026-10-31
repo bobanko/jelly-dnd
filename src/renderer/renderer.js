@@ -1275,8 +1275,11 @@ class Renderer {
       lattice.draw(this.edgeCount, players.length);
       lattice.end();
     }
-    if (this.colliders) {
-      const lines = colliderLines(level.world.debugBoxes());
+    if (this.colliders || this.mesh) {
+      const lines = colliderLines([
+        ...level.world.debugBoxes(),
+        ...level.world.interactiveDebugBoxes(),
+      ]);
       if (lines.byteLength > this.colliderBuffer.size) {
         this.colliderBuffer.destroy();
         this.colliderBuffer = d.createBuffer({

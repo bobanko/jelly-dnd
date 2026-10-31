@@ -537,6 +537,7 @@ function instantiate(map, Physics, Soft) {
   world.conveyors = copy(map.conveyors);
   world.archers = copy(map.archers);
   world.pickups = map.pickups.map((p) => ({ ...p, holder: null, durability: 3, destroyed: false }));
+  world.goals = map.goals.flatMap((p, slot) => (p ? [{ ...p, slot }] : []));
   const soft = new Soft.System();
   world.soft = soft;
   const slots = map.spawns.flatMap((p, slot) => (p ? [slot] : [])),
@@ -603,7 +604,7 @@ function instantiate(map, Physics, Soft) {
     bodies,
     plates,
     bridges,
-    goals: map.goals.flatMap((p, slot) => (p ? [{ ...p, slot }] : [])),
+    goals: world.goals,
   };
 }
 function forGame(storage, search = '') {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { World } from '../src/world/physics.js';
 import { System } from '../src/world/soft-body.js';
 import { bridgePose } from '../src/world/level-features.js';
+import { colliderLines } from '../src/renderer/geometry/surfaces.js';
 function scene(positions = [[2, 2, 0]]) {
   const floor = new Set();
   for (let x = 0; x <= 9; x++) for (let z = 0; z <= 9; z++) floor.add(`${x},${z}`);
@@ -68,6 +69,30 @@ test('same-color plates activate every linked bridge and spike from either plate
   assert.equal(world.active(0, world.bodies), true);
   world.refresh([]);
   assert.equal(world.active(0, world.bodies), false);
+});
+
+test('interactive debug overlay includes dynamic colliders, mounted props and trigger volumes', () => {
+  const g = scene(),
+    crate = { x: 3, y: 0, z: 3, kind: 'crate', state: 'alive' };
+  g.world.bodies = [...g.players, crate];
+  g.world.torches = [{ x: 4, y: 1, z: 4, face: 'east' }];
+  g.world.plates = [{ x: 5, y: 0, z: 5 }];
+  g.world.goals = [{ x: 6, y: 0, z: 6 }];
+  g.world.pickups = [
+    { x: 7, y: 0, z: 7, holder: null, destroyed: false },
+    { x: 8, y: 0, z: 8, holder: 0, destroyed: false },
+  ];
+  const boxes = g.world.interactiveDebugBoxes();
+  assert.deepEqual(
+    boxes.map((box) => box.kind),
+    ['jelly', 'crate', 'torch', 'plate', 'goal', 'pickup'],
+  );
+  const crateBox = boxes.find((box) => box.kind === 'crate');
+  assert.equal(crateBox.axes.length, 3);
+  assert.ok(crateBox.halfSize.every((half) => half > 0));
+  const lines = colliderLines([crateBox]);
+  assert.equal(lines.length, 12 * 2 * 6, 'twelve finite coloured edges');
+  assert.ok(lines.every(Number.isFinite));
 });
 
 test('spikes support constant states and proportional custom cycles without changing legacy timing', () => {

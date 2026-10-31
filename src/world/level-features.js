@@ -2,6 +2,41 @@
 const alive = (p) => !p.state || p.state === 'alive';
 const near = (p, q, r) => Math.abs(p.x - q.x) < r && Math.abs(p.z - q.z) < r;
 const smooth = (t) => t * t * (3 - 2 * t);
+const torchNormals = {
+  north: [0, 0, -1],
+  east: [1, 0, 0],
+  south: [0, 0, 1],
+  west: [-1, 0, 0],
+};
+function torchDebugBox(torch, height = 0) {
+  const n = torchNormals[torch.face] || torchNormals.south,
+    u = [n[2], 0, -n[0]],
+    origin = [torch.x + n[0] * 0.49, height - 0.5, torch.z + n[2] * 0.49],
+    center = origin.map((value, axis) => value + n[axis] * 0.18);
+  return {
+    x: center[0],
+    z: center[2],
+    halfX: Math.abs(n[0]) * 0.18 + Math.abs(u[0]) * 0.14,
+    halfZ: Math.abs(n[2]) * 0.18 + Math.abs(u[2]) * 0.14,
+    minY: center[1] - 0.48,
+    maxY: center[1] + 0.48,
+    kind: 'torch',
+  };
+}
+function bodyDebugBox(body, lattice) {
+  const r = lattice.r,
+    half = lattice.half + lattice.rounding;
+  return {
+    center: lattice.center.slice(),
+    axes: [
+      [r[0], r[3], r[6]],
+      [r[1], r[4], r[7]],
+      [r[2], r[5], r[8]],
+    ],
+    halfSize: [half, half, half],
+    kind: body.kind === 'crate' ? 'crate' : 'jelly',
+  };
+}
 function bridgePose(bridge, progress = 0) {
   const t = Math.max(0, Math.min(1, progress)),
     angle = (1 - t) * Math.PI * 0.5,
@@ -524,6 +559,50 @@ function install(World) {
           kind: 'portal',
         })),
       ];
+    },
+    interactiveDebugBoxes() {
+      const boxes = [];
+      for (const body of this.bodies || [])
+        if (body.state !== 'dead' && this.soft) boxes.push(bodyDebugBox(body, this.soft.get(body)));
+      for (const torch of this.torches || []) {
+        const height = torch.y ?? this.heightAt(torch.x, torch.z) ?? 0;
+        boxes.push(torchDebugBox(torch, height));
+      }
+      for (const plate of this.plates || []) {
+        const height = plate.y ?? this.heightAt(plate.x, plate.z) ?? 0;
+        boxes.push({
+          x: plate.x,
+          z: plate.z,
+          half: 0.42,
+          minY: height - 0.15,
+          maxY: height + 0.15,
+          kind: 'plate',
+        });
+      }
+      for (const goal of this.goals || []) {
+        const height = goal.y ?? this.heightAt(goal.x, goal.z) ?? 0;
+        boxes.push({
+          x: goal.x,
+          z: goal.z,
+          half: 0.32,
+          minY: height - 0.15,
+          maxY: height + 0.15,
+          kind: 'goal',
+        });
+      }
+      for (const pickup of this.pickups || []) {
+        if (pickup.destroyed || (pickup.holder !== null && pickup.holder !== undefined)) continue;
+        const height = pickup.y ?? this.heightAt(pickup.x, pickup.z) ?? 0;
+        boxes.push({
+          x: pickup.x,
+          z: pickup.z,
+          half: 0.55,
+          minY: height - 0.18,
+          maxY: height + 0.18,
+          kind: 'pickup',
+        });
+      }
+      return boxes;
     },
     featureSnapshot() {
       return {

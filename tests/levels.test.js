@@ -384,7 +384,7 @@ test('raised spawns, ground crates, elevated bridges and lifts use the same heig
   assert.equal(r.world.heightAt(5, 7), 1);
 });
 
-test('wall torch limits and moving a mounted light preserve its face and real light height without colliders', () => {
+test('wall torch limits and moving a mounted light preserve its face and debug bounds', () => {
   const m = new Model(L.blank());
   for (let x = 0; x < 8; x++) m.change(() => m.paint('torch', x, 1));
   assert.throws(() => m.change(() => m.paint('torch', 9, 1)));
@@ -398,6 +398,11 @@ test('wall torch limits and moving a mounted light preserve its face and real li
   assert.ok(
     runtime.world.debugBoxes().every((b) => b.kind === 'block'),
     'only supporting masonry has colliders',
+  );
+  assert.equal(
+    runtime.world.interactiveDebugBoxes().filter((b) => b.kind === 'torch').length,
+    8,
+    'mounted torches have visible developer bounds without changing physics',
   );
   const imported = L.copy(m.map);
   imported.torches.push({ x: 10, y: 1, z: 1, face: 'east' });

@@ -24,6 +24,8 @@ class World {
     this.spikes = [];
     this.portals = [];
     this.conveyors = [];
+    this.torches = [];
+    this.goals = [];
     this.archers = [];
     this.arrows = [];
     this.pickups = [];
