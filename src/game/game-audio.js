@@ -25,7 +25,7 @@ export class SpikeSounds {
 
 export class MechanismSounds {
   reset(world, bodies) {
-    this.plates = world.plates.map((plate) => this.platePressed(world, bodies, plate));
+    this.plateGroups = this.groupPlates(world, bodies);
     this.bridges = world.bridges.map((_, i) => world.held.has(i));
     this.liftHeights = (world.lifts || []).map((lift) => lift.height);
     this.liftDirections = (world.lifts || []).map(() => 0);
@@ -40,15 +40,29 @@ export class MechanismSounds {
         Math.abs(body.z - plate.z) < 0.42,
     );
   }
-  update(world, bodies) {
-    if (!this.plates || !this.bridges || !this.liftHeights) this.reset(world, bodies);
-    const events = [];
-    world.plates.forEach((plate, i) => {
-      const pressed = this.platePressed(world, bodies, plate);
-      if (pressed !== this.plates[i])
-        events.push({ name: pressed ? 'buttonPress' : 'buttonRelease', object: plate });
-      this.plates[i] = pressed;
+  groupPlates(world, bodies) {
+    const groups = new Map();
+    world.plates.forEach((plate, index) => {
+      const key = plate.color ? 'color:' + plate.color : 'plate:' + index;
+      if (!groups.has(key)) groups.set(key, { pressed: false, object: plate });
+      if (this.platePressed(world, bodies, plate))
+        groups.set(key, { pressed: true, object: plate });
     });
+    return groups;
+  }
+  update(world, bodies) {
+    if (!this.plateGroups || !this.bridges || !this.liftHeights) this.reset(world, bodies);
+    const events = [],
+      plateGroups = this.groupPlates(world, bodies);
+    for (const [key, group] of plateGroups) {
+      const previous = this.plateGroups.get(key);
+      if (previous && group.pressed !== previous.pressed)
+        events.push({
+          name: group.pressed ? 'buttonPress' : 'buttonRelease',
+          object: group.pressed ? group.object : previous.object,
+        });
+    }
+    this.plateGroups = plateGroups;
     world.bridges.forEach((bridge, i) => {
       const extended = world.held.has(i);
       if (extended && !this.bridges[i]) events.push({ name: 'bridge', object: bridge });

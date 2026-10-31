@@ -61,6 +61,29 @@ test('mechanism audio follows physical button transitions and bridge extension o
   assert.deepEqual(sounds.update(world, [body]), []);
 });
 
+test('same-colour plate group stays silent when pressure moves to an already depressed duplicate', () => {
+  const first = { x: 1, y: 0, z: 1, id: 'first', color: 'red' },
+    second = { x: 3, y: 0, z: 1, id: 'second', color: 'red' },
+    body = { x: 0, y: 0, z: 0, state: 'alive' },
+    world = {
+      plates: [first, second],
+      bridges: [],
+      lifts: [],
+      held: new Set(),
+      heightAt: () => 0,
+    },
+    sounds = new MechanismSounds();
+  sounds.reset(world, [body]);
+  Object.assign(body, { x: 1, z: 1 });
+  assert.deepEqual(sounds.update(world, [body]), [{ name: 'buttonPress', object: first }]);
+  Object.assign(body, { x: 3, z: 1 });
+  assert.deepEqual(sounds.update(world, [body]), []);
+  Object.assign(body, { x: 0, z: 0 });
+  assert.deepEqual(sounds.update(world, [body]), [{ name: 'buttonRelease', object: second }]);
+  sounds.reset(world, [body]);
+  assert.deepEqual(sounds.update(world, [body]), []);
+});
+
 test('lift audio follows each new movement direction once', () => {
   const lift = { x: 2, z: 3, height: 0 },
     world = { plates: [], bridges: [], lifts: [lift], held: new Set() },
