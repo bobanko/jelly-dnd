@@ -166,6 +166,7 @@ h1 {
 }
 
 .sound-card {
+  position: relative;
   min-height: 148px;
   display: grid;
   grid-template-columns: 50px 1fr;
@@ -325,4 +326,28 @@ h1 {
   * {
     transition: none !important;
   }
+}
+
+/* Playback progress: a thin gold line along the bottom edge of the card. */
+.sound-progress {
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  overflow: hidden;
+  background: #bc995d14;
+  opacity: 0;
+  transition: opacity 0.16s;
+}
+
+.sound-card.playing .sound-progress {
+  opacity: 1;
+}
+
+.sound-progress span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #a5813f, #f0cf86);
+  box-shadow: 0 0 8px #e7c27a80;
+  transform: scaleX(0);
+  transform-origin: left;
 }

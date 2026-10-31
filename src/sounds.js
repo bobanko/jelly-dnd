@@ -63,7 +63,12 @@ function createCard(sound) {
     if (sound.frequency) meta.append(tag(sound.frequency + ' Hz'));
     content.append(heading, description, meta);
   }
-  article.append(button, content);
+  // How far the sound has played; filled while it plays (see trackProgress).
+  const progress = document.createElement('div');
+  progress.className = 'sound-progress';
+  progress.setAttribute('aria-hidden', 'true');
+  progress.append(document.createElement('span'));
+  article.append(button, content, progress);
   return article;
 }
 
@@ -93,6 +98,10 @@ async function toggle(sound, button) {
       };
       audio.addEventListener('ended', () => finish(state), { once: true });
       await audio.play();
+      // A looping sample restarts the bar on every lap.
+      trackProgress(state, () =>
+        audio.duration ? (audio.currentTime % audio.duration) / audio.duration : 0,
+      );
     } else {
       const AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext;
       if (!AudioContextClass) throw Error('Web Audio API unavailable');
@@ -102,6 +111,8 @@ async function toggle(sound, button) {
       const playback = playProceduralSound(audioContext, sound);
       state.stop = () => playback?.stop();
       state.timer = setTimeout(() => finish(state), sound.duration * 1000 + 80);
+      const started = performance.now();
+      trackProgress(state, () => (performance.now() - started) / (sound.duration * 1000));
     }
   } catch {
     if (current === state) {
@@ -110,6 +121,16 @@ async function toggle(sound, button) {
       status.textContent = 'Не удалось воспроизвести «' + sound.title + '»';
     }
   }
+}
+
+function trackProgress(state, fraction) {
+  const bar = state.button.closest('.sound-card').querySelector('.sound-progress span');
+  const frame = () => {
+    if (current !== state) return;
+    bar.style.transform = `scaleX(${Math.max(0, Math.min(1, fraction()))})`;
+    state.frame = requestAnimationFrame(frame);
+  };
+  frame();
 }
 
 function finish(state) {
@@ -130,6 +151,11 @@ function stopCurrent() {
 }
 
 function setPlaying(state, playing) {
+  if (!playing) {
+    cancelAnimationFrame(state.frame);
+    const bar = state.button.closest('.sound-card').querySelector('.sound-progress span');
+    bar.style.transform = 'scaleX(0)';
+  }
   state.button.classList.toggle('playing', playing);
   state.button.innerHTML = `<span aria-hidden="true">${playing ? '■' : '▶'}</span>`;
   state.button.setAttribute(

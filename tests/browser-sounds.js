@@ -16,11 +16,27 @@ import assert from 'node:assert/strict';
     assert.equal(await page.locator('#procedural-count').textContent(), '10');
 
     const loopButton = page.locator('[data-sound="wind"] .sound-play');
+    // The progress bar along the card fills while a sound plays and empties when it stops.
+    const progress = (id) =>
+      page.evaluate((id) => {
+        const bar = document.querySelector(`[data-sound="${id}"] .sound-progress span`);
+        return new DOMMatrix(getComputedStyle(bar).transform).a;
+      }, id);
+    // The harness's waitForFunction only reaches the game and editor pages, so poll here.
+    const untilProgress = async (id) => {
+      for (let i = 0; i < 100 && !((await progress(id)) > 0); i++) await page.waitForTimeout(50);
+      assert.ok((await progress(id)) > 0, id + ' progress bar starts filling');
+    };
     await loopButton.click();
     await page.locator('[data-sound="wind"].playing').waitFor();
     assert.match(await page.locator('#sound-status').textContent(), /Ветер подземелья/);
+    await untilProgress('wind');
+    const early = await progress('wind');
+    await page.waitForTimeout(400);
+    assert.ok((await progress('wind')) > early, 'the bar advances while playing');
     await loopButton.click();
     assert.equal(await page.locator('[data-sound="wind"].playing').count(), 0);
+    assert.equal(await progress('wind'), 0, 'stopping empties the bar');
 
     await page.locator('[data-sound="uiMove"] .sound-play').click();
     await page.locator('[data-sound="uiMove"].playing').waitFor();
@@ -28,6 +44,7 @@ import assert from 'node:assert/strict';
     const toneButton = page.locator('[data-sound="victoryTone"] .sound-play');
     await toneButton.click();
     await page.locator('[data-sound="victoryTone"].playing').waitFor();
+    await untilProgress('victoryTone');
     await page.screenshot({ path: 'artifacts/sounds-wide.png', fullPage: true });
     await page.locator('[data-sound="woodHit"] .sound-play').click();
     await page.locator('[data-sound="woodHit"].playing').waitFor();
@@ -41,7 +58,9 @@ import assert from 'node:assert/strict';
     await page.screenshot({ path: 'artifacts/sounds-mobile.png', fullPage: true });
     assert.deepEqual(errors, []);
     assert.deepEqual(failed, []);
-    console.log('PASS sound gallery catalog, playback controls and responsive layout');
+    console.log(
+      'PASS sound gallery catalog, playback controls, progress bars and responsive layout',
+    );
   } finally {
     await browser.close();
   }
