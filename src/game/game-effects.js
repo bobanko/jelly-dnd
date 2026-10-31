@@ -344,16 +344,10 @@ class System {
       }
     }
     if (event.type === 'crateTeleport') {
-      // A mage's teleport: a white flash swallowing the crate, sparks bursting off its sides
-      // in every direction, and a shock ring at its feet.
+      // A mage's teleport: a white flash swallowing the crate and sparks bursting off its
+      // sides in every direction.
       const white = [1, 0.97, 0.9],
         [x, y, z] = event.center;
-      this.rings.push({
-        center: [x, y - 0.45, z],
-        color: white,
-        age: 0,
-        life: this.reducedMotion ? 0.25 : 0.5,
-      });
       for (const [size, life] of [
         [0.66, 0.16],
         [0.5, 0.26],
