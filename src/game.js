@@ -290,10 +290,12 @@ function updateTorches(dt) {
       if (!s.out) {
         s.out = true;
         effects.burst({ type: 'torchOut', position: flame }, players, soft);
+        gameAudio.play('torchOut');
       }
     } else if (s.out && (s.clear += dt) >= TORCH_RELIGHT_SECONDS) {
       s.out = false;
       effects.burst({ type: 'torchLit', position: flame }, players, soft);
+      gameAudio.play('torchLight');
     }
     const target = s.out ? 0 : 1;
     s.lit = reducedMotion

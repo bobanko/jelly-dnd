@@ -70,5 +70,17 @@
     "duration_seconds": 20,
     "loop": true,
     "prompt_influence": 0.5
+  },
+  "torch-light": {
+    "text": "A wooden match being struck and catching on a wall torch. One quick dry scratch of a match head on rough stone, a crisp little sulfur flare, then a soft rounded whoosh as a small oily flame catches and settles into a gentle crackle. Close, warm and intimate game sound, short and clear. No explosion, no big fire roar, no metal, no voice, no music, no reverb.",
+    "duration_seconds": 1.2,
+    "loop": false,
+    "prompt_influence": 0.7
+  },
+  "torch-out": {
+    "text": "A small torch flame being snuffed out. One short soft wet fizz like a fingertip pinching a candle wick, a quick fading hiss of steam and a faint airy puff of smoke. Quiet, close and gentle game sound with a fast decay. No water splash, no wind gust, no explosion, no voice, no music, no reverb.",
+    "duration_seconds": 0.8,
+    "loop": false,
+    "prompt_influence": 0.7
   }
 }

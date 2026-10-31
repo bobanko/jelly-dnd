@@ -10,6 +10,9 @@ const clips = {
   rune: ['finish-rune-2026-10-29T00-11-31-512Z.mp3', 0.48],
   rise: ['spikes-2026-10-28T23-57-14-327Z.mp3', 0.18],
   retract: ['spikes-retract-2026-10-28T23-57-21-491Z.mp3', 0.18],
+  // Easter egg: a jelly snuffing a wall torch, and the torch catching again like a match.
+  torchLight: ['torch-light-2026-10-31T03-00-50-733Z.mp3', 0.25],
+  torchOut: ['torch-out-2026-10-31T03-00-53-239Z.mp3', 1],
   wind: ['dungeon-wind-2026-10-28T23-31-02-885Z.mp3', 0.08],
 };
 
