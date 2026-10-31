@@ -1255,6 +1255,9 @@ function skullMarkup(crack = false) {
 // The team starts each run with three skulls; every death cracks one. The level
 // counts as complete either way, and the best number kept is remembered per level.
 const RUN_SKULLS = 3;
+function winSkullCrackDelay(index, count = RUN_SKULLS) {
+  return 1.75 + (count - index - 1) * 0.4;
+}
 function skullsLeft() {
   return Math.max(0, RUN_SKULLS - runDeaths.reduce((sum, deaths) => sum + deaths, 0));
 }
@@ -1303,13 +1306,15 @@ function refreshWin() {
     id === JellyLevels.standardNames.length ? 'demoComplete' : 'levelComplete',
   );
   document.querySelector('#win-level-name').textContent = currentLevelTitle();
-  // Skulls appear one by one, then the lost ones crack in turn.
+  // Skulls appear one by one, then the lost ones crack from right to left.
   const kept = skullsLeft();
   skullRow(document.querySelector('#win-skulls'), kept);
-  [...document.querySelector('#win-skulls').children].forEach((skull, i) => {
+  const winSkulls = [...document.querySelector('#win-skulls').children];
+  winSkulls.forEach((skull, i) => {
+    const crackDelay = winSkullCrackDelay(i, winSkulls.length);
     skull.style.setProperty('--appear', 0.3 + i * 0.4 + 's');
-    skull.style.setProperty('--crack', 1.75 + (i - kept) * 0.4 + 's');
-    if (!winShown && i >= kept) gameAudio.playUI('skullCrack', 1, 1.75 + (i - kept) * 0.4);
+    skull.style.setProperty('--crack', crackDelay + 's');
+    if (!winShown && i >= kept) gameAudio.playUI('skullCrack', 1, crackDelay);
   });
   document.querySelector('#win-next').textContent = tr(
     id && id < JellyLevels.standardNames.length

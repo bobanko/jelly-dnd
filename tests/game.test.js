@@ -1052,6 +1052,11 @@ test('restored sound resumes a suspended context on input without changing the p
 });
 test('each death cracks one of the three run skulls and a restart restores them', async () => {
   const g = await game({ map: Levels.standardLevel(1) });
+  assert.equal(
+    g.run('JSON.stringify([0, 1, 2].map(i => winSkullCrackDelay(i, 3)))'),
+    '[2.55,2.15,1.75]',
+    'result skulls crack from right to left',
+  );
   assert.equal(g.run('skullsLeft()'), 3);
   g.run('runDeaths[0]++');
   assert.equal(g.run('skullsLeft()'), 2);
