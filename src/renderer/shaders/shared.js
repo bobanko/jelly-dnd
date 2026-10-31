@@ -215,10 +215,11 @@ export const shared = `
  @vertex fn flameVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
   let torch=scene.torches[instance];var o:Out;
   let right=normalize(vec3f(scene.vp[0].x,scene.vp[1].x,scene.vp[2].x));let view=normalize(-vec3f(scene.vp[0].z,scene.vp[1].z,scene.vp[2].z));let up=normalize(cross(view,right));
-  let height=(p.z+1.)*.5*.6-.08;
-  o.world=torch.xyz+vec3f(0.,-.12,0.)+right*p.x*.2+up*height;o.clip=scene.vp*vec4f(o.world,1.);
-  if(torch.w<.5){o.clip=vec4f(2,2,2,1);}
-  o.normal=view;o.color=vec3f(1.);o.material=f32(instance);o.local=vec3f(p.x,height/.5,0.);return o;
+  // w is the flame's strength: a doused torch shrinks to nothing, a relit one grows back.
+  let height=((p.z+1.)*.5*.6-.08)*torch.w;
+  o.world=torch.xyz+vec3f(0.,-.12,0.)+right*p.x*.2*mix(.35,1.,torch.w)+up*height;o.clip=scene.vp*vec4f(o.world,1.);
+  if(torch.w<.01){o.clip=vec4f(2,2,2,1);}
+  o.normal=view;o.color=vec3f(1.);o.material=f32(instance);o.local=vec3f(p.x,height/(.5*max(torch.w,.01)),0.);return o;
  }
  @fragment fn flameFS(o:Out)->@location(0) vec4f{
   let t=scene.options.z*1.1+o.material*1.93;let y=o.local.y;
@@ -313,10 +314,10 @@ export const shared = `
   var torchLight=vec3f(0.);
   for(var i=0;i<8;i++){
    let delta=scene.torches[i].xyz-p;let reach=dot(delta,delta);
-   if(scene.torches[i].w<.5||reach>13.69){continue;}
+   if(scene.torches[i].w<.01||reach>13.69){continue;}
    let distance=sqrt(reach);let falloff=1.-smoothstep(.1,3.7,distance);let attenuation=falloff*falloff;
    let flicker=1.+(sin(scene.options.z*8.+f32(i)*2.)*.6+sin(scene.options.z*13.7+f32(i)*5.)*.4)*.045;
-   torchLight+=vec3f(4.5,1.75,.36)*attenuation*max(.12,dot(n,delta/distance))*flicker;
+   torchLight+=vec3f(4.5,1.75,.36)*attenuation*max(.12,dot(n,delta/distance))*flicker*scene.torches[i].w;
   }
   light+=torchLight*(.5+.5*occlusion);
   var bodies:BodyLight;bodies.scale=vec3f(1.);

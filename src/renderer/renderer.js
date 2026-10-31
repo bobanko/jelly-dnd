@@ -910,7 +910,12 @@ class Renderer {
     this.updateReveal(level, players, frame, dt, uniforms);
     (level.world.torches || [])
       .slice(0, 8)
-      .forEach((p, i) => uniforms.set([...Levels.torchFrame(p).light, 1], TORCHES_OFFSET + i * 4));
+      .forEach((p, i) =>
+        uniforms.set(
+          [...Levels.torchFrame(p).light, level.torchLight?.[i] ?? 1],
+          TORCHES_OFFSET + i * 4,
+        ),
+      );
     players.forEach((p, i) =>
       uniforms.set(
         [

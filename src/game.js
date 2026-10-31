@@ -265,7 +265,45 @@ function clearGoalVisuals() {
   sceneRenderer.goalGlowStrength = [];
   sceneRenderer.goalWinGlow = 0;
 }
+// Easter egg: a jelly brushing a wall torch snuffs it out; the torch catches again a while
+// after nobody is touching it. Visual only: level.torchLight scales its flame and light.
+const TORCH_RELIGHT_SECONDS = 2;
+let torchStates = [];
+function updateTorches(dt) {
+  const torches = (world.torches || []).slice(0, 8);
+  if (torchStates.length !== torches.length)
+    torchStates = torches.map(() => ({ lit: 1, clear: 0, out: false }));
+  level.torchLight = torchStates.map((s) => s.lit);
+  if (menuOpen || level.assembly || loadingActive) return;
+  torches.forEach((torch, i) => {
+    const s = torchStates[i],
+      flame = JellyLevels.torchFrame(torch).light,
+      touched = players.some(
+        (p) =>
+          JellyPhysics.alive(p) &&
+          Math.abs(p.x - flame[0]) < 0.48 &&
+          Math.abs(p.z - flame[2]) < 0.48 &&
+          Math.abs((p.y || 0) + 0.42 - flame[1]) < 0.55,
+      );
+    if (touched) {
+      s.clear = 0;
+      if (!s.out) {
+        s.out = true;
+        effects.burst({ type: 'torchOut', position: flame }, players, soft);
+      }
+    } else if (s.out && (s.clear += dt) >= TORCH_RELIGHT_SECONDS) {
+      s.out = false;
+      effects.burst({ type: 'torchLit', position: flame }, players, soft);
+    }
+    const target = s.out ? 0 : 1;
+    s.lit = reducedMotion
+      ? target
+      : s.lit + (target - s.lit) * (1 - Math.exp(-dt * (s.out ? 14 : 3)));
+    if (Math.abs(target - s.lit) < 0.002) s.lit = target;
+  });
+}
 function reset(replayAssembly = false) {
+  torchStates = [];
   players.forEach((p, i) =>
     Object.assign(p, start[i], {
       spawn: { ...start[i] },
@@ -714,6 +752,7 @@ function frame(t) {
     fpsFrames = 0;
   }
   updateRestart(dt);
+  updateTorches(dt);
   updateLevelAssembly(dt);
   if (cameraIntro) updateCameraIntro(dt);
   else

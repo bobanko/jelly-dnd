@@ -343,6 +343,42 @@ class System {
         }
       }
     }
+    if (event.type === 'torchOut' || event.type === 'torchLit') {
+      // A snuffed torch: a puff of smoke and a few dying embers. Relit: a little spray of sparks.
+      const out = event.type === 'torchOut',
+        [x, y, z] = event.position;
+      for (let i = 0; i < (this.reducedMotion ? 0 : out ? 10 : 0); i++) {
+        const a = random() * Math.PI * 2;
+        this.particles.push({
+          kind: 'smoke',
+          position: [x + Math.cos(a) * 0.05, y + random() * 0.1, z + Math.sin(a) * 0.05],
+          velocity: [Math.cos(a) * 0.25, 0.5 + random() * 0.5, Math.sin(a) * 0.25],
+          size: 0.05 + random() * 0.05,
+          phase: a,
+          color: [0.3, 0.28, 0.26],
+          age: 0,
+          life: 0.9 + random() * 0.6,
+        });
+      }
+      for (let i = 0; i < (this.reducedMotion ? 0 : out ? 6 : 9); i++) {
+        const a = random() * Math.PI * 2,
+          speed = out ? 0.6 + random() * 0.8 : 0.8 + random() * 1.2;
+        this.particles.push({
+          kind: 'spark',
+          position: [x, y, z],
+          velocity: [
+            Math.cos(a) * speed * 0.5,
+            (out ? 0.6 : 1.4) + random(),
+            Math.sin(a) * speed * 0.5,
+          ],
+          size: 0.012 + random() * 0.01,
+          phase: a,
+          color: [1, 0.45, 0.08],
+          age: 0,
+          life: 0.3 + random() * 0.3,
+        });
+      }
+    }
     if (event.type === 'crateTeleport') {
       // A mage's teleport: a white flash swallowing the crate and sparks bursting off its
       // sides in every direction.
@@ -440,6 +476,8 @@ class System {
       }
       if (p.kind === 'jelly' || p.kind === 'wood') p.velocity[1] -= 7 * dt;
       else if (p.kind === 'spark') p.velocity[1] -= 5 * dt;
+      else if (p.kind === 'smoke')
+        for (let k = 0; k < 3; k++) p.velocity[k] *= 1 - Math.min(1, dt * 1.6);
       for (let k = 0; k < 3; k++) p.position[k] += p.velocity[k] * dt;
       if (p.kind === 'jelly' || p.kind === 'wood') {
         const floor = world.heightAt(p.position[0], p.position[2], previousY);
