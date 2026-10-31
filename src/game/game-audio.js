@@ -8,11 +8,14 @@ const clips = {
   land: ['jelly-land-2026-10-29T00-18-45-533Z.mp3', 0.5],
   portal: ['portal-2026-10-29T00-12-36-751Z.mp3', 0.38],
   rune: ['finish-rune-2026-10-29T00-11-31-512Z.mp3', 0.48],
+  skullCrack: ['skull-crack-2026-10-31T04-08-13-562Z.mp3', 0.42],
   rise: ['spikes-2026-10-28T23-57-14-327Z.mp3', 0.18],
   retract: ['spikes-retract-2026-10-28T23-57-21-491Z.mp3', 0.18],
   // Easter egg: a jelly snuffing a wall torch, and the torch catching again like a match.
   torchLight: ['torch-light-2026-10-31T03-00-50-733Z.mp3', 0.25],
   torchOut: ['torch-out-2026-10-31T03-00-53-239Z.mp3', 1],
+  uiConfirm: ['ui-confirm-2026-10-31T04-08-21-298Z.mp3', 0.28],
+  uiMove: ['ui-move-2026-10-31T04-08-17-613Z.mp3', 0.22],
   wind: ['dungeon-wind-2026-10-28T23-31-02-885Z.mp3', 0.08],
 };
 
@@ -80,6 +83,7 @@ export class GameAudio {
     this.active = false;
     this.buffers = new Map();
     this.sources = new Set();
+    this.presentationSources = new Set();
     this.lastPlayed = new Map();
     this.runeLevel = 0;
   }
@@ -110,13 +114,17 @@ export class GameAudio {
   setActive(active) {
     if (this.active === active) return;
     this.active = active;
-    if (!active) this.stop();
+    if (!active) this.stop(false);
     this.updateWind();
     this.updateRune();
   }
-  stop() {
-    for (const source of this.sources) source.stop();
-    this.sources.clear();
+  stop(includePresentation = true) {
+    for (const source of [...this.sources]) {
+      if (!includePresentation && this.presentationSources.has(source)) continue;
+      source.stop();
+      this.sources.delete(source);
+      this.presentationSources.delete(source);
+    }
     this.wind = null;
     this.runeSource = null;
     this.runeGain = null;
@@ -172,8 +180,14 @@ export class GameAudio {
     else parameter.value = target;
   }
   play(name, volume = 1, delay = 0) {
+    return this.start(name, volume, delay, true);
+  }
+  playUI(name, volume = 1, delay = 0) {
+    return this.start(name, volume, delay, false);
+  }
+  start(name, volume, delay, activeOnly) {
     // Never queue stale events while decoding, muted, paused or in menus.
-    if (!this.enabled || !this.active || !this.buffers.has(name)) return null;
+    if (!this.enabled || (activeOnly && !this.active) || !this.buffers.has(name)) return null;
     const context = this.context();
     if (context.state === 'suspended') return null;
     if (context.currentTime - (this.lastPlayed.get(name) ?? -Infinity) < 0.08) return null;
@@ -186,8 +200,10 @@ export class GameAudio {
     gain.gain.value = clips[name][1] * volume;
     source.connect(gain).connect(context.destination);
     this.sources.add(source);
+    if (!activeOnly) this.presentationSources.add(source);
     source.onended = () => {
       this.sources.delete(source);
+      this.presentationSources.delete(source);
       source.disconnect();
       gain.disconnect();
     };

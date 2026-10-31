@@ -82,5 +82,23 @@
     "duration_seconds": 0.8,
     "loop": false,
     "prompt_influence": 0.7
+  },
+  "skull-crack": {
+    "text": "One small stylised bone skull cracking with a muted dry snap and two tiny chalky fragments settling. Soft rounded transient, restrained volume and a very short tail for a friendly fantasy game result screen. No glass, explosion, horror, gore, sharp peak, voice, music or reverb.",
+    "duration_seconds": 0.7,
+    "loop": false,
+    "prompt_influence": 0.7
+  },
+  "ui-move": {
+    "text": "One tiny soft fantasy menu navigation tick. A light muted wooden click with a faint warm glassy touch, rounded and barely intrusive. Very short isolated interface sound. No sharp high frequency, bell, coin, keyboard, voice, music or reverb.",
+    "duration_seconds": 0.5,
+    "loop": false,
+    "prompt_influence": 0.65
+  },
+  "ui-confirm": {
+    "text": "One quiet low menu confirmation sound. A short padded wooden clack blended with a soft hollow low thump, confident but unobtrusive and rounded. Very short isolated interface sound. No sharp click, metal, slam, bass boom, voice, music or reverb.",
+    "duration_seconds": 0.6,
+    "loop": false,
+    "prompt_influence": 0.7
   }
 }

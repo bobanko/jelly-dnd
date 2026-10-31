@@ -138,10 +138,16 @@ test('samples preload once, deduplicate simultaneous traps, and stop on mute or 
   assert.equal(audio.play('land'), null);
   audio.setEnabled(true);
   await audio.loading;
-  assert.equal(fetch.mock.callCount(), 14);
+  assert.equal(fetch.mock.callCount(), 17);
   audio.setActive(false);
   assert.ok(started.every((source) => source.stopped));
   assert.equal(audio.play('portal'), null);
+  const ui = audio.playUI('uiMove');
+  assert.ok(ui);
+  audio.setActive(false);
+  assert.equal(ui.stopped, undefined, 'menu sounds survive the gameplay pause');
+  audio.setEnabled(false);
+  assert.equal(ui.stopped, true);
 });
 
 test('missing audio files do not prevent gameplay or cause deferred playback', async (t) => {
@@ -152,7 +158,7 @@ test('missing audio files do not prevent gameplay or cause deferred playback', a
   audio.setEnabled(true);
   await audio.loading;
   assert.equal(audio.play('land'), null);
-  assert.equal(warn.mock.callCount(), 14);
+  assert.equal(warn.mock.callCount(), 17);
 });
 
 test('rune ambience fades toward charge and stops with the game audio', async (t) => {

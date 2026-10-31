@@ -1311,6 +1311,7 @@ function refreshWin() {
   [...document.querySelector('#win-skulls').children].forEach((skull, i) => {
     skull.style.setProperty('--appear', 0.3 + i * 0.4 + 's');
     skull.style.setProperty('--crack', 1.75 + (i - kept) * 0.4 + 's');
+    if (!winShown && i >= kept) gameAudio.playUI('skullCrack', 1, 1.75 + (i - kept) * 0.4);
   });
   document.querySelector('#win-next').textContent = tr(
     id && id < JellyLevels.standardNames.length
@@ -1322,7 +1323,9 @@ function refreshWin() {
 }
 function selectWinItem(index, focus = true) {
   const buttons = [...document.querySelectorAll('#win .menu-items button')];
+  const previous = winSelected;
   winSelected = (index + 2) % 2;
+  if (winShown && winSelected !== previous) gameAudio.playUI('uiMove');
   buttons.forEach((button, i) => button.classList.toggle('selected', i === winSelected));
   if (focus) buttons[winSelected].focus({ preventScroll: true });
 }
@@ -1406,7 +1409,9 @@ function menuButtons() {
 }
 function selectMenuItem(index, focus = true) {
   const buttons = menuButtons();
+  const previous = menuSelected;
   menuSelected = (index + buttons.length) % buttons.length;
+  if (menuOpen && menuSelected !== previous) gameAudio.playUI('uiMove');
   buttons.forEach((button, i) => button.classList.toggle('selected', i === menuSelected));
   if (focus) {
     const button = buttons[menuSelected];
@@ -1526,6 +1531,19 @@ if (JellyI18n) {
       if (index >= 0) selectMenuItem(index, false);
     });
   });
+  document.addEventListener(
+    'click',
+    (event) => {
+      const button = event.target.closest?.('button');
+      if (
+        button &&
+        !button.disabled &&
+        button.closest('#main-menu, #win, .game-tools, .jelly-settings')
+      )
+        gameAudio.playUI('uiConfirm');
+    },
+    true,
+  );
   addEventListener('languagechange', refreshLanguage);
   refreshLanguage();
   setMenu(
