@@ -1,8 +1,24 @@
 :root {
+  --sound-ui-scale: 1;
   color-scheme: dark;
   font-family: Arial, sans-serif;
   color: #e5dac3;
   background: #101214;
+}
+
+/* Match the game HUD density on high-density desktop displays. The gallery can
+   reflow as one document, so scaling the root also keeps its sticky and fixed UI aligned. */
+@media (min-width: 1025px) and (min-resolution: 1.5dppx) {
+  :root {
+    --sound-ui-scale: 1.5;
+    zoom: var(--sound-ui-scale);
+  }
+}
+
+@media (min-width: 1025px) and (min-resolution: 2dppx) {
+  :root {
+    --sound-ui-scale: 2;
+  }
 }
 
 * {

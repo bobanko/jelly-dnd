@@ -102,8 +102,38 @@ try {
   }
   assert.ok(Math.abs(editor[1].tool - editor[0].tool * 1.25) < 1);
   assert.ok(Math.abs(editor[3].tool - editor[0].tool * 2) < 1);
+
+  // The standalone sound catalog scales as a whole and reflows without horizontal scrolling.
+  const sounds = [];
+  for (const density of [1, 1.5, 2]) {
+    const page = await browser.newPage({
+        viewport: { width: 1280, height: 800 },
+        deviceScaleFactor: density,
+      }),
+      errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto('http://localhost:3000/sounds.html');
+    await page.waitForSelector('.sound-card');
+    const sample = await page.evaluate(() => {
+      const button = document.querySelector('.sound-play').getBoundingClientRect();
+      return {
+        scale: Number(
+          getComputedStyle(document.documentElement).getPropertyValue('--sound-ui-scale'),
+        ),
+        button: { width: button.width, height: button.height },
+        overflow: document.documentElement.scrollWidth > innerWidth,
+      };
+    });
+    assert.equal(sample.scale, density);
+    assert.equal(sample.overflow, false);
+    assert.deepEqual(errors, []);
+    sounds.push(sample);
+    await page.close();
+  }
+  assert.ok(Math.abs(sounds[1].button.width - sounds[0].button.width * 1.5) < 1);
+  assert.ok(Math.abs(sounds[2].button.width - sounds[0].button.width * 2) < 1);
   console.log(
-    'PASS: 1×, 1.5× and Retina 2× HUD sizing, unchanged canvas and viewport-safe controls; editor chrome scaled by density and window width.',
+    'PASS: 1×, 1.5× and Retina 2× HUD and sound gallery sizing, unchanged canvas and viewport-safe controls; editor chrome scaled by density and window width.',
   );
 } finally {
   await browser.close();
