@@ -860,7 +860,7 @@ class Renderer {
     }
   }
   // Jellies ready to respawn whose spawn is taken: ghost outlines in their colours.
-  spawnGhosts(players, time) {
+  spawnGhosts(players, time, frame) {
     const colors = [
       [0.045, 0.72, 0.095],
       [0.025, 0.15, 0.95],
@@ -873,8 +873,19 @@ class Renderer {
         ? [
             {
               center: [p.spawn.x, (p.spawn.y || 0) + 0.42, p.spawn.z],
+              // Direction to the camera from the ghost itself, so its outline and question
+              // mark stay true in perspective.
+              view: frame.perspective
+                ? normalize(
+                    frame.eye.map((v, k) => v - [p.spawn.x, (p.spawn.y || 0) + 0.42, p.spawn.z][k]),
+                  )
+                : frame.view,
               color: colors[p.slot ?? i] || colors[0],
-              alpha: 0.45 + 0.25 * Math.sin(time * 5),
+              // An uneven flicker, like a picture that will not quite form.
+              alpha: Math.max(
+                0.15,
+                Math.min(0.9, 0.5 + 0.2 * Math.sin(time * 5.3) + 0.15 * Math.sin(time * 17.1 + i)),
+              ),
             },
           ]
         : [],
@@ -1023,7 +1034,7 @@ class Renderer {
     const assembling = !!level.assembly,
       bridgeDraw = this.bridges(level, layout),
       propCount = this.props(level, players, angle, time, dt),
-      effectCount = this.effects(level.effects, view, this.spawnGhosts(players, time));
+      effectCount = this.effects(level.effects, view, this.spawnGhosts(players, time, frame));
     this.updateRunes(level.effects, level);
     this.updateBeams(level);
     const encoder = d.createCommandEncoder();

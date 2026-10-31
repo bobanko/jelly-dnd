@@ -1,11 +1,12 @@
 import { bridgePose } from '../world/level-features.js';
 import { PORTAL_LIMIT, DUST_MOTES } from './layout.js';
-import { dot } from './math.js';
+import { dot, normalize, cross } from './math.js';
 import { box, sphere, rod } from './mesh.js';
 import { beamColors } from './geometry/mobs.js';
 import { phaseTints, portalRing } from './geometry/mechanisms.js';
 export const effectsMethods = {
   effects(system, view, ghosts = []) {
+    const cameraView = view;
     if (
       !ghosts.length &&
       (!system || (!system.particles.length && !system.rings.length && !system.bones?.length))
@@ -122,13 +123,34 @@ export const effectsMethods = {
     // spawn usually hides it.
     this.ghostFirst = mesh.length / 12;
     for (const ghost of ghosts) {
-      const from = mesh.length,
+      const view = ghost.view || cameraView,
+        from = mesh.length,
         [x, y, z] = ghost.center,
         h = 0.38,
         corner = (i) => [x + (i & 1 ? h : -h), y + (i & 2 ? h : -h), z + (i & 4 ? h : -h)];
+      // Only the cube's outline as the camera sees it: edges between a face turned towards
+      // the camera and one turned away.
       for (let i = 0; i < 8; i++)
-        for (const bit of [1, 2, 4])
-          if (!(i & bit)) rod(mesh, corner(i), corner(i | bit), 0.012, ghost.color, 7);
+        for (let axis = 0; axis < 3; axis++) {
+          const bit = 1 << axis;
+          if (i & bit) continue;
+          const [b, c] = [0, 1, 2].filter((k) => k !== axis),
+            facing = (k) => (i & (1 << k) ? 1 : -1) * view[k] > 0;
+          if (facing(b) !== facing(c)) rod(mesh, corner(i), corner(i | bit), 0.014, ghost.color, 7);
+        }
+      // A question mark in the middle, facing the camera.
+      const right = normalize([view[2], 0, -view[0]]),
+        up = cross(view, right),
+        glyph = 1.35,
+        at = ([u, v]) => ghost.center.map((c, k) => c + (right[k] * u + up[k] * v) * glyph),
+        curve = [165, 130, 95, 60, 25, -10, -45].map((a) => [
+          Math.cos((a * Math.PI) / 180) * 0.09,
+          0.08 + Math.sin((a * Math.PI) / 180) * 0.09,
+        ]);
+      curve.push([0.012, -0.03], [0, -0.065]);
+      for (let k = 1; k < curve.length; k++)
+        rod(mesh, at(curve[k - 1]), at(curve[k]), 0.024, ghost.color, 7);
+      sphere(mesh, at([0, -0.13]), [0.034, 0.034, 0.034], ghost.color, 7);
       for (let k = from; k < mesh.length; k += 12) {
         mesh[k + 9] = 7;
         mesh[k + 10] = ghost.alpha;
