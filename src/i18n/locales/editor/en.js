@@ -67,6 +67,7 @@ export default {
   Конвейер: 'Conveyor',
   Шипы: 'Spikes',
   Ящик: 'Crate',
+  'Малый ящик': 'Small crate',
   'Большой ящик': 'Large crate',
   Лучник: 'Archer',
   Щит: 'Shield',

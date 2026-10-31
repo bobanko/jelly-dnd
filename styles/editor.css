@@ -403,8 +403,17 @@ kbd {
   margin-bottom: 9px;
 }
 .object-head .marker {
+  flex: none;
+  width: 22px;
   font-size: 18px;
-  color: var(--accent);
+  line-height: 24px;
+  text-align: center;
+  color: var(--tool-color, var(--accent));
+}
+.object-head .marker svg {
+  width: 22px;
+  height: 24px;
+  display: block;
 }
 .object-head button {
   margin-left: auto;

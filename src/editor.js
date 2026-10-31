@@ -57,7 +57,7 @@ const groups = [
   [
     'Объекты',
     [
-      ['crate', '⊠', 'Ящик', '#cba778'],
+      ['crate', '⊠', 'Малый ящик', '#cba778'],
       ['crate-large', '⧈', 'Большой ящик', '#a98552'],
       ['archer', '☠', 'Лучник', '#ded3b2'],
       ['drone', '♜', 'Кристаллический дрон', '#c98cff'],
@@ -106,7 +106,7 @@ const labels = {
   conveyors: 'Конвейер',
   spikes: 'Шипы',
   portals: 'Портал',
-  crates: 'Ящик',
+  crates: 'Малый ящик',
   archers: 'Скелет-лучник',
   pickups: 'Предмет',
 };
@@ -486,6 +486,28 @@ $('brush-height').replaceChildren(
   }),
 );
 $('brush-height').value = '0';
+// Palette tool id for a placed object, to reuse its icon and colour.
+function objectTool(key, index, p) {
+  if (key === 'blocks')
+    return p.lava ? 'lava' : p.color !== undefined ? 'color-' + p.color : 'floor';
+  if (key === 'tiles') return 'floor';
+  if (key === 'walls') return p.half < 0.4 ? 'torch' : 'floor';
+  if (key === 'spawns') return 'spawn-' + index;
+  if (key === 'goals') return 'goal-' + index;
+  if (key === 'portals') return 'portal-' + p.color;
+  if (key === 'crates') return p.large ? 'crate-large' : 'crate';
+  if (key === 'pickups') return p.kind;
+  return {
+    torches: 'torch',
+    drones: 'drone',
+    plates: 'plate',
+    bridges: 'bridge',
+    lifts: 'lift',
+    conveyors: 'conveyor',
+    spikes: 'spikes',
+    archers: 'archer',
+  }[key];
+}
 function cellObjects(x, z, y) {
   const result = [];
   for (const key of [
@@ -660,24 +682,13 @@ function renderProperties() {
     if (key === 'spawns' || key === 'goals') label += ` · ${names[index]}`;
     if (key === 'pickups') label = p.kind === 'shield' ? 'Деревянный щит' : 'Железный меч';
     if (key === 'walls' && p.half < 0.4) label = 'Факел';
-    head.append(
-      element(
-        'span',
-        key === 'goals'
-          ? L.characters[index].glyph
-          : key === 'spawns'
-            ? '▣'
-            : key === 'archers'
-              ? '☠'
-              : key === 'pickups'
-                ? p.kind === 'shield'
-                  ? '◈'
-                  : '⚔'
-                : '◇',
-        'marker',
-      ),
-      element('span', label),
-    );
+    if (key === 'crates' && p.large) label = 'Большой ящик';
+    // The same icon and colour as the palette tool that places this object.
+    const tool = tools[objectTool(key, index, p)],
+      marker = tool ? toolIcon(objectTool(key, index, p), tool.glyph) : element('span', '◇');
+    marker.classList.add('marker');
+    head.style.setProperty('--tool-color', tool?.color || '#a7bba4');
+    head.append(marker, element('span', label));
     card.append(head);
     const set = (property, value) =>
       edit((map) => {
