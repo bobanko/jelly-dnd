@@ -7,7 +7,9 @@ import {
   assemblyDropOffset,
   assemblyFloatOffset,
   assemblyRock,
+  assemblySpikeRise,
   jellyScale,
+  landingLayout,
 } from './assembly.js';
 import { shieldGeometry, arrowGeometry, swordGeometry } from './geometry/equipment.js';
 import {
@@ -303,11 +305,8 @@ export const propsMethods = {
       rz = -(s + c) * 0.7071,
       fx = (c + s) * 0.7071,
       fz = (c - s) * 0.7071,
-      crateLandingStart = level.plates.length + players.length,
-      pickupLandingStart = crateLandingStart + (level.crates || []).length,
-      archerLandingStart = pickupLandingStart + level.world.pickups.length,
-      droneLandingStart = archerLandingStart + level.world.archers.length,
-      landingCount = droneLandingStart + (level.world.drones || []).length;
+      layout = landingLayout(level, players.length),
+      landingCount = layout.count;
     let opaqueCount = 0;
     this.crystalPieces = [];
     this.propDraws = [];
@@ -316,18 +315,22 @@ export const propsMethods = {
         i = piece.index,
         landingIndex =
           piece.kind === 'pressureButton' || piece.kind === 'pressureSocket'
-            ? i
+            ? layout.plates + i
             : piece.kind === 'jelly' || piece.kind === 'bubble'
-              ? level.plates.length + i
+              ? layout.jellies + i
               : piece.kind === 'crate'
-                ? crateLandingStart + i
+                ? layout.crates + i
                 : piece.kind === 'pickup'
-                  ? pickupLandingStart + i
+                  ? layout.pickups + i
                   : piece.kind.startsWith('archer') || piece.kind === 'nockedArrow'
-                    ? archerLandingStart + i
+                    ? layout.archers + i
                     : piece.kind === 'drone' || piece.kind === 'droneCrystal'
-                      ? droneLandingStart + i
-                      : null,
+                      ? layout.drones + i
+                      : piece.kind === 'lift'
+                        ? layout.lifts + i
+                        : piece.kind === 'spikes'
+                          ? layout.spikes + i
+                          : null,
         // Jellies and their gear grow in place (summoning, portal and respawn warps).
         warp =
           piece.kind === 'jelly' ||
@@ -335,16 +338,22 @@ export const propsMethods = {
           piece.kind === 'shield' ||
           piece.kind === 'shieldCrack' ||
           piece.kind === 'sword'
-            ? jellyScale(level, i, level.plates.length + i, landingCount)
+            ? jellyScale(level, i, layout.jellies + i, landingCount)
             : 1,
         dropOffset =
           landingIndex === null
             ? null
             : piece.kind === 'jelly' || piece.kind === 'bubble'
               ? 0
-              : piece.kind === 'drone' || piece.kind === 'droneCrystal'
-                ? assemblyFloatOffset(level.assembly, landingIndex, landingCount)
-                : assemblyDropOffset(level.assembly, landingIndex, landingCount),
+              : // Spikes rise in place (see below): hidden only before their slot.
+                piece.kind === 'spikes'
+                ? level.assembly &&
+                  assemblySpikeRise(level.assembly, landingIndex, landingCount) === null
+                  ? null
+                  : 0
+                : piece.kind === 'drone' || piece.kind === 'droneCrystal'
+                  ? assemblyFloatOffset(level.assembly, landingIndex, landingCount)
+                  : assemblyDropOffset(level.assembly, landingIndex, landingCount),
         rock =
           piece.kind.startsWith('archer') || piece.kind === 'nockedArrow'
             ? assemblyRock(level.assembly, landingIndex, landingCount)
@@ -454,10 +463,15 @@ export const propsMethods = {
         z = lift.z;
       } else {
         const trap = level.world.spikes[i],
-          state = level.world.spikeState(trap);
-        if (state.extension <= 0) continue;
+          state = level.world.spikeState(trap),
+          // During the level assembly the spikes rise out of their sockets in their slot.
+          rise = level.assembly
+            ? (assemblySpikeRise(level.assembly, landingIndex, landingCount) ?? 0)
+            : 1,
+          extension = state.extension * rise;
+        if (extension <= 0) continue;
         const f = level.world.spikeFrame(trap);
-        [x, y, z] = f.origin.map((p, k) => p + f.n[k] * (0.015 - 0.24 * (1 - state.extension)));
+        [x, y, z] = f.origin.map((p, k) => p + f.n[k] * (0.015 - 0.24 * (1 - extension)));
         matrix = [0, 1, 2].flatMap((k) => [f.u[k], f.n[k], f.v[k]]);
       }
       if (dropOffset) y += dropOffset;
@@ -491,9 +505,17 @@ export const propsMethods = {
       level.world.portals.length,
       level.world.conveyors.length,
       JSON.stringify(level.world.torches || []),
+      this.sceneVersion,
     ].join(',');
     if (this.decorationKey !== decorationKey) {
-      const mesh = [];
+      const mesh = [],
+        support = [],
+        // During the level assembly each decoration rides on the cube beneath it, like the
+        // torches: same centre and arrival order (see buildScene's assemblyCells).
+        ride = (from, x, y, z) => {
+          const cell = this.assemblyCells?.get(`${x},${y},${z}`) ?? [x, y - 0.5, z, 1];
+          for (let k = from; k < mesh.length; k += 12) support.push(...cell);
+        };
       level.goals.forEach((g, i) => {
         if (!g) return;
         const y = g.y ?? level.world.heightAt(g.x, g.z) ?? 0,
@@ -525,6 +547,7 @@ export const propsMethods = {
           mesh[n + 10] = i;
           mesh[n + 11] = 1;
         }
+        ride(base, g.x, y, g.z);
       });
       for (const trap of level.world.spikes) {
         const from = mesh.length,
@@ -540,6 +563,7 @@ export const propsMethods = {
               mesh[k + off + axis] =
                 (off ? 0 : f.origin[axis]) + f.u[axis] * a + f.n[axis] * b + f.v[axis] * c;
           }
+        ride(from, trap.x, trap.y ?? level.world.heightAt(trap.x, trap.z) ?? 0, trap.z);
       }
       for (const belt of level.world.conveyors) {
         const from = mesh.length,
@@ -575,10 +599,12 @@ export const propsMethods = {
             mesh[k + offset + 1] = (offset ? 0 : y) + py;
             mesh[k + offset + 2] = (offset ? 0 : belt.z) - dx * x + dz * z;
           }
+        ride(from, belt.x, y, belt.z);
       }
       level.world.portals.forEach((portal, i) => {
         const y = portal.y ?? level.world.heightAt(portal.x, portal.z) ?? 0,
-          color = Levels.portalColor(portal.color).glow;
+          color = Levels.portalColor(portal.color).glow,
+          start = mesh.length;
         box(mesh, [portal.x, y + 0.012, portal.z], [0.75, 0.024, 0.75], [0.08, 0.075, 0.095], 0.05);
         const rim = mesh.length;
         portalRing(mesh, portal.x, y + 0.053, portal.z, color);
@@ -593,7 +619,13 @@ export const propsMethods = {
           mesh[n + 10] = i;
           mesh[n + 11] = 0;
         }
+        ride(start, portal.x, y, portal.z);
       });
+      this.decorationAssembly?.destroy();
+      this.decorationAssembly = this.buffer(
+        new Float32Array(support.length ? support : [0, 0, 0, 0]),
+        GPUBufferUsage.VERTEX,
+      );
       const decorations = new Float32Array(mesh);
       if (decorations.byteLength > this.decorationBuffer.size) {
         this.decorationBuffer.destroy();

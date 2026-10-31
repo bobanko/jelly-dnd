@@ -49,17 +49,38 @@ export function jellyScale(level, index, landingIndex, landingCount) {
     ? assemblyAppearScale(level.assembly, landingIndex, landingCount)
     : (level.effects?.warpScale?.(index) ?? 1);
 }
-// Landing progress of jelly `index` in the level assembly (null before it appears), in the
-// same landing order the renderer uses: plates, jellies, crates, pickups, archers, drones.
+// The landing wave after the blocks gives every object a slot, in this order: buttons,
+// lifts, bridges, spikes, jellies, crates, pickups, archers, drones. Returns the first slot of
+// each kind and the total count.
+export function landingLayout(level, playerCount) {
+  const layout = {};
+  let slot = 0;
+  for (const [kind, count] of [
+    ['plates', level.plates.length],
+    ['lifts', level.world.lifts.length],
+    ['bridges', (level.bridges || []).length],
+    ['spikes', level.world.spikes.length],
+    ['jellies', playerCount],
+    ['crates', (level.crates || []).length],
+    ['pickups', level.world.pickups.length],
+    ['archers', level.world.archers.length],
+    ['drones', (level.world.drones || []).length],
+  ]) {
+    layout[kind] = slot;
+    slot += count;
+  }
+  layout.count = slot;
+  return layout;
+}
+// Landing progress of jelly `index` in the level assembly (null before it appears).
 export function jellySummonProgress(level, players, index) {
-  const count =
-    level.plates.length +
-    players.length +
-    (level.crates || []).length +
-    level.world.pickups.length +
-    level.world.archers.length +
-    (level.world.drones || []).length;
-  return assemblyLandingProgress(level.assembly, level.plates.length + index, count);
+  const layout = landingLayout(level, players.length);
+  return assemblyLandingProgress(level.assembly, layout.jellies + index, layout.count);
+}
+// Spikes rise out of their sockets during their landing slot (0..1, null before).
+export function assemblySpikeRise(assembly, index, count) {
+  const t = assemblyLandingProgress(assembly, index, count);
+  return t === null ? null : smootherstep(t);
 }
 // Crate arrival during the level assembly: teleported in above its cell with a white flash
 // (game.js), it hangs for a moment, falls under gravity and bounces once. Returns the height
@@ -67,18 +88,8 @@ export function jellySummonProgress(level, players, index) {
 export const CRATE_DROP_HEIGHT = 0.9;
 // Landing progress of crate `index`, in the renderer's landing order (after the jellies).
 export function crateArrivalProgress(level, players, index) {
-  const count =
-    level.plates.length +
-    players.length +
-    (level.crates || []).length +
-    level.world.pickups.length +
-    level.world.archers.length +
-    (level.world.drones || []).length;
-  return assemblyLandingProgress(
-    level.assembly,
-    level.plates.length + players.length + index,
-    count,
-  );
+  const layout = landingLayout(level, players.length);
+  return assemblyLandingProgress(level.assembly, layout.crates + index, layout.count);
 }
 export function assemblyCrateArrival(assembly, index, count) {
   const t = assemblyLandingProgress(assembly, index, count);

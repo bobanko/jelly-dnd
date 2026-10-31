@@ -15,7 +15,7 @@ import {
   DUST_MOTES,
 } from './layout.js';
 import { dot, normalize, viewMatrix, cameraFrame } from './math.js';
-import { jellyScale } from './assembly.js';
+import { jellyScale, landingLayout } from './assembly.js';
 import { portalRing } from './geometry/mechanisms.js';
 import { colliderLines, surfaceBindings } from './geometry/surfaces.js';
 import { shared } from './shaders/shared.js';
@@ -998,15 +998,10 @@ class Renderer {
     d.queue.writeBuffer(this.filmUniform, 0, this.filmData);
     const nodes = new Float32Array(320 * 4);
     for (let i = 0; i < 5; i++) nodes[i * 256 + 3] = -1;
-    const landingCount =
-      level.plates.length +
-      players.length +
-      (level.crates || []).length +
-      level.world.pickups.length +
-      level.world.archers.length +
-      (level.world.drones || []).length;
+    const layout = landingLayout(level, players.length),
+      landingCount = layout.count;
     players.forEach((p, i) => {
-      const scale = jellyScale(level, i, level.plates.length + i, landingCount),
+      const scale = jellyScale(level, i, layout.jellies + i, landingCount),
         body = level.soft.get(p),
         core = body.core;
       // Scale the lattice about its centre for summoning and portal warps.
@@ -1026,7 +1021,7 @@ class Renderer {
     });
     d.queue.writeBuffer(this.nodes, 0, nodes);
     const assembling = !!level.assembly,
-      bridgeDraw = assembling ? { opaqueCount: 0, spectralCount: 0 } : this.bridges(level),
+      bridgeDraw = this.bridges(level, layout),
       propCount = this.props(level, players, angle, time, dt),
       effectCount = this.effects(level.effects, view, this.spawnGhosts(players, time));
     this.updateRunes(level.effects, level);
@@ -1099,10 +1094,7 @@ class Renderer {
       );
       opaque.setIndexBuffer(this.indexBuffer, 'uint32');
       players.forEach((p, i) => {
-        if (
-          p.state !== 'dead' &&
-          jellyScale(level, i, level.plates.length + i, landingCount) >= 0.01
-        )
+        if (p.state !== 'dead' && jellyScale(level, i, layout.jellies + i, landingCount) >= 0.01)
           opaque.drawIndexed(this.indexCount, 1, 0, 0, i);
       });
       opaque.setPipeline(this.opaque);
@@ -1115,7 +1107,13 @@ class Renderer {
       opaque.setPipeline(this.opaque);
     }
     opaque.setVertexBuffer(0, this.decorationBuffer);
-    if (!assembling) opaque.draw(this.decorationCount);
+    if (assembling && this.decorationCount) {
+      // Goal pads, spike sockets, belts and portal bases fly in with their cubes.
+      opaque.setPipeline(this.assemblyOpaque);
+      opaque.setVertexBuffer(1, this.decorationAssembly);
+      opaque.draw(this.decorationCount);
+      opaque.setPipeline(this.opaque);
+    } else opaque.draw(this.decorationCount);
     const torchCount = assembling ? 0 : Math.min(8, (level.world.torches || []).length);
     if (torchCount) {
       opaque.setPipeline(this.flamePipeline);
@@ -1147,7 +1145,7 @@ class Renderer {
       spectral.end();
     }
     const order = players.flatMap((p, i) => {
-      const scale = jellyScale(level, i, level.plates.length + i, landingCount);
+      const scale = jellyScale(level, i, layout.jellies + i, landingCount);
       return p.state === 'dead' || scale < 0.01
         ? []
         : [{ kind: 'jelly', i, center: [p.x, (p.y || 0) + 0.42, p.z] }];

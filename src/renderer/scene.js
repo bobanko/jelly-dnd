@@ -4,6 +4,7 @@ import { phaseTints } from './geometry/mechanisms.js';
 import { phaseBlock, phaseGroundGlow } from './geometry/runes.js';
 import { torchDecor, scatterDecor } from './geometry/decor.js';
 import { occluderCells } from './see-through.js';
+import { assemblyDropOffset } from './assembly.js';
 export const sceneMethods = {
   buildScene(level) {
     this.buildDust(level.world);
@@ -30,8 +31,10 @@ export const sceneMethods = {
     let blockIndex = 0;
     const lavaPools = [];
     const blockAssemblyIndices = new Map(),
+      blockCenters = new Map(),
       recordBlock = (target, source, from, center, cell = center) => {
         blockAssemblyIndices.set(cell.join(','), blockIndex);
+        blockCenters.set(cell.join(','), center);
         for (let k = from; k < source.length; k += 12) target.push(...center, blockIndex);
         blockIndex++;
       },
@@ -220,6 +223,16 @@ export const sceneMethods = {
       );
     }
     this.assemblyBlockCount = blockIndex;
+    // Where each masonry cell flies in from, for decorations that ride on it (see props.js).
+    const blockCount = Math.max(1, blockIndex - (pillarTo - pillarFrom) - 1);
+    this.assemblyCells = new Map();
+    for (const [key, index] of blockAssemblyIndices)
+      if (index < pillarFrom || index >= pillarTo)
+        this.assemblyCells.set(key, [
+          ...blockCenters.get(key),
+          (index < pillarFrom ? index : index - pillarTo + pillarFrom) / blockCount,
+        ]);
+    this.sceneVersion = (this.sceneVersion || 0) + 1;
     const data = new Float32Array(mesh.length + decor.length);
     data.set(mesh);
     data.set(decor, mesh.length);
@@ -337,20 +350,33 @@ export const sceneMethods = {
       });
     }
   },
-  bridges(level) {
+  bridges(level, layout) {
     const key = level.bridges.map((b) => [b.x, b.y || 0, b.z, b.color].join(':')).join('|');
     if (this.bridgeMeshKey !== key) {
       this.buildBridges(level);
       this.bridgeMeshKey = key;
     }
-    // Rotate and upload only while some deck is moving.
-    const progress = level.bridges.map((b) => b.progress ?? (level.world.soft ? 0 : 1));
-    if (progress.every((p, i) => p === this.bridgeProgress[i])) return this.bridgeDraw;
+    // Rotate and upload only while some deck is moving. During the level assembly each bridge
+    // is lowered into place in its landing slot, like the buttons (hidden before it).
+    const progress = level.bridges.map((b) => b.progress ?? (level.world.soft ? 0 : 1)),
+      drops = level.bridges.map((_, i) =>
+        level.assembly && layout
+          ? (assemblyDropOffset(level.assembly, layout.bridges + i, layout.count) ?? -100)
+          : 0,
+      );
+    if (
+      progress.every((p, i) => p === this.bridgeProgress[i]) &&
+      drops.every((d, i) => d === this.bridgeDrops?.[i])
+    )
+      return this.bridgeDraw;
     this.bridgeProgress = progress;
+    this.bridgeDrops = drops;
     for (const part of this.bridgeParts) {
       const deck = this.bridgeData.subarray(part.from, part.to);
       deck.set(this.bridgeLocal.subarray(part.from, part.to));
       rotateBridgeMesh(deck, 0, level.bridges[part.bridge], progress[part.bridge]);
+      if (drops[part.bridge])
+        for (let k = 1; k < deck.length; k += 12) deck[k] += drops[part.bridge];
     }
     if (this.bridgeData.length)
       this.device.queue.writeBuffer(this.bridgeBuffer, 0, this.bridgeData);
