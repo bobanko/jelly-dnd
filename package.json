@@ -12,7 +12,7 @@
     "start": "node scripts/server.js",
     "build": "npm run check && node scripts/build-itch.js",
     "check": "node scripts/check-syntax.js",
-    "test": "node --experimental-vm-modules --import ./tests/setup.js --test tests/module-loading.test.js tests/level-loader.test.js tests/sky-height.test.js tests/shared-camera.test.js tests/progression.test.js tests/game.test.js tests/physics.test.js tests/soft-body.test.js tests/level-features.test.js tests/portals.test.js tests/combat.test.js tests/drones.test.js tests/game-effects.test.js tests/game-audio.test.js tests/stacking.test.js tests/camera.test.js tests/levels.test.js tests/conveyor.test.js tests/editor-space.test.js tests/voxel.test.js tests/color-blocks.test.js tests/spikes.test.js tests/pillars.test.js tests/large-crate.test.js",
+    "test": "node --experimental-vm-modules --import ./tests/setup.js --test tests/module-loading.test.js tests/level-loader.test.js tests/sky-height.test.js tests/shared-camera.test.js tests/progression.test.js tests/game.test.js tests/physics.test.js tests/soft-body.test.js tests/level-features.test.js tests/portals.test.js tests/combat.test.js tests/drones.test.js tests/game-effects.test.js tests/game-audio.test.js tests/sound-catalog.test.js tests/stacking.test.js tests/camera.test.js tests/levels.test.js tests/conveyor.test.js tests/editor-space.test.js tests/voxel.test.js tests/color-blocks.test.js tests/spikes.test.js tests/pillars.test.js tests/large-crate.test.js",
     "test:color-blocks:browser": "node tests/browser-color-blocks.js",
     "test:glass-blocks:browser": "node tests/browser-glass-blocks.js",
     "test:spikes:browser": "node tests/browser-spikes.js",
@@ -41,6 +41,7 @@
     "test:density:browser": "node tests/browser-density.js",
     "test:start-camera:browser": "node tests/browser-start-camera.js",
     "test:camera:browser": "node tests/browser-shared-camera.js",
+    "test:sounds:browser": "node tests/browser-sounds.js",
     "test:layout:browser": "node tests/browser-960.js",
     "test:editor:compact": "node tests/browser-editor-compact.js"
   },

@@ -48,7 +48,7 @@ function add(name) {
     }
 }
 // Explicit entry points and their client scripts/styles; no project-directory copy.
-for (const html of ['index.html', 'editor.html']) {
+for (const html of ['index.html', 'editor.html', 'sounds.html']) {
   add(html);
   for (const match of files
     .get(html)

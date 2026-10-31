@@ -10,6 +10,7 @@ import {
   MechanismSounds,
   SpikeSounds,
 } from './game/game-audio.js';
+import { playProceduralSound } from './game/sound-catalog.js';
 import * as JellySharedCamera from './camera/shared-camera.js';
 import * as LevelCamera from './camera/level-camera.js';
 import { createMenuScene } from './game/menu-scene.js';
@@ -183,54 +184,13 @@ function tone(freq) {
   if (!audioOn) return;
   audio ??= new AudioContext();
   if (audio.state === 'suspended') return;
-  const o = audio.createOscillator(),
-    g = audio.createGain();
-  o.type = 'sine';
-  o.frequency.setValueAtTime(freq, audio.currentTime);
-  o.frequency.exponentialRampToValueAtTime(freq * 0.6, audio.currentTime + 0.14);
-  g.gain.setValueAtTime(0.045, audio.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.2);
-  o.connect(g).connect(audio.destination);
-  o.start();
-  o.stop(audio.currentTime + 0.2);
+  playProceduralSound(audio, { type: 'tone', frequency: freq });
 }
 function woodHit(broken = false) {
   if (!audioOn) return;
   audio ??= new AudioContext();
   if (audio.state === 'suspended') return;
-  const now = audio.currentTime,
-    duration = broken ? 0.3 : 0.18,
-    buffer = audio.createBuffer(1, Math.ceil(audio.sampleRate * duration), audio.sampleRate),
-    samples = buffer.getChannelData(0);
-  for (let i = 0; i < samples.length; i++) {
-    const t = i / audio.sampleRate,
-      crack =
-        Math.exp(-t * 95) +
-        0.5 * Math.exp(-Math.abs(t - 0.018) * 420) +
-        0.3 * Math.exp(-Math.abs(t - 0.045) * 380) +
-        (broken ? 0.6 * Math.exp(-Math.abs(t - 0.095) * 180) : 0);
-    samples[i] = (Math.random() * 2 - 1) * crack;
-  }
-  const source = audio.createBufferSource(),
-    filter = audio.createBiquadFilter(),
-    gain = audio.createGain();
-  source.buffer = buffer;
-  filter.type = 'bandpass';
-  filter.frequency.value = broken ? 780 : 1050;
-  filter.Q.value = 0.7;
-  gain.gain.value = broken ? 0.36 : 0.26;
-  source.connect(filter).connect(gain).connect(audio.destination);
-  source.start();
-  const thud = audio.createOscillator(),
-    body = audio.createGain();
-  thud.type = 'triangle';
-  thud.frequency.setValueAtTime(130, now);
-  thud.frequency.exponentialRampToValueAtTime(60, now + 0.075);
-  body.gain.setValueAtTime(0.055, now);
-  body.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-  thud.connect(body).connect(audio.destination);
-  thud.start();
-  thud.stop(now + 0.11);
+  playProceduralSound(audio, { type: 'wood', broken });
 }
 function updateUI() {
   document.querySelector('#moves').textContent = String(moves).padStart(2, '0');

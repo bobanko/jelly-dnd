@@ -4,6 +4,7 @@ import * as LevelCamera from '../src/camera/level-camera.js';
 import Levels from '../src/world/levels.js';
 import * as GameEffects from '../src/game/game-effects.js';
 import * as GameAudio from '../src/game/game-audio.js';
+import * as SoundCatalog from '../src/game/sound-catalog.js';
 import * as Physics from '../src/world/physics.js';
 import * as SoftBody from '../src/world/soft-body.js';
 import * as GPU from '../src/renderer/index.js';
@@ -83,6 +84,7 @@ async function game(options = {}) {
     './world/soft-body.js': SoftBody,
     './game/game-effects.js': GameEffects,
     './game/game-audio.js': { ...GameAudio, GameAudio: options.audioClass || GameAudio.GameAudio },
+    './game/sound-catalog.js': SoundCatalog,
     './renderer/index.js': sandbox.JellyGPU,
     './camera/shared-camera.js': SharedCamera,
     './camera/level-camera.js': LevelCamera,

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>Галерея звуков — Jelly & Bones</title>
+    <link rel="stylesheet" href="styles/sounds.css" />
+  </head>
+  <body>
+    <header class="sound-header">
+      <a class="sound-brand" href="./" aria-label="Вернуться в Jelly & Bones">
+        <span aria-hidden="true">✦</span> JELLY <i>&</i> BONES
+      </a>
+      <span class="sound-page-label">ЗВУКОВАЯ ГАЛЕРЕЯ</span>
+      <a class="sound-back" href="./">← В игру</a>
+    </header>
+    <main>
+      <section class="sound-intro" aria-labelledby="sound-title">
+        <p class="sound-eyebrow">АУДИОКАТАЛОГ</p>
+        <h1 id="sound-title">Игровые звуки</h1>
+        <p>
+          Все активные аудиофайлы и процедурные сигналы. Сэмплы воспроизводятся с теми же
+          коэффициентами громкости, что и в игре.
+        </p>
+        <div class="sound-summary">
+          <span><b id="sample-count">0</b> сэмплов</span
+          ><span><b id="procedural-count">0</b> процедурных сигналов</span>
+        </div>
+      </section>
+      <div id="sound-catalog"></div>
+    </main>
+    <div id="sound-status" class="sound-status" role="status" aria-live="polite">
+      Выберите звук для прослушивания
+    </div>
+    <script type="module" src="src/sounds.js"></script>
+  </body>
+</html>

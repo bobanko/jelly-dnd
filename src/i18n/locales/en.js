@@ -12,6 +12,7 @@ export default {
   navigate: 'Navigate',
   loadingLevel: 'Loading level…',
   developerSettings: 'Developer settings',
+  'Галерея звуков': 'Sound gallery',
   loadingGraphics: 'Preparing graphics…',
   loadingShaders: 'Preparing shaders…',
   loadingScene: 'Building the scene…',

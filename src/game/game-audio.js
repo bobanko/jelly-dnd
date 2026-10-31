@@ -1,30 +1,4 @@
-const clips = {
-  arrow: ['skeleton-arrow-2026-10-29T00-02-23-396Z.mp3', 0.26],
-  bridge: ['bridge-slide-2026-10-29T00-06-35-555Z.mp3', 0.2],
-  bridgeRetract: ['bridge-retract-2026-10-29T00-06-39-624Z.mp3', 0.18],
-  buttonPress: ['button-press-2026-10-29T00-09-56-757Z.mp3', 0.65],
-  buttonRelease: ['button-release-2026-10-29T00-10-01-533Z.mp3', 0.36],
-  crateSlide: ['crate-slide-2026-10-31T04-10-47-644Z.mp3', 0.16],
-  crystalEnergy: ['crystal-energy-2026-10-31T04-16-13-233Z.mp3', 0.11],
-  death: ['jelly-death-2026-10-28T23-58-40-459Z.mp3', 0.35],
-  jellySlap: ['jelly-slap-2026-10-31T04-10-52-826Z.mp3', 0.24],
-  jellyWobble: ['jelly-wobble-2026-10-31T04-10-50-817Z.mp3', 0.3],
-  land: ['jelly-land-2026-10-29T00-18-45-533Z.mp3', 0.5],
-  levelBuild: ['level-build-2026-10-31T04-13-57-829Z.mp3', 0.36],
-  liftDown: ['lift-down-2026-10-31T04-14-02-593Z.mp3', 0.2],
-  liftUp: ['lift-up-2026-10-31T04-14-00-314Z.mp3', 0.2],
-  portal: ['portal-whoosh-2026-10-31T04-16-10-886Z.mp3', 0.32],
-  rune: ['finish-rune-2026-10-29T00-11-31-512Z.mp3', 0.68],
-  skullCrack: ['skull-crack-2026-10-31T04-08-13-562Z.mp3', 0.42],
-  rise: ['spikes-2026-10-28T23-57-14-327Z.mp3', 0.18],
-  retract: ['spikes-retract-2026-10-28T23-57-21-491Z.mp3', 0.18],
-  // Easter egg: a jelly snuffing a wall torch, and the torch catching again like a match.
-  torchLight: ['torch-swoosh-2026-10-31T04-16-08-164Z.mp3', 0.26],
-  torchOut: ['torch-out-2026-10-31T03-00-53-239Z.mp3', 1],
-  uiConfirm: ['ui-confirm-2026-10-31T04-08-21-298Z.mp3', 0.28],
-  uiMove: ['ui-move-2026-10-31T04-08-17-613Z.mp3', 0.22],
-  wind: ['dungeon-wind-2026-10-28T23-31-02-885Z.mp3', 0.08],
-};
+import { soundClips as clips } from './sound-catalog.js';
 
 // Presentation state only: reset/undo seed the current stages without playing them.
 export class SpikeSounds {
