@@ -291,6 +291,10 @@ button[data-tool][aria-pressed='true'] {
   background: radial-gradient(ellipse at 50% 45%, #1b2729, #0d1519 76%);
   touch-action: none;
 }
+/* The viewport takes focus for camera keys; the whole scene is the indicator, so no ring. */
+#viewport:focus {
+  outline: none;
+}
 canvas {
   position: absolute;
   inset: 0;
