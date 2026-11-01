@@ -68,7 +68,7 @@ export const skin = `
   let bn=bumpNormal(n,o.world,pipSlope(o.local,pip),o.local);
   let x=length(pip.yz);let centre=1.-min(x*x,1.);
   // The paint spills a little past the hole onto the flat face around it.
-  let spill=1.32;let aa=max(.02,fwidth(x)*.8);
+  let spill=1.13;let aa=max(.02,fwidth(x)*.8);
   let paint=max(pip.x,1.-smoothstep(spill-aa,spill+aa,x));
   // Soft shading only: walls turned from the light dim gently instead of going dark.
   let lit=.6+.55*max(0.,dot(bn,toLight))-.28*max(0.,dot(n,toLight)-dot(bn,toLight));
