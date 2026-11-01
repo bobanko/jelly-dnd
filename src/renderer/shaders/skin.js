@@ -66,13 +66,20 @@ export const skin = `
   // so the light side of each bowl falls into shadow and the far wall catches the light.
   let pip=pipShape(o.local);let toLight=normalize(scene.light.xyz-o.world);
   let bn=bumpNormal(n,o.world,pipSlope(o.local,pip),o.local);
-  let centre=1.-dot(pip.yz,pip.yz);
-  // Walls turned away from the light darken beyond plain Lambert so the bowl reads at a glance.
-  let lit=.5+.65*max(0.,dot(bn,toLight))-.35*max(0.,dot(n,toLight)-dot(bn,toLight));
-  let dimple=vec3f(.96,.94,.89)*max(lit,.15)*(1.-.1*centre);
-  color=mix(color,dimple+pigment*.12,pip.x*.92);
+  let x=length(pip.yz);let centre=1.-min(x*x,1.);
+  // The paint spills a little past the hole onto the flat face around it.
+  let spill=1.32;let aa=max(.02,fwidth(x)*.8);
+  let paint=max(pip.x,1.-smoothstep(spill-aa,spill+aa,x));
+  // Soft shading only: walls turned from the light dim gently instead of going dark.
+  let lit=.6+.55*max(0.,dot(bn,toLight))-.28*max(0.,dot(n,toLight)-dot(bn,toLight));
+  let dimple=vec3f(.96,.94,.89)*max(lit,.36)*(1.-.06*centre);
+  color=mix(color,dimple+pigment*.12,paint*.92);
+  // Matte paint barely mirrors the room; otherwise grazing views fill the bowls with dark reflections.
   let f=.025+.975*pow(1.-max(0.,dot(bn,-ray)),5.);
-  color=mix(color,environment(reflect(ray,bn)),min(.85,f*.78+.025));
+  color=mix(color,environment(reflect(ray,bn)),min(.85,f*.78+.025)*(1.-.6*paint));
+  // A faint inner glow, tinted by the gel, with a short halo onto the surrounding jelly.
+  let halo=exp(-max(x-spill,0.)*5.)*(1.-paint);
+  color+=(vec3f(1.,.96,.88)*.1+pigment*.14)*paint+pigment*.1*halo;
   color+=pigment*pow(1.-max(0.,dot(n,-ray)),3.)*.34;
   let l=normalize(scene.light.xyz-o.world);let h=normalize(l-ray);
   // A tight glint: flat faces would otherwise flare white across their whole area.
