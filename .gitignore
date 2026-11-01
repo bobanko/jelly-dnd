@@ -7,3 +7,4 @@ dist/
 .env*
 !.env.elevenlabs.example
 !.env.vectorizer.example
+.DS_Store
