@@ -27,6 +27,8 @@ const catalog = {
         'claude-green-wave.json',
         'claude-crossfire.json',
         'claude-shooting-gallery.json',
+        'first-shift.json',
+        'double-shift.json',
       ],
     },
   ],
