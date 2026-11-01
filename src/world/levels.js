@@ -317,7 +317,12 @@ function read(input) {
     if (!portalColor(p.color)) fail('Неизвестный цвет портала.');
     return { color: p.color };
   });
-  list('crates', (p) => (p.large ? { large: true } : {}));
+  // A barrel is a large crate lying along its axis ('x' or 'z').
+  list('crates', (p) => {
+    if (p.barrel !== undefined && p.barrel !== 'x' && p.barrel !== 'z')
+      fail('Ось бочки должна быть x или z.');
+    return p.barrel ? { large: true, barrel: p.barrel } : p.large ? { large: true } : {};
+  });
   list('drones', (p) => {
     const color = p.color ?? 3,
       target = p.target ?? -1;

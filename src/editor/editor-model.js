@@ -143,6 +143,7 @@ export class Model {
             conveyor: 'conveyors',
             crate: 'crates',
             'crate-large': 'crates',
+            barrel: 'crates',
             archer: 'archers',
             shield: 'pickups',
             sword: 'pickups',
@@ -221,6 +222,8 @@ export class Model {
       });
     if (key === 'pickups') Object.assign(p, { id: existing?.id || this.id(tool), kind: tool });
     if (key === 'crates' && tool === 'crate-large') p.large = true;
+    if (key === 'crates' && tool === 'barrel')
+      Object.assign(p, { large: true, barrel: existing?.barrel ?? 'x' });
     this.map[key].push(p);
   }
   ensureFloor(x, z, height = 0) {
@@ -286,6 +289,7 @@ export class Model {
             conveyor: 'conveyors',
             crate: 'crates',
             'crate-large': 'crates',
+            barrel: 'crates',
             archer: 'archers',
             shield: 'pickups',
             sword: 'pickups',
@@ -340,6 +344,7 @@ export class Model {
     if (key === 'archers') Object.assign(p, { dx: 0, dz: 1, interval: 2.4, firstShot: 1.6 });
     if (key === 'pickups') Object.assign(p, { id: this.id(tool), kind: tool });
     if (key === 'crates' && tool === 'crate-large') p.large = true;
+    if (key === 'crates' && tool === 'barrel') Object.assign(p, { large: true, barrel: 'x' });
     this.map[key].push(p);
   }
   eraseObject(key, index) {

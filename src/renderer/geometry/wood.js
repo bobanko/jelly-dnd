@@ -172,3 +172,202 @@ export function largeCrateGeometry() {
         box(mesh, [x * 0.42, y * 0.42, z * 0.42], [0.15, 0.15, 0.15], IRON_NAIL, 0.02, 12, 2);
   return mesh;
 }
+// Barrel lying along x: bulging oak staves with dark seams, two iron hoops near each end and
+// planked heads with a diagonal brace, set back behind the stave ends (the chime).
+export const BARREL_IRON = [0.27, 0.235, 0.235];
+export function barrelGeometry() {
+  const mesh = [],
+    half = 0.47,
+    chime = 0.035,
+    staves = 16,
+    rows = 8,
+    radius = (x) => 0.395 + 0.055 * (1 - (x / half) ** 2),
+    slope = (x) => (-0.11 * x) / (half * half);
+  // One vertex: position, normal, colour, material and texture coordinates.
+  const vertex = (p, n, color, material, uv) => [...p, ...n, ...color, material, ...uv];
+  // Pushes a triangle wound so that its face points along `outward` (front faces are CCW).
+  const triangle = (a, b, c, outward) => {
+    const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
+      e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]],
+      n = [
+        e1[1] * e2[2] - e1[2] * e2[1],
+        e1[2] * e2[0] - e1[0] * e2[2],
+        e1[0] * e2[1] - e1[1] * e2[0],
+      ],
+      flip = n[0] * outward[0] + n[1] * outward[1] + n[2] * outward[2] < 0;
+    mesh.push(...a, ...(flip ? c : b), ...(flip ? b : c));
+  };
+  const quad = (a, b, c, d, outward) => {
+    triangle(a, b, c, outward);
+    triangle(a, c, d, outward);
+  };
+  const surface = (x, angle, lift = 0) => {
+    const r = radius(x) + lift,
+      c = Math.cos(angle),
+      s = Math.sin(angle),
+      length = Math.hypot(slope(x), 1);
+    return { p: [x, r * c, r * s], n: [-slope(x) / length, c / length, s / length] };
+  };
+  // Staves: each spans three columns so its edges darken into a seam against the next one.
+  for (let k = 0; k < staves; k++) {
+    const from = (k / staves) * Math.PI * 2,
+      to = ((k + 1) / staves) * Math.PI * 2,
+      tone = 0.84 + ((k * 5) % 7) * 0.045,
+      seed = Math.abs(Math.sin(k * 12.9898)) * 0.72;
+    const columns = [
+      [from, 0.5, 0],
+      [(from + to) / 2, 1, 0.5],
+      [to, 0.5, 1],
+    ];
+    for (let j = 0; j < rows; j++)
+      for (let c = 0; c < 2; c++) {
+        const corner = (row, column) => {
+          const x = -half + (row / rows) * half * 2,
+            [angle, shade, across] = columns[column],
+            { p, n } = surface(x, angle);
+          return {
+            point: vertex(
+              p,
+              n,
+              OAK_WOOD.map((v) => v * tone * shade),
+              11,
+              [seed + across * 0.2, 0.04 + (row / rows) * 0.92],
+            ),
+            outward: n,
+          };
+        };
+        const a = corner(j, c),
+          b = corner(j + 1, c),
+          d = corner(j, c + 1),
+          e = corner(j + 1, c + 1);
+        quad(a.point, b.point, e.point, d.point, a.outward);
+      }
+  }
+  // Stave ends and the inner wall of the chime at both heads.
+  const segments = 32,
+    endRadius = radius(half),
+    lid = half - chime,
+    inner = endRadius - 0.03;
+  for (const side of [-1, 1])
+    for (let k = 0; k < segments; k++) {
+      const a0 = (k / segments) * Math.PI * 2,
+        a1 = ((k + 1) / segments) * Math.PI * 2,
+        ring = (r, x, angle) => [x, r * Math.cos(angle), r * Math.sin(angle)],
+        endGrain = OAK_END_GRAIN.map((v) => v * 0.9),
+        axial = [side, 0, 0];
+      quad(
+        vertex(ring(endRadius, side * half, a0), axial, endGrain, 11, [0.1, 0.1]),
+        vertex(ring(endRadius, side * half, a1), axial, endGrain, 11, [0.12, 0.1]),
+        vertex(ring(inner, side * half, a1), axial, endGrain, 11, [0.12, 0.14]),
+        vertex(ring(inner, side * half, a0), axial, endGrain, 11, [0.1, 0.14]),
+        axial,
+      );
+      const wall = OAK_WOOD.map((v) => v * 0.45),
+        mid = (a0 + a1) / 2,
+        inward = [0, -Math.cos(mid), -Math.sin(mid)];
+      quad(
+        vertex(ring(inner, side * half, a0), inward, wall, 11, [0.3, 0.1]),
+        vertex(ring(inner, side * half, a1), inward, wall, 11, [0.32, 0.1]),
+        vertex(ring(inner, side * lid, a1), inward, wall, 11, [0.32, 0.16]),
+        vertex(ring(inner, side * lid, a0), inward, wall, 11, [0.3, 0.16]),
+        inward,
+      );
+      // Dark backing behind the head boards, seen through their seams.
+      const back = side * (lid - 0.006);
+      triangle(
+        vertex([back, 0, 0], axial, [0.08, 0.04, 0.015], 11, [0.5, 0.5]),
+        vertex(ring(inner, back, a0), axial, [0.08, 0.04, 0.015], 11, [0.5, 0.5]),
+        vertex(ring(inner, back, a1), axial, [0.08, 0.04, 0.015], 11, [0.5, 0.5]),
+        axial,
+      );
+    }
+  // Head boards: four planks across the head, trimmed to the circle, with narrow seams.
+  for (const side of [-1, 1]) {
+    const axial = [side, 0, 0],
+      boards = 4,
+      steps = 8;
+    for (let k = 0; k < boards; k++) {
+      const z0 = -inner + (k / boards) * inner * 2 + 0.005,
+        z1 = -inner + ((k + 1) / boards) * inner * 2 - 0.005,
+        tone = 0.88 + ((k * 3 + (side > 0 ? 1 : 0)) % 4) * 0.05,
+        color = OAK_WOOD.map((v) => v * tone),
+        seed = Math.abs(Math.sin((k + side * 7) * 7.31)) * 0.72,
+        chord = (z) => Math.sqrt(Math.max(0, inner * inner - z * z)) - 0.004;
+      for (let i = 0; i < steps; i++) {
+        const point = (z, t) => {
+          const h = chord(z),
+            y = -h + t * h * 2;
+          return vertex([side * lid, y, z], axial, color, 11, [
+            seed + ((z - z0) / (z1 - z0)) * 0.2,
+            0.04 + ((y + inner) / (inner * 2)) * 0.92,
+          ]);
+        };
+        quad(
+          point(z0, i / steps),
+          point(z1, i / steps),
+          point(z1, (i + 1) / steps),
+          point(z0, (i + 1) / steps),
+          axial,
+        );
+      }
+    }
+    // Diagonal brace nailed across the boards.
+    const start = mesh.length;
+    oakPlank(
+      mesh,
+      [0, 0, 0],
+      [0.1, inner * 1.75, 0.026],
+      OAK_FRAME.map((v) => v * 0.92),
+      5 + side,
+      0.006,
+    );
+    const c = Math.SQRT1_2;
+    for (let k = start; k < mesh.length; k += 12)
+      for (const offset of [0, 3]) {
+        const [u, v, w] = [mesh[k + offset], mesh[k + offset + 1], mesh[k + offset + 2]],
+          y = u * c - v * c,
+          z = u * c + v * c;
+        // Plank face (+w) turns to face along the barrel axis on this side.
+        mesh[k + offset] = (offset ? 0 : side * (lid + 0.013)) + w * side;
+        mesh[k + offset + 1] = y;
+        mesh[k + offset + 2] = z * side;
+      }
+  }
+  // Iron hoops: raised bands with side walls, two near each end.
+  for (const center of [-0.4, -0.27, 0.27, 0.4]) {
+    const width = Math.abs(center) > 0.35 ? 0.045 : 0.055,
+      x0 = center - width / 2,
+      x1 = center + width / 2,
+      lift = 0.012;
+    for (let k = 0; k < segments; k++) {
+      const a0 = (k / segments) * Math.PI * 2,
+        a1 = ((k + 1) / segments) * Math.PI * 2,
+        band = (x, angle) => {
+          const { p, n } = surface(x, angle, lift);
+          return { v: vertex(p, n, BARREL_IRON, 12, [0, 0]), n };
+        },
+        a = band(x0, a0),
+        b = band(x1, a0),
+        d = band(x1, a1),
+        e = band(x0, a1);
+      quad(a.v, b.v, d.v, e.v, a.n);
+      for (const [x, sign] of [
+        [x0, -1],
+        [x1, 1],
+      ]) {
+        const ring = (r, angle) => [x, r * Math.cos(angle), r * Math.sin(angle)],
+          r = radius(x),
+          n = [sign, 0, 0],
+          dark = BARREL_IRON.map((v) => v * 0.7);
+        quad(
+          vertex(ring(r, a0), n, dark, 12, [0, 0]),
+          vertex(ring(r + lift, a0), n, dark, 12, [0, 0]),
+          vertex(ring(r + lift, a1), n, dark, 12, [0, 0]),
+          vertex(ring(r, a1), n, dark, 12, [0, 0]),
+          n,
+        );
+      }
+    }
+  }
+  return mesh;
+}

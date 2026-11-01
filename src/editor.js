@@ -68,6 +68,7 @@ const groups = [
     [
       ['crate', '⊠', 'Малый ящик', '#cba778'],
       ['crate-large', '⧈', 'Большой ящик', '#a98552'],
+      ['barrel', '◍', 'Бочка', '#c07a3c'],
       ['archer', '☠', 'Лучник', '#ded3b2'],
       ['drone', '♜', 'Кристаллический дрон', '#c98cff'],
       ['shield', '◈', 'Щит', '#cba778'],
@@ -208,6 +209,13 @@ function toolIcon(id, glyph) {
           ([x, y]) => `<rect x="${x - 2}" y="${y - 2}" width="4" height="4" fill="currentColor"/>`,
         )
         .join('');
+  else if (id === 'barrel')
+    // Barrel on its side: a bulging body with two hoops and an oval head facing the viewer.
+    drawing =
+      '<path d="M9 7h15c4 0 6 4 6 9s-2 9-6 9H9Z" fill="currentColor" fill-opacity=".45"/>' +
+      '<path d="M9 7h15c4 0 6 4 6 9s-2 9-6 9H9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>' +
+      '<ellipse cx="9" cy="16" rx="5" ry="9" fill="currentColor" fill-opacity=".8" stroke="currentColor" stroke-width="1.4"/>' +
+      '<path d="M15 7.2c1.4 2.4 2 5.3 2 8.8s-.6 6.4-2 8.8M23 7.2c1.4 2.4 2 5.3 2 8.8s-.6 6.4-2 8.8" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity=".9"/>';
   else if (id.startsWith('spawn-'))
     drawing =
       cube +
@@ -504,7 +512,7 @@ function objectTool(key, index, p) {
   if (key === 'spawns') return 'spawn-' + index;
   if (key === 'goals') return 'goal-' + index;
   if (key === 'portals') return 'portal-' + p.color;
-  if (key === 'crates') return p.large ? 'crate-large' : 'crate';
+  if (key === 'crates') return p.barrel ? 'barrel' : p.large ? 'crate-large' : 'crate';
   if (key === 'pickups') return p.kind;
   return {
     torches: 'torch',
@@ -691,7 +699,7 @@ function renderProperties() {
     if (key === 'spawns' || key === 'goals') label += ` · ${names[index]}`;
     if (key === 'pickups') label = p.kind === 'shield' ? 'Деревянный щит' : 'Железный меч';
     if (key === 'walls' && p.half < 0.4) label = 'Факел';
-    if (key === 'crates' && p.large) label = 'Большой ящик';
+    if (key === 'crates' && p.large) label = p.barrel ? 'Бочка' : 'Большой ящик';
     // The same icon and colour as the palette tool that places this object.
     const tool = tools[objectTool(key, index, p)],
       marker = tool ? toolIcon(objectTool(key, index, p), tool.glyph) : element('span', '◇');
@@ -1060,6 +1068,21 @@ function renderProperties() {
         set('speed', v);
       });
     }
+    if (key === 'crates' && p.barrel)
+      directionRadios(
+        card,
+        'Ось бочки',
+        p.barrel,
+        'barrel-axis-' + card.dataset.object,
+        (v) =>
+          edit((map) => {
+            map.crates[index].barrel = v;
+          }),
+        [
+          ['x', '↔', 'Вдоль X: катится по Z'],
+          ['z', '↕', 'Вдоль Z: катится по X'],
+        ],
+      );
     if (key === 'archers') {
       directionRadios(
         card,
@@ -1900,7 +1923,7 @@ function drawSpatialOverlay() {
   const y = hover.y ?? layer;
   square(hover, y + 0.045, color, fill, active !== 'select');
   const height =
-    active === 'crate-large'
+    active === 'crate-large' || active === 'barrel'
       ? 0.98
       : active === 'crate' || active.startsWith('spawn-')
         ? 0.84

@@ -204,6 +204,13 @@ for (let z = 0; z <= RES; z++) for (let x = 0; x <= RES; x++) SLIDE_BASE.push(in
 const CRATE_RESPAWN_DROP = 0.9;
 const SLIP_STEP = 0.008,
   SLIDE_INSET = 0.06;
+// Barrels are large crates lying on their side (p.barrel names the axis, 'x' or 'z'). A push
+// across the axis sets one rolling: it keeps a fixed speed along that cardinal direction,
+// without floor friction, until something stops it or it drops off a ledge. A push on an end
+// cap just slides it like a large crate.
+const BARREL_RADIUS = 0.45,
+  ROLL_SPEED = 3.2,
+  ROLL_START = 0.6;
 // Height of a body's lattice centre above its feet (p.y).
 const bodyLift = (p) => (p.kind === 'crate' && p.large ? LARGE_WIDTH / 2 + 0.04 : 0.42);
 function group(ids, points = rest) {
@@ -229,6 +236,7 @@ class Lattice {
   reset(p) {
     this.rigid = p.kind === 'crate';
     this.slides = this.rigid && !!p.large;
+    this.roll = null;
     this.lift = bodyLift(p);
     // Half size of the rounded box that other bodies collide with, and its corner radius.
     this.half = this.slides ? LARGE_WIDTH / 2 - 0.025 : this.rigid ? 0.355 : 0.315;
@@ -535,8 +543,9 @@ class System {
           dz = node[2] - old[2] - (b.surfaceVelocity?.z || 0) * (this.contactStep || 0),
           slip = Math.hypot(dx, dz);
         // Coulomb floor friction: static contact sticks; sliding uses a smaller coefficient.
-        const friction =
-          !b.driven && slip < penetration * 0.65
+        const friction = b.roll
+          ? 0
+          : !b.driven && slip < penetration * 0.65
             ? 1
             : Math.min(1, (penetration * (b.driven ? 0.12 : 0.38)) / (slip || 1));
         node[0] -= dx * friction;
@@ -601,6 +610,30 @@ class System {
         }
     }
     return top;
+  }
+  // Turns the barrel by the distance it travelled across its axis, starts a roll when a push
+  // across the axis is fast enough, and ends it once the barrel is blocked or leaves the floor.
+  barrelStep(p, b, center, vcom, grounded, dt) {
+    const dx = center[0] - b.previousCenter[0],
+      dz = center[2] - b.previousCenter[2],
+      alongX = p.barrel === 'z';
+    // Spin about the barrel's own axis (+x or +z), as a wheel rolling without slipping.
+    p.spin = (p.spin || 0) + (alongX ? -dx : dz) / BARREL_RADIUS;
+    if (b.roll) {
+      const moved = dx * b.roll.x + dz * b.roll.z;
+      if (p.state !== 'alive' || b.airborne || moved < ROLL_SPEED * dt * 0.5) {
+        b.roll = null;
+        vcom[0] = vcom[2] = 0;
+        for (const v of b.velocities) v[0] = v[2] = 0;
+        p.vx = p.vz = 0;
+      }
+      return;
+    }
+    if (!b.pushingCrate || !grounded || b.airborne || p.state !== 'alive') return;
+    const along = alongX ? vcom[0] : vcom[2],
+      across = alongX ? vcom[2] : vcom[0];
+    if (Math.abs(along) > ROLL_START && Math.abs(along) > Math.abs(across) * 1.5)
+      b.roll = alongX ? { x: Math.sign(along), z: 0 } : { x: 0, z: Math.sign(along) };
   }
   stackContact(pa, pb, a, b) {
     if (pa.state === 'dead' || pb.state === 'dead') return false;
@@ -837,11 +870,12 @@ class System {
         p.state === 'alive' && !p.launchTimer
           ? ((magnitude ? (input.z / magnitude) * 2.6 : 0) + belt.z - (p.vz || 0)) * driveGain
           : 0;
+      const rolling = b.roll && p.state === 'alive';
       for (let n = 0; n < NODE_COUNT; n++) {
         const v = b.velocities[n];
-        v[0] += ax * dt;
+        v[0] = rolling ? b.roll.x * ROLL_SPEED : v[0] + ax * dt;
         v[1] -= 15 * dt;
-        v[2] += az * dt;
+        v[2] = rolling ? b.roll.z * ROLL_SPEED : v[2] + az * dt;
         for (let k = 0; k < 3; k++) b.positions[n][k] += v[k] * dt;
       }
     });
@@ -994,6 +1028,7 @@ class System {
         b.core[k] += b.coreVelocity[k] * dt;
         b.core[k] = Math.max(center[k] - 0.12, Math.min(center[k] + 0.12, b.core[k]));
       }
+      if (p.barrel) this.barrelStep(p, b, center, vcom, crateGrounded, dt);
       const driving = b.driven;
       const ground = world.heightAt(p.x, p.z, p.y + 0.2, p);
       const grounded = b.rigid
@@ -1036,6 +1071,8 @@ export {
   System,
   bodyLift,
   LARGE_WIDTH,
+  BARREL_RADIUS,
+  ROLL_SPEED,
   Lattice,
   rest,
   tets,
