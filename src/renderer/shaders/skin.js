@@ -21,12 +21,28 @@ export const skin = `
   let aa=max(.0015,fwidth(distance)*.8);
   return vec3f(1.-smoothstep(radius-aa,radius+aa,distance),nearest/radius);
  }
- // Projects a direction onto the same 2D face frame pipShape uses for this point.
- fn faceFrame(p:vec3f,v:vec3f)->vec2f{
+ // Lifts a 2D face-frame vector back into rest space (inverse of the face pick in pipShape).
+ fn faceToLocal(p:vec3f,v:vec2f)->vec3f{
   let a=abs(p);
-  if(a.x>=a.y&&a.x>=a.z){return v.zy;}
-  if(a.y>=a.z){return v.xz;}
-  return v.xy;
+  if(a.x>=a.y&&a.x>=a.z){return vec3f(0.,v.y,v.x);}
+  if(a.y>=a.z){return vec3f(v.x,0.,v.y);}
+  return vec3f(v.x,v.y,0.);
+ }
+ // Pips are bowls pressed into the gel. Height h=-depth*(1-x^2)^2 with x=offset/radius:
+ // returns the rest-space gradient of h, steepest on the bowl wall and flat at rim and floor.
+ fn pipSlope(p:vec3f,pip:vec3f)->vec3f{
+  let x2=dot(pip.yz,pip.yz);if(x2>=1.){return vec3f(0.);}
+  let depth=.07;let radius=.058;
+  return faceToLocal(p,pip.yz*(4.*depth/radius)*(1.-x2));
+ }
+ // Bump mapping without tangents (Mikkelsen 2010): the rest-space slope is turned into
+ // screen-space height derivatives, then into a world normal tilt. Works on the deformed gel.
+ fn bumpNormal(n:vec3f,world:vec3f,slope:vec3f,local:vec3f)->vec3f{
+  let dwx=dpdx(world);let dwy=dpdy(world);
+  let dhx=dot(slope,dpdx(local));let dhy=dot(slope,dpdy(local));
+  let r1=cross(dwy,n);let r2=cross(n,dwx);let det=dot(dwx,r1);
+  let tilted=abs(det)*n-sign(det)*(dhx*r1+dhy*r2);
+  return select(n,normalize(tilted),abs(det)>1e-14&&dot(tilted,tilted)>0.);
  }
  @fragment fn backFS(o:Out)->@location(0) vec4f{return vec4f(o.world,1.+inlay(o.local));}
  @fragment fn skinFS(o:Out)->@location(0) vec4f{
@@ -46,23 +62,21 @@ export const skin = `
   var color=background*transmission+pigment*(1.-transmission)*.55;
   let farInlay=clamp(exit.w-1.,0.,1.);
   color=mix(color,vec3f(.85,.82,.75)*transmission+pigment*.11,farInlay*.3);
-  // White pips read as concave dimples: the wall facing the light is bright, the near wall
-  // falls into shadow, a dark ring marks the edge and a small glint sits inside.
+  // White pips are hollows: the bumped normal drives their shading, reflection and glint,
+  // so the light side of each bowl falls into shadow and the far wall catches the light.
   let pip=pipShape(o.local);let toLight=normalize(scene.light.xyz-o.world);
-  let lightDir=faceFrame(o.local,toLight);let lf=lightDir/max(length(lightDir),.001);
-  let q=pip.yz;let r=min(length(q),1.);
-  // The rim on the light's side casts a crescent shadow into the hollow.
-  let shadow=smoothstep(.5,1.02,length(q-lf*.42));
-  let litWall=smoothstep(.62,1.,r)*max(0.,-dot(q,lf))*.45;
-  let edge=1.-.35*smoothstep(.86,1.,r);let glint=exp(-dot(q+lf*.5,q+lf*.5)*18.)*.3;
-  let dimple=vec3f(.97,.95,.9)*(1.-.62*shadow)*edge*(.8+.2*max(0.,dot(n,toLight)))+vec3f(litWall+glint);
-  color=mix(color,dimple+pigment*.04,pip.x*.96);
-  let f=.025+.975*pow(1.-max(0.,dot(n,-ray)),5.);
-  color=mix(color,environment(reflect(ray,n)),min(.85,f*.78+.025));
+  let bn=bumpNormal(n,o.world,pipSlope(o.local,pip),o.local);
+  let centre=1.-dot(pip.yz,pip.yz);
+  // Walls turned away from the light darken beyond plain Lambert so the bowl reads at a glance.
+  let lit=.5+.65*max(0.,dot(bn,toLight))-.35*max(0.,dot(n,toLight)-dot(bn,toLight));
+  let dimple=vec3f(.96,.94,.89)*max(lit,.15)*(1.-.1*centre);
+  color=mix(color,dimple+pigment*.12,pip.x*.92);
+  let f=.025+.975*pow(1.-max(0.,dot(bn,-ray)),5.);
+  color=mix(color,environment(reflect(ray,bn)),min(.85,f*.78+.025));
   color+=pigment*pow(1.-max(0.,dot(n,-ray)),3.)*.34;
   let l=normalize(scene.light.xyz-o.world);let h=normalize(l-ray);
   // A tight glint: flat faces would otherwise flare white across their whole area.
-  color+=(vec3f(1.25,1.15,.95)+pigment*.3)*pow(max(0.,dot(n,h)),260.);
+  color+=(vec3f(1.25,1.15,.95)+pigment*.3)*pow(max(0.,dot(bn,h)),260.);
   color+=pigment*.07;
   color+=pigment*.28*pow(max(0.,dot(-n,l)),2.)*exp(-thick*2.);
   // Glassy rounded edges catch light; the rest-space face grid locates the bevel band.
