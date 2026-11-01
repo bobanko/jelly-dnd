@@ -3,34 +3,10 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import * as catalog from '../levels/catalog.js';
 import Levels from '../src/world/levels.js';
+import { buildVersion } from './build-version.js';
 const root = path.resolve(import.meta.dirname, '..'),
   files = new Map();
-const now = new Date();
-const parts = Object.fromEntries(
-  new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/Kyiv',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  })
-    .formatToParts(now)
-    .map((part) => [part.type, part.value]),
-);
-const buildVersion =
-  'build: ' +
-  parts.year +
-  '-' +
-  parts.month +
-  '-' +
-  parts.day +
-  '_' +
-  parts.hour +
-  ':' +
-  parts.minute;
+const version = buildVersion();
 function add(name) {
   name = name.replaceAll('\\', '/');
   const file = path.resolve(root, name);
@@ -63,7 +39,7 @@ for (const html of ['index.html', 'editor.html', 'sounds.html']) {
     add(path.posix.join(path.posix.dirname(match[1]), match[2]));
 }
 // Generate metadata inside the archive without changing source files.
-files.set('build-version.json', Buffer.from(JSON.stringify({ version: buildVersion }) + '\n'));
+files.set('build-version.json', Buffer.from(JSON.stringify({ version }) + '\n'));
 add('levels/catalog.js');
 
 if (
@@ -187,7 +163,7 @@ let output = path.join(root, 'dist', 'jelly-and-bones-itch-' + stamp + '.zip'),
 while (fs.existsSync(output))
   output = path.join(root, 'dist', 'jelly-and-bones-itch-' + stamp + '-' + suffix++ + '.zip');
 fs.writeFileSync(output, archive, { flag: 'wx' });
-console.log('Version ' + buildVersion);
+console.log('Version ' + version);
 console.log(
   'Built ' +
     path.relative(root, output) +
