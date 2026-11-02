@@ -200,6 +200,12 @@ function woodHit(broken = false) {
   if (audio.state === 'suspended') return;
   playProceduralSound(audio, { type: 'wood', broken });
 }
+function gong() {
+  if (!audioOn) return;
+  audio ??= new AudioContext();
+  if (audio.state === 'suspended') return;
+  playProceduralSound(audio, { type: 'gong' });
+}
 function updateUI() {
   document.querySelector('#moves').textContent = String(moves).padStart(2, '0');
   document.querySelector('#win').hidden = !won;
@@ -265,6 +271,7 @@ function updateTorches(dt) {
         s.out = true;
         effects.burst({ type: 'torchOut', position: flame }, players, soft);
         gameAudio.play('torchOut');
+        if (torchStates.every((state) => state.out)) gong();
       }
     }
     const target = s.out ? 0 : 1;

@@ -185,6 +185,8 @@ test('snuffed torches stay dark until a jelly dies, then all relight', async () 
       {x:5,y:1,z:2,face:'south'},
     ];
     torchStates=[];
+    globalThis.gongCount=0;
+    gong=()=>gongCount++;
     for(const torch of world.torches){
       const flame=JellyLevels.torchFrame(torch).light;
       Object.assign(players[0],{x:flame[0],y:flame[1]-.42,z:flame[2],state:'alive'});
@@ -197,6 +199,7 @@ test('snuffed torches stay dark until a jelly dies, then all relight', async () 
     g.run('JSON.stringify(torchStates.map(({out,lit})=>[out,lit]))'),
     '[[true,0],[true,0]]',
   );
+  assert.equal(g.run('gongCount'), 1, 'the last extinguished torch sounds one gong');
   g.run(`
     effects.clear();
     const step=world.step.bind(world);

@@ -1,7 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { proceduralSoundCatalog, soundCatalog, soundClips } from '../src/game/sound-catalog.js';
+import {
+  playProceduralSound,
+  proceduralSoundCatalog,
+  soundCatalog,
+  soundClips,
+} from '../src/game/sound-catalog.js';
 
 test('sound gallery lists every active sample once with its game volume and existing file', () => {
   assert.equal(soundCatalog.length, 28);
@@ -23,16 +28,57 @@ test('sound gallery lists every active sample once with its game volume and exis
 });
 
 test('procedural gallery entries are uniquely identified and playable', () => {
-  assert.equal(proceduralSoundCatalog.length, 10);
+  assert.equal(proceduralSoundCatalog.length, 11);
   const all = [...soundCatalog, ...proceduralSoundCatalog];
   assert.equal(new Set(all.map((sound) => sound.id)).size, all.length);
   for (const sound of proceduralSoundCatalog) {
-    assert.ok(['tone', 'wood'].includes(sound.type));
+    assert.ok(['tone', 'wood', 'gong'].includes(sound.type));
     assert.ok(sound.title);
     assert.ok(sound.description);
     assert.ok(sound.duration > 0);
     if (sound.type === 'tone') assert.ok(sound.frequency > 0);
   }
+});
+
+test('gong starts several inharmonic partials with a long shared decay', () => {
+  const oscillators = [],
+    context = {
+      currentTime: 2,
+      destination: {},
+      createOscillator() {
+        const oscillator = {
+          frequency: {
+            setValueAtTime() {},
+            exponentialRampToValueAtTime() {},
+          },
+          connect(node) {
+            return node;
+          },
+          start(time) {
+            this.started = time;
+          },
+          stop(time) {
+            this.stopped = time;
+          },
+        };
+        oscillators.push(oscillator);
+        return oscillator;
+      },
+      createGain: () => ({
+        gain: {
+          setValueAtTime() {},
+          exponentialRampToValueAtTime() {},
+        },
+        connect(node) {
+          return node;
+        },
+      }),
+    };
+  const playback = playProceduralSound(context, { type: 'gong' });
+  assert.equal(oscillators.length, 5);
+  assert.ok(oscillators.every((oscillator) => oscillator.started === 2));
+  assert.ok(Math.max(...oscillators.map((oscillator) => oscillator.stopped)) >= 4.7);
+  assert.ok(playback);
 });
 
 test('standalone sound page and packaged build include the shared catalog', () => {

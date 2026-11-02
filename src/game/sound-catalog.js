@@ -306,6 +306,14 @@ export const proceduralSoundCatalog = [
     type: 'wood',
     broken: true,
   },
+  {
+    id: 'torchGong',
+    category: 'magic',
+    title: 'Все факелы погашены',
+    description: 'Глубокий металлический удар в гонг, когда на уровне гаснет последний факел.',
+    duration: 2.8,
+    type: 'gong',
+  },
 ];
 
 export function playProceduralSound(context, sound) {
@@ -322,6 +330,37 @@ export function playProceduralSound(context, sound) {
     oscillator.start();
     oscillator.stop(now + 0.2);
     return { stop: () => stopNode(oscillator) };
+  }
+  if (sound.type === 'gong') {
+    const duration = 2.8,
+      master = context.createGain(),
+      oscillators = [],
+      partials = [
+        [92, 0.075, 1],
+        [130.6, 0.052, 0.92],
+        [177.4, 0.038, 0.78],
+        [245.6, 0.026, 0.62],
+        [320.2, 0.018, 0.48],
+      ];
+    master.gain.setValueAtTime(0.001, now);
+    master.gain.exponentialRampToValueAtTime(1, now + 0.012);
+    master.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    master.connect(context.destination);
+    partials.forEach(([frequency, volume, life], index) => {
+      const oscillator = context.createOscillator(),
+        gain = context.createGain(),
+        end = now + duration * life;
+      oscillator.type = index ? 'sine' : 'triangle';
+      oscillator.frequency.setValueAtTime(frequency, now);
+      oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.985, end);
+      gain.gain.setValueAtTime(volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      oscillator.connect(gain).connect(master);
+      oscillator.start(now);
+      oscillator.stop(end);
+      oscillators.push(oscillator);
+    });
+    return { stop: () => oscillators.forEach(stopNode) };
   }
   if (sound.type !== 'wood') return null;
   const duration = sound.broken ? 0.3 : 0.18,

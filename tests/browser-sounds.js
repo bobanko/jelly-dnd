@@ -10,10 +10,10 @@ import assert from 'node:assert/strict';
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('requestfailed', (request) => failed.push(request.url()));
     await page.goto('http://localhost:3000/sounds.html');
-    assert.equal(await page.locator('.sound-card').count(), 34);
+    assert.equal(await page.locator('.sound-card').count(), 39);
     assert.equal(await page.locator('.sound-group').count(), 7);
-    assert.equal(await page.locator('#sample-count').textContent(), '24');
-    assert.equal(await page.locator('#procedural-count').textContent(), '10');
+    assert.equal(await page.locator('#sample-count').textContent(), '28');
+    assert.equal(await page.locator('#procedural-count').textContent(), '11');
 
     const loopButton = page.locator('[data-sound="wind"] .sound-play');
     // The progress bar along the card fills while a sound plays and empties when it stops.
@@ -48,6 +48,9 @@ import assert from 'node:assert/strict';
     await page.screenshot({ path: 'artifacts/sounds-wide.png', fullPage: true });
     await page.locator('[data-sound="woodHit"] .sound-play').click();
     await page.locator('[data-sound="woodHit"].playing').waitFor();
+    await page.locator('[data-sound="torchGong"] .sound-play').click();
+    await page.locator('[data-sound="torchGong"].playing').waitFor();
+    await untilProgress('torchGong');
 
     await page.setViewportSize({ width: 390, height: 844 });
     const cards = page.locator('.sound-card');
