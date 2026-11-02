@@ -459,12 +459,15 @@ function simulate(dt, elapsed = dt) {
     }
     for (const event of events) {
       // A destroyed crate comes back the way it first arrived: a flash, then a drop.
-      if (event.type === 'respawn' && bodies[event.player]?.kind === 'crate')
+      // A crate or barrel materialises where it comes back (see solidFS), with a flash.
+      if (event.type === 'respawn' && bodies[event.player]?.kind === 'crate') {
+        bodies[event.player].appearTime = 0;
         effects.burst(
           { type: 'crateTeleport', center: crateFlashCenter(bodies[event.player], 0) },
           players,
           soft,
         );
+      }
       if (event.player >= players.length) continue;
       effects.burst(event, players, soft);
       if (event.type === 'death') {
@@ -778,6 +781,7 @@ const SPAWN_GLYPH_EVERY = 0.3,
   SPAWN_GLYPH_LIFE = 1.4;
 function updateSpawnMarks(dt) {
   updateSpawnOutlines();
+  for (const crate of crates) if (crate.appearTime < 2) crate.appearTime += dt;
   const layer = document.querySelector('#player-hints');
   for (const p of bodies) {
     // With reduced motion only the still outline remains.
@@ -998,6 +1002,7 @@ function updateLevelAssembly(dt) {
     )
       return;
     level.assembly.summoned.add(key);
+    p.appearTime = 0;
     effects.burst({ type: 'crateTeleport', center: crateFlashCenter(p, 0.9) }, players, soft);
   });
   if (level.assembly.progress === 1) level.assembly = null;

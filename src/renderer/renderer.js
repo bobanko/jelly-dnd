@@ -234,7 +234,7 @@ class Renderer {
       {
         arrayStride: PROP_FLOATS * 4,
         stepMode: 'instance',
-        attributes: [4, 5, 6, 7].map((shaderLocation, k) => ({
+        attributes: [4, 5, 6, 7, 8].map((shaderLocation, k) => ({
           shaderLocation,
           offset: k * 16,
           format: 'float32x4',

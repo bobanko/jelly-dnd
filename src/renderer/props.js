@@ -32,8 +32,10 @@ import { goalRune } from './geometry/runes.js';
 import { skullGeometry } from './geometry/skull.js';
 
 // One prop transform: [x, y, z, scale, row0, swing, row1, rock, row2, string pull], where
-// rowN is a row of the rotation matrix. Read by propVS as instance attributes 4–7.
-export const PROP_FLOATS = 16;
+// rowN is a row of the rotation matrix. Read by propVS as instance attributes 4–8.
+export const PROP_FLOATS = 20;
+// A crate or barrel materialising: total time, and how much of it is the white fade-in.
+export const APPEAR_TIME = 0.9;
 const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 
 export const propsMethods = {
@@ -377,6 +379,7 @@ export const propsMethods = {
         y = 0,
         z = 0,
         rotate = false,
+        appearing = 0,
         matrix = null,
         stringPull = 0,
         swing = 0;
@@ -404,6 +407,8 @@ export const propsMethods = {
         y = (p.y || 0) + bodyLift(p);
         z = p.z;
         matrix = p.large ? slideOrientation(p) : level.soft.get(p).r;
+        if (p.appearTime !== undefined && p.appearTime < APPEAR_TIME)
+          appearing = 1 - p.appearTime / APPEAR_TIME;
       } else if (
         piece.kind === 'shield' ||
         piece.kind === 'shieldCrack' ||
@@ -496,6 +501,8 @@ export const propsMethods = {
       instances[o + 7] = swing;
       instances[o + 11] = rock;
       instances[o + 15] = stringPull;
+      // Attribute 8: x is how much of a materialisation is left (0 once fully there).
+      instances[o + 16] = appearing;
       const draw = { first: piece.first, count: piece.count, instance };
       if (piece.kind === 'droneCrystal')
         this.crystalPieces.push({ kind: 'crystal', center: [x, y, z], ...draw });

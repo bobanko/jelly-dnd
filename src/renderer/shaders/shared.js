@@ -36,13 +36,15 @@ export const shared = `
  @vertex fn solidVS(@location(0) p:vec3f,@location(1) n:vec3f,@location(2) color:vec3f,@location(3) material:vec3f)->Out{return solid(p,n,color,material);}
  // Props keep local meshes; the per-piece instance places them: sword swing about the grip,
  // archer rocking and bowstring pull in local space, then scale, rotation rows and offset.
- @vertex fn propVS(@location(0) p:vec3f,@location(1) n:vec3f,@location(2) color:vec3f,@location(3) material:vec3f,@location(4) place:vec4f,@location(5) row0:vec4f,@location(6) row1:vec4f,@location(7) row2:vec4f)->Out{
+ @vertex fn propVS(@location(0) p:vec3f,@location(1) n:vec3f,@location(2) color:vec3f,@location(3) material:vec3f,@location(4) place:vec4f,@location(5) row0:vec4f,@location(6) row1:vec4f,@location(7) row2:vec4f,@location(8) extra:vec4f)->Out{
   var q=p;var m=n;
   if(row0.w!=0.){let c=cos(row0.w);let s=sin(row0.w);let b=q.y+.13;q=vec3f(q.x*c-b*s,q.x*s+b*c-.13,q.z);m=vec3f(m.x*c-m.y*s,m.x*s+m.y*c,m.z);}
   if(row1.w!=0.){let c=cos(row1.w);let s=sin(row1.w);q=vec3f(q.x*c-q.y*s,q.x*s+q.y*c,q.z);m=vec3f(m.x*c-m.y*s,m.x*s+m.y*c,m.z);}
   q.z-=row2.w*max(0.,1.-abs(q.y-.57)/.38);
   let position=place.xyz+vec3f(dot(row0.xyz,q),dot(row1.xyz,q),dot(row2.xyz,q))*place.w;
-  return solid(position,vec3f(dot(row0.xyz,m),dot(row1.xyz,m),dot(row2.xyz,m)),color,material);
+  var o=solid(position,vec3f(dot(row0.xyz,m),dot(row1.xyz,m),dot(row2.xyz,m)),color,material);
+  // local.y is free for props: what is left of a materialisation (see solidFS).
+  o.local.y=extra.x;return o;
  }
  fn solid(p:vec3f,n:vec3f,color:vec3f,material:vec3f)->Out{
   var position=p;
@@ -382,6 +384,14 @@ export const shared = `
   return vec4f(o.color*2.2,line*.95);
  }
  @fragment fn solidFS(o:Out)->@location(0) vec4f{
+  // A materialising prop first fills in out of nothing as glowing white (ordered dither: this
+  // pass is opaque), then that glow gives way to its own colours.
+  let appear=1.-o.local.y;
+  if(o.local.y>0.){
+   let bayer=array<f32,16>(0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.);
+   let cell=vec2u(o.clip.xy)%4u;
+   if((bayer[cell.y*4u+cell.x]+.5)/16.>=smoothstep(0.,.45,appear)){discard;}
+  }
   let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);let h=normalize(v+l);
   var color=o.color;var metalWear=0.;
   let uv=o.local.xz;let dx=dpdx(uv);let dy=dpdy(uv);
@@ -463,7 +473,8 @@ export const shared = `
    result=crust+vec3f(.9,.2,.03)*rim*rim*.55*pulse+vec3f(3.4,1.45,.28)*crack*pulse;
    return vec4f(result,1.);
   }
-  return vec4f(voidFog(o.world,result+marks),1.);
+  let glow=vec3f(2.4,2.35,2.2)*(.8+.2*max(0.,dot(n,v)));
+  return vec4f(voidFog(o.world,mix(glow,result+marks,smoothstep(.45,1.,appear))),1.);
  }
  fn energyRune(p:vec2f,glyph:u32)->f32{
   if(glyph==4u){return runeDistance(p*.45,4u)/.45;}
