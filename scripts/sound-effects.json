@@ -166,5 +166,11 @@
     "duration_seconds": 0.7,
     "loop": false,
     "prompt_influence": 0.7
+  },
+  "wood-drag": {
+    "text": "Seamless steady loop of a heavy wooden crate being dragged slowly across a stone floor. Continuous low, soft wood-on-stone friction: a muffled, even, grainy rumble with a gentle low scraping texture, no gaps. Unobtrusive background game sound. No creaks, squeaks, knocks, impacts, rattles, metal, voice, music or reverb.",
+    "duration_seconds": 4,
+    "loop": true,
+    "prompt_influence": 0.7
   }
 }
