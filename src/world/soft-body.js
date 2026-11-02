@@ -205,12 +205,61 @@ const CRATE_RESPAWN_DROP = 0.9;
 const SLIP_STEP = 0.008,
   SLIDE_INSET = 0.06;
 // Barrels are large crates lying on their side (p.barrel names the axis, 'x' or 'z'). A push
-// across the axis sets one rolling: it keeps a fixed speed along that cardinal direction,
-// without floor friction, until something stops it or it drops off a ledge. A push on an end
-// cap just slides it like a large crate.
-const BARREL_RADIUS = 0.45,
-  ROLL_SPEED = 3.2,
-  ROLL_START = 0.6;
+// across the axis sets one rolling along that cardinal direction without floor friction: it
+// speeds up to ROLL_PEAK, then eases down towards ROLL_CRUISE, until something blocks it. It
+// then knocks back onto the centre of its free cell. A rolling barrel hitting another barrel's
+// side hands its roll over; an end cap or anything else just stops it. A push on an end cap
+// slides it like a large crate. Each drop off a ledge tips it over: onto its head (p.upright,
+// a plain large crate from then on), or from its head back onto its side.
+const BARREL_RADIUS = 0.49,
+  ROLL_START = 0.6,
+  ROLL_PEAK = 3.6,
+  ROLL_ACCELERATION = 9,
+  ROLL_CRUISE = 1.4,
+  ROLL_EASE = 0.9,
+  SETTLE_STIFFNESS = 260,
+  SETTLE_DAMPING = 18,
+  TIP_TIME = 0.4;
+// Rotation by `angle` about the unit vector `a`, and 3×3 row-major products.
+function axisRotation([x, y, z], angle) {
+  const c = Math.cos(angle),
+    s = Math.sin(angle),
+    t = 1 - c;
+  return [
+    t * x * x + c,
+    t * x * y - s * z,
+    t * x * z + s * y,
+    t * x * y + s * z,
+    t * y * y + c,
+    t * y * z - s * x,
+    t * x * z - s * y,
+    t * y * z + s * x,
+    t * z * z + c,
+  ];
+}
+function matrixProduct(a, b) {
+  const r = new Array(9);
+  for (let i = 0; i < 3; i++)
+    for (let j = 0; j < 3; j++)
+      r[i * 3 + j] = a[i * 3] * b[j] + a[i * 3 + 1] * b[3 + j] + a[i * 3 + 2] * b[6 + j];
+  return r;
+}
+// Cardinal unit direction nearest to (x, z).
+const cardinal = (x, z) =>
+  Math.abs(x) >= Math.abs(z) ? { x: Math.sign(x), z: 0 } : { x: 0, z: Math.sign(z) };
+const BARREL_ALONG_Z = [0, 0, -1, 0, 1, 0, 1, 0, 0];
+const barrelAxis = (p) => (p.barrel === 'z' ? [0, 0, 1] : [1, 0, 0]);
+// How the barrel mesh (lying along x) is turned: its resting pose, the roll about its axis
+// while on its side, and what is left of a tip-over in progress.
+function barrelOrientation(p, tipping = true) {
+  let m = p.pose || (p.barrel === 'z' ? BARREL_ALONG_Z : [1, 0, 0, 0, 1, 0, 0, 0, 1]);
+  if (!p.upright) m = matrixProduct(axisRotation(barrelAxis(p), p.spin || 0), m);
+  if (tipping && p.tip > 0) {
+    const left = 1 - (1 - p.tip) ** 2;
+    m = matrixProduct(axisRotation(p.tipAxis, (-left * Math.PI) / 2), m);
+  }
+  return m;
+}
 // Height of a body's lattice centre above its feet (p.y).
 const bodyLift = (p) => (p.kind === 'crate' && p.large ? LARGE_WIDTH / 2 + 0.04 : 0.42);
 function group(ids, points = rest) {
@@ -237,6 +286,8 @@ class Lattice {
     this.rigid = p.kind === 'crate';
     this.slides = this.rigid && !!p.large;
     this.roll = null;
+    this.settle = null;
+    this.pendingRoll = null;
     this.lift = bodyLift(p);
     // Half size of the rounded box that other bodies collide with, and its corner radius.
     this.half = this.slides ? LARGE_WIDTH / 2 - 0.025 : this.rigid ? 0.355 : 0.315;
@@ -543,11 +594,12 @@ class System {
           dz = node[2] - old[2] - (b.surfaceVelocity?.z || 0) * (this.contactStep || 0),
           slip = Math.hypot(dx, dz);
         // Coulomb floor friction: static contact sticks; sliding uses a smaller coefficient.
-        const friction = b.roll
-          ? 0
-          : !b.driven && slip < penetration * 0.65
-            ? 1
-            : Math.min(1, (penetration * (b.driven ? 0.12 : 0.38)) / (slip || 1));
+        const friction =
+          b.roll || b.settle
+            ? 0
+            : !b.driven && slip < penetration * 0.65
+              ? 1
+              : Math.min(1, (penetration * (b.driven ? 0.12 : 0.38)) / (slip || 1));
         node[0] -= dx * friction;
         node[2] -= dz * friction;
       }
@@ -611,29 +663,120 @@ class System {
     }
     return top;
   }
-  // Turns the barrel by the distance it travelled across its axis, starts a roll when a push
-  // across the axis is fast enough, and ends it once the barrel is blocked or leaves the floor.
-  barrelStep(p, b, center, vcom, grounded, dt) {
+  // Barrel behaviour after each step: spin by the distance rolled, tip over when it leaves a
+  // ledge, run the roll's speed profile and end it when blocked, and start one from a push.
+  barrelStep(p, b, center, vcom, grounded, dt, players) {
     const dx = center[0] - b.previousCenter[0],
-      dz = center[2] - b.previousCenter[2],
-      alongX = p.barrel === 'z';
-    // Spin about the barrel's own axis (+x or +z), as a wheel rolling without slipping.
-    p.spin = (p.spin || 0) + (alongX ? -dx : dz) / BARREL_RADIUS;
+      dz = center[2] - b.previousCenter[2];
+    p.tip = Math.max(0, (p.tip || 0) - dt / TIP_TIME);
+    if (!p.upright) {
+      // Spin about the barrel's own axis, as a wheel rolling without slipping.
+      const axis = barrelAxis(p);
+      p.spin = (p.spin || 0) + (dz * axis[0] - dx * axis[2]) / BARREL_RADIUS;
+    }
+    const stop = () => {
+      b.roll = null;
+      vcom[0] = vcom[2] = 0;
+      for (const v of b.velocities) v[0] = v[2] = 0;
+      p.vx = p.vz = 0;
+    };
+    if (b.airborne && p.state === 'alive' && Math.hypot(dx, dz) > 1e-4) {
+      this.tipBarrel(p, b.roll || cardinal(dx, dz));
+      b.settle = null;
+      stop();
+      return;
+    }
+    if (b.settle) {
+      const k = b.settle.axis;
+      b.settle.time += dt;
+      if (
+        b.pushingCrate ||
+        p.state !== 'alive' ||
+        b.settle.time > 0.8 ||
+        (Math.abs(b.settle.target - center[k]) < 0.002 && Math.abs(b.settle.v) < 0.05)
+      ) {
+        b.settle = null;
+        stop();
+      }
+    }
     if (b.roll) {
-      const moved = dx * b.roll.x + dz * b.roll.z;
-      if (p.state !== 'alive' || b.airborne || moved < ROLL_SPEED * dt * 0.5) {
-        b.roll = null;
-        vcom[0] = vcom[2] = 0;
-        for (const v of b.velocities) v[0] = v[2] = 0;
-        p.vx = p.vz = 0;
+      const moved = dx * b.roll.x + dz * b.roll.z,
+        ahead = this.bodyAhead(p, b.roll, players);
+      // A body in the way stops the roll on contact, so the barrel never bulldozes it along.
+      if (p.state !== 'alive' || ahead || moved < b.rollSpeed * dt * 0.5) {
+        if (p.state === 'alive') this.barrelBlocked(p, b, center, ahead);
+        stop();
+        return;
+      }
+      if (b.rollPeaked)
+        b.rollSpeed += (ROLL_CRUISE - b.rollSpeed) * (1 - Math.exp(-dt * ROLL_EASE));
+      else {
+        b.rollSpeed = Math.min(ROLL_PEAK, b.rollSpeed + ROLL_ACCELERATION * dt);
+        b.rollPeaked = b.rollSpeed >= ROLL_PEAK;
       }
       return;
     }
-    if (!b.pushingCrate || !grounded || b.airborne || p.state !== 'alive') return;
-    const along = alongX ? vcom[0] : vcom[2],
+    if (p.upright || !b.pushingCrate || !grounded || b.airborne || p.state !== 'alive') return;
+    const alongX = p.barrel === 'z',
+      along = alongX ? vcom[0] : vcom[2],
       across = alongX ? vcom[2] : vcom[0];
     if (Math.abs(along) > ROLL_START && Math.abs(along) > Math.abs(across) * 1.5)
-      b.roll = alongX ? { x: Math.sign(along), z: 0 } : { x: 0, z: Math.sign(along) };
+      this.startRoll(
+        b,
+        alongX ? { x: Math.sign(along), z: 0 } : { x: 0, z: Math.sign(along) },
+        Math.abs(along),
+        false,
+      );
+  }
+  startRoll(b, direction, speed, peaked) {
+    Object.assign(b, {
+      roll: direction,
+      rollSpeed: speed,
+      rollPeaked: peaked,
+      settle: null,
+      sleeping: false,
+      calm: 0,
+    });
+  }
+  // The body touching a rolling barrel's leading face, if any.
+  bodyAhead(p, d, players) {
+    const reach = this.get(p).extent;
+    return players.find((q) => {
+      if (q === p || q.state === 'dead' || Math.abs((q.y || 0) - (p.y || 0)) > 0.3) return false;
+      const other = this.get(q),
+        width = reach + other.half + other.rounding,
+        ahead = (q.x - p.x) * d.x + (q.z - p.z) * d.z,
+        aside = (q.x - p.x) * d.z - (q.z - p.z) * d.x;
+      return ahead > 0 && ahead < width + 0.03 && Math.abs(aside) < width - 0.1;
+    });
+  }
+  // A blocked roll: a barrel lying across the roll takes it over, then this one knocks back
+  // onto the centre of its free cell.
+  barrelBlocked(p, b, center, hit) {
+    const d = b.roll;
+    // Handed over at the start of the next step, once the struck barrel is awake.
+    if (hit?.barrel && !hit.upright && (hit.barrel === 'z') === (d.x !== 0))
+      this.get(hit).pendingRoll = { direction: { ...d }, speed: b.rollSpeed };
+    const k = d.x ? 0 : 2,
+      sign = d.x || d.z;
+    b.settle = { axis: k, target: Math.round(center[k] - sign * 0.3), v: 0, time: 0 };
+  }
+  // Leaving a ledge moving along `d` tips the barrel a quarter turn: a barrel on its side
+  // pushed along its axis, or a standing one, falls forward; one rolling across its axis
+  // tumbles sideways. Either way it lands on its head if it was on its side, and back.
+  tipBarrel(p, d) {
+    const before = barrelOrientation(p, false),
+      onSide = !p.upright,
+      axis = barrelAxis(p),
+      alongAxis = onSide && Math.abs(d.x * axis[0] + d.z * axis[2]) > 0.5,
+      tipAxis = onSide && !alongAxis ? [d.x, 0, d.z] : [d.z, 0, -d.x];
+    p.pose = matrixProduct(axisRotation(tipAxis, Math.PI / 2), before);
+    p.upright = onSide;
+    p.spin = 0;
+    p.tip = 1;
+    p.tipAxis = tipAxis;
+    // Back on its side: the mesh's long axis (first column) is the new rolling axis.
+    if (!p.upright) p.barrel = Math.abs(p.pose[0]) > Math.abs(p.pose[6]) ? 'x' : 'z';
   }
   stackContact(pa, pb, a, b) {
     if (pa.state === 'dead' || pb.state === 'dead') return false;
@@ -794,6 +937,7 @@ class System {
         if (spawn) {
           // A crate is teleported back above its spawn and drops into place.
           const crate = p.kind === 'crate';
+          if (p.barrel) Object.assign(p, { upright: false, pose: null, spin: 0, tip: 0 });
           Object.assign(p, spawn, {
             state: crate ? 'falling' : 'alive',
             y: (spawn.y || 0) + (crate ? CRATE_RESPAWN_DROP : 0),
@@ -836,7 +980,18 @@ class System {
             Math.hypot(inputs[j]?.x || 0, inputs[j]?.z || 0) > 0) &&
           Math.hypot(p.x - other.x, p.z - other.z) < 1.25,
       );
-      if (magnitude || onBelt || neighbour || p.state === 'falling' || !world.supported(p)) {
+      if (b.pendingRoll) {
+        this.startRoll(b, b.pendingRoll.direction, b.pendingRoll.speed, true);
+        b.pendingRoll = null;
+      }
+      if (
+        b.roll ||
+        magnitude ||
+        onBelt ||
+        neighbour ||
+        p.state === 'falling' ||
+        !world.supported(p)
+      ) {
         b.sleeping = false;
         b.calm = 0;
       }
@@ -870,12 +1025,30 @@ class System {
         p.state === 'alive' && !p.launchTimer
           ? ((magnitude ? (input.z / magnitude) * 2.6 : 0) + belt.z - (p.vz || 0)) * driveGain
           : 0;
-      const rolling = b.roll && p.state === 'alive';
+      const rolling = b.roll && p.state === 'alive',
+        settle = !rolling && b.settle && p.state === 'alive' ? b.settle : null;
+      // Settling is a stiff, slightly underdamped spring onto the cell centre: a small knock-back.
+      if (settle)
+        settle.v +=
+          (SETTLE_STIFFNESS * (settle.target - b.center[settle.axis]) - SETTLE_DAMPING * settle.v) *
+          dt;
       for (let n = 0; n < NODE_COUNT; n++) {
         const v = b.velocities[n];
-        v[0] = rolling ? b.roll.x * ROLL_SPEED : v[0] + ax * dt;
+        v[0] = rolling
+          ? b.roll.x * b.rollSpeed
+          : settle
+            ? settle.axis === 0
+              ? settle.v
+              : 0
+            : v[0] + ax * dt;
         v[1] -= 15 * dt;
-        v[2] = rolling ? b.roll.z * ROLL_SPEED : v[2] + az * dt;
+        v[2] = rolling
+          ? b.roll.z * b.rollSpeed
+          : settle
+            ? settle.axis === 2
+              ? settle.v
+              : 0
+            : v[2] + az * dt;
         for (let k = 0; k < 3; k++) b.positions[n][k] += v[k] * dt;
       }
     });
@@ -1028,7 +1201,7 @@ class System {
         b.core[k] += b.coreVelocity[k] * dt;
         b.core[k] = Math.max(center[k] - 0.12, Math.min(center[k] + 0.12, b.core[k]));
       }
-      if (p.barrel) this.barrelStep(p, b, center, vcom, crateGrounded, dt);
+      if (p.barrel) this.barrelStep(p, b, center, vcom, crateGrounded, dt, players);
       const driving = b.driven;
       const ground = world.heightAt(p.x, p.z, p.y + 0.2, p);
       const grounded = b.rigid
@@ -1072,7 +1245,8 @@ export {
   bodyLift,
   LARGE_WIDTH,
   BARREL_RADIUS,
-  ROLL_SPEED,
+  ROLL_PEAK,
+  barrelOrientation,
   Lattice,
   rest,
   tets,

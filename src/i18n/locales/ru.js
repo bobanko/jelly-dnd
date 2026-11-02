@@ -20,6 +20,7 @@ export default {
   loadingReady: 'Готово',
   textureStone: 'Камень',
   textureWood: 'Дерево',
+  textureBarrel: 'Бочки',
   megabytes: 'МБ',
   retry: 'Попробовать снова',
   levelComplete: 'Уровень пройден',

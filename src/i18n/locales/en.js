@@ -20,6 +20,7 @@ export default {
   loadingReady: 'Ready',
   textureStone: 'Stone',
   textureWood: 'Wood',
+  textureBarrel: 'Barrels',
   megabytes: 'MB',
   retry: 'Try again',
   levelComplete: 'Level complete',

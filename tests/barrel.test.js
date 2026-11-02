@@ -41,7 +41,7 @@ test('a barrel pushed on its side keeps rolling on its own until a wall stops it
   // The jelly lets go; the barrel carries on alone.
   g.step([], 400);
   const p = g.bodies[1];
-  assert.ok(p.x > 10.9 && p.x < 11.1, 'stopped against the wall: ' + p.x);
+  assert.ok(Math.abs(p.x - 11) < 0.01, 'knocked back onto the free cell centre: ' + p.x);
   assert.ok(Math.abs(p.z - 4) < 0.05, 'rolled straight: ' + p.z);
   assert.equal(g.soft.get(p).roll, null);
   assert.ok(Math.abs(p.spin) > 10, 'it turned as it rolled: ' + p.spin);
@@ -69,6 +69,83 @@ test('a rolling barrel leaves a ledge and lands below', () => {
   assert.ok(Math.abs(p.y) < 0.05, 'on the lower floor: ' + p.y);
   assert.equal(p.state, 'alive');
   assert.equal(g.soft.get(p).roll, null, 'the fall ends the roll');
+  assert.equal(p.upright, true, 'the drop tips it onto its head');
+});
+
+test('a barrel stopped by a wall still slides along it', () => {
+  const g = scene([{ x: 4, z: 4 }, barrel({ x: 4.87, z: 4 })]);
+  for (let z = 0; z < 20; z++) g.world.heights.set(`12,${z}`, 1);
+  g.step([{ x: 1, z: 0 }], 60);
+  g.step([], 400);
+  const p = g.bodies[1],
+    jelly = g.bodies[0];
+  // From the end cap (towards +z), push it along the wall.
+  g.soft.translate(jelly, 11 - jelly.x, 0, 3.1 - jelly.z, true);
+  g.step([{ x: 0, z: 1 }], 300);
+  assert.ok(p.z > 4.8, 'it moves along the wall: ' + p.z);
+  assert.ok(Math.abs(p.x - 11) < 0.05, 'and stays off it: ' + p.x);
+});
+
+test('a roll speeds up after the push, then eases down', () => {
+  const g = scene([{ x: 2, z: 4 }, barrel({ x: 2.87, z: 4 })], 40);
+  g.step([{ x: 1, z: 0 }], 30);
+  const speeds = [];
+  for (let n = 0; n < 360; n++) {
+    g.step([]);
+    speeds.push(g.bodies[1].vx);
+  }
+  const peak = Math.max(...speeds);
+  assert.ok(peak > 3.3, 'it picks up speed: ' + peak);
+  assert.ok(speeds.indexOf(peak) > 5, 'the peak comes after the push');
+  assert.ok(speeds.at(-1) < peak * 0.7, 'then it slows down: ' + speeds.at(-1));
+  assert.ok(speeds.at(-1) > 1, 'but keeps rolling: ' + speeds.at(-1));
+});
+
+test('a rolling barrel hands its roll to a barrel lying across its path', () => {
+  const g = scene([{ x: 2, z: 4 }, barrel({ x: 2.87, z: 4 }), barrel({ x: 6, z: 4 })]);
+  for (const z of [3, 4, 5]) g.world.heights.set(`12,${z}`, 1);
+  g.step([{ x: 1, z: 0 }], 60);
+  g.step([], 500);
+  assert.ok(
+    Math.abs(g.bodies[1].x - 5) < 0.02,
+    'the first stops on the cell before: ' + g.bodies[1].x,
+  );
+  assert.ok(
+    Math.abs(g.bodies[2].x - 11) < 0.02,
+    'the second rolls on to the wall: ' + g.bodies[2].x,
+  );
+});
+
+test('a rolling barrel just stops against the end cap of another barrel', () => {
+  const g = scene([{ x: 2, z: 4 }, barrel({ x: 2.87, z: 4 }), barrel({ x: 6, z: 4, barrel: 'x' })]);
+  g.step([{ x: 1, z: 0 }], 60);
+  g.step([], 400);
+  assert.ok(Math.abs(g.bodies[1].x - 5) < 0.02, 'stopped on the cell before: ' + g.bodies[1].x);
+  assert.ok(Math.abs(g.bodies[2].x - 6) < 0.1, 'the other stays put: ' + g.bodies[2].x);
+  assert.equal(g.soft.get(g.bodies[2]).roll, null);
+});
+
+test('a standing barrel is a crate, and a second drop lays it on its side again', () => {
+  // Three levels of floor: x 0–4 at 2, x 5–8 at 1, beyond at 0.
+  const g = scene([{ x: 2, z: 4, y: 2 }, barrel({ x: 2.87, z: 4, y: 2, barrel: 'x' })]);
+  for (let x = 0; x <= 8; x++)
+    for (const z of [3, 4, 5]) g.world.heights.set(`${x},${z}`, x <= 4 ? 2 : 1);
+  // Pushed along its axis off the top step, it falls forward onto its head.
+  g.step([{ x: 1, z: 0 }], 400);
+  g.step([], 200);
+  const p = g.bodies[1];
+  assert.ok(Math.abs(p.y - 1) < 0.05, 'on the middle step: ' + p.y);
+  assert.equal(p.upright, true);
+  // Standing, a side push only slides it: no roll.
+  const jelly = g.bodies[0];
+  g.soft.translate(jelly, p.x - jelly.x - 0.9, p.y - jelly.y, 0, true);
+  g.step([{ x: 1, z: 0 }], 30);
+  assert.equal(g.soft.get(p).roll, null, 'a standing barrel does not roll');
+  g.step([{ x: 1, z: 0 }], 600);
+  g.step([], 200);
+  assert.ok(Math.abs(p.y) < 0.05, 'pushed off the second step: ' + p.y);
+  assert.equal(p.upright, false, 'it lies on its side again');
+  assert.equal(p.barrel, 'x', 'its axis points the way it fell');
 });
 
 test('barrels survive the level format with their axis', () => {

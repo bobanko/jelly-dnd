@@ -14,6 +14,7 @@ export const shared = `
  @group(0) @binding(1) var<storage,read> vertices:array<Vertex>;
  @group(0) @binding(4) var stoneAtlas:texture_2d<f32>;
  @group(0) @binding(5) var oakTexture:texture_2d<f32>;
+ @group(0) @binding(7) var barrelTexture:texture_2d<f32>;
  @group(0) @binding(6) var materialSampler:sampler;
  ${runeGlyphShader}
  fn assemblyPosition(p:vec3f,block:vec4f)->vec3f{
@@ -420,6 +421,8 @@ export const shared = `
    let grain=clamp(.48+dot(timber,vec3f(.25,.6,.15))*3.,.54,1.22);
    color*=mix(vec3f(grain),timber*2.7,.18);
   }
+  // Barrel atlas (assets/materials/barrel-atlas.png): 30 is oak, 31 is the iron hoop band.
+  if(o.material>29.5&&o.material<31.5){color=textureSampleGrad(barrelTexture,materialSampler,uv,dx,dy).rgb*o.color;}
   if(o.material>11.5&&o.material<12.5){let age=.5+.5*sin(o.world.x*11.+sin(o.world.y*7.))*sin(o.world.z*13.+o.world.y*5.);color=mix(color,vec3f(.065,.125,.095),smoothstep(.67,.95,age)*.32);}
   if(o.material>13.5&&o.material<14.5){let stone=textureSampleGrad(stoneAtlas,materialSampler,uv,dx,dy).rgb;color*=clamp(dot(stone,vec3f(.25,.6,.15))*3.5,.3,1.35);}
   if(o.material>15.5&&o.material<16.5){
@@ -443,6 +446,7 @@ export const shared = `
   if(o.material>25.5&&o.material<26.5){let rim=pow(1.-max(0.,dot(n,v)),1.6);result=o.color*(.22+rim*1.25)+vec3f(1.5,1.5,1.4)*pow(max(0.,dot(n,h)),36.);}
   if(o.material>3.5&&o.material<4.5){result=color*(1.4+sin(scene.options.z*4.)*.08);}
   if(o.material>11.5&&o.material<12.5){result+=vec3f(.56,.4,.21)*pow(max(0.,dot(n,h)),45.);}
+  if(o.material>30.5&&o.material<31.5){result+=vec3f(.5,.36,.3)*pow(max(0.,dot(n,h)),40.);}
   if(o.material>13.5&&o.material<14.5){result+=color*.12+vec3f(.18)*pow(max(0.,dot(n,h)),80.);}
   if(spikeMetal){
    let reflected=environment(reflect(-v,n));let gloss=pow(max(0.,dot(n,h)),mix(32.,85.,metalWear));

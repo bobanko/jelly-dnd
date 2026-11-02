@@ -1,7 +1,7 @@
 import Levels from '../world/levels.js';
 import { box, lowSphere, sphere, rod } from './mesh.js';
 import { barrelGeometry, crateGeometry, largeCrateGeometry } from './geometry/wood.js';
-import { bodyLift } from '../world/soft-body.js';
+import { barrelOrientation, bodyLift } from '../world/soft-body.js';
 import {
   assemblyCrateArrival,
   assemblyDropOffset,
@@ -35,13 +35,6 @@ import { skullGeometry } from './geometry/skull.js';
 // rowN is a row of the rotation matrix. Read by propVS as instance attributes 4–7.
 export const PROP_FLOATS = 16;
 const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
-// The barrel mesh lies along x. Turn it onto its axis and spin it about that axis by the
-// angle it has rolled (p.spin, about +x or +z).
-function barrelMatrix(p) {
-  const c = Math.cos(p.spin || 0),
-    s = Math.sin(p.spin || 0);
-  return p.barrel === 'z' ? [0, -s, -c, 0, c, -s, 1, 0, 0] : [1, 0, 0, 0, c, -s, 0, s, c];
-}
 
 export const propsMethods = {
   buildProps(level, players) {
@@ -410,7 +403,7 @@ export const propsMethods = {
         x = p.x;
         y = (p.y || 0) + bodyLift(p);
         z = p.z;
-        matrix = p.barrel ? barrelMatrix(p) : level.soft.get(p).r;
+        matrix = p.barrel ? barrelOrientation(p) : level.soft.get(p).r;
       } else if (
         piece.kind === 'shield' ||
         piece.kind === 'shieldCrack' ||

@@ -37,6 +37,7 @@ const DEPTH_GLOW_COLORS = {
 const MATERIALS = [
   { name: 'textureStone', file: 'dungeon-stone-atlas.png' },
   { name: 'textureWood', file: 'crate-oak.png' },
+  { name: 'textureBarrel', file: 'barrel-atlas.png' },
 ];
 const smoothstep = (a, b, x) => {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
@@ -172,6 +173,7 @@ class Renderer {
         { binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: {} },
         { binding: 5, visibility: GPUShaderStage.FRAGMENT, texture: {} },
         { binding: 6, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
+        { binding: 7, visibility: GPUShaderStage.FRAGMENT, texture: {} },
       ],
     });
     this.skinLayout = d.createBindGroupLayout({
@@ -585,7 +587,7 @@ class Renderer {
       minFilter: 'linear',
     });
     report();
-    [this.stoneTexture, this.woodTexture] = await materials;
+    [this.stoneTexture, this.woodTexture, this.barrelTexture] = await materials;
     this.materialSampler = d.createSampler({
       magFilter: 'linear',
       minFilter: 'linear',
@@ -596,6 +598,7 @@ class Renderer {
       { binding: 4, resource: this.stoneTexture.createView() },
       { binding: 5, resource: this.woodTexture.createView() },
       { binding: 6, resource: this.materialSampler },
+      { binding: 7, resource: this.barrelTexture.createView() },
     ];
     this.sceneGroup = d.createBindGroup({
       layout: this.sceneLayout,
