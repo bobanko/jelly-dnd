@@ -462,6 +462,8 @@ function simulate(dt, elapsed = dt) {
       // A crate or barrel materialises where it comes back (see solidFS), with a flash.
       if (event.type === 'respawn' && bodies[event.player]?.kind === 'crate') {
         bodies[event.player].appearTime = 0;
+        // The same chime a jelly makes when it appears.
+        respawnTone(0);
         effects.burst(
           { type: 'crateTeleport', center: crateFlashCenter(bodies[event.player], 0) },
           players,
@@ -1003,6 +1005,7 @@ function updateLevelAssembly(dt) {
       return;
     level.assembly.summoned.add(key);
     p.appearTime = 0;
+    respawnTone(0);
     effects.burst({ type: 'crateTeleport', center: crateFlashCenter(p, 0.9) }, players, soft);
   });
   if (level.assembly.progress === 1) level.assembly = null;
