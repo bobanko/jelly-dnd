@@ -922,14 +922,14 @@ class AssemblyTestAudio extends GameAudio.GameAudio {
   setEnabled(enabled) {
     this.enabled = enabled;
   }
-  playUI(name) {
+  playUI(name, volume, delay, options) {
     this.played ??= [];
     const source = {
       stop() {
         this.stopped = true;
       },
     };
-    this.played.push({ name, source });
+    this.played.push({ name, source, options });
     return source;
   }
   stopSource(source) {
@@ -937,17 +937,27 @@ class AssemblyTestAudio extends GameAudio.GameAudio {
   }
 }
 
-test('level assembly starts its sound once and movement stops it with the animation', async () => {
+test('level assembly whooshes as its stones fly, from their side, and movement stops it', async () => {
   const g = await game({
     map: defaultViewLevel(),
     intro: true,
     audioClass: AssemblyTestAudio,
     storage: { getItem: () => 'true' },
   });
-  g.run('updateLevelAssembly(.1);updateLevelAssembly(.1)');
-  assert.deepEqual(g.run('gameAudio.played.map(({name})=>name)'), ['levelBuild']);
+  // Twelve blocks in launch order; the shader hash sends each one in from a side.
+  g.run(`sceneRenderer.assemblyCells=new Map(Array.from({length:48},(_,i)=>
+    [String(i),[i%8,0,Math.floor(i/8),i/47]]))`);
+  g.run('updateLevelAssembly(.4)');
+  const first = g.run('gameAudio.played.map(({name,options})=>[name,options.pan,options.rate])');
+  assert.ok(first.length >= 1, 'the first stones whoosh soon after they launch');
+  assert.ok(first.every(([name]) => name === 'stoneWhoosh'));
+  assert.ok(first.every(([, pan]) => pan >= -0.9 && pan <= 0.9));
+  g.run('updateLevelAssembly(.4)');
+  const all = g.run('gameAudio.played.map(({options})=>options.rate)');
+  assert.ok(all.length > first.length, 'it repeats while more stones fly');
+  assert.ok(new Set(all).size > 1, 'repeats vary in pitch');
   g.key('w');
-  assert.equal(g.run('gameAudio.played[0].source.stopped'), true);
+  assert.ok(g.run('gameAudio.played.every(({source})=>source.stopped)'));
   assert.equal(g.run('level.assembly'), null);
 });
 

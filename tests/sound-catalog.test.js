@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { proceduralSoundCatalog, soundCatalog, soundClips } from '../src/game/sound-catalog.js';
 
 test('sound gallery lists every active sample once with its game volume and existing file', () => {
-  assert.equal(soundCatalog.length, 24);
+  assert.equal(soundCatalog.length, 25);
   assert.equal(new Set(soundCatalog.map((sound) => sound.id)).size, soundCatalog.length);
   assert.equal(new Set(soundCatalog.map((sound) => sound.file)).size, soundCatalog.length);
   for (const sound of soundCatalog) {

@@ -890,15 +890,59 @@ function crateFlashCenter(p, above) {
 }
 function stopLevelAssemblySound() {
   if (!level.assembly) return;
-  gameAudio.stopSource(level.assembly.audioSource);
-  level.assembly.audioSource = null;
-  level.assembly.soundFinished = true;
+  for (const source of level.assembly.whooshSources || []) gameAudio.stopSource(source);
+  level.assembly.whooshSources = [];
+  level.assembly.whooshes = [];
+}
+// The masonry flies in from the sides of the screen (see assemblyPosition in the shaders):
+// the same hash as the shader picks each block's side, so a whoosh plays from where its
+// stones come. Blocks are split by launch order into a few groups, one whoosh each.
+const ASSEMBLY_BLOCK_END = 0.7;
+function shaderHash([x, y, z]) {
+  const fract = (v) => v - Math.floor(v);
+  let q = [fract((x + 17) * 0.1031), fract((y + 3) * 0.1031), fract((z + 41) * 0.1031)];
+  const d = q[0] * (q[2] + 31.32) + q[1] * (q[1] + 31.32) + q[2] * (q[0] + 31.32);
+  q = q.map((v) => v + d);
+  return fract((q[0] + q[1]) * q[2]);
+}
+function assemblyWhooshes() {
+  const cells = [...(sceneRenderer.assemblyCells?.values() || [])].sort((a, b) => a[3] - b[3]);
+  if (!cells.length) return [];
+  const count = Math.max(4, Math.min(9, Math.round(cells.length / 12))),
+    whooshes = [];
+  for (let k = 0; k < count; k++) {
+    const group = cells.slice(
+      Math.floor((k / count) * cells.length),
+      Math.floor(((k + 1) / count) * cells.length),
+    );
+    if (!group.length) continue;
+    let pan = 0;
+    for (const cell of group) {
+      const side = Math.floor(shaderHash(cell) * 6),
+        screen = project(cell[0], cell[1], cell[2]);
+      // From the left or right edge: hard to that side; from above or below: where it lands.
+      pan += side === 0 ? -1 : side === 1 ? 1 : (screen.x / W) * 2 - 1;
+    }
+    const order = group[Math.floor(group.length / 2)][3];
+    whooshes.push({
+      // A little after the group's launch, while its stones are mid-flight.
+      at: ASSEMBLY_BLOCK_END * (order * 0.6 + 0.08),
+      pan: Math.max(-0.9, Math.min(0.9, (pan / group.length) * 1.2)),
+      rate: 0.9 + ((k * 7) % 5) * 0.05,
+    });
+  }
+  return whooshes;
 }
 function updateLevelAssembly(dt) {
   if (!level.assembly || loadingActive || menuOpen || document.hidden) return;
-  if (!level.assembly.audioSource && !level.assembly.soundFinished)
-    level.assembly.audioSource = gameAudio.playUI('levelBuild');
+  level.assembly.whooshes ??= assemblyWhooshes();
+  level.assembly.whooshSources ??= [];
   level.assembly.progress = Math.min(1, level.assembly.progress + dt / LEVEL_ASSEMBLY_SECONDS);
+  while (level.assembly.whooshes[0]?.at <= level.assembly.progress) {
+    const { pan, rate } = level.assembly.whooshes.shift();
+    const source = gameAudio.playUI('stoneWhoosh', 1, 0, { pan, rate });
+    if (source) level.assembly.whooshSources.push(source);
+  }
   // Each jelly is summoned with a ring and sparks as it starts to grow in place.
   level.assembly.summoned ??= new Set();
   players.forEach((p, i) => {

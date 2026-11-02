@@ -271,13 +271,15 @@ export class GameAudio {
       parameter.setTargetAtTime(target, context.currentTime, target > parameter.value ? 0.12 : 0.2);
     else parameter.value = target;
   }
-  play(name, volume = 1, delay = 0) {
-    return this.start(name, volume, delay, true);
+  play(name, volume = 1, delay = 0, options) {
+    return this.start(name, volume, delay, true, options);
   }
-  playUI(name, volume = 1, delay = 0) {
-    return this.start(name, volume, delay, false);
+  playUI(name, volume = 1, delay = 0, options) {
+    return this.start(name, volume, delay, false, options);
   }
-  start(name, volume, delay, activeOnly) {
+  // options.pan: stereo position from -1 (left) to 1 (right); options.rate: playback speed,
+  // which also shifts the pitch, so repeats of one sample do not sound identical.
+  start(name, volume, delay, activeOnly, { pan = 0, rate = 1 } = {}) {
     // Never queue stale events while decoding, muted, paused or in menus.
     if (!this.enabled || (activeOnly && !this.active) || !this.buffers.has(name)) return null;
     const context = this.context();
@@ -289,8 +291,13 @@ export class GameAudio {
     const gain = context.createGain();
     source.buffer = this.buffers.get(name);
     source.loop = name === 'wind';
+    if (rate !== 1) source.playbackRate.value = rate;
     gain.gain.value = clips[name][1] * volume;
-    source.connect(gain).connect(context.destination);
+    const panner = pan && context.createStereoPanner ? context.createStereoPanner() : null;
+    if (panner) {
+      panner.pan.value = Math.max(-1, Math.min(1, pan));
+      source.connect(gain).connect(panner).connect(context.destination);
+    } else source.connect(gain).connect(context.destination);
     this.sources.add(source);
     if (!activeOnly) this.presentationSources.add(source);
     source.onended = () => {
@@ -298,6 +305,7 @@ export class GameAudio {
       this.presentationSources.delete(source);
       source.disconnect();
       gain.disconnect();
+      panner?.disconnect();
     };
     source.start(context.currentTime + Math.max(0, delay));
     return source;
