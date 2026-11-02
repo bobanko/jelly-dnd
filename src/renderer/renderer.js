@@ -299,6 +299,15 @@ class Renderer {
       color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
     });
+    // Jelly chunks: multiply the scene behind by the gel's transmission, then add its light.
+    this.chunkTintPipeline = pipeline('solidVS', 'chunkTintFS', 'back', 4, 'less', false, {
+      color: { srcFactor: 'zero', dstFactor: 'src', operation: 'add' },
+      alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
+    });
+    this.chunkGlowPipeline = pipeline('solidVS', 'chunkGlowFS', 'back', 4, 'less', false, {
+      color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+      alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
+    });
     this.phasePipeline = pipeline(
       'assemblyVS',
       'phaseFS',

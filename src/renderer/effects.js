@@ -15,7 +15,9 @@ export const effectsMethods = {
         !system.chunks?.length)
     )
       return 0;
+    // Jelly pieces go to `gel`, drawn after the rest with the jellies' own skin (chunkGel).
     const mesh = [],
+      gel = [],
       items = [
         ...(system?.particles || []),
         ...(system?.rings || []),
@@ -178,12 +180,25 @@ export const effectsMethods = {
         if (flash > 0)
           sphere(mesh, [x, y + 0.36, z], [0.35 * flash, 0.48 * flash, 0.35 * flash], item.color, 7);
       }
+      if ((item.kind === 'chunk' || item.kind === 'jelly') && item.slot !== undefined) {
+        const piece = mesh.splice(from),
+          depth = item.half
+            ? ((item.half[0] + item.half[1] + item.half[2]) * 2) / 3
+            : item.size * 3;
+        for (let k = 0; k < piece.length; k += 12) {
+          piece[k + 9] = 40 + item.slot;
+          piece[k + 10] = fade;
+          piece[k + 11] = depth;
+        }
+        for (const value of piece) gel.push(value);
+        continue;
+      }
       // Bones, splinters and dust are lit like the scene (material 15); dust stays see-through.
       for (let k = from; k < mesh.length; k += 12) {
         mesh[k + 9] =
           item.kind === 'bone' || item.kind === 'wood' || item.kind === 'dust'
             ? 15
-            : item.kind === 'jelly' || item.kind === 'sweat' || item.kind === 'chunk'
+            : item.kind === 'jelly' || item.kind === 'sweat'
               ? 6
               : 7;
         mesh[k + 10] =
@@ -194,16 +209,16 @@ export const effectsMethods = {
               ? 0.38
               : item.kind === 'sweat'
                 ? 0.92
-                : item.kind === 'chunk'
-                  ? 0.8
-                  : item.cube
-                    ? 0.72
-                    : item.position
-                      ? 0.85
-                      : 0.45);
+                : item.cube
+                  ? 0.72
+                  : item.position
+                    ? 0.85
+                    : 0.45);
         mesh[k + 11] = 0;
       }
     }
+    this.gelCount = gel.length / 12;
+    for (const value of gel) mesh.push(value);
     if (!mesh.length) return 0;
     this.device.queue.writeBuffer(this.effectBuffer, 0, new Float32Array(mesh));
     return mesh.length / 12;
@@ -343,9 +358,19 @@ export const effectsMethods = {
     // Particles and rings show during the level assembly too: jellies are summoned and crates
     // teleported in with them. Runes and beams wait until the level has formed.
     if (effectCount) {
-      pass.setPipeline(this.effectPipeline);
+      const gel = this.gelCount || 0,
+        first = effectCount - gel;
       pass.setVertexBuffer(0, this.effectBuffer);
-      pass.draw(effectCount);
+      if (first) {
+        pass.setPipeline(this.effectPipeline);
+        pass.draw(first);
+      }
+      if (gel) {
+        pass.setPipeline(this.chunkTintPipeline);
+        pass.draw(gel, 1, first);
+        pass.setPipeline(this.chunkGlowPipeline);
+        pass.draw(gel, 1, first);
+      }
     }
     if (level.assembly) return;
     if (this.runeCount) {

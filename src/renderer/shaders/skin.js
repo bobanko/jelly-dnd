@@ -44,6 +44,40 @@ export const skin = `
   let tilted=abs(det)*n-sign(det)*(dhx*r1+dhy*r2);
   return select(n,normalize(tilted),abs(det)>1e-14&&dot(tilted,tilted)>0.);
  }
+ // How strongly each jelly's gel (material 2 + slot) absorbs red, green and blue per unit depth.
+ fn gelAbsorption(material:f32)->vec3f{
+  var absorption=select(vec3f(2.1,.13,1.95),vec3f(2.9,1.7,.12),material>2.5);
+  if(material>3.5){absorption=vec3f(.13,2.35,2.8);}
+  if(material>4.5){absorption=vec3f(.75,2.8,.13);}
+  if(material>5.5){absorption=vec3f(.12,.4,3.1);}
+  return absorption;
+ }
+ // Pieces of a shattered jelly (material 40 + slot) wear its skin in two blended draws:
+ // chunkTintFS multiplies what lies behind by the gel's transmission, then chunkGlowFS adds
+ // its pigment, room reflection, rim and glints, with the same terms as skinFS.
+ // local.x fades the piece out, local.z is its depth.
+ struct Gel { transmission:vec3f, glow:vec3f };
+ fn chunkGel(o:Out)->Gel{
+  let slot=o.material-40.;let pigment=gelPigment(slot);
+  let n=normalize(o.normal);let ray=select(normalize(vec3f(scene.vp[0].z,scene.vp[1].z,scene.vp[2].z)),normalize(o.world-scene.eye.xyz),scene.eye.w>.5);
+  let facing=max(0.,dot(n,-ray));
+  // Grazing views cross more gel, as at the jelly's own edges.
+  let thick=max(.03,o.local.z*(.7+.8*(1.-facing)));
+  let transmission=exp(-gelAbsorption(2.+slot)*thick*1.2);
+  let f=.025+.975*pow(1.-facing,5.);let mirror=min(.85,f*.78+.025);
+  var glow=pigment*(1.-transmission)*.55*(1.-mirror)+environment(reflect(ray,n))*mirror;
+  glow+=pigment*pow(1.-facing,3.)*.34;
+  let l=normalize(scene.light.xyz-o.world);let h=normalize(l-ray);
+  glow+=(vec3f(1.25,1.15,.95)+pigment*.3)*pow(max(0.,dot(n,h)),260.);
+  glow+=pigment*.07+pigment*.28*pow(max(0.,dot(-n,l)),2.)*exp(-thick*2.);
+  let fog=smoothstep(.05,1.2,scene.finish.y-o.world.y)*.96;let fade=clamp(o.local.x,0.,1.);
+  var g:Gel;
+  g.transmission=mix(vec3f(1.),transmission*(1.-mirror)*(1.-fog),fade);
+  g.glow=mix(glow,VOID_COLOR,fog)*fade;
+  return g;
+ }
+ @fragment fn chunkTintFS(o:Out)->@location(0) vec4f{return vec4f(chunkGel(o).transmission,1.);}
+ @fragment fn chunkGlowFS(o:Out)->@location(0) vec4f{return vec4f(chunkGel(o).glow,0.);}
  @fragment fn backFS(o:Out)->@location(0) vec4f{return vec4f(o.world,1.+inlay(o.local));}
  @fragment fn skinFS(o:Out)->@location(0) vec4f{
   let n=normalize(o.normal);let ray=select(normalize(vec3f(scene.vp[0].z,scene.vp[1].z,scene.vp[2].z)),normalize(o.world-scene.eye.xyz),scene.eye.w>.5);let uv=o.clip.xy/scene.options.xy;
@@ -53,11 +87,8 @@ export const skin = `
   let exit=textureSampleLevel(backFaces,linearSampler,clamp(exitUV,vec2f(.001),vec2f(.999)),0.);
   if(exit.w>.5){thick=clamp(dot(exit.xyz-o.world,inside),.03,1.4);}
   var refractedUV=mix(uv,exitUV,.55);refractedUV=clamp(refractedUV,vec2f(.002),vec2f(.998));
-  let pigment=o.color;var absorption=select(vec3f(2.1,.13,1.95),vec3f(2.9,1.7,.12),o.material>2.5);
-  if(o.material>3.5){absorption=vec3f(.13,2.35,2.8);}
-  if(o.material>4.5){absorption=vec3f(.75,2.8,.13);}
-  if(o.material>5.5){absorption=vec3f(.12,.4,3.1);}
-  let transmission=exp(-absorption*thick*1.2);
+  let pigment=o.color;
+  let transmission=exp(-gelAbsorption(o.material)*thick*1.2);
   let background=textureSampleLevel(behind,linearSampler,refractedUV,0.).rgb;
   var color=background*transmission+pigment*(1.-transmission)*.55;
   let farInlay=clamp(exit.w-1.,0.,1.);

@@ -59,8 +59,11 @@ export const shared = `
  }
  @vertex fn softVS(@builtin(vertex_index) id:u32,@builtin(instance_index) instance:u32)->Out{
   let v=vertices[id+instance*1350u];var o:Out;o.clip=scene.vp*v.position;o.world=v.position.xyz;o.normal=v.normal.xyz;
+  o.color=gelPigment(v.info.w);o.material=2.+v.info.w;o.local=v.info.xyz;return o;
+ }
+ fn gelPigment(slot:f32)->vec3f{
   let colors=array<vec3f,5>(vec3f(.045,.72,.095),vec3f(.025,.15,.95),vec3f(.95,.055,.025),vec3f(.58,.045,.92),vec3f(.95,.61,.025));
-  o.color=colors[u32(v.info.w)];o.material=2.+v.info.w;o.local=v.info.xyz;return o;
+  return colors[min(u32(slot),4u)];
  }
  @vertex fn portalHaloVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
   let portal=scene.portals[instance];var o:Out;o.world=portal.position.xyz+vec3f(p.x*.78,.033,p.z*.78);o.clip=scene.vp*vec4f(o.world,1.);

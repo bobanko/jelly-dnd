@@ -112,7 +112,8 @@ class System {
     if (length < 0.001) return;
     const normal = direction.map((v) => v / length),
       jelly = player && player.kind !== 'crate',
-      color = jelly ? palettes[player.slot ?? beam.hit] : [1, 0.72, 0.24];
+      slot = jelly ? (player.slot ?? beam.hit) : undefined,
+      color = jelly ? palettes[slot] : [1, 0.72, 0.24];
     for (let i = 0; i < count; i++) {
       const scatter = normal.map(() => this.random() - 0.5),
         along = scatter.reduce((sum, v, k) => sum + v * normal[k], 0),
@@ -126,6 +127,7 @@ class System {
         size: jelly ? 0.025 + this.random() * 0.035 : 0.008 + this.random() * 0.006,
         phase: this.random() * Math.PI * 2,
         color,
+        slot,
         age: 0,
         life: this.reducedMotion ? 0.16 : (jelly ? 0.3 : 0.18) + this.random() * 0.16,
       });
@@ -195,7 +197,7 @@ class System {
     }
     return pieces;
   }
-  shatter(body, color) {
+  shatter(body, slot) {
     const random = () => this.random(),
       nodes = body.positions,
       lattice = nodes.length === NODE_COUNT,
@@ -238,7 +240,8 @@ class System {
         rotation: r.slice(),
         omega: axis.map((v) => (v / axisLength) * spin),
         half: piece.size.map((v) => v * cell * (0.42 + random() * 0.05)),
-        color,
+        color: palettes[slot],
+        slot,
         squash: 0,
         squashAge: 0,
         age: 0,
@@ -446,10 +449,11 @@ class System {
       }
       const player = players[event.player],
         body = soft.get(player),
-        color = palettes[player.slot ?? event.player],
+        slot = player.slot ?? event.player,
+        color = palettes[slot],
         count = this.reducedMotion ? 6 : 10;
       if (event.beam) this.laserImpact(event.beam, player, this.reducedMotion ? 2 : 10);
-      if (!this.reducedMotion) this.shatter(body, color);
+      if (!this.reducedMotion) this.shatter(body, slot);
       const life = this.reducedMotion ? Math.min(0.3, player.respawnTimer || 0.3) : 0.55;
       for (let i = 0; i < count; i++) {
         const q = body.positions[Math.floor(random() * body.positions.length)],
@@ -467,6 +471,7 @@ class System {
           phase: random() * 6.28,
           spin: (random() < 0.5 ? -1 : 1) * (5 + random() * 9),
           color,
+          slot,
           age: 0,
           life: life * (0.7 + random() * 0.3),
         });
