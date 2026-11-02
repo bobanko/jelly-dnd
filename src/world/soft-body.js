@@ -258,9 +258,10 @@ const barrelAxis = (p) => (p.barrel === 'z' ? [0, 0, 1] : [1, 0, 0]);
 // How the barrel mesh (lying along x) is turned: its resting pose and the roll about its axis
 // while on its side; during a tip-over, the pose it started from turned by the tip angle; after
 // landing from one, a fading rock about the same axis.
-function barrelOrientation(p) {
+// Large crates use the same pose, tip and rock, without the roll.
+function slideOrientation(p) {
   let m = p.pose || (p.barrel === 'z' ? BARREL_ALONG_Z : [1, 0, 0, 0, 1, 0, 0, 0, 1]);
-  if (!p.upright) m = matrixProduct(axisRotation(barrelAxis(p), p.spin || 0), m);
+  if (p.barrel && !p.upright) m = matrixProduct(axisRotation(barrelAxis(p), p.spin || 0), m);
   if (p.tipBase) return matrixProduct(axisRotation(p.tipAxis, p.tipAngle), p.tipBase);
   if (p.rockTime < ROCK_TIME) {
     const t = p.rockTime,
@@ -675,10 +676,11 @@ class System {
   }
   // Barrel behaviour after each step: spin by the distance rolled, tip over when it leaves a
   // ledge, run the roll's speed profile and end it when blocked, and start one from a push.
-  barrelStep(world, p, b, center, vcom, grounded, dt, players) {
-    const dx = center[0] - b.previousCenter[0],
-      dz = center[2] - b.previousCenter[2];
-    if (b.tipping) return;
+  // Large crates and barrels: a body pushed over an edge (for a barrel lying down, only head
+  // first) pivots over it once its centre has passed it. Also runs the landing rock. Returns
+  // true while the body is tipping.
+  tipStep(world, p, b, center, grounded, dt) {
+    if (b.tipping) return true;
     // A tip state left over from an undone move has nothing driving it any more.
     if (p.tipBase) p.tipBase = null;
     if (b.rockArmed && grounded && p.state === 'alive') {
@@ -686,6 +688,22 @@ class System {
       p.rockTime = 0;
     }
     if (p.rockTime < ROCK_TIME) p.rockTime += dt;
+    const dx = center[0] - b.previousCenter[0],
+      dz = center[2] - b.previousCenter[2];
+    if (b.roll || p.state !== 'alive' || Math.hypot(dx, dz) <= 1e-4) return false;
+    const d = cardinal(dx, dz),
+      axis = barrelAxis(p),
+      headFirst = !p.barrel || p.upright || Math.abs(d.x * axis[0] + d.z * axis[2]) > 0.5,
+      below = world.heightAt(center[0], center[2], (p.y || 0) + 0.2, p);
+    if (!headFirst || (below !== null && below >= (p.y || 0) - 0.3)) return false;
+    b.settle = null;
+    this.startTip(p, b, center, d, Math.abs(dx * d.x + dz * d.z) / dt);
+    return true;
+  }
+  barrelStep(world, p, b, center, vcom, grounded, dt, players) {
+    const dx = center[0] - b.previousCenter[0],
+      dz = center[2] - b.previousCenter[2];
+    if (this.tipStep(world, p, b, center, grounded, dt)) return;
     if (!p.upright) {
       // Spin about the barrel's own axis, as a wheel rolling without slipping.
       const axis = barrelAxis(p);
@@ -697,18 +715,6 @@ class System {
       for (const v of b.velocities) v[0] = v[2] = 0;
       p.vx = p.vz = 0;
     };
-    // Head first (or standing) and with its centre now past an edge: pivot over it.
-    if (!b.roll && p.state === 'alive' && Math.hypot(dx, dz) > 1e-4) {
-      const d = cardinal(dx, dz),
-        axis = barrelAxis(p),
-        headFirst = p.upright || Math.abs(d.x * axis[0] + d.z * axis[2]) > 0.5,
-        below = world.heightAt(center[0], center[2], (p.y || 0) + 0.2, p);
-      if (headFirst && (below === null || below < (p.y || 0) - 0.3)) {
-        b.settle = null;
-        this.startTip(p, b, center, d, Math.abs(dx * d.x + dz * d.z) / dt);
-        return;
-      }
-    }
     if (b.settle) {
       const k = b.settle.axis;
       b.settle.time += dt;
@@ -799,7 +805,7 @@ class System {
       angle: 0,
       omega: Math.max(2, speed / 0.5),
     };
-    Object.assign(p, { tipBase: barrelOrientation(p), tipAxis: b.tipping.axis, tipAngle: 0 });
+    Object.assign(p, { tipBase: slideOrientation(p), tipAxis: b.tipping.axis, tipAngle: 0 });
   }
   // One step of the pivot: the barrel is moved kinematically along the arc about the edge, so
   // after a quarter turn its centre hangs over the next cell. It is then released to fall.
@@ -817,11 +823,13 @@ class System {
     if (t.angle < Math.PI / 2) return;
     // Over: it now rests on its head (or side) and falls the rest of the way as a crate.
     p.pose = matrixProduct(axisRotation(t.axis, Math.PI / 2), p.tipBase);
-    p.upright = !p.upright;
-    p.spin = 0;
     p.tipBase = null;
-    // Back on its side: the mesh's long axis (first column) is the new rolling axis.
-    if (!p.upright) p.barrel = Math.abs(p.pose[0]) > Math.abs(p.pose[6]) ? 'x' : 'z';
+    if (p.barrel) {
+      p.upright = !p.upright;
+      p.spin = 0;
+      // Back on its side: the mesh's long axis (first column) is the new rolling axis.
+      if (!p.upright) p.barrel = Math.abs(p.pose[0]) > Math.abs(p.pose[6]) ? 'x' : 'z';
+    }
     // Released with only the vertical part of its swing, so it drops onto the cell centre.
     for (let n = 0; n < NODE_COUNT; n++) {
       b.old[n][0] = b.positions[n][0];
@@ -993,7 +1001,7 @@ class System {
         if (spawn) {
           // A crate is teleported back above its spawn and drops into place.
           const crate = p.kind === 'crate';
-          if (p.barrel)
+          if (p.large)
             Object.assign(p, { upright: false, pose: null, spin: 0, tipBase: null, rockTime: 1 });
           Object.assign(p, spawn, {
             state: crate ? 'falling' : 'alive',
@@ -1264,6 +1272,7 @@ class System {
         b.core[k] = Math.max(center[k] - 0.12, Math.min(center[k] + 0.12, b.core[k]));
       }
       if (p.barrel) this.barrelStep(world, p, b, center, vcom, crateGrounded, dt, players);
+      else if (b.slides) this.tipStep(world, p, b, center, crateGrounded, dt);
       const driving = b.driven;
       const ground = world.heightAt(p.x, p.z, p.y + 0.2, p);
       const grounded = b.rigid
@@ -1308,7 +1317,7 @@ export {
   LARGE_WIDTH,
   BARREL_RADIUS,
   ROLL_PEAK,
-  barrelOrientation,
+  slideOrientation,
   Lattice,
   rest,
   tets,

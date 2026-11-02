@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { World } from '../src/world/physics.js';
 import * as Soft from '../src/world/soft-body.js';
 import L from '../src/world/levels.js';
+import * as P from '../src/world/physics.js';
 
 function scene(specs, size = 20) {
   const floor = new Set();
@@ -167,4 +168,47 @@ test('barrels survive the level format with their axis', () => {
     ['z', 'x'],
   );
   assert.ok(parsed.crates.every((p) => p.large));
+});
+
+// A real level: portals, blocks and crates go through the level format.
+function portalLevel(crates, jelly = { x: 1, z: 2 }) {
+  const m = L.blank();
+  m.size = 12;
+  for (let x = 0; x < 12; x++) for (let z = 0; z < 8; z++) m.blocks.push({ x, y: 0, z });
+  m.spawns[0] = { ...jelly, y: 0 };
+  m.goals[0] = { x: 11, y: 0, z: 7 };
+  m.portals = [
+    { x: 4, y: 0, z: 2, color: 'violet' },
+    { x: 4, y: 0, z: 6, color: 'violet' },
+  ];
+  m.crates = crates;
+  const r = L.instantiate(L.read(m), P, Soft);
+  return {
+    ...r,
+    step: (input, count = 1) => {
+      const events = [];
+      for (let n = 0; n < count; n++) events.push(...r.world.step(r.bodies, input));
+      return events;
+    },
+  };
+}
+
+test('portals carry crates, and a rolling barrel leaves the exit still rolling', () => {
+  const r = portalLevel([{ x: 2, z: 2, large: true, barrel: 'z' }]);
+  const barrel = r.crates[0];
+  r.step([{ x: 1, z: 0 }], 60);
+  const events = r.step([], 400);
+  assert.ok(
+    events.some((e) => e.type === 'portal' && e.crate),
+    'the barrel went through',
+  );
+  assert.ok(Math.abs(barrel.z - 6) < 0.05, 'out of the second portal: ' + barrel.z);
+  assert.ok(barrel.x > 9, 'and rolled on along +x: ' + barrel.x);
+});
+
+test('a pushed crate goes through a portal too', () => {
+  const r = portalLevel([{ x: 3, z: 2 }]);
+  const crate = r.crates[0];
+  r.step([{ x: 1, z: 0 }], 200);
+  assert.ok(Math.hypot(crate.x - 4, crate.z - 6) < 0.6, 'at the exit: ' + crate.x + ',' + crate.z);
 });

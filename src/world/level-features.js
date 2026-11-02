@@ -730,16 +730,21 @@ function install(World) {
     afterFeatures(players, soft) {
       const events = [];
       players.forEach((p, i) => {
-        if (!alive(p) || p.kind === 'crate') return;
-        const spike = this.spikes.find((s) => {
-          const state = this.spikeState(s);
-          return state.dangerous && this.spikeTouches(p, s, state.extension);
-        });
+        if (!alive(p)) return;
+        const crate = p.kind === 'crate';
+        // Crates ignore spikes and lava (they ride across), but portals carry them too.
+        const spike =
+          !crate &&
+          this.spikes.find((s) => {
+            const state = this.spikeState(s);
+            return state.dangerous && this.spikeTouches(p, s, state.extension);
+          });
         // A jelly whose centre rests on a lava block burns; crates ride over lava like floor.
         const tx = Math.round(p.x),
           tz = Math.round(p.z),
           top = Math.round(p.y || 0),
           lava =
+            !crate &&
             this.lavaBlocks?.size &&
             Math.abs((p.y || 0) - top) < 0.12 &&
             this.lavaBlocks.has(`${tx},${top},${tz}`);
@@ -760,7 +765,7 @@ function install(World) {
             near(p, portal, 0.28) &&
             Math.abs((p.y || 0) - (portal.y ?? this.heightAt(portal.x, portal.z) ?? 0)) < 0.18,
         );
-        if (!source) return;
+        if (!source || (crate && soft.get(p).tipping)) return;
         if (this.portalInactive(source, players, p)) {
           p.portalBlocked = true;
           return;
@@ -769,12 +774,15 @@ function install(World) {
         const fromHeight = source.y ?? this.heightAt(source.x, source.z) ?? 0,
           toHeight = destination.y ?? this.heightAt(destination.x, destination.z) ?? 0;
         soft.translate(p, destination.x - p.x, toHeight - fromHeight, destination.z - p.z, true);
+        // A rolling barrel keeps its roll and leaves the exit the way it entered.
+        soft.get(p).settle = null;
         p.portalLock = source.color;
         p.portalCooldown = 0.65;
         p.portalFlash = 0.55;
         events.push({
           type: 'portal',
           player: i,
+          ...(crate ? { crate: true } : {}),
           color: source.color,
           source: [source.x, fromHeight, source.z],
           destination: [destination.x, toHeight, destination.z],

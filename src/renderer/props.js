@@ -1,7 +1,7 @@
 import Levels from '../world/levels.js';
 import { box, lowSphere, sphere, rod } from './mesh.js';
 import { barrelGeometry, crateGeometry, largeCrateGeometry } from './geometry/wood.js';
-import { barrelOrientation, bodyLift } from '../world/soft-body.js';
+import { bodyLift, slideOrientation } from '../world/soft-body.js';
 import {
   assemblyCrateArrival,
   assemblyDropOffset,
@@ -403,7 +403,7 @@ export const propsMethods = {
         x = p.x;
         y = (p.y || 0) + bodyLift(p);
         z = p.z;
-        matrix = p.barrel ? barrelOrientation(p) : level.soft.get(p).r;
+        matrix = p.large ? slideOrientation(p) : level.soft.get(p).r;
       } else if (
         piece.kind === 'shield' ||
         piece.kind === 'shieldCrack' ||

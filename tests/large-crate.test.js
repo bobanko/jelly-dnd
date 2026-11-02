@@ -161,3 +161,28 @@ test('a jelly waits for its spawn to clear and then appears exactly on it', () =
   assert.equal(jelly.respawnBlocked, false);
   assert.ok(Math.abs(jelly.x - 6) < 0.01 && Math.abs(jelly.z - 4) < 0.01, 'exactly on its spawn');
 });
+
+test('a large crate pushed off a ledge pivots over the edge onto the next cell centre', () => {
+  const g = scene([{ x: 5, y: 1 }, large({ x: 5.87, y: 1 })]);
+  for (const x of [4, 5, 6]) for (const z of [3, 4, 5]) g.world.heights.set(`${x},${z}`, 1);
+  const p = g.bodies[1];
+  for (let n = 0; n < 600 && !p.tipBase; n++) g.step([{ x: 1, z: 0 }]);
+  assert.ok(p.tipBase, 'it pivots over the edge');
+  g.step([], 300);
+  assert.ok(Math.abs(p.x - 7) < 0.05, 'on the next cell centre: ' + p.x);
+  assert.ok(Math.abs(p.y) < 0.05, 'on the lower floor: ' + p.y);
+  assert.ok(p.pose && Math.abs(Math.abs(p.pose[1]) - 1) < 1e-6, 'turned a quarter about z');
+});
+
+test('a large crate pushed into a one-cell hole drops into it', () => {
+  const g = scene([{ x: 4, y: 1 }, large({ x: 4.87, y: 1 })]);
+  for (let x = 2; x <= 9; x++) for (const z of [3, 4, 5]) g.world.heights.set(`${x},${z}`, 1);
+  // The hole: one cell lower at (6, 4).
+  g.world.heights.set('6,4', 0);
+  const p = g.bodies[1];
+  for (let n = 0; n < 600 && !p.tipBase; n++) g.step([{ x: 1, z: 0 }]);
+  g.step([], 300);
+  assert.ok(Math.abs(p.x - 6) < 0.05 && Math.abs(p.z - 4) < 0.05, 'in the hole: ' + p.x);
+  assert.ok(Math.abs(p.y) < 0.05, 'at its bottom: ' + p.y);
+  assert.equal(p.state, 'alive');
+});

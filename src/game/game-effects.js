@@ -269,7 +269,11 @@ class System {
           life: 0.18 + random() * 0.12,
         });
       }
-    } else if (event.type === 'portal' || event.type === 'respawn' || event.type === 'summon') {
+    } else if (
+      (event.type === 'portal' && !event.crate) ||
+      event.type === 'respawn' ||
+      event.type === 'summon'
+    ) {
       const player = players[event.player],
         jelly = palettes[player?.slot ?? event.player];
       // A portal hop: the jelly collapses into sparks at the entrance, a glowing wisp flies
