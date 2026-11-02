@@ -40,6 +40,7 @@ http
           '.png': 'image/png',
           '.svg': 'image/svg+xml',
           '.mp3': 'audio/mpeg',
+          '.wav': 'audio/wav',
         }[path.extname(file)] || 'application/octet-stream',
       );
       res.end(data);

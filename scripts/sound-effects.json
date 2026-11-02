@@ -102,7 +102,7 @@
     "prompt_influence": 0.7
   },
   "crate-slide": {
-    "text": "Seamless quiet loop of a wooden crate being pushed slowly over an old smooth stone floor. Low soft wood rumble, muffled friction and sparse rounded creaks, steady and unobtrusive. Background game feedback with no sharp scrape, impact, crash, metal, voice, music or reverb.",
+    "text": "Seamless quiet loop of a heavy wooden crate or barrel sliding slowly over a smooth stone floor. Very uniform continuous low muffled friction, a soft dense grainy rumble with even loudness and no distinct events. Dark, padded and unobtrusive, with strongly damped high frequencies. No creaks, squeaks, whistles, rhythmic pulses, knocks, scraping peaks, impacts, metal, voice, music or reverb.",
     "duration_seconds": 3,
     "loop": true,
     "prompt_influence": 0.65
@@ -162,8 +162,8 @@
     "prompt_influence": 0.7
   },
   "stone-whoosh": {
-    "text": "One soft short whoosh of a heavy stone block flying past through the air. A smooth, rounded, low airy swish with a gentle rise and quick fade, muffled and warm. Close, dry game sound. No impact, no thud, no rumble, no debris, no wind howl, no magic shimmer, no voice, no music.",
-    "duration_seconds": 0.7,
+    "text": "One calm deep muffled whoosh of a massive stone block moving through the air, displacing and parting a thick cushion of wind. A smooth unhurried low airy sweep with a gentle rounded swell and a slightly extended soft fade. Dense low-mid air pressure gives a clear sense of a very heavy object passing, while retaining a recognisable natural wind whoosh. Dark, subdued and soft, with damped high frequencies. Close dry game sound. No impact, thud, debris, sharp hiss, whistle, wind howl, tonal drone, magic shimmer, voice, music or long reverb.",
+    "duration_seconds": 0.95,
     "loop": false,
     "prompt_influence": 0.7
   },
@@ -174,26 +174,26 @@
     "prompt_influence": 0.7
   },
   "barrel-roll": {
-    "text": "Continuous rumbling of a wooden barrel rolling steadily across a long stone floor. A constant low hollow wooden rumble with a soft even rhythm, the same loudness the whole time. Background game sound. No impacts, crashes, clanks, creaks, voice, music or reverb.",
+    "text": "Seamless continuous loop of a very heavy oak barrel rolling steadily over a stone dungeon floor. Clearly audible dense low wooden rolling rumble, with deep hollow body resonance and gently rounded rhythmic weight as the barrel turns. Thick, grounded and weighty, with a little mid-low wood texture so the rolling remains distinct on small speakers. Steady full loudness throughout, no introduction or ending. No sharp impacts, crashes, metallic clanks, creaks, squeaks, voice, music or long reverb.",
     "duration_seconds": 5,
-    "loop": false,
-    "prompt_influence": 0.6
+    "loop": true,
+    "prompt_influence": 0.75
   },
   "crate-break": {
-    "text": "One wooden crate shattering after a long fall: a short dull crack of breaking planks, a quick splintering burst and a few small wooden pieces scattering, then silence. Muffled, compact, close game sound. No metal, glass, explosion, voice, music or long reverb.",
-    "duration_seconds": 1,
+    "text": "One wooden crate or barrel quietly breaking apart after a fall. A compact soft padded wooden crunch with a brief subdued crumbling texture that fades smoothly. Strongly muffled and neutral, low pitched but without an exaggerated bass thump or hollow ringing. Gentle rounded attack, restrained even volume, heavily damped high frequencies and only a few very quiet fragments settling. Close dry unobtrusive game sound, recognisably breaking wood. No bright cracks, sharp snaps, high splinter clicks, dramatic boom, resonant rumble, glass, metal, explosion, voice, music or reverb.",
+    "duration_seconds": 1.1,
     "loop": false,
     "prompt_influence": 0.7
   },
   "sack-drag": {
-    "text": "Seamless steady loop of a heavy cloth sack being dragged slowly across a stone floor. Continuous, very even, low soft grainy friction like rough fabric and sand on stone, a smooth muffled hiss-rumble with no rhythm and no gaps. Unobtrusive background game sound. No creaks, squeaks, knocks, rattles, footsteps, voice, music or reverb.",
+    "text": "Seamless steady quiet loop of a heavy sack sliding slowly over a smooth stone floor, used as friction for a heavy wooden crate or barrel being pushed. Continuous extremely uniform low soft grainy friction, a dense muffled rumble with a little subdued fabric-like texture. Constant loudness, dark and smooth, no bright hiss, no rhythm, gaps or isolated events. No wood creaks, squeaks, whistles, knocks, rattles, scraping peaks, footsteps, voice, music or reverb.",
     "duration_seconds": 4,
     "loop": true,
     "prompt_influence": 0.75
   },
   "crate-land": {
-    "text": "One heavy wooden crate dropping onto a stone floor from a small height: a single deep, hollow, muffled 'boom' thud with a short soft wooden resonance, then quiet. Moderate, rounded and unobtrusive, close game sound. No cracking, splintering, rattling, debris, metal, voice, music or reverb.",
-    "duration_seconds": 0.8,
+    "text": "One very heavy wooden crate or oak barrel falling down one level and landing once on a solid stone dungeon floor. One pronounced deep hollow BOOM-thud, with a firm rounded low impact, thick muffled wooden body resonance and a short low enclosed stone-room rumble decaying smoothly behind it. Weighty, clear and easy to hear, dark and dull rather than sharp, with enough low-mid body to carry on small speakers. One isolated landing, no bounce or second hit. No cracking, splintering, creaks, rattling, debris, metallic clang, explosion, bright click, voice, music or long echo.",
+    "duration_seconds": 1.1,
     "loop": false,
     "prompt_influence": 0.7
   }
