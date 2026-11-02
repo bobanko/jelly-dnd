@@ -8,6 +8,7 @@ import L from '../src/world/levels.js';
 import { Model } from '../src/editor/editor-model.js';
 import * as Physics from '../src/world/physics.js';
 import * as Soft from '../src/world/soft-body.js';
+import { torchDecor } from '../src/renderer/geometry/decor.js';
 
 test('starting camera survives level roundtrip, voxel conversion, editor history and reset', () => {
   // The legacy Sunken Sanctum predates start cameras; campaign maps store authored views.
@@ -407,6 +408,16 @@ test('wall torch limits and moving a mounted light preserve its face and debug b
   const imported = L.copy(m.map);
   imported.torches.push({ x: 10, y: 1, z: 1, face: 'east' });
   assert.throws(() => L.read(imported));
+});
+
+test('torch ember geometry carries its torch index for extinguishing', () => {
+  const mesh = [];
+  torchDecor(mesh, { x: 2, y: 1, z: 3, face: 'east' }, 5);
+  const embers = [];
+  for (let i = 0; i < mesh.length; i += 12)
+    if (mesh[i + 9] === 32) embers.push(mesh.slice(i, i + 12));
+  assert.ok(embers.length > 0);
+  assert.ok(embers.every((vertex) => vertex[10] === 5));
 });
 
 test('torches on four wall faces coexist with mechanisms, roundtrip and remain selectable outside their host', () => {

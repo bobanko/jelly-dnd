@@ -147,6 +147,12 @@ import fs from 'node:fs';
       resize();
     });
     await page.screenshot({ path: 'artifacts/wall-torches-game.png' });
+    await page.evaluate(() => {
+      torchStates[0] = { lit: 0, out: true };
+      level.torchLight[0] = 0;
+    });
+    await page.waitForFunction(() => level.torchLight[0] === 0 && sceneRenderer.frames > 8);
+    await page.screenshot({ path: 'artifacts/wall-torch-extinguished.png' });
     // The original chamber left the campaign ('/' is now the menu diorama): play its JSON as a test level. Its four lights stay explicit side-wall mounts on full masonry, without narrow legacy torch colliders.
     await page.addInitScript(
       (map) => localStorage.setItem('jelly-dnd.play.v1', map),
@@ -177,7 +183,7 @@ import fs from 'node:fs';
     assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: four wall-face clicks, mount height editing, independent deletion/undo, JSON persistence, shared editor/game meshes, no torch colliders, arrows cross torch volumes but hit masonry, the Sunken Sanctum's four explicit side-wall mounts on full masonry without narrow torch colliders, and no browser/GPU errors.",
+      "PASS: four wall-face clicks, mount height editing, independent deletion/undo, JSON persistence, shared editor/game meshes, extinguished ember removal, no torch colliders, arrows cross torch volumes but hit masonry, the Sunken Sanctum's four explicit side-wall mounts on full masonry without narrow torch colliders, and no browser/GPU errors.",
     );
   } finally {
     await browser.close();

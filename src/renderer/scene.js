@@ -197,9 +197,9 @@ export const sceneMethods = {
       recordDecor(decor, from, b);
     }
     scatterDecor(decor, level, occupied, recordDecor);
-    for (const torch of level.world.torches || []) {
+    for (const [index, torch] of (level.world.torches || []).entries()) {
       const from = decor.length;
-      torchDecor(decor, torch);
+      torchDecor(decor, torch, index);
       recordDecor(decor, from, torch);
     }
     // A loop, not push(...decorAssembly): large maps exceed the call-stack argument limit.

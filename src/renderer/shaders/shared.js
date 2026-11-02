@@ -47,12 +47,13 @@ export const shared = `
   o.local.y=extra.x;return o;
  }
  fn solid(p:vec3f,n:vec3f,color:vec3f,material:vec3f)->Out{
-  var position=p;
-  if(material.x>3.5&&material.x<4.5){
+  var position=p;let torchEmber=material.x>31.5&&material.x<32.5;var emberStrength=1.;
+  if(torchEmber){emberStrength=scene.torches[min(u32(material.y),7u)].w;}
+  if((material.x>3.5&&material.x<4.5)||torchEmber){
    let flicker=scene.options.z;
-   position.x+=sin(flicker*9.+p.y*8.)*.018;
-   position.y+=sin(flicker*13.+p.y*11.)*.025;
-   position.z+=cos(flicker*8.+p.y*9.)*.012;
+   position.x+=sin(flicker*9.+p.y*8.)*.018*emberStrength;
+   position.y+=sin(flicker*13.+p.y*11.)*.025*emberStrength;
+   position.z+=cos(flicker*8.+p.y*9.)*.012*emberStrength;
   }
   var o:Out;o.clip=scene.vp*vec4f(position,1);o.world=position;o.normal=n;o.color=color;o.material=material.x;o.local=vec3f(material.y,0,material.z);return o;
  }
@@ -392,6 +393,9 @@ export const shared = `
    let cell=vec2u(o.clip.xy)%4u;
    if((bayer[cell.y*4u+cell.x]+.5)/16.>=smoothstep(0.,.45,appear)){discard;}
   }
+  let torchEmber=o.material>31.5&&o.material<32.5;
+  let emberStrength=select(1.,scene.torches[min(u32(o.local.x),7u)].w,torchEmber);
+  if(torchEmber&&emberStrength<.01){discard;}
   let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);let h=normalize(v+l);
   var color=o.color;var metalWear=0.;
   let uv=o.local.xz;let dx=dpdx(uv);let dy=dpdy(uv);
@@ -447,6 +451,7 @@ export const shared = `
   if(o.material>.5&&o.material<1.5){result+=vec3f(.28)*pow(max(0.,dot(n,h)),55.);}
   if(o.material>25.5&&o.material<26.5){let rim=pow(1.-max(0.,dot(n,v)),1.6);result=o.color*(.22+rim*1.25)+vec3f(1.5,1.5,1.4)*pow(max(0.,dot(n,h)),36.);}
   if(o.material>3.5&&o.material<4.5){result=color*(1.4+sin(scene.options.z*4.)*.08);}
+  if(torchEmber){result=color*(1.4+sin(scene.options.z*4.)*.08)*emberStrength;}
   if(o.material>11.5&&o.material<12.5){result+=vec3f(.56,.4,.21)*pow(max(0.,dot(n,h)),45.);}
   if(o.material>30.5&&o.material<31.5){result+=vec3f(.5,.36,.3)*pow(max(0.,dot(n,h)),40.);}
   if(o.material>13.5&&o.material<14.5){result+=color*.12+vec3f(.18)*pow(max(0.,dot(n,h)),80.);}

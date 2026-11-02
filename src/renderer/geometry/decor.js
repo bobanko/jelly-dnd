@@ -111,7 +111,7 @@ export function decorWeb(mesh, corner, a, b) {
       rod(mesh, p, q, 0.005, silk, 13);
     }
 }
-export function torchDecor(mesh, torch) {
+export function torchDecor(mesh, torch, index = 0) {
   const from = mesh.length,
     f = Levels.torchFrame(torch),
     iron = [0.085, 0.1, 0.105],
@@ -139,7 +139,9 @@ export function torchDecor(mesh, torch) {
     0,
     12,
   );
-  sphere(mesh, [0, 0.2, 0.25], [0.082, 0.034, 0.082], [1.25, 0.36, 0.05], 4);
+  const emberFrom = mesh.length;
+  sphere(mesh, [0, 0.2, 0.25], [0.082, 0.034, 0.082], [1.25, 0.36, 0.05], 32);
+  for (let k = emberFrom; k < mesh.length; k += 12) mesh[k + 10] = index;
   for (let k = from; k < mesh.length; k += 12)
     for (const off of [0, 3]) {
       const u = mesh[k + off],
