@@ -29,6 +29,28 @@ export const effectsMethods = {
           item.color,
           7,
         );
+      } else if (item.kind === 'sweat') {
+        // A cartoon teardrop: a round, glossy bulb flattened against the face, and a smaller
+        // bead above it for the point.
+        const size = item.size * (0.85 + 0.15 * fade),
+          [across, up, out] = item.basis || [
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+          ];
+        sphere(mesh, item.position, [size, size * 1.15, size * 0.55], item.color, 6, [
+          across,
+          up,
+          out,
+        ]);
+        sphere(
+          mesh,
+          item.position.map((v, k) => v + up[k] * size * 1.05),
+          [size * 0.45, size * 0.6, size * 0.3],
+          item.color,
+          6,
+          [across, up, out],
+        );
       } else if (item.cube) {
         // A mini jelly cube: rounded, translucent and tumbling about two axes.
         const size = item.size * (0.7 + 0.3 * fade),
@@ -113,7 +135,7 @@ export const effectsMethods = {
         mesh[k + 9] =
           item.kind === 'bone' || item.kind === 'wood' || item.kind === 'dust'
             ? 15
-            : item.kind === 'jelly'
+            : item.kind === 'jelly' || item.kind === 'sweat'
               ? 6
               : 7;
         mesh[k + 10] =
@@ -122,11 +144,13 @@ export const effectsMethods = {
             ? 1
             : item.kind === 'dust'
               ? 0.38
-              : item.cube
-                ? 0.72
-                : item.position
-                  ? 0.85
-                  : 0.45);
+              : item.kind === 'sweat'
+                ? 0.92
+                : item.cube
+                  ? 0.72
+                  : item.position
+                    ? 0.85
+                    : 0.45);
         mesh[k + 11] = 0;
       }
     }

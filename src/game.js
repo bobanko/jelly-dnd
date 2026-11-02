@@ -531,7 +531,10 @@ function simulate(dt, elapsed = dt) {
       // Measured from where the drop began, also across a pivot over an edge.
       if (body && event.type === 'fall') body.fallFrom ??= body.y;
       if (body && event.type === 'land') body.landedAt = runSeconds;
-      if (body && (event.type === 'death' || event.type === 'respawn')) body.fallFrom = undefined;
+      if (body && event.type === 'death') body.fallFrom = undefined;
+      // A crate or barrel reappears a little above its spawn and drops: dust when it lands.
+      if (body && event.type === 'respawn')
+        body.fallFrom = body.kind === 'crate' ? body.y : undefined;
       if (body && event.type === 'land' && body.fallFrom !== undefined) {
         const drop = body.fallFrom - body.y,
           crate = body.kind === 'crate';
@@ -1132,14 +1135,14 @@ function updateEffortEffects(dt, input) {
     }
     p.sweatTimer -= dt;
     if (p.sweatTimer > 0) return;
-    p.sweatTimer = 0.2 + Math.random() * 0.15;
-    const core = soft.get(p).core;
+    p.sweatTimer = 0.35 + Math.random() * 0.3;
+    // Towards the camera, so the drop runs down a face that can be seen.
+    const eye = JellyGPU.cameraFrame(camera, angle, W, H, scale).eye,
+      dx = eye[0] - p.x,
+      dz = eye[2] - p.z,
+      length = Math.hypot(dx, dz) || 1;
     effects.burst(
-      {
-        type: 'sweat',
-        top: [core[0], core[1] + 0.36, core[2]],
-        direction: [push.x / effort, push.z / effort],
-      },
+      { type: 'sweat', player: i, toCamera: [dx / length, dz / length] },
       players,
       soft,
     );
@@ -1164,18 +1167,32 @@ function updateLevelAssembly(dt) {
     effects.burst({ type: 'summon', player: i }, players, soft);
     respawnTone(i);
   });
-  // Crates are teleported in: a white flash above the cell they then drop onto.
+  // Crates are teleported in: a white flash above the cell they then drop onto, and a puff
+  // of dust with a dull boom as they touch down.
   crates.forEach((p, i) => {
-    const key = 'crate-' + i;
-    if (
-      level.assembly.summoned.has(key) ||
-      JellyGPU.crateArrivalProgress?.(level, players, i) == null
-    )
-      return;
-    level.assembly.summoned.add(key);
-    p.appearTime = 0;
-    respawnTone(0);
-    effects.burst({ type: 'crateTeleport', center: crateFlashCenter(p, 0.9) }, players, soft);
+    const key = 'crate-' + i,
+      arrival = JellyGPU.crateArrivalProgress?.(level, players, i);
+    if (arrival == null) return;
+    if (!level.assembly.summoned.has(key)) {
+      level.assembly.summoned.add(key);
+      p.appearTime = 0;
+      respawnTone(0);
+      effects.burst({ type: 'crateTeleport', center: crateFlashCenter(p, 0.9) }, players, soft);
+    }
+    // The drop touches the floor 60% of the way through (assemblyCrateArrival).
+    if (arrival < 0.6 || level.assembly.summoned.has(key + '-landed')) return;
+    level.assembly.summoned.add(key + '-landed');
+    gameAudio.play('crateLand', 0.7);
+    effects.burst(
+      {
+        type: 'dust',
+        center: [p.x, p.y || 0, p.z],
+        half: p.large ? 0.47 : 0.38,
+        strength: 0.45,
+      },
+      players,
+      soft,
+    );
   });
   if (level.assembly.progress === 1) level.assembly = null;
 }

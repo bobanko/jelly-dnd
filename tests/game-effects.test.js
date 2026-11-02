@@ -361,19 +361,44 @@ test('landing dust, scuffing dust and sweat drops, all left out with reduced mot
   const effects = new System(),
     reduced = new System({ reducedMotion: true });
   const land = { type: 'dust', center: [4, 0, 4], half: 0.47, strength: 1 },
-    scuff = { type: 'scuff', center: [4, 0, 4], half: 0.47, direction: [1, 0], strength: 1 },
-    sweat = { type: 'sweat', top: [2, 0.8, 3], direction: [0, 1] };
+    scuff = { type: 'scuff', center: [4, 0, 4], half: 0.47, direction: [1, 0], strength: 1 };
   for (const system of [effects, reduced]) {
     system.burst(land, players, soft);
     for (let n = 0; n < 6; n++) system.burst(scuff, players, soft);
-    system.burst(sweat, players, soft);
   }
   const dust = effects.particles.filter((p) => p.kind === 'dust');
   assert.ok(dust.length >= 16 + 6, 'a cloud on landing and puffs while sliding');
   // Scuffs come from the sides of the base, not ahead of the moving crate.
   assert.ok(dust.slice(-6).every((p) => p.position[0] < 4 + 0.47 * 0.5));
-  const drop = effects.particles.find((p) => p.kind === 'jelly');
-  assert.ok(drop && drop.velocity[1] > 1, 'a sweat drop flies up');
-  assert.ok(drop.velocity[2] < 0.5, 'away from the push (+z), not along it');
+  assert.equal(reduced.particles.length, 0);
+});
+
+test('a sweat drop runs down a jelly face that faces the camera', () => {
+  const jelly = { state: 'alive' },
+    body = { r: [1, 0, 0, 0, 1, 0, 0, 0, 1], core: [2, 0.42, 3] },
+    lattice = { get: () => body },
+    effects = new System();
+  // The camera is off towards +x: the drop goes on the +x face.
+  for (let n = 0; n < 8; n++)
+    effects.burst({ type: 'sweat', player: 0, toCamera: [1, 0] }, [jelly], lattice);
+  effects.step(0.05, world, [], [jelly]);
+  const drops = effects.particles.filter((p) => p.kind === 'sweat');
+  assert.equal(drops.length, 8);
+  assert.ok(
+    drops.every((p) => Math.abs(p.position[0] - 2.39) < 1e-9),
+    'on the +x face',
+  );
+  const first = drops.map((p) => p.position[1]);
+  effects.step(0.3, world, [], [jelly]);
+  assert.ok(
+    drops.every((p, i) => p.position[1] < first[i]),
+    'they run down',
+  );
+  // With the jelly gone the drops go too.
+  jelly.state = 'dead';
+  effects.step(0.01, world, [], [jelly]);
+  assert.ok(!effects.particles.some((p) => p.kind === 'sweat'));
+  const reduced = new System({ reducedMotion: true });
+  reduced.burst({ type: 'sweat', player: 0, toCamera: [1, 0] }, [jelly], lattice);
   assert.equal(reduced.particles.length, 0);
 });

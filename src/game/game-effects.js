@@ -379,27 +379,35 @@ class System {
       }
     }
     if (event.type === 'sweat') {
-      // A jelly straining against a load: a drop of sweat flies off a top corner, away from
-      // the push, then falls and splashes on the floor.
-      if (this.reducedMotion) return;
-      const [x, y, z] = event.top,
-        [dx, dz] = event.direction,
-        side = random() < 0.5 ? -1 : 1,
-        sx = -dz * side,
-        sz = dx * side;
+      // A jelly straining against a load: a cartoon drop of sweat beads at the top of a side
+      // face the camera can see, then runs down it, speeding up, and fades at the bottom.
+      // It rides on the jelly (see stepSweat), turning with its faces.
+      const player = players[event.player],
+        body = soft?.get(player);
+      if (this.reducedMotion || !body) return;
+      const r = body.r,
+        [cx, cz] = event.toCamera,
+        faces = [
+          [1, 0, 0],
+          [-1, 0, 0],
+          [0, 0, 1],
+          [0, 0, -1],
+        ].filter((n) => (r[0] * n[0] + r[2] * n[2]) * cx + (r[6] * n[0] + r[8] * n[2]) * cz > 0.15);
+      if (!faces.length) return;
+      this.soft = soft;
       this.particles.push({
-        kind: 'jelly',
-        position: [x + sx * 0.3 - dx * 0.2, y, z + sz * 0.3 - dz * 0.2],
-        velocity: [
-          sx * (0.5 + random() * 0.5) - dx * 0.5,
-          1.3 + random() * 0.7,
-          sz * (0.5 + random() * 0.5) - dz * 0.5,
-        ],
-        size: 0.04 + random() * 0.02,
-        phase: random() * 6.28,
-        color: [0.85, 0.95, 1],
+        kind: 'sweat',
+        player: event.player,
+        face: faces[Math.floor(random() * faces.length)],
+        across: (random() - 0.5) * 0.44,
+        down: 0.2 + random() * 0.06,
+        speed: 0.02 + random() * 0.03,
+        position: [...body.core],
+        size: 0.07 + random() * 0.02,
+        phase: 0,
+        color: [0.35, 0.68, 1],
         age: 0,
-        life: 0.7 + random() * 0.25,
+        life: 1.6,
       });
     }
     if (event.type === 'dust') {
@@ -532,6 +540,29 @@ class System {
     this.particles = this.particles.slice(-MAX_PARTICLES);
     this.rings = this.rings.slice(-8);
   }
+  // A sweat drop sits on a jelly face (local normal `face`, `across` it and `down` from its
+  // centre) and runs down it under a gentle pull; its world pose follows the jelly's lattice.
+  stepSweat(p, dt, players) {
+    const player = players[p.player],
+      body = player && player.state !== 'dead' ? this.soft?.get(player) : null;
+    if (!body) {
+      p.age = p.life;
+      return;
+    }
+    p.speed += 0.55 * dt;
+    p.down -= p.speed * dt;
+    // Off the bottom edge: fade out quickly.
+    if (p.down < -0.3) p.age = Math.max(p.age, p.life * 0.82);
+    const r = body.r,
+      [nx, , nz] = p.face,
+      local = [nx * 0.39 + nz * p.across, p.down, nz * 0.39 + nx * p.across],
+      world = (v) =>
+        [0, 1, 2].map((i) => r[i * 3] * v[0] + r[i * 3 + 1] * v[1] + r[i * 3 + 2] * v[2]);
+    const offset = world(local);
+    p.position = body.core.map((v, i) => v + offset[i]);
+    // Across the face, up the face and out of it, for the drop's teardrop shape.
+    p.basis = [world([nz, 0, nx]), world([0, 1, 0]), world([nx, 0, nz])];
+  }
   step(dt, world, goals = [], players = []) {
     // Cap long background-tab gaps for stable presentation.
     dt = Math.min(Math.max(0, dt), 0.1);
@@ -556,6 +587,10 @@ class System {
             (p.to[k] - p.from[k]) * s +
             side[k] * Math.cos(a) * radius +
             (k === 1 ? lift + Math.sin(a) * radius : 0);
+        continue;
+      }
+      if (p.kind === 'sweat') {
+        this.stepSweat(p, dt, players);
         continue;
       }
       if (p.kind === 'jelly' || p.kind === 'wood') p.velocity[1] -= 7 * dt;
