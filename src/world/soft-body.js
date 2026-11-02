@@ -213,7 +213,7 @@ const SLIP_STEP = 0.008,
 // lands standing on its head (p.upright, a plain large crate from then on); a standing barrel
 // pushed over one pivots back onto its side. Rolling off sideways it simply drops, still lying.
 const BARREL_RADIUS = 0.49,
-  ROLL_START = 0.6,
+  ROLL_START = 0.4,
   ROLL_PEAK = 3.6,
   ROLL_ACCELERATION = 9,
   ROLL_CRUISE = 1.4,
@@ -729,6 +729,8 @@ class System {
       }
     }
     if (b.roll) {
+      // Off a ledge it keeps its roll through the fall and rolls on from where it lands.
+      if (p.state === 'falling') return;
       const moved = dx * b.roll.x + dz * b.roll.z,
         ahead = this.bodyAhead(p, b.roll, players);
       // A body in the way stops the roll on contact, so the barrel never bulldozes it along.
@@ -745,7 +747,8 @@ class System {
       }
       return;
     }
-    if (p.upright || !b.pushingCrate || !grounded || b.airborne || p.state !== 'alive') return;
+    // Pushed by anything: a jelly, or a crate or another barrel a jelly is pushing.
+    if (p.upright || !b.touched || !grounded || b.airborne || p.state !== 'alive') return;
     const alongX = p.barrel === 'z',
       along = alongX ? vcom[0] : vcom[2],
       across = alongX ? vcom[2] : vcom[0];
@@ -955,16 +958,16 @@ class System {
           }
       }
     }
-    if (touching && a.rigid !== b.rigid && Math.abs(a.center[1] - b.center[1]) < 0.35) {
-      a.pushingCrate = true;
-      b.pushingCrate = true;
+    if (touching && Math.abs(a.center[1] - b.center[1]) < 0.35) {
+      a.touched = b.touched = true;
+      if (a.rigid !== b.rigid) a.pushingCrate = b.pushingCrate = true;
     }
   }
   step(world, players, inputs, dt) {
     this.contactStep = dt;
     const events = [],
       lattices = players.map((p) => this.get(p));
-    lattices.forEach((b) => (b.pushingCrate = false));
+    lattices.forEach((b) => (b.pushingCrate = b.touched = false));
     world.refresh(players);
     const previousCenters = lattices.map((b) => b.summarize().slice());
     const supports = lattices.map((b, i) => {
@@ -1099,7 +1102,7 @@ class System {
         p.state === 'alive' && !p.launchTimer
           ? ((magnitude ? (input.z / magnitude) * 2.6 : 0) + belt.z - (p.vz || 0)) * driveGain
           : 0;
-      const rolling = b.roll && p.state === 'alive',
+      const rolling = b.roll && p.state !== 'dead',
         settle = !rolling && b.settle && p.state === 'alive' ? b.settle : null;
       // Settling is a stiff, slightly underdamped spring onto the cell centre: a small knock-back.
       if (settle)
@@ -1188,7 +1191,7 @@ class System {
         }
       }
       // A sliding crate leaves a ledge only once clear of it, then drops straight down.
-      if (b.slides && b.airborne) {
+      if (b.slides && b.airborne && !b.roll) {
         vcom[0] = 0;
         vcom[2] = 0;
       }

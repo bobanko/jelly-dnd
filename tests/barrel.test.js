@@ -60,18 +60,25 @@ test('a barrel pushed on its end cap slides like a crate and stops when the push
   assert.ok(Math.abs(g.bodies[1].spin || 0) < 0.05, 'no spin when slid along its axis');
 });
 
-test('a rolling barrel leaves a ledge and lands below', () => {
+test('a barrel rolling off a ledge lands on its side and rolls on', () => {
   const g = scene([{ x: 2, z: 4, y: 1 }, barrel({ x: 2.87, z: 4, y: 1 })]);
   for (let x = 0; x <= 6; x++) for (const z of [3, 4, 5]) g.world.heights.set(`${x},${z}`, 1);
+  // A wall further along the lower floor.
+  for (const z of [3, 4, 5]) g.world.heights.set(`13,${z}`, 1);
   g.step([{ x: 1, z: 0 }], 60);
-  g.step([], 400);
+  g.step([], 600);
   const p = g.bodies[1];
-  assert.ok(p.x > 6.5, 'beyond the edge: ' + p.x);
+  assert.ok(Math.abs(p.x - 12) < 0.02, 'rolled on to the wall below: ' + p.x);
   assert.ok(Math.abs(p.y) < 0.05, 'on the lower floor: ' + p.y);
   assert.equal(p.state, 'alive');
-  assert.equal(g.soft.get(p).roll, null, 'the fall ends the roll');
   assert.ok(!p.upright, 'rolling off sideways, it lands still lying on its side');
   assert.equal(p.barrel, 'z');
+});
+
+test('a barrel pushed through a crate starts rolling', () => {
+  const g = scene([{ x: 2, z: 4 }, { kind: 'crate', x: 2.8, z: 4 }, barrel({ x: 3.66, z: 4 })]);
+  g.step([{ x: 1, z: 0 }], 90);
+  assert.ok(g.soft.get(g.bodies[2]).roll, 'the crate passes the push on and it rolls');
 });
 
 test('a barrel stopped by a wall still slides along it', () => {
