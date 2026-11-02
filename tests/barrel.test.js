@@ -69,7 +69,8 @@ test('a rolling barrel leaves a ledge and lands below', () => {
   assert.ok(Math.abs(p.y) < 0.05, 'on the lower floor: ' + p.y);
   assert.equal(p.state, 'alive');
   assert.equal(g.soft.get(p).roll, null, 'the fall ends the roll');
-  assert.equal(p.upright, true, 'the drop tips it onto its head');
+  assert.ok(!p.upright, 'rolling off sideways, it lands still lying on its side');
+  assert.equal(p.barrel, 'z');
 });
 
 test('a barrel stopped by a wall still slides along it', () => {
@@ -126,26 +127,32 @@ test('a rolling barrel just stops against the end cap of another barrel', () => 
 });
 
 test('a standing barrel is a crate, and a second drop lays it on its side again', () => {
-  // Three levels of floor: x 0–4 at 2, x 5–8 at 1, beyond at 0.
+  // Three levels of floor: x 0–4 at 2, x 5–8 at 1, everything else (z > 5 too) at 0.
   const g = scene([{ x: 2, z: 4, y: 2 }, barrel({ x: 2.87, z: 4, y: 2, barrel: 'x' })]);
   for (let x = 0; x <= 8; x++)
     for (const z of [3, 4, 5]) g.world.heights.set(`${x},${z}`, x <= 4 ? 2 : 1);
   // Pushed along its axis off the top step, it falls forward onto its head.
-  g.step([{ x: 1, z: 0 }], 400);
-  g.step([], 200);
   const p = g.bodies[1];
+  // Push until it starts to pivot over the edge, then let go.
+  for (let n = 0; n < 600 && !p.tipBase; n++) g.step([{ x: 1, z: 0 }]);
+  assert.ok(p.tipBase, 'it pivots over the edge');
+  g.step([], 300);
   assert.ok(Math.abs(p.y - 1) < 0.05, 'on the middle step: ' + p.y);
-  assert.equal(p.upright, true);
-  // Standing, a side push only slides it: no roll.
+  assert.equal(p.upright, true, 'pushed head first over the edge, it pivots onto its head');
+  assert.ok(Math.abs(p.x - 5) < 0.05, 'centred on the cell past the edge: ' + p.x);
+  // Standing, a push only slides it (no roll); pushed over the step's side edge at z = 5.5 it
+  // pivots back onto its side, its axis along the push.
   const jelly = g.bodies[0];
-  g.soft.translate(jelly, p.x - jelly.x - 0.9, p.y - jelly.y, 0, true);
-  g.step([{ x: 1, z: 0 }], 30);
+  g.soft.translate(jelly, p.x - jelly.x, p.y - jelly.y, p.z - jelly.z - 0.9, true);
+  g.step([{ x: 0, z: 1 }], 30);
   assert.equal(g.soft.get(p).roll, null, 'a standing barrel does not roll');
-  g.step([{ x: 1, z: 0 }], 600);
-  g.step([], 200);
+  for (let n = 0; n < 900 && !p.tipBase; n++) g.step([{ x: 0, z: 1 }]);
+  assert.ok(p.tipBase, 'it pivots over the second edge');
+  g.step([], 300);
   assert.ok(Math.abs(p.y) < 0.05, 'pushed off the second step: ' + p.y);
   assert.equal(p.upright, false, 'it lies on its side again');
-  assert.equal(p.barrel, 'x', 'its axis points the way it fell');
+  assert.equal(p.barrel, 'z', 'its axis points the way it fell');
+  assert.ok(Math.abs(p.z - 6) < 0.05, 'centred on the cell past the edge: ' + p.z);
 });
 
 test('barrels survive the level format with their axis', () => {
