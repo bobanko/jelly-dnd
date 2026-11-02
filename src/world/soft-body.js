@@ -996,7 +996,7 @@ class System {
       if (p.state === 'dead') {
         p.respawnTimer -= dt;
         const spawn = p.respawnTimer <= 0 && world.respawnPosition(p, players);
-        // Ready but the spawn is taken: the renderer shows a ghost there.
+        // Ready but the spawn is taken: the game outlines the body there.
         p.respawnBlocked = p.respawnTimer <= 0 && !spawn;
         if (spawn) {
           // A crate is teleported back above its spawn and drops into place.

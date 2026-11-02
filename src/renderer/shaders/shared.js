@@ -381,14 +381,6 @@ export const shared = `
   if(line<.01){discard;}
   return vec4f(o.color*2.2,line*.95);
  }
- // A jelly waiting for its blocked spawn: the same edges with an uneven flicker.
- @fragment fn ghostFS(o:Out)->@location(0) vec4f{
-  let line=cubeEdge(o.local);
-  if(line<.01){discard;}
-  let t=scene.options.z;
-  let flicker=clamp(.5+.2*sin(t*5.3)+.15*sin(t*17.1+o.material*2.),.15,.9);
-  return vec4f(o.color*2.2,line*flicker);
- }
  @fragment fn solidFS(o:Out)->@location(0) vec4f{
   let n=normalize(o.normal);let v=normalize(scene.eye.xyz-o.world);let l=normalize(scene.light.xyz-o.world);let h=normalize(v+l);
   var color=o.color;var metalWear=0.;

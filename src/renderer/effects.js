@@ -257,13 +257,6 @@ export const effectsMethods = {
       pass.setVertexBuffer(0, this.effectBuffer);
       pass.draw(effectCount);
     }
-    // A jelly waiting for its blocked spawn: its cube's edges, flickering at the spawn and
-    // drawn over whatever stands there (lattice placed there in render()).
-    if (this.ghostPlayers?.length && !level.assembly) {
-      pass.setPipeline(this.ghostPipeline);
-      pass.setIndexBuffer(this.indexBuffer, 'uint32');
-      for (const i of this.ghostPlayers) pass.drawIndexed(this.indexCount, 1, 0, 0, i);
-    }
     if (level.assembly) return;
     if (this.runeCount) {
       pass.setPipeline(this.runePipeline);

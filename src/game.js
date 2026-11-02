@@ -31,8 +31,10 @@ let loadingActive = false,
   loadingStage = 'loadingGraphics',
   autoZoom = 1;
 let playerHints = [],
-  spawnMarks = [];
+  spawnMarks = [],
+  spawnOutlines = null;
 let cameraIntro = null;
+const SVG_NS = 'http://www.w3.org/2000/svg';
 const canvas = document.querySelector('#scene');
 const reducedMotion =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -679,7 +681,11 @@ function createPlayerHints() {
     document.querySelector('#player-hints').append(node);
     return { node, idle: 0 };
   });
-  // A question mark over the ghost of a jelly whose spawn is taken (see the renderer).
+  // Dashed outlines of bodies waiting for a taken spawn, drawn over the scene.
+  spawnOutlines = document.createElementNS(SVG_NS, 'svg');
+  spawnOutlines.classList.add('spawn-outlines');
+  document.querySelector('#player-hints').append(spawnOutlines);
+  // A question mark over the outline of a jelly whose spawn is taken.
   spawnMarks = players.map((p) => {
     const mark = document.createElement('span');
     mark.className = 'spawn-question';
@@ -691,7 +697,73 @@ function createPlayerHints() {
     return mark;
   });
 }
+// What a body waiting at its spawn looks like there: straight edges for cubes and crates; for
+// a barrel, the points of its surface (outlined by their hull) and its two heads.
+function spawnShape(p) {
+  const s = p.spawn,
+    y = s.y || 0;
+  if (p.barrel) {
+    const cy = y + 0.51,
+      point = (t, r, a) =>
+        s.barrel === 'z'
+          ? [s.x + r * Math.sin(a), cy + r * Math.cos(a), s.z + t]
+          : [s.x + t, cy + r * Math.cos(a), s.z + r * Math.sin(a)],
+      ring = (t, r) => Array.from({ length: 33 }, (_, k) => point(t, r, (k / 32) * Math.PI * 2)),
+      surface = [];
+    for (let j = 0; j <= 8; j++) {
+      const t = -0.47 + j * 0.1175;
+      surface.push(...ring(t, 0.4 + 0.09 * (1 - (t / 0.47) ** 2)));
+    }
+    return { surface, lines: [ring(-0.47, 0.4), ring(0.47, 0.4)] };
+  }
+  const large = p.kind === 'crate' && p.large,
+    h = large ? 0.49 : p.kind === 'crate' ? 0.39 : 0.38,
+    c = [s.x, y + (large ? 0.51 : 0.42), s.z],
+    corner = (i) => c.map((v, k) => v + ((i >> k) & 1 ? h : -h)),
+    lines = [];
+  for (let i = 0; i < 8; i++)
+    for (let k = 0; k < 3; k++) if (!((i >> k) & 1)) lines.push([corner(i), corner(i | (1 << k))]);
+  return { lines };
+}
+// Convex hull of screen points (monotone chain), for a barrel's silhouette.
+function hull(points) {
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y),
+    cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x),
+    half = (list) => {
+      const out = [];
+      for (const q of list) {
+        while (out.length > 1 && cross(out.at(-2), out.at(-1), q) <= 0) out.pop();
+        out.push(q);
+      }
+      out.pop();
+      return out;
+    };
+  return [...half(sorted), ...half(sorted.reverse())];
+}
+function updateSpawnOutlines() {
+  if (!spawnOutlines) return;
+  const paths = [];
+  for (const p of bodies) {
+    if (!(p.state === 'dead' && p.respawnBlocked && p.spawn) || level.assembly) continue;
+    const shape = spawnShape(p),
+      screen = (list) => list.map((q) => project(...q)),
+      lines = shape.lines.map(screen),
+      silhouette = shape.surface ? hull(screen(shape.surface)) : null;
+    if ([...lines.flat(), ...(silhouette || [])].some((q) => !q.visible)) continue;
+    const path = (list, closed) =>
+        'M' +
+        list.map((q) => q.x.toFixed(1) + ' ' + q.y.toFixed(1)).join('L') +
+        (closed ? 'Z' : ''),
+      d = [...lines.map((l) => path(l)), ...(silhouette ? [path(silhouette, true)] : [])].join(''),
+      // Jellies in their own colour; crates and barrels in white.
+      color = p.kind === 'crate' ? '#fff' : colors[p.slot];
+    paths.push(`<path class="spawn-outline" d="${d}" style="color:${color}"/>`);
+  }
+  const markup = paths.join('');
+  if (spawnOutlines.innerHTML !== markup) spawnOutlines.innerHTML = markup;
+}
 function updateSpawnMarks() {
+  updateSpawnOutlines();
   spawnMarks.forEach((mark, i) => {
     const p = players[i],
       point =

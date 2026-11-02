@@ -296,8 +296,6 @@ class Renderer {
       color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
     });
-    // Spawn ghosts: the cube edges of a waiting jelly, shown through whatever stands there.
-    this.ghostPipeline = pipeline('softVS', 'ghostFS', 'back', 4, 'always', false, overlay);
     this.phasePipeline = pipeline(
       'assemblyVS',
       'phaseFS',
@@ -985,21 +983,11 @@ class Renderer {
     const nodes = new Float32Array(320 * 4);
     for (let i = 0; i < 5; i++) nodes[i * 256 + 3] = -1;
     const layout = landingLayout(level, players.length),
-      landingCount = layout.count,
-      ghost = (p) => p.state === 'dead' && p.respawnBlocked && p.spawn;
-    this.ghostPlayers = players.flatMap((p, i) => (ghost(p) ? [i] : []));
+      landingCount = layout.count;
     players.forEach((p, i) => {
       const scale = jellyScale(level, i, layout.jellies + i, landingCount),
         body = level.soft.get(p),
         core = body.core;
-      // A jelly waiting for its blocked spawn is shown as a ghost there: its rest lattice.
-      if (ghost(p)) {
-        const center = [p.spawn.x, (p.spawn.y || 0) + 0.42, p.spawn.z];
-        this.soft.rest.forEach((q, j) =>
-          nodes.set([...q.map((v, k) => v + center[k]), p.slot ?? i], (i * 64 + j) * 4),
-        );
-        return;
-      }
       // Scale the lattice about its centre for summoning and portal warps.
       body.positions.forEach((q, j) =>
         nodes.set(

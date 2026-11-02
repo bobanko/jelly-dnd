@@ -1312,7 +1312,37 @@ html[lang='ru'] .menu-panel h1 {
   grid-column: 3;
   grid-row: 2;
 }
-/* Over the ghost of a jelly whose spawn is taken: a glowing, unsteady question mark. */
+/* A body waiting for its taken spawn: its outline there, dashed and slowly marching. Jellies
+   use their own colour, crates and barrels white (set inline as `color`). */
+.spawn-outlines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.spawn-outline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 7 6;
+  opacity: 0.85;
+  filter: drop-shadow(0 0 3px currentColor);
+  animation: spawn-outline-march 1.4s linear infinite;
+}
+@keyframes spawn-outline-march {
+  to {
+    stroke-dashoffset: -13;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spawn-outline {
+    animation: none;
+  }
+}
+/* Over the outline of a jelly whose spawn is taken: a glowing, unsteady question mark. */
 .spawn-question {
   position: absolute;
   transform: translate(-50%, -52%);
