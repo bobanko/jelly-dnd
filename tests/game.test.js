@@ -177,6 +177,49 @@ test('a prop travels as a portal wisp and materialises at the exit like a spawne
   assert.equal(g.run('crates[0].portalAppearPending'), false);
 });
 
+test('snuffed torches stay dark until a jelly dies, then all relight', async () => {
+  const g = await game({ map: partyMap([0, 1]) });
+  g.run(`
+    world.torches=[
+      {x:2,y:1,z:2,face:'south'},
+      {x:5,y:1,z:2,face:'south'},
+    ];
+    torchStates=[];
+    for(const torch of world.torches){
+      const flame=JellyLevels.torchFrame(torch).light;
+      Object.assign(players[0],{x:flame[0],y:flame[1]-.42,z:flame[2],state:'alive'});
+      updateTorches(.05);
+    }
+    Object.assign(players[0],{x:1,y:0,z:4});
+    updateTorches(20);
+  `);
+  assert.equal(
+    g.run('JSON.stringify(torchStates.map(({out,lit})=>[out,lit]))'),
+    '[[true,0],[true,0]]',
+  );
+  g.run(`
+    effects.clear();
+    const step=world.step.bind(world);
+    let died=false;
+    world.step=()=>{
+      if(died)return [];
+      died=true;
+      players[0].state='dead';
+      return [{type:'death',player:0}];
+    };
+    simulate(.05);
+    world.step=step;
+    updateTorches(.05);
+  `);
+  assert.equal(g.run('runDeaths[0]'), 1, 'the relight is triggered by a real death event');
+  assert.ok(g.run('torchStates.every(state=>!state.out&&state.lit>0)'));
+  assert.equal(
+    g.run("effects.particles.filter(p=>p.kind==='spark').length"),
+    18,
+    'both torches emit their relight sparks',
+  );
+});
+
 test('solo and duo levels assign controls by active order, keeping undo/reset and victory', async () => {
   for (const slots of [[0], [1], [2], [3], [1, 3]]) {
     const g = await game({ map: partyMap(slots) });
