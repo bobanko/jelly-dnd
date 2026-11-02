@@ -59,12 +59,29 @@ function geometry(definition) {
   geometryCache.set(definition, corners);
   return corners;
 }
+const lowestCache = new WeakMap();
+// The lowest walkable top in the level: a body below it has dropped into the void.
+function lowestFloor(definition) {
+  if (!lowestCache.has(definition))
+    lowestCache.set(
+      definition,
+      Math.min(
+        0,
+        ...(definition.blocks || []).map((b) => b.y ?? 0),
+        ...(definition.tiles || []).map((t) => t.height ?? 0),
+      ),
+    );
+  return lowestCache.get(definition);
+}
 function target(players, definition, camera, angle, width, height, overviewAmount = 0) {
-  const points = players.map((p) =>
-    p.state === 'alive' || !p.state
-      ? { x: p.rx ?? p.x, z: p.rz ?? p.z, y: p.y || 0 }
-      : { x: p.spawn?.x ?? p.x, z: p.spawn?.z ?? p.z, y: p.spawn?.y || 0 },
-  );
+  // A jelly falling to a lower floor is followed where it is; only one dropping into the void
+  // (or dead) is framed at the spawn it will come back to.
+  const floor = lowestFloor(definition),
+    points = players.map((p) =>
+      p.state === 'alive' || !p.state || (p.state === 'falling' && (p.y || 0) > floor - 0.5)
+        ? { x: p.rx ?? p.x, z: p.rz ?? p.z, y: p.y || 0 }
+        : { x: p.spawn?.x ?? p.x, z: p.spawn?.z ?? p.z, y: p.spawn?.y || 0 },
+    );
   const roster = points.flatMap((p) =>
     [-0.85, 0.85].flatMap((dx) =>
       [-0.85, 0.85].flatMap((dz) => [p.y, p.y + 1.15].map((y) => [p.x + dx, y, p.z + dz])),

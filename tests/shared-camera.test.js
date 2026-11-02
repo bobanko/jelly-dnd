@@ -108,6 +108,14 @@ test('shared camera uses height of the group and respawn positions instead of fo
   assert.ok(result.zoom > 0);
 });
 
+test('shared camera follows a jelly falling to a lower floor instead of jumping to its spawn', () => {
+  const camera = { mode: 'perspective', pitch: 55, fov: 45 };
+  // Spawned up at (2, 2); now dropping past y = 1 onto the floor at (6, 6).
+  const falling = { ...p(6, 6, 1), state: 'falling', spawn: { x: 2, z: 2, y: 3 } };
+  const result = target([falling], map, camera, 0, 1280, 800);
+  assert.deepEqual(result, target([p(6, 6, 1)], map, camera, 0, 1280, 800));
+});
+
 test('full-level overview is the zoom-out limit and close parties get exactly 50 percent more zoom', () => {
   const level = {
     blocks: [
