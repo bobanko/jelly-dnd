@@ -88,7 +88,7 @@ test('sustained laser effects use a time-based rate, stay bounded and reduce mot
   w.droneBeams = Array.from({ length: 16 }, (_, drone) => ({ ...contactBeam, drone }));
   for (let i = 0; i < 100; i++) {
     fast.step(0.1, w);
-    assert.ok(fast.particles.length <= 96);
+    assert.ok(fast.particles.length <= 160);
   }
   fast.clear();
   assert.equal(fast.particles.length + fast.laserTimers.size, 0);
@@ -197,7 +197,7 @@ test('teleport particles and rings match every portal colour', () => {
 test('effects stay bounded during bursts and respect reduced motion', () => {
   const effects = new System();
   for (let i = 0; i < 30; i++) effects.burst(portal, players, soft);
-  assert.equal(effects.particles.length, 96);
+  assert.equal(effects.particles.length, 160);
   assert.equal(effects.rings.length, 8);
   effects.clear();
   assert.equal(effects.rings.length + effects.particles.length, 0);
@@ -355,4 +355,25 @@ test('portal hops and respawns hide the jelly, then grow it back with a slight o
   assert.ok(effects.warpScale(0) > 0);
   effects.clear();
   assert.equal(effects.warpScale(0), 1);
+});
+
+test('landing dust, scuffing dust and sweat drops, all left out with reduced motion', () => {
+  const effects = new System(),
+    reduced = new System({ reducedMotion: true });
+  const land = { type: 'dust', center: [4, 0, 4], half: 0.47, strength: 1 },
+    scuff = { type: 'scuff', center: [4, 0, 4], half: 0.47, direction: [1, 0], strength: 1 },
+    sweat = { type: 'sweat', top: [2, 0.8, 3], direction: [0, 1] };
+  for (const system of [effects, reduced]) {
+    system.burst(land, players, soft);
+    for (let n = 0; n < 6; n++) system.burst(scuff, players, soft);
+    system.burst(sweat, players, soft);
+  }
+  const dust = effects.particles.filter((p) => p.kind === 'dust');
+  assert.ok(dust.length >= 16 + 6, 'a cloud on landing and puffs while sliding');
+  // Scuffs come from the sides of the base, not ahead of the moving crate.
+  assert.ok(dust.slice(-6).every((p) => p.position[0] < 4 + 0.47 * 0.5));
+  const drop = effects.particles.find((p) => p.kind === 'jelly');
+  assert.ok(drop && drop.velocity[1] > 1, 'a sweat drop flies up');
+  assert.ok(drop.velocity[2] < 0.5, 'away from the push (+z), not along it');
+  assert.equal(reduced.particles.length, 0);
 });

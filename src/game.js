@@ -474,6 +474,7 @@ function simulate(dt, elapsed = dt) {
   const input = inputs();
   while (accumulator >= JellyPhysics.STEP && !won) {
     const events = world.step(bodies, input);
+    updateEffortEffects(JellyPhysics.STEP, input);
     for (const { name } of jellyCollisionSounds.update(players)) gameAudio.play(name);
     gameAudio.setLoopLevel(
       'crateSlide',
@@ -529,10 +530,13 @@ function simulate(dt, elapsed = dt) {
       const body = bodies[event.player];
       // Measured from where the drop began, also across a pivot over an edge.
       if (body && event.type === 'fall') body.fallFrom ??= body.y;
+      if (body && event.type === 'land') body.landedAt = runSeconds;
       if (body && (event.type === 'death' || event.type === 'respawn')) body.fallFrom = undefined;
       if (body && event.type === 'land' && body.fallFrom !== undefined) {
         const drop = body.fallFrom - body.y,
           crate = body.kind === 'crate';
+        // A graze on the way down (a crate catching a ledge's rim) keeps the drop's start;
+        // it is forgotten once the body has stood still a moment (updateEffortEffects).
         if (drop > 0.3) {
           if (crate) gameAudio.play('crateLand', Math.min(1, 0.55 + drop * 0.25));
           effects.burst(
@@ -545,8 +549,8 @@ function simulate(dt, elapsed = dt) {
             players,
             soft,
           );
+          body.fallFrom = undefined;
         }
-        body.fallFrom = undefined;
       }
       // A crate or barrel lost off the level breaks apart.
       if (event.type === 'death' && bodies[event.player]?.kind === 'crate')
@@ -1078,6 +1082,68 @@ function assemblyWhooshes() {
     });
   }
   return whooshes;
+}
+// Effort shows: dust kicked up by crates and barrels moving over the floor, and sweat flying
+// off a jelly pushing a load. Also forgets a drop once its body has stood still a moment.
+function updateEffortEffects(dt, input) {
+  for (const body of bodies)
+    if (
+      body.fallFrom !== undefined &&
+      body.state === 'alive' &&
+      runSeconds - (body.landedAt ?? runSeconds) > 0.4
+    )
+      body.fallFrom = undefined;
+  for (const crate of crates) {
+    const b = soft.get(crate),
+      speed = Math.hypot(crate.vx || 0, crate.vz || 0);
+    if (
+      crate.state !== 'alive' ||
+      speed < 0.25 ||
+      !(b.pushingCrate || b.roll) ||
+      b.tipping ||
+      b.airborne
+    ) {
+      crate.scuffTimer = 0;
+      continue;
+    }
+    crate.scuffTimer = (crate.scuffTimer || 0) - dt;
+    if (crate.scuffTimer > 0) continue;
+    crate.scuffTimer = 0.06;
+    effects.burst(
+      {
+        type: 'scuff',
+        center: [crate.x, crate.y || 0, crate.z],
+        half: crate.large ? 0.47 : 0.38,
+        direction: [crate.vx / speed, crate.vz / speed],
+        // Even a slow shove raises some dust; a fast roll raises more.
+        strength: 0.5 + speed / 4,
+      },
+      players,
+      soft,
+    );
+  }
+  players.forEach((p, i) => {
+    const push = input[i],
+      effort = Math.hypot(push?.x || 0, push?.z || 0);
+    if (p.state !== 'alive' || !effort || !soft.get(p).pushingCrate) {
+      // The first drop comes soon after a push starts.
+      p.sweatTimer = Math.min(p.sweatTimer ?? 0.15, 0.15);
+      return;
+    }
+    p.sweatTimer -= dt;
+    if (p.sweatTimer > 0) return;
+    p.sweatTimer = 0.2 + Math.random() * 0.15;
+    const core = soft.get(p).core;
+    effects.burst(
+      {
+        type: 'sweat',
+        top: [core[0], core[1] + 0.36, core[2]],
+        direction: [push.x / effort, push.z / effort],
+      },
+      players,
+      soft,
+    );
+  });
 }
 function updateLevelAssembly(dt) {
   if (!level.assembly || loadingActive || menuOpen || document.hidden) return;

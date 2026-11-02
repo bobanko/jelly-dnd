@@ -1,5 +1,7 @@
 import Levels from '../world/levels.js';
 // Short-lived visual particles. They never become gameplay colliders.
+// Live particles at most; the oldest are dropped first.
+const MAX_PARTICLES = 160;
 const palettes = [
   [0.12, 0.9, 0.16],
   [0.025, 0.17, 1],
@@ -82,7 +84,7 @@ class System {
         life: this.reducedMotion ? 0.16 : (jelly ? 0.3 : 0.18) + this.random() * 0.16,
       });
     }
-    this.particles = this.particles.slice(-96);
+    this.particles = this.particles.slice(-MAX_PARTICLES);
   }
   stepLaserImpacts(dt, world, players) {
     const active = new Set(),
@@ -347,6 +349,59 @@ class System {
         }
       }
     }
+    if (event.type === 'scuff') {
+      // A crate or barrel moving over the floor kicks a little dust out from under the sides
+      // of its base, trailing behind it.
+      const [x, y, z] = event.center,
+        [dx, dz] = event.direction,
+        strength = Math.max(0.2, Math.min(1, event.strength));
+      for (const side of this.reducedMotion ? [] : [-1, 1]) {
+        if (random() > 0.35 + strength * 0.5) continue;
+        const along = (random() - 0.6) * event.half,
+          out = event.half * (0.9 + random() * 0.15),
+          // Perpendicular to the motion, on this side.
+          sx = -dz * side,
+          sz = dx * side;
+        this.particles.push({
+          kind: 'dust',
+          position: [x + sx * out + dx * along, y + 0.03, z + sz * out + dz * along],
+          velocity: [
+            sx * (0.3 + random() * 0.4) - dx * 0.25,
+            0.12 + random() * 0.25,
+            sz * (0.3 + random() * 0.4) - dz * 0.25,
+          ],
+          size: (0.08 + random() * 0.07) * (0.7 + strength * 0.5),
+          phase: random() * Math.PI * 2,
+          color: [0.3, 0.27, 0.23].map((v) => v * (0.85 + random() * 0.3)),
+          age: 0,
+          life: 0.6 + random() * 0.5,
+        });
+      }
+    }
+    if (event.type === 'sweat') {
+      // A jelly straining against a load: a drop of sweat flies off a top corner, away from
+      // the push, then falls and splashes on the floor.
+      if (this.reducedMotion) return;
+      const [x, y, z] = event.top,
+        [dx, dz] = event.direction,
+        side = random() < 0.5 ? -1 : 1,
+        sx = -dz * side,
+        sz = dx * side;
+      this.particles.push({
+        kind: 'jelly',
+        position: [x + sx * 0.3 - dx * 0.2, y, z + sz * 0.3 - dz * 0.2],
+        velocity: [
+          sx * (0.5 + random() * 0.5) - dx * 0.5,
+          1.3 + random() * 0.7,
+          sz * (0.5 + random() * 0.5) - dz * 0.5,
+        ],
+        size: 0.04 + random() * 0.02,
+        phase: random() * 6.28,
+        color: [0.85, 0.95, 1],
+        age: 0,
+        life: 0.7 + random() * 0.25,
+      });
+    }
     if (event.type === 'dust') {
       // A body thuds down after a drop: puffs of stone dust roll out from under its edges,
       // rise a little, slow down and settle. `strength` (0..1) grows with the height fallen.
@@ -474,7 +529,7 @@ class System {
         }
       }
     }
-    this.particles = this.particles.slice(-96);
+    this.particles = this.particles.slice(-MAX_PARTICLES);
     this.rings = this.rings.slice(-8);
   }
   step(dt, world, goals = [], players = []) {
