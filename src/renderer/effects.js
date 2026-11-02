@@ -58,7 +58,9 @@ export const effectsMethods = {
         const a = item.phase + Math.min(item.age, 0.8) * 8,
           c = Math.cos(a),
           s = Math.sin(a),
-          size = item.size * (0.65 + 0.35 * fade),
+          dust = item.kind === 'dust',
+          // Dust puffs swell as they thin out; other particles shrink as they fade.
+          size = item.size * (dust ? 0.5 + t * 1.4 : 0.65 + 0.35 * fade),
           jelly = item.kind === 'jelly',
           bone = item.kind === 'bone',
           wood = item.kind === 'wood',
@@ -74,7 +76,7 @@ export const effectsMethods = {
               ? [size * 0.4, size * 1.8, size * 0.3]
               : [size * wobble, size / (wobble * (jelly ? 1.3 : 1)), size],
           item.color,
-          bone || wood ? 15 : jelly ? 6 : 7,
+          bone || wood || dust ? 15 : jelly ? 6 : 7,
           [
             [c, s, 0],
             [-s, c, 0],
@@ -106,11 +108,25 @@ export const effectsMethods = {
         if (flash > 0)
           sphere(mesh, [x, y + 0.36, z], [0.35 * flash, 0.48 * flash, 0.35 * flash], item.color, 7);
       }
+      // Bones, splinters and dust are lit like the scene (material 15); dust stays see-through.
       for (let k = from; k < mesh.length; k += 12) {
         mesh[k + 9] =
-          item.kind === 'bone' || item.kind === 'wood' ? 15 : item.kind === 'jelly' ? 6 : 7;
+          item.kind === 'bone' || item.kind === 'wood' || item.kind === 'dust'
+            ? 15
+            : item.kind === 'jelly'
+              ? 6
+              : 7;
         mesh[k + 10] =
-          fade * (item.kind === 'bone' ? 1 : item.cube ? 0.72 : item.position ? 0.85 : 0.45);
+          fade *
+          (item.kind === 'bone'
+            ? 1
+            : item.kind === 'dust'
+              ? 0.38
+              : item.cube
+                ? 0.72
+                : item.position
+                  ? 0.85
+                  : 0.45);
         mesh[k + 11] = 0;
       }
     }

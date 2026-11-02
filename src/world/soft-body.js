@@ -1328,7 +1328,8 @@ class System {
       const grounded = b.rigid
         ? crateGrounded
         : ground !== null && Math.abs(p.y - ground) < 0.15 && p.vy < 0.7;
-      if (p.state === 'falling' && (b.support || grounded)) {
+      // A body pivoting over an edge may graze the floor mid-turn; it lands once it is over.
+      if (p.state === 'falling' && (b.support || grounded) && !b.tipping) {
         p.state = 'alive';
         p.launchTimer = 0;
         events.push({ type: 'land', player: i });

@@ -524,12 +524,28 @@ function simulate(dt, elapsed = dt) {
           soft,
         );
       }
-      // A crate or barrel landing after a drop: a dull boom, louder from higher up.
+      // Any body landing after a drop raises dust round its base; a crate or barrel also
+      // booms dully, louder from higher up.
       const body = bodies[event.player];
-      if (body?.kind === 'crate' && event.type === 'fall') body.fallFrom = body.y;
-      if (body?.kind === 'crate' && event.type === 'land' && body.fallFrom !== undefined) {
-        const drop = body.fallFrom - body.y;
-        if (drop > 0.3) gameAudio.play('crateLand', Math.min(1, 0.55 + drop * 0.25));
+      // Measured from where the drop began, also across a pivot over an edge.
+      if (body && event.type === 'fall') body.fallFrom ??= body.y;
+      if (body && (event.type === 'death' || event.type === 'respawn')) body.fallFrom = undefined;
+      if (body && event.type === 'land' && body.fallFrom !== undefined) {
+        const drop = body.fallFrom - body.y,
+          crate = body.kind === 'crate';
+        if (drop > 0.3) {
+          if (crate) gameAudio.play('crateLand', Math.min(1, 0.55 + drop * 0.25));
+          effects.burst(
+            {
+              type: 'dust',
+              center: [body.x, body.y || 0, body.z],
+              half: crate && body.large ? 0.47 : 0.38,
+              strength: drop / 2,
+            },
+            players,
+            soft,
+          );
+        }
         body.fallFrom = undefined;
       }
       // A crate or barrel lost off the level breaks apart.

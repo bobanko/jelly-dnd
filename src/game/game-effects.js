@@ -347,6 +347,31 @@ class System {
         }
       }
     }
+    if (event.type === 'dust') {
+      // A body thuds down after a drop: puffs of stone dust roll out from under its edges,
+      // rise a little, slow down and settle. `strength` (0..1) grows with the height fallen.
+      const [x, y, z] = event.center,
+        half = event.half,
+        strength = Math.max(0.3, Math.min(1, event.strength));
+      for (let i = 0; i < (this.reducedMotion ? 0 : Math.round(16 + strength * 20)); i++) {
+        const a = random() * Math.PI * 2,
+          // A point on the square footprint's outline, pushed outwards from its centre.
+          edge = Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a))),
+          ox = (Math.cos(a) / edge) * half,
+          oz = (Math.sin(a) / edge) * half,
+          speed = (0.7 + random() * 0.9) * (0.6 + strength * 0.6);
+        this.particles.push({
+          kind: 'dust',
+          position: [x + ox, y + 0.04 + random() * 0.06, z + oz],
+          velocity: [Math.cos(a) * speed, 0.25 + random() * 0.45 * strength, Math.sin(a) * speed],
+          size: (0.1 + random() * 0.1) * (0.7 + strength * 0.5),
+          phase: a,
+          color: [0.3, 0.27, 0.23].map((v) => v * (0.85 + random() * 0.3)),
+          age: 0,
+          life: 0.7 + random() * 0.6,
+        });
+      }
+    }
     if (event.type === 'torchOut' || event.type === 'torchLit') {
       // A snuffed torch: a puff of smoke and a few dying embers. Relit: a little spray of sparks.
       const out = event.type === 'torchOut',
@@ -482,6 +507,11 @@ class System {
       else if (p.kind === 'spark') p.velocity[1] -= 5 * dt;
       else if (p.kind === 'smoke')
         for (let k = 0; k < 3; k++) p.velocity[k] *= 1 - Math.min(1, dt * 1.6);
+      // Dust rolls out fast, then hangs in the air and slowly settles.
+      else if (p.kind === 'dust') {
+        for (let k = 0; k < 3; k++) p.velocity[k] *= 1 - Math.min(1, dt * 3.2);
+        p.velocity[1] -= 0.25 * dt;
+      }
       for (let k = 0; k < 3; k++) p.position[k] += p.velocity[k] * dt;
       if (p.kind === 'jelly' || p.kind === 'wood') {
         const floor = world.heightAt(p.position[0], p.position[2], previousY);
