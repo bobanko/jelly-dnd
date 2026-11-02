@@ -193,13 +193,15 @@ test('snuffed torches stay dark until a jelly dies, then all relight', async () 
       updateTorches(.05);
     }
     Object.assign(players[0],{x:1,y:0,z:4});
-    updateTorches(20);
+    updateTorches(1.9);
   `);
   assert.equal(
     g.run('JSON.stringify(torchStates.map(({out,lit})=>[out,lit]))'),
     '[[true,0],[true,0]]',
   );
-  assert.equal(g.run('gongCount'), 1, 'the last extinguished torch sounds one gong');
+  assert.equal(g.run('gongCount'), 0, 'the last extinguished torch starts a quiet delay');
+  g.run('updateTorches(.11)');
+  assert.equal(g.run('gongCount'), 1, 'the gong sounds two seconds after every torch goes dark');
   g.run(`
     effects.clear();
     const step=world.step.bind(world);
@@ -221,6 +223,13 @@ test('snuffed torches stay dark until a jelly dies, then all relight', async () 
     18,
     'both torches emit their relight sparks',
   );
+  g.run(`
+    torchStates.forEach(state=>state.out=true);
+    torchGongCountdown=1;
+    relightTorches();
+    updateTorches(2);
+  `);
+  assert.equal(g.run('gongCount'), 1, 'relighting the torches cancels a pending gong');
 });
 
 test('solo and duo levels assign controls by active order, keeping undo/reset and victory', async () => {

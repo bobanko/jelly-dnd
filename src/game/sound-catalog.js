@@ -311,7 +311,7 @@ export const proceduralSoundCatalog = [
     category: 'magic',
     title: 'Все факелы погашены',
     description: 'Глубокий металлический удар в гонг, когда на уровне гаснет последний факел.',
-    duration: 2.8,
+    duration: 4.8,
     type: 'gong',
   },
 ];
@@ -332,18 +332,19 @@ export function playProceduralSound(context, sound) {
     return { stop: () => stopNode(oscillator) };
   }
   if (sound.type === 'gong') {
-    const duration = 2.8,
+    const duration = 4.8,
       master = context.createGain(),
       oscillators = [],
       partials = [
-        [92, 0.075, 1],
-        [130.6, 0.052, 0.92],
-        [177.4, 0.038, 0.78],
-        [245.6, 0.026, 0.62],
-        [320.2, 0.018, 0.48],
+        [82, 0.11, 1],
+        [116.4, 0.078, 0.95],
+        [158.3, 0.057, 0.85],
+        [226.1, 0.04, 0.72],
+        [295.7, 0.027, 0.58],
+        [381.2, 0.018, 0.42],
       ];
     master.gain.setValueAtTime(0.001, now);
-    master.gain.exponentialRampToValueAtTime(1, now + 0.012);
+    master.gain.exponentialRampToValueAtTime(1.45, now + 0.012);
     master.gain.exponentialRampToValueAtTime(0.001, now + duration);
     master.connect(context.destination);
     partials.forEach(([frequency, volume, life], index) => {

@@ -249,11 +249,15 @@ function clearGoalVisuals() {
 }
 // Easter egg: a jelly brushing a wall torch snuffs it out. It stays dark until a jelly dies;
 // that sacrifice lights every extinguished torch. Visual only: torchLight scales flame/light.
-let torchStates = [];
+const TORCH_GONG_DELAY = 2;
+let torchStates = [],
+  torchGongCountdown = null;
 function updateTorches(dt) {
   const torches = (world.torches || []).slice(0, 8);
-  if (torchStates.length !== torches.length)
+  if (torchStates.length !== torches.length) {
     torchStates = torches.map(() => ({ lit: 1, out: false }));
+    torchGongCountdown = null;
+  }
   level.torchLight = torchStates.map((s) => s.lit);
   if (menuOpen || level.assembly || loadingActive) return;
   torches.forEach((torch, i) => {
@@ -271,7 +275,7 @@ function updateTorches(dt) {
         s.out = true;
         effects.burst({ type: 'torchOut', position: flame }, players, soft);
         gameAudio.play('torchOut');
-        if (torchStates.every((state) => state.out)) gong();
+        if (torchStates.every((state) => state.out)) torchGongCountdown = TORCH_GONG_DELAY;
       }
     }
     const target = s.out ? 0 : 1;
@@ -280,6 +284,13 @@ function updateTorches(dt) {
       : s.lit + (target - s.lit) * (1 - Math.exp(-dt * (s.out ? 14 : 3)));
     if (Math.abs(target - s.lit) < 0.002) s.lit = target;
   });
+  if (torchGongCountdown !== null) {
+    torchGongCountdown -= dt;
+    if (torchGongCountdown <= 0) {
+      torchGongCountdown = null;
+      if (torchStates.length && torchStates.every((state) => state.out)) gong();
+    }
+  }
 }
 function relightTorches() {
   const torches = (world.torches || []).slice(0, 8);
@@ -294,10 +305,14 @@ function relightTorches() {
     );
     relit = true;
   });
-  if (relit) gameAudio.play('torchLight');
+  if (relit) {
+    torchGongCountdown = null;
+    gameAudio.play('torchLight');
+  }
 }
 function reset(replayAssembly = false) {
   torchStates = [];
+  torchGongCountdown = null;
   players.forEach((p, i) =>
     Object.assign(p, start[i], {
       spawn: { ...start[i] },

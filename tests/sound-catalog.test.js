@@ -75,9 +75,9 @@ test('gong starts several inharmonic partials with a long shared decay', () => {
       }),
     };
   const playback = playProceduralSound(context, { type: 'gong' });
-  assert.equal(oscillators.length, 5);
+  assert.equal(oscillators.length, 6);
   assert.ok(oscillators.every((oscillator) => oscillator.started === 2));
-  assert.ok(Math.max(...oscillators.map((oscillator) => oscillator.stopped)) >= 4.7);
+  assert.ok(Math.max(...oscillators.map((oscillator) => oscillator.stopped)) >= 6.7);
   assert.ok(playback);
 });
 
