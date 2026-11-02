@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { proceduralSoundCatalog, soundCatalog, soundClips } from '../src/game/sound-catalog.js';
 
 test('sound gallery lists every active sample once with its game volume and existing file', () => {
-  assert.equal(soundCatalog.length, 25);
+  assert.equal(soundCatalog.length, 27);
   assert.equal(new Set(soundCatalog.map((sound) => sound.id)).size, soundCatalog.length);
   assert.equal(new Set(soundCatalog.map((sound) => sound.file)).size, soundCatalog.length);
   for (const sound of soundCatalog) {
@@ -14,7 +14,10 @@ test('sound gallery lists every active sample once with its game volume and exis
     assert.ok(sound.category);
     assert.ok(sound.volume > 0 && sound.volume <= 1);
     assert.ok(fs.existsSync('assets/audio/' + sound.file), sound.file);
-    assert.deepEqual(soundClips[sound.id], [sound.file, sound.volume]);
+    assert.deepEqual(
+      soundClips[sound.id],
+      sound.loopRegion ? [sound.file, sound.volume, sound.loopRegion] : [sound.file, sound.volume],
+    );
   }
   assert.deepEqual(Object.keys(soundClips).sort(), soundCatalog.map((sound) => sound.id).sort());
 });

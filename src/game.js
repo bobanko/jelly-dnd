@@ -440,6 +440,16 @@ function simulate(dt, elapsed = dt) {
           : level;
       }, 0),
     );
+    // A rolling barrel rumbles louder the faster it goes.
+    gameAudio.setLoopLevel(
+      'barrelRoll',
+      crates.reduce((level, crate) => {
+        const roll = soft.get(crate).roll;
+        return roll && crate.state === 'alive'
+          ? Math.max(level, Math.min(1, Math.hypot(crate.vx || 0, crate.vz || 0) / 3))
+          : level;
+      }, 0),
+    );
     gameAudio.setLoopLevel(
       'crystalEnergy',
       world.droneBeams?.length ? Math.min(1, 0.65 + (world.droneBeams.length - 1) * 0.12) : 0,
@@ -470,6 +480,9 @@ function simulate(dt, elapsed = dt) {
           soft,
         );
       }
+      // A crate or barrel lost off the level breaks apart.
+      if (event.type === 'death' && bodies[event.player]?.kind === 'crate')
+        gameAudio.play('crateBreak');
       if (event.player >= players.length) continue;
       effects.burst(event, players, soft);
       if (event.type === 'death') {

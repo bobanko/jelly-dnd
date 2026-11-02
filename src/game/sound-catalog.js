@@ -1,3 +1,5 @@
+// `loop` is true to loop the whole file, or [start, end] in seconds to loop only that part
+// (a recording whose ends fade in or out).
 const sample = (id, file, volume, category, title, description, loop = false) => ({
   id,
   file,
@@ -5,7 +7,8 @@ const sample = (id, file, volume, category, title, description, loop = false) =>
   category,
   title,
   description,
-  loop,
+  loop: !!loop,
+  ...(Array.isArray(loop) ? { loopRegion: loop } : {}),
   type: 'sample',
 });
 
@@ -68,12 +71,29 @@ export const soundCatalog = [
   ),
   sample(
     'crateSlide',
-    'wood-drag-2026-11-02T01-14-21-905Z.mp3',
-    0.3,
+    'sack-drag-2026-11-02T01-24-12-070Z.mp3',
+    0.36,
     'mechanisms',
     'Ящик по камню',
-    'Ровное низкое трение дерева о камень, пока желейка толкает ящик или бочку.',
+    'Ровное низкое трение, как мешок по полу, пока желейка толкает ящик или бочку.',
     true,
+  ),
+  sample(
+    'barrelRoll',
+    'barrel-roll-2026-11-02T01-24-56-423Z.mp3',
+    0.32,
+    'mechanisms',
+    'Катящаяся бочка',
+    'Глухой деревянный рокот, пока бочка катится; громче с её скоростью.',
+    [0.3, 2.4],
+  ),
+  sample(
+    'crateBreak',
+    'crate-break-2026-11-02T01-24-09-340Z.mp3',
+    0.4,
+    'mechanisms',
+    'Ящик разбился',
+    'Треск досок, когда ящик или бочка падает за пределы уровня.',
   ),
   sample(
     'buttonPress',
@@ -217,7 +237,10 @@ export const soundCatalog = [
 ];
 
 export const soundClips = Object.fromEntries(
-  soundCatalog.map(({ id, file, volume }) => [id, [file, volume]]),
+  soundCatalog.map(({ id, file, volume, loopRegion }) => [
+    id,
+    loopRegion ? [file, volume, loopRegion] : [file, volume],
+  ]),
 );
 
 const tone = (id, frequency, category, title, description) => ({

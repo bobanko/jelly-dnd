@@ -172,5 +172,23 @@
     "duration_seconds": 4,
     "loop": true,
     "prompt_influence": 0.7
+  },
+  "barrel-roll": {
+    "text": "Continuous rumbling of a wooden barrel rolling steadily across a long stone floor. A constant low hollow wooden rumble with a soft even rhythm, the same loudness the whole time. Background game sound. No impacts, crashes, clanks, creaks, voice, music or reverb.",
+    "duration_seconds": 5,
+    "loop": false,
+    "prompt_influence": 0.6
+  },
+  "crate-break": {
+    "text": "One wooden crate shattering after a long fall: a short dull crack of breaking planks, a quick splintering burst and a few small wooden pieces scattering, then silence. Muffled, compact, close game sound. No metal, glass, explosion, voice, music or long reverb.",
+    "duration_seconds": 1,
+    "loop": false,
+    "prompt_influence": 0.7
+  },
+  "sack-drag": {
+    "text": "Seamless steady loop of a heavy cloth sack being dragged slowly across a stone floor. Continuous, very even, low soft grainy friction like rough fabric and sand on stone, a smooth muffled hiss-rumble with no rhythm and no gaps. Unobtrusive background game sound. No creaks, squeaks, knocks, rattles, footsteps, voice, music or reverb.",
+    "duration_seconds": 4,
+    "loop": true,
+    "prompt_influence": 0.75
   }
 }

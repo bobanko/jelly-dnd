@@ -246,12 +246,14 @@ export class GameAudio {
       if (level <= 0.02) return;
       const source = context.createBufferSource(),
         gain = context.createGain();
+      const region = clips[name][2];
       source.buffer = this.buffers.get(name);
       source.loop = true;
+      if (region) [source.loopStart, source.loopEnd] = region;
       gain.gain.value = 0;
       source.connect(gain).connect(context.destination);
       this.sources.add(source);
-      state = { source, gain, target: undefined };
+      state = { source, gain, target: undefined, region };
       this.loopStates.set(name, state);
       source.onended = () => {
         this.sources.delete(source);
@@ -259,7 +261,7 @@ export class GameAudio {
         source.disconnect();
         gain.disconnect();
       };
-      source.start(context.currentTime);
+      source.start(context.currentTime, region?.[0] ?? 0);
     }
     const parameter = state.gain.gain,
       target = level > 0.02 ? clips[name][1] * level : 0;

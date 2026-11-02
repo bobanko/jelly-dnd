@@ -202,7 +202,7 @@ test('samples preload once, deduplicate simultaneous traps, and stop on mute or 
   assert.equal(audio.play('land'), null);
   audio.setEnabled(true);
   await audio.loading;
-  assert.equal(fetch.mock.callCount(), 25);
+  assert.equal(fetch.mock.callCount(), 27);
   audio.setActive(false);
   assert.ok(started.every((source) => source.stopped));
   assert.equal(audio.play('portal'), null);
@@ -222,7 +222,7 @@ test('missing audio files do not prevent gameplay or cause deferred playback', a
   audio.setEnabled(true);
   await audio.loading;
   assert.equal(audio.play('land'), null);
-  assert.equal(warn.mock.callCount(), 25);
+  assert.equal(warn.mock.callCount(), 27);
 });
 
 test('quiet movement loops fade with their level and stop with gameplay', async (t) => {
@@ -244,7 +244,8 @@ test('quiet movement loops fade with their level and stop with gameplay', async 
             return gain;
           },
           disconnect() {},
-          start() {
+          start(when, offset) {
+            this.offset = offset;
             sources.push(this);
           },
           stop() {
@@ -271,7 +272,12 @@ test('quiet movement loops fade with their level and stop with gameplay', async 
   await audio.loading;
   audio.setLoopLevel('crateSlide', 0.5);
   assert.equal(sources.at(-1).loop, true);
-  assert.ok(Math.abs(targets.at(-1).value - 0.15) < 1e-9);
+  assert.ok(Math.abs(targets.at(-1).value - 0.18) < 1e-9);
+  // A loop with faded ends cycles only through its steady part, from where that part starts.
+  audio.setLoopLevel('barrelRoll', 1);
+  assert.deepEqual([sources.at(-1).loopStart, sources.at(-1).loopEnd], [0.3, 2.4]);
+  assert.equal(sources.at(-1).offset, 0.3);
+  audio.setLoopLevel('barrelRoll', 0);
   audio.setLoopLevel('crateSlide', 0);
   assert.equal(targets.at(-1).value, 0);
   assert.equal(targets.at(-1).constant, 0.2);
