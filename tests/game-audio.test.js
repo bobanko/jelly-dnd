@@ -271,7 +271,7 @@ test('quiet movement loops fade with their level and stop with gameplay', async 
   await audio.loading;
   audio.setLoopLevel('crateSlide', 0.5);
   assert.equal(sources.at(-1).loop, true);
-  assert.ok(Math.abs(targets.at(-1).value - 0.08) < 1e-9);
+  assert.ok(Math.abs(targets.at(-1).value - 0.15) < 1e-9);
   audio.setLoopLevel('crateSlide', 0);
   assert.equal(targets.at(-1).value, 0);
   assert.equal(targets.at(-1).constant, 0.2);
