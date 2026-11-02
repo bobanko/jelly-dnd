@@ -837,6 +837,26 @@ test('single movement keys stay on grid axes at 45 degree and free orbit angles'
   }
 });
 
+test('on every diagonal view W moves up-right on screen, along the grid', async () => {
+  const g = await game();
+  // Camera angle 0 and its quarter turns are the diagonal views. Whichever side the camera
+  // turned in from, W ends up on the axis that runs up-right on screen.
+  for (const angle of [0, Math.PI / 2, Math.PI, -Math.PI / 2, (5 * Math.PI) / 2, 1e-9, -1e-9])
+    for (const from of [angle - 0.6, angle + 0.6]) {
+      g.run(`angle=targetAngle=${from};inputs()`);
+      g.run(`angle=targetAngle=${angle}`);
+      g.key('w');
+      const [move, x, y] = g.run(`(() => {
+        const v = inputs()[0], h = camera.targetY ?? 0,
+          o = project(camera.x, h, camera.z), q = project(camera.x + v.x, h, camera.z + v.z);
+        return [v, q.x - o.x, q.y - o.y];
+      })()`);
+      assert.equal(Math.abs(move.x) + Math.abs(move.z), 1, 'one grid axis');
+      assert.ok(x > 0 && y < 0, `W at ${angle} from ${from} goes up-right: ${x}, ${y}`);
+      g.up('w');
+    }
+});
+
 test('mouse orbit turns the controls with the view, without needing the turn keys', async () => {
   const g = await game();
   // An orbit only changes the camera angle; no Q/E. Half a turn later W still means "up".

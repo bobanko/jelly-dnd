@@ -412,15 +412,16 @@ function inputs() {
   return result;
 }
 // Movement keys follow the view actually on screen, however the camera was turned (keys,
-// mouse orbit, intro): each key moves along the grid axis that looks most like its own
-// direction. A key vector [x, z] is also its screen direction (x right, z down), turned by
-// `quarter` quarter-turns onto the grid. Near a diagonal view two turns fit almost equally;
-// the current one is kept until another fits clearly better, so the keys never flicker.
-let controlQuarter = null;
+// mouse orbit, intro). A key vector [x, z] is also its screen direction (x right, z down),
+// turned by `quarter` quarter-turns onto the grid. W takes the grid axis whose screen heading
+// is nearest to straight up leaning 2° right. On a diagonal view the two candidates mirror
+// each other about the screen centre (about ±45°, more under a tilted camera), so W always
+// goes up-right there, never up-left, with room to spare for rounding. The other keys follow.
 const turnKey = ([x, z], quarter) => {
   for (let k = 0; k < quarter; k++) [x, z] = [z, -x];
   return [x, z];
 };
+const CONTROL_LEAN = (2 * Math.PI) / 180;
 function controlTurn() {
   const y = camera.targetY ?? 0,
     origin = project(camera.x, y, camera.z),
@@ -438,22 +439,21 @@ function controlTurn() {
       [-1, 0],
       [0, 1],
       [1, 0],
-    ],
-    fit = (quarter) =>
-      keys.reduce((sum, key) => {
-        const [sx, sy] = screen(turnKey(key, quarter));
-        return sum + sx * key[0] + sy * key[1];
-      }, 0);
-  if (controlQuarter === null) controlQuarter = ((Math.round(angle / (Math.PI / 2)) % 4) + 4) % 4;
-  let best = controlQuarter;
-  for (let quarter = 0; quarter < 4; quarter++) if (fit(quarter) > fit(best)) best = quarter;
-  if (fit(best) > fit(controlQuarter) + 0.3) controlQuarter = best;
+    ];
+  let quarter = 0,
+    nearest = Infinity;
+  for (let q = 0; q < 4; q++) {
+    // Heading of W's move, clockwise from straight up.
+    const [sx, sy] = screen(turnKey(keys[0], q)),
+      off = Math.abs(Math.atan2(sx, -sy) - CONTROL_LEAN);
+    if (off < nearest) [quarter, nearest] = [q, off];
+  }
   // How far "up" sits from straight up on screen: past 22.5° the view is nearer a diagonal.
-  const [ux] = screen(turnKey(keys[0], controlQuarter));
+  const [ux] = screen(turnKey(keys[0], quarter));
   return {
-    quarter: controlQuarter,
+    quarter,
     diagonal: Math.abs(ux) > Math.sin(Math.PI / 8),
-    screen: keys.map((key) => screen(turnKey(key, controlQuarter))),
+    screen: keys.map((key) => screen(turnKey(key, quarter))),
   };
 }
 function simulate(dt, elapsed = dt) {
