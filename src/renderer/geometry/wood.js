@@ -1,4 +1,4 @@
-import { box } from '../mesh.js';
+import { box, lowSphere, sphere } from '../mesh.js';
 export const OAK_WOOD = [0.64, 0.355, 0.145],
   OAK_FRAME = [0.8, 0.49, 0.225],
   OAK_END_GRAIN = [0.69, 0.405, 0.19],
@@ -159,17 +159,79 @@ export function crateGeometry() {
     }
   return mesh;
 }
-// Large crate: the oak crate grown to almost a full cell (outer half ≈ 0.49 against the
-// 0.47 collision box) with iron corner caps, so it reads as heavy and distinct from the
-// small, tumbling crate.
+function turnFaceOntoCube(mesh, from, axis, sign) {
+  const u = axis === 0 ? [0, 0, -sign] : axis === 1 ? [1, 0, 0] : [sign, 0, 0],
+    v = axis === 1 ? [0, 0, -sign] : [0, 1, 0],
+    normal = [0, 0, 0];
+  normal[axis] = sign;
+  for (let k = from; k < mesh.length; k += 12)
+    for (const offset of [0, 3]) {
+      const x = mesh[k + offset],
+        y = mesh[k + offset + 1],
+        z = mesh[k + offset + 2];
+      for (let n = 0; n < 3; n++) mesh[k + offset + n] = u[n] * x + v[n] * y + normal[n] * z;
+    }
+}
+
+// Large crate: a separate, nearly cell-wide shipping crate with crossed oak braces and
+// wrapped iron corner plates. Its decoration stays inside the 0.5 visual half extent while
+// the 0.47 collision box remains unchanged.
 export function largeCrateGeometry() {
-  const mesh = crateGeometry(),
-    scale = 1.15;
-  for (let k = 0; k < mesh.length; k += 12) for (let n = 0; n < 3; n++) mesh[k + n] *= scale;
-  for (const x of [-1, 1])
-    for (const y of [-1, 1])
-      for (const z of [-1, 1])
-        box(mesh, [x * 0.42, y * 0.42, z * 0.42], [0.15, 0.15, 0.15], IRON_NAIL, 0.02, 12, 2);
+  const mesh = [],
+    wood = OAK_WOOD.map((value) => value * 0.92),
+    frame = [0.75, 0.425, 0.175],
+    brace = [0.68, 0.35, 0.125],
+    iron = [0.16, 0.17, 0.19],
+    rivet = [0.34, 0.29, 0.23];
+  box(mesh, [0, 0, 0], [0.82, 0.82, 0.82], [0.16, 0.072, 0.022], 0.012, 11, 2);
+  for (let axis = 0; axis < 3; axis++)
+    for (const sign of [-1, 1]) {
+      const from = mesh.length,
+        seed = axis * 13 + sign + 5;
+      // Narrow, individually shaded boards make the face read clearly even from the game camera.
+      for (let board = -2; board <= 2; board++)
+        oakPlank(
+          mesh,
+          [board * 0.154, 0, 0.422],
+          [0.148, 0.79, 0.034],
+          wood.map((value) => value * (0.91 + ((board + seed + 8) % 4) * 0.045)),
+          seed + board,
+          0.005,
+        );
+      // The crossed braces sit above the boards, but tuck under the surrounding frame.
+      for (const direction of [-1, 1]) {
+        const braceFrom = mesh.length,
+          angle = direction * (Math.PI / 4),
+          c = Math.cos(angle),
+          s = Math.sin(angle);
+        oakPlank(mesh, [0, 0, 0.447], [0.086, 0.89, 0.04], brace, seed + direction + 11, 0.008);
+        for (let k = braceFrom; k < mesh.length; k += 12)
+          for (const offset of [0, 3]) {
+            const x = mesh[k + offset],
+              y = mesh[k + offset + 1];
+            mesh[k + offset] = x * c - y * s;
+            mesh[k + offset + 1] = x * s + y * c;
+          }
+      }
+      for (const edge of [-1, 1]) {
+        oakPlank(mesh, [edge * 0.397, 0, 0.457], [0.116, 0.82, 0.052], frame, seed + edge, 0.012);
+        oakPlank(
+          mesh,
+          [0, edge * 0.397, 0.457],
+          [0.91, 0.116, 0.052],
+          frame,
+          seed + edge + 4,
+          0.012,
+        );
+      }
+      // Square face plates join into a three-sided cap at every physical corner.
+      for (const x of [-0.397, 0.397])
+        for (const y of [-0.397, 0.397]) {
+          box(mesh, [x, y, 0.478], [0.15, 0.15, 0.03], iron, 0.018, 12, 3);
+          sphere(mesh, [x, y, 0.494], [0.021, 0.021, 0.009], rivet, 12, null, lowSphere);
+        }
+      turnFaceOntoCube(mesh, from, axis, sign);
+    }
   return mesh;
 }
 // Barrel lying along x, textured from assets/materials/barrel-atlas.png: two heads (top

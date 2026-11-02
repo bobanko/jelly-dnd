@@ -4,6 +4,7 @@ import { World } from '../src/world/physics.js';
 import * as Soft from '../src/world/soft-body.js';
 import L from '../src/world/levels.js';
 import * as P from '../src/world/physics.js';
+import { largeCrateGeometry } from '../src/renderer/geometry/wood.js';
 
 function scene(specs) {
   const floor = new Set();
@@ -32,6 +33,20 @@ function scene(specs) {
 }
 const identity = (r) => r.every((v, i) => v === [1, 0, 0, 0, 1, 0, 0, 0, 1][i]);
 const large = (p) => ({ kind: 'crate', large: true, ...p });
+
+test('a large crate has crossed oak faces and iron corner hardware inside its visual bounds', () => {
+  const mesh = largeCrateGeometry(),
+    positions = [],
+    materials = new Set();
+  for (let i = 0; i < mesh.length; i += 12) {
+    positions.push(Math.abs(mesh[i]), Math.abs(mesh[i + 1]), Math.abs(mesh[i + 2]));
+    materials.add(mesh[i + 9]);
+  }
+  assert.ok(mesh.length > 100_000, 'separate boards, braces, plates and rivets are present');
+  assert.ok(Math.max(...positions) <= 0.505, 'hardware stays within half a cell');
+  assert.ok(materials.has(11), 'textured oak is present');
+  assert.ok(materials.has(12), 'aged iron is present');
+});
 
 test('a large crate rests on the floor with its lattice almost a full cell wide', () => {
   const g = scene([large({ x: 6 })]);
