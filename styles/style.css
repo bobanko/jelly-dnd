@@ -1324,17 +1324,18 @@ html[lang='ru'] .menu-panel h1 {
 .spawn-outline {
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
+  stroke-width: 4;
+  /* Flat ends, so each dash is exactly as long as the gap after it. */
+  stroke-linecap: butt;
   stroke-linejoin: round;
-  stroke-dasharray: 7 6;
+  stroke-dasharray: 10 10;
   opacity: 0.85;
   filter: drop-shadow(0 0 3px currentColor);
   animation: spawn-outline-march 1.4s linear infinite;
 }
 @keyframes spawn-outline-march {
   to {
-    stroke-dashoffset: -13;
+    stroke-dashoffset: -20;
   }
 }
 @media (prefers-reduced-motion: reduce) {
