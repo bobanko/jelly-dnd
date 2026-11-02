@@ -31,7 +31,7 @@ let loadingActive = false,
   loadingStage = 'loadingGraphics',
   autoZoom = 1;
 let playerHints = [],
-  spawnMarks = [],
+  spawnGlyphs = [],
   spawnOutlines = null;
 let cameraIntro = null;
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -705,17 +705,6 @@ function createPlayerHints() {
   spawnOutlines = document.createElementNS(SVG_NS, 'svg');
   spawnOutlines.classList.add('spawn-outlines');
   document.querySelector('#player-hints').append(spawnOutlines);
-  // A question mark over the outline of a jelly whose spawn is taken.
-  spawnMarks = players.map((p) => {
-    const mark = document.createElement('span');
-    mark.className = 'spawn-question';
-    mark.textContent = '?';
-    mark.hidden = true;
-    mark.setAttribute('aria-hidden', 'true');
-    mark.style.setProperty('--jelly-color', colors[p.slot]);
-    document.querySelector('#player-hints').append(mark);
-    return mark;
-  });
 }
 // What a body waiting at its spawn looks like there: straight edges for cubes and crates; for
 // a barrel, the points of its surface (outlined by their hull) and its two heads.
@@ -782,24 +771,72 @@ function updateSpawnOutlines() {
   const markup = paths.join('');
   if (spawnOutlines.innerHTML !== markup) spawnOutlines.innerHTML = markup;
 }
-function updateSpawnMarks() {
+// Over a body waiting at a taken spawn, '!' and '?' rise from the top of its outline and
+// fade, like the runes over a charging finish: white for crates and barrels, a jelly's own
+// colour for jellies.
+const SPAWN_GLYPH_EVERY = 0.3,
+  SPAWN_GLYPH_LIFE = 1.4;
+function updateSpawnMarks(dt) {
   updateSpawnOutlines();
-  spawnMarks.forEach((mark, i) => {
-    const p = players[i],
-      point =
-        p.state === 'dead' && p.respawnBlocked && !level.assembly && p.spawn
-          ? project(p.spawn.x, (p.spawn.y || 0) + 0.42, p.spawn.z)
-          : null;
-    mark.hidden = !point?.visible;
-    if (mark.hidden) return;
-    mark.style.left = point.x + 'px';
-    mark.style.top = point.y + 'px';
-    // About half the cube's height on screen.
-    mark.style.fontSize = Math.max(14, point.scale * 0.5) + 'px';
+  const layer = document.querySelector('#player-hints');
+  for (const p of bodies) {
+    // With reduced motion only the still outline remains.
+    const waiting =
+      !reducedMotion && p.state === 'dead' && p.respawnBlocked && p.spawn && !level.assembly;
+    if (!waiting) {
+      p.glyphTimer = 0;
+      continue;
+    }
+    p.glyphTimer = (p.glyphTimer || 0) - dt;
+    if (p.glyphTimer > 0) continue;
+    p.glyphTimer = SPAWN_GLYPH_EVERY * (0.7 + Math.random() * 0.6);
+    const large = p.kind === 'crate' && p.large,
+      reach = large ? 0.4 : 0.3,
+      node = document.createElement('span');
+    node.className = 'spawn-glyph';
+    node.textContent = Math.random() < 0.5 ? '!' : '?';
+    node.setAttribute('aria-hidden', 'true');
+    node.style.setProperty('--glyph-color', p.kind === 'crate' ? '#fff' : colors[p.slot]);
+    layer.append(node);
+    spawnGlyphs.push({
+      node,
+      origin: [
+        p.spawn.x + (Math.random() * 2 - 1) * reach,
+        (p.spawn.y || 0) + (large ? 0.98 : 0.82),
+        p.spawn.z + (Math.random() * 2 - 1) * reach,
+      ],
+      age: 0,
+      rise: 0.55 + Math.random() * 0.3,
+      sway: Math.random() * Math.PI * 2,
+    });
+  }
+  spawnGlyphs = spawnGlyphs.filter((glyph) => {
+    glyph.age += dt;
+    const t = glyph.age / SPAWN_GLYPH_LIFE;
+    if (t >= 1) {
+      glyph.node.remove();
+      return false;
+    }
+    const [x, y, z] = glyph.origin,
+      point = project(
+        x + Math.sin(glyph.sway + glyph.age * 3) * 0.05,
+        y + glyph.age * glyph.rise,
+        z,
+      );
+    glyph.node.hidden = !point.visible;
+    if (point.visible) {
+      glyph.node.style.left = point.x + 'px';
+      glyph.node.style.top = point.y + 'px';
+      glyph.node.style.fontSize = Math.max(12, point.scale * 0.3) + 'px';
+      glyph.node.style.opacity = String(
+        Math.min(1, t / 0.15) * (1 - Math.max(0, (t - 0.55) / 0.45)),
+      );
+    }
+    return true;
   });
 }
 function updatePlayerHints(dt) {
-  updateSpawnMarks();
+  updateSpawnMarks(dt);
   if (!playerHints.length) return;
   const inactive = menuOpen || won || loadingActive || restartTransition || level.assembly;
   const boxes = [];

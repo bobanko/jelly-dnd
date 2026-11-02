@@ -1342,46 +1342,19 @@ html[lang='ru'] .menu-panel h1 {
     animation: none;
   }
 }
-/* Over the outline of a jelly whose spawn is taken: a glowing, unsteady question mark. */
-.spawn-question {
+/* Rising over a body whose spawn is taken: glowing '!' and '?' (see updateSpawnMarks). */
+.spawn-glyph {
   position: absolute;
-  transform: translate(-50%, -52%);
+  transform: translate(-50%, -50%);
   font:
     700 1em/1 Georgia,
     'Times New Roman',
     serif;
-  color: var(--jelly-color);
+  color: var(--glyph-color);
   text-shadow:
-    0 0 6px var(--jelly-color),
-    0 0 14px color-mix(in srgb, var(--jelly-color) 60%, transparent);
-  animation: spawn-question-flicker 1.7s infinite;
-}
-@keyframes spawn-question-flicker {
-  0%,
-  100% {
-    opacity: 0.85;
-  }
-  18% {
-    opacity: 0.45;
-  }
-  24% {
-    opacity: 0.8;
-  }
-  52% {
-    opacity: 0.6;
-  }
-  58% {
-    opacity: 0.3;
-  }
-  63% {
-    opacity: 0.75;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .spawn-question {
-    animation: none;
-    opacity: 0.75;
-  }
+    0 0 6px var(--glyph-color),
+    0 0 14px color-mix(in srgb, var(--glyph-color) 60%, transparent);
+  opacity: 0;
 }
 .menu-open #player-hints,
 .level-won #player-hints {
