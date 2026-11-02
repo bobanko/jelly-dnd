@@ -903,6 +903,13 @@ class Renderer {
     uniforms[FINISH_OFFSET] = Math.max(0, Math.min(1, level.finishProgress || 0));
     uniforms[FINISH_OFFSET + 1] = this.fogBase ?? 0;
     uniforms[FINISH_OFFSET + 2] = level.assembly?.progress ?? 1;
+    this.goalSealVisibility ??= 0;
+    const sealTarget = level.finishProgress > 0 ? 1 : 0,
+      sealFade = level.reducedMotion ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 8);
+    this.goalSealVisibility += (sealTarget - this.goalSealVisibility) * sealFade;
+    if (Math.abs(sealTarget - this.goalSealVisibility) < 0.001)
+      this.goalSealVisibility = sealTarget;
+    uniforms[FINISH_OFFSET + 3] = this.goalSealVisibility;
     uniforms.set(
       [
         ...(DEPTH_GLOW_COLORS[this.depthGlowColor] || DEPTH_GLOW_COLORS.warm),

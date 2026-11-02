@@ -187,7 +187,7 @@ export const shared = `
   let halo=exp(-abs(radius-.59)*80.)*.12+exp(-distance*110.)*.13;
   let head=exp(-pow((phase-progress)*100.,2.))*(1.-step(1.,progress));
   let alpha=(ring*.7+glyph+halo)*(.12+filled*.75)+ring*head*.35;
-  return vec4f(o.color*(2.+progress),alpha*smoothstep(0.,.045,progress));
+  return vec4f(o.color*(2.+progress),alpha*scene.finish.w);
  }
  @vertex fn shadowVS(@location(0) p:vec3f)->@builtin(position) vec4f{return scene.lightVP*vec4f(p,1);}
  @group(0) @binding(2) var shadowMap:texture_depth_2d;

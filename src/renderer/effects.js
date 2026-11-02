@@ -322,7 +322,7 @@ export const effectsMethods = {
       pass.setVertexBuffer(0, this.portalHaloBuffer);
       pass.setPipeline(this.goalGlowPipeline);
       pass.draw(6, Math.min(5, level.goals.length));
-      if (level.finishProgress > 0) {
+      if (this.goalSealVisibility > 0.001) {
         pass.setPipeline(this.goalSealPipeline);
         pass.draw(6, Math.min(5, level.goals.length));
       }

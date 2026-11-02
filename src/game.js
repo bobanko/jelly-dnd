@@ -239,6 +239,7 @@ function clearGoalVisuals() {
   level.finishProgress = 0;
   sceneRenderer.goalGlowStrength = [];
   sceneRenderer.goalWinGlow = 0;
+  sceneRenderer.goalSealVisibility = 0;
 }
 // Easter egg: a jelly brushing a wall torch snuffs it out; the torch catches again a while
 // after nobody is touching it. Visual only: level.torchLight scales its flame and light.

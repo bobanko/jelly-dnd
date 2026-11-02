@@ -143,6 +143,12 @@ import fs from 'node:fs';
         );
         soft.reset();
       });
+      await page.waitForFunction(
+        () =>
+          level.finishProgress > 0.02 &&
+          sceneRenderer.goalSealVisibility > 0.02 &&
+          sceneRenderer.goalSealVisibility < 0.95,
+      );
       await page.waitForFunction(() => finishHold > 0.1 && !won);
       assert.ok(await page.locator('#win').isHidden());
       assert.match(await page.locator('#status').textContent(), /Рунические печати/);
@@ -162,6 +168,11 @@ import fs from 'node:fs';
         assert.equal(await page.evaluate(() => finishHold), 0);
         assert.equal(await page.evaluate(() => level.finishProgress), 0);
         assert.equal(await page.evaluate(() => won), false);
+        assert.ok(
+          await page.evaluate(() => sceneRenderer.goalSealVisibility > 0.05),
+          'the progress ring remains briefly while fading out',
+        );
+        await page.waitForFunction(() => sceneRenderer.goalSealVisibility < 0.03);
         assert.ok(
           await page.evaluate(() =>
             world.goalActive(
