@@ -7,7 +7,7 @@ export const VOID_COLOR = '.0026,.0034,.0068';
 export const shared = `
  struct Portal { position:vec4f, color:vec4f, animation:vec4f };
  struct Goal { position:vec4f, color:vec4f };
- struct Scene { vp:mat4x4f, lightVP:mat4x4f, eye:vec4f, light:vec4f, body0:vec4f, body1:vec4f, body2:vec4f, options:vec4f, portals:array<Portal,${PORTAL_LIMIT}>, goals:array<Goal,5>, torches:array<vec4f,8>, body3:vec4f, body4:vec4f, bodySlots:array<vec4f,2>, finish:vec4f, goalSlots:array<vec4f,2>, depthGlow:vec4f, reveal:array<vec4f,5> };
+ struct Scene { vp:mat4x4f, lightVP:mat4x4f, eye:vec4f, light:vec4f, body0:vec4f, body1:vec4f, body2:vec4f, options:vec4f, portals:array<Portal,${PORTAL_LIMIT}>, goals:array<Goal,5>, torches:array<vec4f,8>, body3:vec4f, body4:vec4f, bodySlots:array<vec4f,2>, finish:vec4f, goalSlots:array<vec4f,2>, depthGlow:vec4f, reveal:array<vec4f,5>, fog:vec4f };
  @group(0) @binding(0) var<uniform> scene:Scene;
  struct Out { @builtin(position) clip:vec4f, @location(0) world:vec3f, @location(1) normal:vec3f, @location(2) color:vec3f, @location(3) material:f32, @location(4) local:vec3f };
  struct Vertex { position:vec4f, normal:vec4f, info:vec4f };
@@ -238,6 +238,21 @@ export const shared = `
   let r=vec2f(o.local.x,(y-.2)*.8);let halo=exp(-dot(r,r)*5.)*.2;
   let color=vec3f(1.,.4,.05)*body+vec3f(.9,.12,.01)*edge*.6+vec3f(1.,.72,.3)*core*.62+vec3f(1.,.28,.03)*halo;
   return vec4f(color*flicker,1.);
+ }
+ // Five translucent horizontal sheets form a shallow bank of mist below the lowest floor.
+ // The depth test lets nearby masonry cover it while the sheets veil pillars further below.
+ @vertex fn mistVS(@location(0) p:vec3f,@builtin(instance_index) instance:u32)->Out{
+  let layer=f32(instance);let spread=1.+layer*.035;var o:Out;
+  o.world=vec3f(scene.fog.x+p.x*scene.fog.z*spread,scene.finish.y-1.15+layer*.25,scene.fog.y+p.z*scene.fog.w*spread);
+  o.clip=scene.vp*vec4f(o.world,1.);o.normal=vec3f(0,1,0);o.color=vec3f(1);o.material=0.;o.local=vec3f(p.x,p.z,layer);return o;
+ }
+ @fragment fn mistFS(o:Out)->@location(0) vec4f{
+  let edge=1.-smoothstep(.7,1.,max(abs(o.local.x),abs(o.local.y)));
+  let t=scene.options.z;let q=o.world.xz;let phase=o.local.z*1.73;
+  let cloud=.5+.23*sin(q.x*.43+q.y*.17+t*.045+phase)+.17*sin(q.y*.61-q.x*.11-t*.032+phase*1.7)+.1*sin((q.x+q.y)*1.07+phase*2.3);
+  let density=smoothstep(.18,.9,cloud);let alpha=edge*(.085+.085*density)*(1.-o.local.z*.065);
+  let color=mix(VOID_COLOR,vec3f(.045,.06,.08),.72+.2*density);
+  return vec4f(color,alpha);
  }
  fn neutral(input:vec3f)->vec3f{
   var c=max(input,vec3f(0));let x=min(c.r,min(c.g,c.b));let offset=select(.04,x-6.25*x*x,x<.08);c-=vec3f(offset);

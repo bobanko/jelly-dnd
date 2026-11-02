@@ -44,6 +44,25 @@ try {
       (frame) => sceneRenderer.frames > frame + 2,
       await page.evaluate(() => sceneRenderer.frames),
     );
+  assert.ok(
+    await page.evaluate(
+      () => sceneRenderer.fogArea?.length === 4 && sceneRenderer.fogArea.every(Number.isFinite),
+    ),
+  );
+  const fogged = await page.locator('#scene').screenshot();
+  await page.evaluate(() => {
+    globalThis.savedFogArea = sceneRenderer.fogArea;
+    sceneRenderer.fogArea = null;
+  });
+  await nextFrames();
+  assertDifferent(
+    await page.locator('#scene').screenshot(),
+    fogged,
+    'the low fog contributes visible pixels around the foot of the level',
+  );
+  await page.evaluate(() => (sceneRenderer.fogArea = savedFogArea));
+  await nextFrames();
+  await page.screenshot({ path: 'artifacts/atmosphere-foot-fog.png' });
   await page.keyboard.press('Backquote');
   assert.equal(await page.locator('.jelly-settings').isVisible(), true);
   assert.equal(await page.locator('#film-grain').isChecked(), true);
@@ -126,7 +145,7 @@ try {
   assert.deepEqual(await page.evaluate(() => sceneRenderer.errors), []);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: perspective menu, grain and dust developer toggles, visible particles, smooth presentation-time drift, reduced-motion stability, unchanged gameplay state and no WebGPU errors.',
+    'PASS: perspective menu, low foot fog, grain and dust developer toggles, visible particles, smooth presentation-time drift, reduced-motion stability, unchanged gameplay state and no WebGPU errors.',
   );
 } finally {
   await browser.close();

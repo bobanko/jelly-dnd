@@ -12,6 +12,7 @@ import {
   SCENE_FLOATS,
   DEPTH_GLOW_OFFSET,
   REVEAL_OFFSET,
+  FOG_OFFSET,
   DUST_MOTES,
 } from './layout.js';
 import { dot, normalize, viewMatrix, cameraFrame } from './math.js';
@@ -212,6 +213,7 @@ class Renderer {
         'goalBeamVS',
         'goalGlowVS',
         'goalSealVS',
+        'mistVS',
       ].includes(vertexEntry)
         ? vertexBuffers
         : [],
@@ -292,6 +294,7 @@ class Renderer {
       overlay,
     );
     this.outlinePipeline = pipeline('softVS', 'outlineFS', 'back', 4, 'greater', false, overlay);
+    this.mistPipeline = pipeline('mistVS', 'mistFS', 'none', 4, 'less', false, overlay);
     this.effectPipeline = pipeline('solidVS', 'effectFS', 'back', 4, 'less', false, {
       color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
@@ -917,6 +920,7 @@ class Renderer {
       ],
       DEPTH_GLOW_OFFSET,
     );
+    uniforms.set(this.fogArea || [0, 0, 0, 0], FOG_OFFSET);
     this.updateReveal(level, players, frame, dt, uniforms);
     (level.world.torches || [])
       .slice(0, 8)
@@ -1112,6 +1116,22 @@ class Renderer {
       opaque.draw(6, torchCount);
     }
     opaque.end();
+    const layerPass = () =>
+      encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: this.msaa.createView(),
+            resolveTarget: this.hdr.createView(),
+            loadOp: 'load',
+            storeOp: 'store',
+          },
+        ],
+        depthStencilAttachment: {
+          view: this.depth.createView(),
+          depthLoadOp: 'load',
+          depthStoreOp: 'store',
+        },
+      });
     if (bridgeDraw.spectralCount) {
       const spectral = encoder.beginRenderPass({
         colorAttachments: [
@@ -1135,6 +1155,15 @@ class Renderer {
       spectral.draw(bridgeDraw.spectralCount, 1, bridgeDraw.opaqueCount);
       spectral.end();
     }
+    if (this.fogArea) {
+      const mist = layerPass();
+      mist.setPipeline(this.mistPipeline);
+      mist.setBindGroup(0, this.sceneGroup);
+      mist.setBindGroup(1, this.skinGroups[0]);
+      mist.setVertexBuffer(0, this.portalHaloBuffer);
+      mist.draw(6, 5);
+      mist.end();
+    }
     const order = players.flatMap((p, i) => {
       const scale = jellyScale(level, i, layout.jellies + i, landingCount);
       return p.state === 'dead' || scale < 0.01
@@ -1151,22 +1180,6 @@ class Renderer {
       )
         order.push(face);
     order.sort((a, b) => dot(a.center, view) - dot(b.center, view));
-    const layerPass = () =>
-      encoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: this.msaa.createView(),
-            resolveTarget: this.hdr.createView(),
-            loadOp: 'load',
-            storeOp: 'store',
-          },
-        ],
-        depthStencilAttachment: {
-          view: this.depth.createView(),
-          depthLoadOp: 'load',
-          depthStoreOp: 'store',
-        },
-      });
     for (let layer = 0; layer < order.length; layer++) {
       if (order[layer].kind === 'crystal') {
         const glass = layerPass(),

@@ -28,6 +28,31 @@ export const sceneMethods = {
       pillars = (level.world.pillars || []).filter((p) => this.pillars || p.solid);
     for (const p of pillars) occupied.add([p.x, p.y, p.z].join(','));
     this.occluders = occluderCells(level, blocks, pillars);
+    const fogCells = [
+      ...blocks,
+      ...pillars,
+      ...[...level.floor].map((key) => {
+        const [x, z] = key.split(',').map(Number);
+        return { x, z };
+      }),
+    ];
+    if (fogCells.length) {
+      const bounds = fogCells.reduce(
+        (result, cell) => ({
+          minX: Math.min(result.minX, cell.x),
+          maxX: Math.max(result.maxX, cell.x),
+          minZ: Math.min(result.minZ, cell.z),
+          maxZ: Math.max(result.maxZ, cell.z),
+        }),
+        { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity },
+      );
+      this.fogArea = [
+        (bounds.minX + bounds.maxX) * 0.5,
+        (bounds.minZ + bounds.maxZ) * 0.5,
+        (bounds.maxX - bounds.minX + 1) * 0.5 + 3,
+        (bounds.maxZ - bounds.minZ + 1) * 0.5 + 3,
+      ];
+    } else this.fogArea = null;
     let blockIndex = 0;
     const lavaPools = [];
     const blockAssemblyIndices = new Map(),
