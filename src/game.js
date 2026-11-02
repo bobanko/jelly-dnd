@@ -671,8 +671,12 @@ function simulate(dt, elapsed = dt) {
       effects.burst({ type: 'victory' }, players, soft);
       heldKeys.clear();
       tone(640);
+      const extraCurrent = currentExtraLevel();
       const current = currentStandardLevel();
-      if (current && JellyProgress) {
+      if (extraCurrent && JellyProgress) {
+        JellyProgress.complete('extra-' + extraCurrent, runSeconds, skullsLeft());
+        updateLevelLocks();
+      } else if (current && JellyProgress) {
         JellyProgress.complete(current, runSeconds, skullsLeft());
         updateLevelLocks();
       }
@@ -1357,7 +1361,16 @@ addEventListener('pageshow', (e) => {
   if (e.persisted && leaving) globalThis.location.reload();
 });
 function levelTitle(id) {
-  return id + '. ' + JellyLevels.displayName(JellyLevels.standardLevel(id), JellyI18n?.language);
+  if (typeof id === 'string' && id.startsWith('extra-')) {
+    const extraNum = Number(id.slice(6));
+    return (
+      `E${String(extraNum).padStart(2, '0')}. ` +
+      JellyLevels.displayName(JellyLevels.extraLevel(extraNum), JellyI18n?.language)
+    );
+  }
+  return (
+    id + '. ' + JellyLevels.displayName(JellyLevels.standardLevel(Number(id)), JellyI18n?.language)
+  );
 }
 function gpuFailure(message) {
   document.querySelector('#loading-spinner').hidden = true;
@@ -1616,25 +1629,42 @@ function refreshLanguage() {
   updateSoundButton();
   updateRunSkulls();
   if (JellyI18n) document.querySelector('#play').textContent = tr(hasPlayed ? 'resume' : 'play');
-  document
-    .querySelectorAll('[data-level-name]')
-    .forEach(
-      (node) =>
-        (node.textContent = JellyLevels.displayName(
-          JellyLevels.standardLevel(Number(node.dataset.levelName)),
-          JellyI18n?.language,
-        )),
-    );
+  document.querySelectorAll('[data-level-name]').forEach((node) => {
+    const id = node.dataset.levelName;
+    if (typeof id === 'string' && id.startsWith('extra-')) {
+      const extraId = Number(id.slice(6));
+      node.textContent = JellyLevels.displayName(
+        JellyLevels.extraLevel(extraId),
+        JellyI18n?.language,
+      );
+    } else {
+      node.textContent = JellyLevels.displayName(
+        JellyLevels.standardLevel(Number(id)),
+        JellyI18n?.language,
+      );
+    }
+  });
   updateLevelLocks();
   updateUI();
   if (won && JellyI18n) refreshWin();
 }
 function currentStandardLevel() {
+  if (globalThis.location?.search?.includes('level=editor')) return 0;
+  if (/(?:^|[?&])level=extra-\d+(?:&|$)/.test(globalThis.location?.search || '')) return 0;
   const match = /(?:^|[?&])level=(\d+)(?:&|$)/.exec(globalThis.location?.search || '');
-  return globalThis.location?.search?.includes('level=editor') ? 0 : match ? Number(match[1]) : 1;
+  return match ? Number(match[1]) : 1;
+}
+function currentExtraLevel() {
+  const match = /(?:^|[?&])level=extra-(\d+)(?:&|$)/.exec(globalThis.location?.search || '');
+  return match ? Number(match[1]) : 0;
 }
 function currentLevelTitle() {
   if (menuOnly) return '';
+  const extraId = currentExtraLevel();
+  if (extraId) {
+    const name = JellyLevels.displayName(definition, JellyI18n?.language);
+    return `E${String(extraId).padStart(2, '0')}. ${name}`;
+  }
   const id = currentStandardLevel(),
     name = JellyLevels.displayName(definition, JellyI18n?.language);
   return id ? `${id}. ${name}` : name;
@@ -1733,9 +1763,16 @@ function refreshWin() {
     row.append(statIcon('jelly', p.slot), statIcon('skull'), String(runDeaths[i]));
     deaths.append(row);
   });
+  const extraId = currentExtraLevel();
   const id = currentStandardLevel();
   document.querySelector('#win-title').textContent = tr(
-    id === JellyLevels.standardNames.length ? 'demoComplete' : 'levelComplete',
+    extraId
+      ? extraId === JellyLevels.extraNames.length
+        ? 'demoComplete'
+        : 'levelComplete'
+      : id === JellyLevels.standardNames.length
+        ? 'demoComplete'
+        : 'levelComplete',
   );
   document.querySelector('#win-level-name').textContent = currentLevelTitle();
   // Skulls appear one by one, then the lost ones crack from right to left.
@@ -1750,11 +1787,15 @@ function refreshWin() {
       gameAudio.playUI('skullCrack', 1, crackDelay, { allowOverlap: true });
   });
   document.querySelector('#win-next').textContent = tr(
-    id && id < JellyLevels.standardNames.length
-      ? 'nextLevel'
-      : globalThis.location?.search?.includes('level=editor')
-        ? 'editor'
-        : 'levels',
+    extraId
+      ? extraId < JellyLevels.extraNames.length
+        ? 'nextLevel'
+        : 'levels'
+      : id && id < JellyLevels.standardNames.length
+        ? 'nextLevel'
+        : globalThis.location?.search?.includes('level=editor')
+          ? 'editor'
+          : 'levels',
   );
 }
 function selectWinItem(index, focus = true) {
@@ -1792,7 +1833,9 @@ function handleWinKey(e) {
 }
 function updateLevelLocks() {
   document.querySelectorAll('[data-level]').forEach((button) => {
-    const locked = JellyProgress && !JellyProgress.canPlay(Number(button.dataset.level));
+    const isExtra = button.dataset.level.startsWith('extra-');
+    const levelId = isExtra ? button.dataset.level : Number(button.dataset.level);
+    const locked = !isExtra && JellyProgress && !JellyProgress.canPlay(levelId);
     let stats = button.querySelector('.level-stats');
     if (!stats) {
       stats = document.createElement('span');
@@ -1805,11 +1848,11 @@ function updateLevelLocks() {
       best.className = 'level-best';
       stats.append(best);
     }
-    const seconds = JellyProgress?.bestTime(Number(button.dataset.level));
+    const seconds = JellyProgress?.bestTime(levelId);
     const value = seconds == null ? '\u2014' : formatRunTime(seconds);
     best.replaceChildren(statIcon('timer'), document.createTextNode(value));
     best.setAttribute('aria-label', tr('bestTime') + ': ' + value);
-    const kept = JellyProgress?.bestSkulls?.(Number(button.dataset.level)) ?? null;
+    const kept = JellyProgress?.bestSkulls?.(levelId) ?? null;
     let skulls = stats.querySelector('.level-skulls');
     if (!skulls) {
       skulls = document.createElement('span');
@@ -1923,6 +1966,16 @@ if (JellyI18n) {
   createPlayerHints();
   updateRunSkulls();
   document.querySelector('#win-next').onclick = () => {
+    const extraId = currentExtraLevel();
+    if (extraId) {
+      if (extraId < JellyLevels.extraNames.length)
+        navigate('?level=extra-' + (extraId + 1) + '&play=1', levelTitle('extra-' + (extraId + 1)));
+      else {
+        setMenu(true);
+        showMenuScreen('levels');
+      }
+      return;
+    }
     const id = currentStandardLevel();
     if (id && id < JellyLevels.standardNames.length)
       navigate('?level=' + (id + 1) + '&play=1', levelTitle(id + 1));
@@ -1948,11 +2001,9 @@ if (JellyI18n) {
   document.querySelectorAll('[data-level]').forEach(
     (button) =>
       (button.onclick = () => {
-        if (!JellyProgress || JellyProgress.canPlay(Number(button.dataset.level)))
-          navigate(
-            '?level=' + button.dataset.level + '&play=1',
-            levelTitle(Number(button.dataset.level)),
-          );
+        const isExtra = button.dataset.level.startsWith('extra-');
+        if (isExtra || !JellyProgress || JellyProgress.canPlay(Number(button.dataset.level)))
+          navigate('?level=' + button.dataset.level + '&play=1', levelTitle(button.dataset.level));
       }),
   );
   document.querySelector('#menu-button').onclick = () => setMenu(true);

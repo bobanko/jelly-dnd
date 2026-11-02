@@ -104,3 +104,28 @@ test('best skull counts keep the highest result per level file and survive reloa
   p.complete(3, 10, 7);
   assert.equal(p.bestSkulls(3), null, 'invalid counts are ignored');
 });
+
+test('extra levels are always playable and record best time and skulls', () => {
+  const storage = store(),
+    p = create(storage);
+  p.configure(order, ['gem-1.json', 'gem-2.json']);
+  assert.equal(p.canPlay('extra-1'), true);
+  assert.equal(p.canPlay('extra-2'), true);
+  assert.equal(p.canPlay('extra-3'), false);
+  assert.equal(p.bestTime('extra-1'), null);
+  assert.equal(p.bestSkulls('extra-1'), null);
+  p.complete('extra-1', 45.2, 2);
+  assert.equal(p.bestTime('extra-1'), 45.2);
+  assert.equal(p.bestSkulls('extra-1'), 2);
+  // Standard progression is unchanged
+  assert.equal(p.unlocked, 1);
+  assert.equal(p.canPlay(2), false);
+  p.complete('extra-1', 40.0, 3);
+  assert.equal(p.bestTime('extra-1'), 40.0);
+  assert.equal(p.bestSkulls('extra-1'), 3);
+  // Survives reloads
+  const reloaded = create(storage);
+  reloaded.configure(order, ['gem-1.json', 'gem-2.json']);
+  assert.equal(reloaded.bestTime('extra-1'), 40.0);
+  assert.equal(reloaded.bestSkulls('extra-1'), 3);
+});

@@ -179,6 +179,15 @@ test('every catalog entry loads an independent valid JSON map and routes to the 
     assert.notEqual(L.standardLevel(index + 1).name, 'Changed');
     assert.ok(L.displayName(map, 'ru'));
   }
+  for (const [index, file] of L.extraFiles.entries()) {
+    const map = L.extraLevel(index + 1);
+    assert.equal(map.name, readLevelFile(file).name);
+    assert.deepEqual(L.issues(L.read(map)), []);
+    assert.deepEqual(L.forGame(undefined, '?level=extra-' + (index + 1)), L.read(map));
+    map.name = 'Changed';
+    assert.notEqual(L.extraLevel(index + 1).name, 'Changed');
+    assert.ok(L.displayName(map, 'ru'));
+  }
 });
 
 test('ordinary game starts with the first catalog map and follows reordering', () => {

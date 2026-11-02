@@ -10,6 +10,7 @@ const LEGACY_FILES = [
 ];
 function create(storage) {
   let order = [],
+    extraOrder = [],
     configured = false,
     saved = false,
     legacy = 1;
@@ -52,8 +53,9 @@ function create(storage) {
     } catch {}
   }
   return {
-    configure(files) {
+    configure(files, extraFiles = []) {
       order = [...files];
+      extraOrder = [...extraFiles];
       if (!configured && !saved && legacy > 1) {
         for (const file of LEGACY_FILES.slice(0, legacy)) unlocked.add(file);
         for (const file of LEGACY_FILES.slice(0, legacy - 1)) completed.add(file);
@@ -68,27 +70,44 @@ function create(storage) {
     get unlocked() {
       return order.reduce((max, file, i) => (unlocked.has(file) ? i + 1 : max), 0);
     },
+    resolveFile(id) {
+      if (typeof id === 'string' && id.startsWith('extra-')) {
+        const index = Number(id.slice(6)) - 1;
+        return extraOrder[index] ?? null;
+      }
+      if (Number.isInteger(id) && id >= 1 && id <= order.length) {
+        return order[id - 1] ?? null;
+      }
+      return null;
+    },
     canPlay(id) {
+      if (typeof id === 'string' && id.startsWith('extra-')) {
+        const index = Number(id.slice(6)) - 1;
+        return index >= 0 && index < extraOrder.length;
+      }
       return Number.isInteger(id) && id >= 1 && id <= order.length && unlocked.has(order[id - 1]);
     },
     bestTime(id) {
-      return bestTimes[order[id - 1]] ?? null;
+      const file = this.resolveFile(id);
+      return file ? (bestTimes[file] ?? null) : null;
     },
     bestSkulls(id) {
-      return bestSkulls[order[id - 1]] ?? null;
+      const file = this.resolveFile(id);
+      return file ? (bestSkulls[file] ?? null) : null;
     },
     complete(id, seconds, skulls) {
       if (!this.canPlay(id)) return this.unlocked;
+      const file = this.resolveFile(id);
+      if (!file) return this.unlocked;
       if (Number.isFinite(seconds) && seconds > 0) {
-        const file = order[id - 1];
         bestTimes[file] = Math.min(bestTimes[file] ?? Infinity, seconds);
       }
       if (Number.isInteger(skulls) && skulls >= 0 && skulls <= 3) {
-        const file = order[id - 1];
         bestSkulls[file] = Math.max(bestSkulls[file] ?? 0, skulls);
       }
-      completed.add(order[id - 1]);
-      if (order[id]) unlocked.add(order[id]);
+      completed.add(file);
+      const standardIndex = order.indexOf(file);
+      if (standardIndex >= 0 && order[standardIndex + 1]) unlocked.add(order[standardIndex + 1]);
       persist();
       return this.unlocked;
     },

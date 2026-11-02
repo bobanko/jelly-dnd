@@ -115,11 +115,32 @@ function voxelize(input) {
   map.walls = map.walls.filter((p) => p.half < 0.4).map((p) => ({ ...p, y: p.base }));
   return read(map);
 }
+function getExtraFiles() {
+  if (!Array.isArray(campaign.extra)) return [];
+  return campaign.extra.flatMap((entry) =>
+    typeof entry === 'string'
+      ? [entry]
+      : Array.isArray(entry.levels)
+        ? entry.levels
+        : entry.file
+          ? [entry.file]
+          : [],
+  );
+}
 const mapsByFile = new Map();
 function configureMaps(maps) {
+  const extraList = getExtraFiles();
   for (const [id, map] of Object.entries(maps)) {
-    const file = campaign.standard[Number(id) - 1];
-    if (file) mapsByFile.set(file, copy(map));
+    if (String(id).startsWith('extra-')) {
+      const index = Number(id.slice(6)) - 1;
+      const file = extraList[index];
+      if (file) mapsByFile.set(file, copy(map));
+    } else if (Number.isInteger(Number(id))) {
+      const file = campaign.standard[Number(id) - 1];
+      if (file) mapsByFile.set(file, copy(map));
+    } else {
+      mapsByFile.set(id, copy(map));
+    }
   }
 }
 function standardLevel(id) {
@@ -127,6 +148,14 @@ function standardLevel(id) {
   if (!file) throw Error('Unknown standard level: ' + id);
   const data = mapsByFile.get(file);
   if (!data) throw Error('Level has not been loaded: ' + id);
+  return copy(data);
+}
+function extraLevel(id) {
+  const extraList = getExtraFiles();
+  const file = extraList[id - 1];
+  if (!file) throw Error('Unknown extra level: ' + id);
+  const data = mapsByFile.get(file);
+  if (!data) throw Error('Level has not been loaded: extra-' + id);
   return copy(data);
 }
 function displayName(map, language = 'en') {
@@ -146,6 +175,7 @@ function read(input) {
     typeof data.name === 'string'
       ? data.name.trim().slice(0, 80) || 'Без названия'
       : 'Без названия';
+  if (typeof data.subcat === 'string') map.subcat = data.subcat.trim();
   if (data.names && typeof data.names === 'object' && !Array.isArray(data.names))
     map.names = Object.fromEntries(
       Object.entries(data.names)
@@ -613,6 +643,8 @@ function instantiate(map, Physics, Soft) {
   };
 }
 function forGame(storage, search = '') {
+  const extra = /(?:^|[?&])level=extra-(\d+)(?:&|$)/.exec(search);
+  if (extra) return read(extraLevel(Number(extra[1])));
   const standard = /(?:^|[?&])level=(\d+)(?:&|$)/.exec(search);
   if (standard) return read(standardLevel(Number(standard[1])));
   if (!/(?:^|[?&])level=editor(?:&|$)/.test(search)) return read(standardLevel(1));
@@ -645,7 +677,14 @@ const api = {
   get standardNames() {
     return campaign.standard.map((_, i) => standardLevel(i + 1).name) || [];
   },
+  get extraNames() {
+    return getExtraFiles().map((_, i) => extraLevel(i + 1).name) || [];
+  },
+  get extraFiles() {
+    return getExtraFiles();
+  },
   standardLevel,
+  extraLevel,
   displayName,
 };
 export default api;
@@ -669,6 +708,7 @@ export {
   torchFrame,
   droneOrigin,
   standardLevel,
+  extraLevel,
   displayName,
   configureMaps,
 };

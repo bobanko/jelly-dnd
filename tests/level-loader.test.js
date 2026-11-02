@@ -75,18 +75,39 @@ async function boot({ entry = 'game.js', search = '', failure, deniedStorage = f
   return { ...result, elements, entries, alerts, requests, redirected, editorModel };
 }
 
+const extraCount = Array.isArray(catalog.extra)
+  ? catalog.extra.flatMap((entry) =>
+      typeof entry === 'string'
+        ? [entry]
+        : Array.isArray(entry.levels)
+          ? entry.levels
+          : entry.file
+            ? [entry.file]
+            : [],
+    ).length
+  : 0;
+
 test('module loader publishes validated campaign maps before launching the menu', async () => {
   const result = await boot();
   assert.deepEqual(result.entries, ['game.js']);
   assert.equal(result.menuOnly, true);
-  assert.equal(Object.keys(result.maps).length, catalog.standard.length);
+  assert.equal(Object.keys(result.maps).length, catalog.standard.length + extraCount);
   assert.equal(result.maps[1].name, Levels.standardLevel(1).name);
   assert.equal(
     result.elements['#menu-levels .level-list'].children.length,
-    catalog.standard.length,
+    catalog.standard.length + (extraCount ? extraCount + 1 : 0),
   );
   assert.equal(result.progress.canPlay(1), true);
   assert.equal(result.progress.canPlay(2), false);
+  assert.equal(result.progress.canPlay('extra-1'), true);
+});
+
+test('module loader loads extra levels without progression locks', async () => {
+  const result = await boot({ search: '?level=extra-1&play=1' });
+  assert.equal(result.redirected, undefined);
+  assert.deepEqual(result.entries, ['game.js']);
+  assert.equal(result.menuOnly, false);
+  assert.match(result.elements['#level-intro-title'].textContent, /^E01\. /);
 });
 
 test('module loader redirects locked levels and still starts without local storage', async () => {

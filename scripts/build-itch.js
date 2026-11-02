@@ -51,7 +51,10 @@ if (
 )
   throw Error('Invalid level catalog');
 
-for (const file of [...catalog.standard, ...catalog.extra]) {
+const extraFiles = catalog.extra.flatMap((entry) =>
+  typeof entry === 'string' ? [entry] : (entry.levels ?? (entry.file ? [entry.file] : [])),
+);
+for (const file of [...catalog.standard, ...extraFiles]) {
   if (!/^[a-z0-9-]+\.json$/i.test(file)) throw Error('Invalid level filename: ' + file);
   add('levels/' + file);
   const map = Levels.read(JSON.parse(files.get('levels/' + file)));
@@ -96,6 +99,21 @@ function crc32(data) {
   for (const byte of data) crc = table[(crc ^ byte) & 255] ^ (crc >>> 8);
   return (crc ^ 0xffffffff) >>> 0;
 }
+const now = new Date();
+const parts = Object.fromEntries(
+  new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Kyiv',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  })
+    .formatToParts(now)
+    .map((part) => [part.type, part.value]),
+);
 const year = Math.max(1980, Math.min(2107, now.getFullYear()));
 const date = ((year - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate(),
   time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);

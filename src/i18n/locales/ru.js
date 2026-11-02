@@ -28,6 +28,7 @@ export default {
   nextLevel: 'Следующий уровень',
   replay: 'Переиграть',
   levels: 'Уровни',
+  extraLevels: 'Экстра',
   editor: 'Редактор',
   back: 'Назад',
   select: 'Выбрать',

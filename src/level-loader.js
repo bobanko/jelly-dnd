@@ -1,4 +1,4 @@
-﻿/* Load authored JSON maps before starting either the game or the editor. */
+/* Load authored JSON maps before starting either the game or the editor. */
 import * as catalog from '../levels/catalog.js';
 import Levels, { configureMaps } from './world/levels.js';
 import { configureRuntime } from './runtime-context.js';
@@ -49,7 +49,7 @@ export async function loadLevels({
   function renderLevelList(maps) {
     const $list = document.querySelector('#menu-levels .level-list');
     if (!$list) return;
-    $list.querySelectorAll('[data-level]').forEach(($button) => $button.remove());
+    $list.querySelectorAll('[data-level], .level-category-header').forEach(($el) => $el.remove());
     catalog.standard.forEach((file, index) => {
       const $button = document.createElement('button');
       $button.dataset.level = String(index + 1);
@@ -62,6 +62,44 @@ export async function loadLevels({
       $label.append($name);
       $button.append($label);
       $list.append($button);
+    });
+
+    const extraGroups = Array.isArray(catalog.extra) ? catalog.extra : [];
+    let extraCounter = 0;
+    extraGroups.forEach((entry) => {
+      const subcat = typeof entry === 'object' && entry ? entry.subcat : '';
+      const files =
+        typeof entry === 'string' ? [entry] : (entry.levels ?? (entry.file ? [entry.file] : []));
+      if (!files.length) return;
+
+      const $header = document.createElement('div');
+      $header.className = 'level-category-header';
+      const $headerTitle = document.createElement('span');
+      $headerTitle.dataset.t = 'extraLevels';
+      $headerTitle.textContent = t('extraLevels');
+      $header.append($headerTitle);
+      if (subcat) {
+        $header.append(` (${subcat})`);
+      }
+      $list.append($header);
+
+      files.forEach((file) => {
+        extraCounter += 1;
+        const extraId = extraCounter;
+        const key = 'extra-' + extraId;
+        const $button = document.createElement('button');
+        $button.dataset.level = key;
+        $button.dataset.extra = String(extraId);
+        const $label = document.createElement('span');
+        $label.className = 'level-label';
+        $label.append('E' + String(extraId).padStart(2, '0'));
+        const $name = document.createElement('span');
+        $name.dataset.levelName = key;
+        $name.textContent = Levels.displayName(maps[key], i18n?.language);
+        $label.append($name);
+        $button.append($label);
+        $list.append($button);
+      });
     });
   }
 
@@ -93,10 +131,16 @@ export async function loadLevels({
         !Array.isArray(catalog.extra)
       )
         throw Error('Invalid level catalog');
-      progress?.configure(catalog.standard);
+      const extraFiles = Levels.extraFiles;
+      progress?.configure(catalog.standard, extraFiles);
       const params = new URLSearchParams(location.search);
-      let selected = Number(params.get('level')) || 1;
+      const levelParam = params.get('level');
+      const extraMatch = /^extra-(\d+)$/.exec(levelParam || '');
+      const isExtra = !!extraMatch;
+      const extraSelected = extraMatch ? Number(extraMatch[1]) : 0;
+      let selected = Number(levelParam) || 1;
       if (
+        !isExtra &&
         params.get('level') !== 'editor' &&
         params.has('level') &&
         progress &&
@@ -105,20 +149,38 @@ export async function loadLevels({
         selected = 1;
         history.replaceState(null, '', '?level=1');
       }
-      if (!catalog.standard[selected - 1]) throw Error('Unknown level: ' + selected);
+      if (isExtra) {
+        if (!extraFiles[extraSelected - 1]) throw Error('Unknown level: extra-' + extraSelected);
+      } else {
+        if (!catalog.standard[selected - 1]) throw Error('Unknown level: ' + selected);
+      }
       const maps = {};
-      await Promise.all(
-        catalog.standard.map(async (file, index) => {
+      await Promise.all([
+        ...catalog.standard.map(async (file, index) => {
           if (!/^[a-z0-9-]+\.json$/i.test(file)) throw Error('Invalid level file');
           const map = Levels.read(await readJSON('levels/' + file));
           const errors = Levels.issues(map);
           if (errors.length) throw Error(file + ': ' + errors.join('\n'));
           maps[index + 1] = map;
         }),
-      );
+        ...extraFiles.map(async (file, index) => {
+          if (!/^[a-z0-9-]+\.json$/i.test(file)) throw Error('Invalid level file');
+          const map = Levels.read(await readJSON('levels/' + file));
+          const errors = Levels.issues(map);
+          if (errors.length) throw Error(file + ': ' + errors.join('\n'));
+          maps['extra-' + (index + 1)] = map;
+        }),
+      ]);
       configureMaps(maps);
-      if ($overlay && !menuOnly)
-        $title.textContent = selected + '. ' + Levels.displayName(maps[selected], i18n?.language);
+      if ($overlay && !menuOnly) {
+        if (isExtra) {
+          $title.textContent =
+            `E${String(extraSelected).padStart(2, '0')}. ` +
+            Levels.displayName(maps['extra-' + extraSelected], i18n?.language);
+        } else {
+          $title.textContent = selected + '. ' + Levels.displayName(maps[selected], i18n?.language);
+        }
+      }
       renderLevelList(maps);
       await startEntry(entryScript);
       return { maps, progress, menuOnly };

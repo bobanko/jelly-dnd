@@ -14,6 +14,11 @@ const catalog = {
     'collateral-damage.json',
     //"05-sunken-sanctum.json"
   ],
-  extra: [],
+  extra: [
+    {
+      subcat: 'gem',
+      levels: ['gem-barrel-express.json', 'gem-mine-lift.json', 'gem-crystal-sanctum.json'],
+    },
+  ],
 };
 export const { version, standard, extra } = catalog;
