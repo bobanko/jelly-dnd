@@ -66,9 +66,9 @@ async function game(options = {}) {
     addEventListener: (k, f) => (listeners[k] = f),
     requestAnimationFrame: noop,
   };
-  if (!options.map) options.map = structuredClone(sunkenSanctum);
+  if (!options.map && options.search === undefined) options.map = structuredClone(sunkenSanctum);
+  sandbox.location = { search: options.search ?? (options.map ? '?level=editor' : '') };
   if (options.map) {
-    sandbox.location = { search: '?level=editor' };
     sandbox.localStorage = {
       getItem: (key) =>
         key === 'jelly-dnd.editor.v1' || key === 'jelly-dnd.play.v1'
@@ -858,6 +858,20 @@ test('initial menu uses only its diorama instead of creating a playable level', 
   assert.equal(g.run('definition.blocks.length'), 0);
   assert.equal(g.run('definition.tiles.length'), 0);
   assert.equal(g.run('currentLevelTitle()'), '');
+});
+
+test('level titles format numbers with leading zero and dot', async () => {
+  const g = await game({ search: '?level=1&play=1' });
+  assert.equal(g.run('currentLevelTitle()'), '01. First Steps');
+  assert.equal(g.run('levelTitle(1)'), '01. First Steps');
+  assert.equal(g.run('levelTitle(2)'), '02. Helping Hands');
+  assert.equal(g.run('levelTitle("extra-1")'), 'E01. Barrel Express');
+
+  const gExtra = await game({ search: '?level=extra-1&play=1' });
+  assert.equal(gExtra.run('currentLevelTitle()'), 'E01. Barrel Express');
+
+  const gEditor = await game();
+  assert.equal(gEditor.run('currentLevelTitle()'), 'The Sunken Sanctum');
 });
 
 test('right drag orbits without poking players and releases on cancellation or blur', async () => {

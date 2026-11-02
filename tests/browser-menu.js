@@ -92,7 +92,7 @@ import assert from 'node:assert/strict';
     );
     assert.equal(await page.locator('#main-menu').isVisible(), false);
     assert.equal(await page.locator('#level-intro').isVisible(), false);
-    assert.equal(await page.locator('#level-intro-title').textContent(), '1. First Steps');
+    assert.equal(await page.locator('#level-intro-title').textContent(), '01. First Steps');
     assert.notEqual(await page.evaluate(() => document.activeElement?.id), 'menu-button');
     await page.keyboard.press('w');
     assert.ok((await page.evaluate(() => moves)) > 0);
@@ -150,7 +150,7 @@ import assert from 'node:assert/strict';
     await page.waitForFunction(
       () => typeof sceneRenderer !== 'undefined' && sceneRenderer.ready && !loadingActive,
     );
-    assert.equal(await page.locator('#level-intro-title').textContent(), '2. Helping Hands');
+    assert.equal(await page.locator('#level-intro-title').textContent(), '02. Helping Hands');
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('#play').textContent(), 'Resume');
     await page.keyboard.press('q');

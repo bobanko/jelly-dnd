@@ -2131,7 +2131,7 @@ catalogSelect.setAttribute('aria-label', 'Карта кампании');
 for (const [index, file] of JellyLevelCatalog.standard.entries()) {
   const option = element(
     'option',
-    `${index + 1}. ${L.displayName(L.standardLevel(index + 1), JellyI18n.language)}`,
+    `${String(index + 1).padStart(2, '0')}. ${L.displayName(L.standardLevel(index + 1), JellyI18n.language)}`,
   );
   option.dataset.levelName = String(index + 1);
   option.value = file;
@@ -2146,7 +2146,7 @@ addEventListener('languagechange', () => {
     // Campaign maps only; "Other maps" keep their file names.
     if (!option.dataset.levelName) continue;
     const index = Number(option.dataset.levelName);
-    option.textContent = `${index}. ${L.displayName(L.standardLevel(index), JellyI18n.language)}`;
+    option.textContent = `${String(index).padStart(2, '0')}. ${L.displayName(L.standardLevel(index), JellyI18n.language)}`;
   }
 });
 // Maps in levels/ outside the campaign, listed by the dev server or the build's index.

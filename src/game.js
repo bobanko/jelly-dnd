@@ -1369,7 +1369,9 @@ function levelTitle(id) {
     );
   }
   return (
-    id + '. ' + JellyLevels.displayName(JellyLevels.standardLevel(Number(id)), JellyI18n?.language)
+    String(id).padStart(2, '0') +
+    '. ' +
+    JellyLevels.displayName(JellyLevels.standardLevel(Number(id)), JellyI18n?.language)
   );
 }
 function gpuFailure(message) {
@@ -1667,7 +1669,7 @@ function currentLevelTitle() {
   }
   const id = currentStandardLevel(),
     name = JellyLevels.displayName(definition, JellyI18n?.language);
-  return id ? `${id}. ${name}` : name;
+  return id ? `${String(id).padStart(2, '0')}. ${name}` : name;
 }
 function openEditor() {
   const id = menuOnly ? 0 : currentStandardLevel();

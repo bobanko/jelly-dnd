@@ -55,7 +55,7 @@ export async function loadLevels({
       $button.dataset.level = String(index + 1);
       const $label = document.createElement('span');
       $label.className = 'level-label';
-      $label.append(String(index + 1).padStart(2, '0'));
+      $label.append(String(index + 1).padStart(2, '0') + '.');
       const $name = document.createElement('span');
       $name.dataset.levelName = String(index + 1);
       $name.textContent = Levels.displayName(maps[index + 1], i18n?.language);
@@ -92,7 +92,7 @@ export async function loadLevels({
         $button.dataset.extra = String(extraId);
         const $label = document.createElement('span');
         $label.className = 'level-label';
-        $label.append('E' + String(extraId).padStart(2, '0'));
+        $label.append('E' + String(extraId).padStart(2, '0') + '.');
         const $name = document.createElement('span');
         $name.dataset.levelName = key;
         $name.textContent = Levels.displayName(maps[key], i18n?.language);
@@ -178,7 +178,10 @@ export async function loadLevels({
             `E${String(extraSelected).padStart(2, '0')}. ` +
             Levels.displayName(maps['extra-' + extraSelected], i18n?.language);
         } else {
-          $title.textContent = selected + '. ' + Levels.displayName(maps[selected], i18n?.language);
+          $title.textContent =
+            String(selected).padStart(2, '0') +
+            '. ' +
+            Levels.displayName(maps[selected], i18n?.language);
         }
       }
       renderLevelList(maps);

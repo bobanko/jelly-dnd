@@ -49,7 +49,7 @@ import assert from 'node:assert/strict';
     await page.locator('[data-level="1"]').click();
     await page.waitForURL('**/?level=1&play=1');
     await ready();
-    assert.equal(await page.locator('#level-intro-title').textContent(), '1. RU map title');
+    assert.equal(await page.locator('#level-intro-title').textContent(), '01. RU map title');
     await page.evaluate(() => {
       // Progression only: the reversed catalog starts with a hazardous level.
       for (const key of ['drones', 'archers', 'arrows', 'spikes']) world[key]?.splice(0);
@@ -65,7 +65,7 @@ import assert from 'node:assert/strict';
       simulate(0.05);
     });
     await page.locator('#win').waitFor({ state: 'visible' }); // filled on the next frame
-    assert.equal(await page.locator('#win-level-name').textContent(), '1. RU map title');
+    assert.equal(await page.locator('#win-level-name').textContent(), '01. RU map title');
     await page.locator('#win-next').click();
     await page.waitForURL('**/?level=2&play=1');
     await ready();

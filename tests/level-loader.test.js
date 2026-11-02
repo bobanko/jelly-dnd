@@ -115,7 +115,7 @@ test('module loader redirects locked levels and still starts without local stora
   assert.equal(result.redirected, '?level=1');
   assert.deepEqual(result.entries, ['game.js']);
   assert.equal(result.menuOnly, false);
-  assert.match(result.elements['#level-intro-title'].textContent, /^1\. /);
+  assert.match(result.elements['#level-intro-title'].textContent, /^01\. /);
 });
 
 test('failed campaign requests show an error without publishing partial maps or starting the game', async () => {

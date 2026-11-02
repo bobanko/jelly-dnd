@@ -23,7 +23,7 @@ import assert from 'node:assert/strict';
       () => document.querySelector('#loading-status').textContent === 'Loading textures…',
     );
     assert.equal(await page.locator('#gpu-fallback').count(), 0);
-    assert.match(await page.locator('#level-intro-title').textContent(), /^(?:1\. )?First Steps$/);
+    assert.match(await page.locator('#level-intro-title').textContent(), /^(?:01\. )?First Steps$/);
     assert.equal(await page.locator('#level-loading').isVisible(), true);
     await page.keyboard.press('w');
     assert.equal(await page.evaluate(() => moves), 0);
