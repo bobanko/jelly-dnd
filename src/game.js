@@ -828,11 +828,16 @@ function createPlayerHints() {
 }
 // What a body waiting at its spawn looks like there: straight edges for cubes and crates; for
 // a barrel, the points of its surface (outlined by their hull) and its two heads.
+function spawnCenter(p) {
+  const y = p.spawn.y || 0,
+    tall = p.barrel || (p.kind === 'crate' && p.large);
+  return [p.spawn.x, y + (tall ? 0.51 : 0.42), p.spawn.z];
+}
 function spawnShape(p) {
   const s = p.spawn,
-    y = s.y || 0;
+    center = spawnCenter(p);
   if (p.barrel) {
-    const cy = y + 0.51,
+    const cy = center[1],
       point = (t, r, a) =>
         s.barrel === 'z'
           ? [s.x + r * Math.sin(a), cy + r * Math.cos(a), s.z + t]
@@ -843,16 +848,15 @@ function spawnShape(p) {
       const t = -0.47 + j * 0.1175;
       surface.push(...ring(t, 0.4 + 0.09 * (1 - (t / 0.47) ** 2)));
     }
-    return { surface, lines: [ring(-0.47, 0.4), ring(0.47, 0.4)] };
+    return { center, surface, lines: [ring(-0.47, 0.4), ring(0.47, 0.4)] };
   }
   const large = p.kind === 'crate' && p.large,
     h = large ? 0.49 : p.kind === 'crate' ? 0.39 : 0.38,
-    c = [s.x, y + (large ? 0.51 : 0.42), s.z],
-    corner = (i) => c.map((v, k) => v + ((i >> k) & 1 ? h : -h)),
+    corner = (i) => center.map((v, k) => v + ((i >> k) & 1 ? h : -h)),
     lines = [];
   for (let i = 0; i < 8; i++)
     for (let k = 0; k < 3; k++) if (!((i >> k) & 1)) lines.push([corner(i), corner(i | (1 << k))]);
-  return { lines };
+  return { center, lines };
 }
 // Convex hull of screen points (monotone chain), for a barrel's silhouette.
 function hull(points) {
@@ -891,9 +895,8 @@ function updateSpawnOutlines() {
   const markup = paths.join('');
   if (spawnOutlines.innerHTML !== markup) spawnOutlines.innerHTML = markup;
 }
-// Over a body waiting at a taken spawn, '!' and '?' rise from the top of its outline and
-// fade, like the runes over a charging finish: white for crates and barrels, a jelly's own
-// colour for jellies.
+// Inside a body waiting at a taken spawn, '!' and '?' emerge from the centre of its outline
+// and rise as they fade: white for crates and barrels, a jelly's own colour for jellies.
 const SPAWN_GLYPH_EVERY = 0.3,
   SPAWN_GLYPH_LIFE = 1.4;
 function updateSpawnMarks(dt) {
@@ -918,9 +921,7 @@ function updateSpawnMarks(dt) {
     p.glyphTimer = (p.glyphTimer || 0) - dt;
     if (p.glyphTimer > 0) continue;
     p.glyphTimer = SPAWN_GLYPH_EVERY * (0.7 + Math.random() * 0.6);
-    const large = p.kind === 'crate' && p.large,
-      reach = large ? 0.4 : 0.3,
-      node = document.createElement('span');
+    const node = document.createElement('span');
     node.className = 'spawn-glyph';
     node.textContent = Math.random() < 0.5 ? '!' : '?';
     node.setAttribute('aria-hidden', 'true');
@@ -928,11 +929,7 @@ function updateSpawnMarks(dt) {
     layer.append(node);
     spawnGlyphs.push({
       node,
-      origin: [
-        p.spawn.x + (Math.random() * 2 - 1) * reach,
-        (p.spawn.y || 0) + (large ? 0.98 : 0.82),
-        p.spawn.z + (Math.random() * 2 - 1) * reach,
-      ],
+      origin: spawnCenter(p),
       age: 0,
       rise: 0.55 + Math.random() * 0.3,
       sway: Math.random() * Math.PI * 2,

@@ -763,6 +763,19 @@ test('edited level preserves raised spawns and arbitrary crate start heights on 
   assert.equal(g.run('mapError'), null);
 });
 
+test('blocked spawn marks emerge from the centre of each phantom body', async () => {
+  const map = partyMap([0]);
+  map.crates.push({ x: 2, z: 2, large: true, barrel: 'z' });
+  const g = await game({ map });
+  assert.equal(
+    g.run('JSON.stringify([spawnCenter(players[0]),spawnCenter(crates[0])])'),
+    JSON.stringify([
+      [1, 0.42, 4],
+      [2, 0.51, 2],
+    ]),
+  );
+});
+
 test('run statistics pause, survive undo, and reset for a new attempt', async () => {
   const g = await game({ map: partyMap([1, 3]) });
   g.run('simulate(.05,1.25)');
