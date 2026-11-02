@@ -4,23 +4,71 @@ import { dot } from './math.js';
 import { box, sphere, rod } from './mesh.js';
 import { beamColors } from './geometry/mobs.js';
 import { phaseTints, portalRing } from './geometry/mechanisms.js';
+import { CHUNK_MELT } from '../game/game-effects.js';
 export const effectsMethods = {
   effects(system, view) {
-    if (!system || (!system.particles.length && !system.rings.length && !system.bones?.length))
+    if (
+      !system ||
+      (!system.particles.length &&
+        !system.rings.length &&
+        !system.bones?.length &&
+        !system.chunks?.length)
+    )
       return 0;
     const mesh = [],
       items = [
         ...(system?.particles || []),
         ...(system?.rings || []),
         ...(system?.bones || []),
+        ...(system?.chunks || []),
       ].sort((a, b) => dot(a.position || a.center, view) - dot(b.position || b.center, view));
     for (const item of items) {
       // Wisp sparks wait unseen at the entrance until their turn to leave.
       if (item.kind === 'wisp' && item.age < item.lag) continue;
       const t = item.age / item.life,
-        fade = item.kind === 'bone' ? 1 : 1 - t * t * (3 - 2 * t),
+        fade =
+          item.kind === 'bone'
+            ? 1
+            : item.kind === 'chunk'
+              ? 1 - Math.max(0, (item.age - item.life) / CHUNK_MELT + 1)
+              : 1 - t * t * (3 - 2 * t),
         from = mesh.length;
-      if (item.kind === 'spark') {
+      if (item.kind === 'chunk') {
+        // A broken-off piece of jelly: it wobbles flat after a landing and slumps into a
+        // puddle as it melts, both about its lowest point.
+        const melt = 1 - fade,
+          wobble = item.squash * Math.exp(-item.squashAge * 7) * Math.cos(item.squashAge * 24),
+          up = (1 - wobble) * (1 - 0.7 * melt),
+          wide = (1 + wobble * 0.5) * (1 + 0.35 * melt),
+          r = item.rotation,
+          bottom =
+            Math.abs(r[3]) * item.half[0] +
+            Math.abs(r[4]) * item.half[1] +
+            Math.abs(r[5]) * item.half[2],
+          scale = [wide, up, wide];
+        box(
+          mesh,
+          [0, 0, 0],
+          item.half.map((v) => v * 2),
+          item.color,
+          Math.min(...item.half) * 0.55,
+          6,
+          3,
+        );
+        for (let k = from; k < mesh.length; k += 12) {
+          const p = mesh.slice(k, k + 3),
+            n = mesh.slice(k + 3, k + 6);
+          for (let axis = 0; axis < 3; axis++) {
+            const turned = r[axis * 3] * p[0] + r[axis * 3 + 1] * p[1] + r[axis * 3 + 2] * p[2];
+            mesh[k + axis] =
+              item.position[axis] + (axis === 1 ? (turned + bottom) * up - bottom : turned * wide);
+            mesh[k + 3 + axis] =
+              (r[axis * 3] * n[0] + r[axis * 3 + 1] * n[1] + r[axis * 3 + 2] * n[2]) / scale[axis];
+          }
+          const length = Math.hypot(mesh[k + 3], mesh[k + 4], mesh[k + 5]) || 1;
+          for (let axis = 3; axis < 6; axis++) mesh[k + axis] /= length;
+        }
+      } else if (item.kind === 'spark') {
         rod(
           mesh,
           item.position.map((v, k) => v - item.velocity[k] * 0.035),
@@ -135,7 +183,7 @@ export const effectsMethods = {
         mesh[k + 9] =
           item.kind === 'bone' || item.kind === 'wood' || item.kind === 'dust'
             ? 15
-            : item.kind === 'jelly' || item.kind === 'sweat'
+            : item.kind === 'jelly' || item.kind === 'sweat' || item.kind === 'chunk'
               ? 6
               : 7;
         mesh[k + 10] =
@@ -146,11 +194,13 @@ export const effectsMethods = {
               ? 0.38
               : item.kind === 'sweat'
                 ? 0.92
-                : item.cube
-                  ? 0.72
-                  : item.position
-                    ? 0.85
-                    : 0.45);
+                : item.kind === 'chunk'
+                  ? 0.8
+                  : item.cube
+                    ? 0.72
+                    : item.position
+                      ? 0.85
+                      : 0.45);
         mesh[k + 11] = 0;
       }
     }

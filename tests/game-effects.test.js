@@ -130,18 +130,54 @@ test('victory respects reduced motion', () => {
   assert.equal(effects.particles.length + effects.rings.length + effects.runes.length, 0);
 });
 
-test('spike scraps inherit lattice positions, move under gravity, bounce and expire before respawn', () => {
+test('spike death splits the jelly into chunks and splash droplets that bounce on the floor', () => {
   const effects = new System();
   effects.burst(death, players, soft);
-  assert.equal(effects.particles.length, 22);
+  assert.equal(effects.particles.length, 10);
   assert.ok(effects.particles.every((p) => p.position[0] >= 2 && p.position[0] <= 2.2));
+  // The 27 lattice cells are all used, as single cells or glued blocks of two or four.
+  assert.equal(
+    effects.chunks.reduce(
+      (sum, c) => sum + c.half.reduce((v, h) => v * Math.round(h / 0.11), 1),
+      0,
+    ),
+    27,
+  );
+  assert.ok(effects.chunks.length >= 7 && effects.chunks.length <= 27);
   const p = effects.particles[0];
   p.position = [2, 0.05, 3];
   p.velocity = [1, -2, 0];
   effects.step(0.02, world);
-  assert.ok(p.position[0] > 2 && p.velocity[1] > 0, 'scrap should bounce on the floor');
+  assert.ok(p.position[0] > 2 && p.velocity[1] > 0, 'droplet should bounce on the floor');
   for (let i = 0; i < 70; i++) effects.step(0.01, world);
   assert.equal(effects.particles.length, 0);
+  assert.ok(effects.chunks.length > 0, 'chunks outlast the droplets');
+  for (let i = 0; i < 160; i++) effects.step(0.01, world);
+  assert.equal(effects.chunks.length, 0);
+});
+
+test('jelly chunks land, settle flat on a face and are stopped by walls', () => {
+  const effects = new System(),
+    walled = {
+      heightAt: () => 0,
+      collisionBoxes: () => [{ kind: 'wall', x: 3, z: 3, half: 0.5, minY: 0, maxY: 1 }],
+    };
+  effects.burst(death, players, soft);
+  for (const c of effects.chunks) {
+    c.position = [2, 0.6, 3];
+    c.velocity = [3, 0, 0];
+    c.life = 10;
+  }
+  for (let i = 0; i < 150; i++) effects.step(0.01, walled);
+  for (const c of effects.chunks) {
+    const r = c.rotation,
+      reach = Math.abs(r[0]) * c.half[0] + Math.abs(r[1]) * c.half[1] + Math.abs(r[2]) * c.half[2];
+    assert.ok(c.position[0] + reach <= 2.5 + 1e-6, 'chunk must not pass into the wall');
+    const bottom =
+      Math.abs(r[3]) * c.half[0] + Math.abs(r[4]) * c.half[1] + Math.abs(r[5]) * c.half[2];
+    assert.ok(Math.abs(c.position[1] - bottom) < 0.01, 'chunk rests on the floor');
+    assert.ok(Math.max(...[3, 4, 5].map((k) => Math.abs(r[k]))) > 0.99, 'chunk lies on a face');
+  }
 });
 
 test('void death breaks the fallen lattice into scraps without snapping them up onto the level', () => {
@@ -156,13 +192,15 @@ test('void death breaks the fallen lattice into scraps without snapping them up 
       }),
     };
   effects.burst({ type: 'death', player: 0 }, fallen, lattice);
-  assert.equal(effects.particles.length, 22);
+  assert.equal(effects.particles.length, 10);
   assert.ok(effects.particles.every((p) => p.position[1] < -3));
+  assert.ok(effects.chunks.every((c) => c.position[1] < -3));
   for (const p of effects.particles) p.velocity[1] = -1;
+  for (const c of effects.chunks) c.velocity[1] = -1;
   effects.step(0.05, world);
   assert.ok(
-    effects.particles.every((p) => p.position[1] < -3),
-    'underground particles must not bounce to the floor above',
+    [...effects.particles, ...effects.chunks].every((p) => p.position[1] < -3),
+    'underground pieces must not bounce to the floor above',
   );
   for (let n = 0; n < 11; n++) effects.step(0.05, world);
   assert.equal(effects.particles.length, 0);
@@ -224,6 +262,7 @@ test('effects stay bounded during bursts and respect reduced motion', () => {
   assert.equal(reduced.particles.length, 0);
   reduced.burst(death, players, soft);
   assert.equal(reduced.particles.length, 6);
+  assert.equal(reduced.chunks.length, 0);
   for (let i = 0; i < 4; i++) reduced.step(0.1, world);
   assert.equal(reduced.rings.length + reduced.particles.length, 0);
 });

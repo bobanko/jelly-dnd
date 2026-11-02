@@ -656,8 +656,9 @@ test('fall clears only the affected controls; respawn resets height and undo res
   g.up('arrowup');
   g.run('for(let n=0;n<35&&players[0].state!=="dead";n++)simulate(.05)');
   assert.equal(g.run('players[0].state'), 'dead');
-  // The companion may also hit its spike trap; count the scraps below the level.
-  assert.equal(g.run('effects.particles.filter(p=>p.position[1]<-3).length'), 22);
+  // The companion may also hit its spike trap; count the droplets below the level.
+  assert.equal(g.run('effects.particles.filter(p=>p.position[1]<-3).length'), 10);
+  assert.ok(g.run('effects.chunks.filter(c=>c.position[1]<-3).length') >= 7);
   g.run('for(let n=0;n<35;n++)simulate(.05)');
   assert.equal(g.run('players[0].state'), 'alive');
   assert.equal(g.run('players[0].deaths'), 1);

@@ -1,4 +1,5 @@
 import Levels from '../world/levels.js';
+import { cells as LATTICE_CELLS, NODE_COUNT, RES, WIDTH } from '../world/soft-body.js';
 // Short-lived visual particles. They never become gameplay colliders.
 // Live particles at most; the oldest are dropped first.
 const MAX_PARTICLES = 160;
@@ -18,6 +19,48 @@ const runeColors = [
     [1, 0.65, 0.025],
   ],
   RUNE_LIMIT = 32;
+// A dying jelly breaks along its lattice cells into rounded chunks: some single cells, some
+// two or four glued together. Chunks tumble, bounce off floors and walls, settle on a face
+// and finally melt away. Visual only.
+const CHUNK_LIMIT = 72,
+  CHUNK_GRAVITY = 9,
+  CHUNK_MELT = 0.4,
+  CHUNK_SHAPES = [
+    [2, 1, 1],
+    [1, 2, 1],
+    [1, 1, 2],
+    [2, 2, 1],
+    [2, 1, 2],
+    [1, 2, 2],
+  ],
+  IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+// Rotation by `angle` about the unit vector `a`, applied on the left of row-major `m`.
+function rotate(m, [x, y, z], angle) {
+  const c = Math.cos(angle),
+    s = Math.sin(angle),
+    t = 1 - c,
+    r = [
+      t * x * x + c,
+      t * x * y - s * z,
+      t * x * z + s * y,
+      t * x * y + s * z,
+      t * y * y + c,
+      t * y * z - s * x,
+      t * x * z - s * y,
+      t * y * z + s * x,
+      t * z * z + c,
+    ],
+    out = new Array(9);
+  for (let i = 0; i < 3; i++)
+    for (let j = 0; j < 3; j++)
+      out[i * 3 + j] = r[i * 3] * m[j] + r[i * 3 + 1] * m[3 + j] + r[i * 3 + 2] * m[6 + j];
+  return out;
+}
+// Half size of a turned chunk along world axis k.
+const chunkExtent = (c, k) =>
+  Math.abs(c.rotation[k * 3]) * c.half[0] +
+  Math.abs(c.rotation[k * 3 + 1]) * c.half[1] +
+  Math.abs(c.rotation[k * 3 + 2]) * c.half[2];
 class System {
   constructor({ reducedMotion = false } = {}) {
     this.reducedMotion = reducedMotion;
@@ -25,6 +68,7 @@ class System {
     this.rings = [];
     this.runes = [];
     this.bones = [];
+    this.chunks = [];
     this.lasers = [];
     this.laserTimers = new Map();
     this.runeTimers = [];
@@ -56,6 +100,7 @@ class System {
     this.rings.length = 0;
     this.runes.length = 0;
     this.bones.length = 0;
+    this.chunks.length = 0;
     this.lasers.length = 0;
     this.laserTimers.clear();
     this.runeTimers = [];
@@ -106,6 +151,188 @@ class System {
     }
     for (const drone of this.laserTimers.keys())
       if (!active.has(drone)) this.laserTimers.delete(drone);
+  }
+  // Splits the 3×3×3 cell grid into pieces: in random order, each free cell starts a piece,
+  // often grown into a free 2×1×1 or 2×2×1 block.
+  splitCells() {
+    const free = new Array(RES ** 3).fill(true),
+      at = (x, y, z) => x + RES * (y + RES * z),
+      order = free.map((_, i) => i),
+      pieces = [];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(this.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    for (const start of order) {
+      if (!free[start]) continue;
+      const x = start % RES,
+        y = Math.floor(start / RES) % RES,
+        z = Math.floor(start / RES ** 2);
+      let size = [1, 1, 1];
+      if (this.random() < 0.55) {
+        const offset = Math.floor(this.random() * CHUNK_SHAPES.length);
+        for (let n = 0; n < CHUNK_SHAPES.length; n++) {
+          const [sx, sy, sz] = CHUNK_SHAPES[(offset + n) % CHUNK_SHAPES.length];
+          if (x + sx > RES || y + sy > RES || z + sz > RES) continue;
+          let fits = true;
+          for (let k = 0; k < sz; k++)
+            for (let j = 0; j < sy; j++)
+              for (let i = 0; i < sx; i++) fits &&= free[at(x + i, y + j, z + k)];
+          if (fits) {
+            size = [sx, sy, sz];
+            break;
+          }
+        }
+      }
+      const ids = [];
+      for (let k = 0; k < size[2]; k++)
+        for (let j = 0; j < size[1]; j++)
+          for (let i = 0; i < size[0]; i++) {
+            free[at(x + i, y + j, z + k)] = false;
+            ids.push(at(x + i, y + j, z + k));
+          }
+      pieces.push({ cell: [x, y, z], size, ids });
+    }
+    return pieces;
+  }
+  shatter(body, color) {
+    const random = () => this.random(),
+      nodes = body.positions,
+      lattice = nodes.length === NODE_COUNT,
+      r = body.r || IDENTITY,
+      core =
+        body.core || [0, 1, 2].map((k) => nodes.reduce((sum, q) => sum + q[k], 0) / nodes.length),
+      // A falling body keeps its fall; sideways drift is capped so chunks stay near.
+      carry = (body.coreVelocity || [0, 0, 0]).map((v, k) =>
+        k === 1 ? Math.min(v, 2) : Math.max(-1.5, Math.min(1.5, v)) * 0.6,
+      ),
+      cell = WIDTH / RES;
+    for (const piece of this.splitCells()) {
+      // Offset of the piece's centre in the jelly's own frame.
+      const local = piece.cell.map((v, k) => (v + piece.size[k] / 2) * cell - WIDTH / 2);
+      let center;
+      if (lattice) {
+        // Follow the deformed lattice: the mean of the piece's cell nodes.
+        const ids = new Set(piece.ids.flatMap((i) => LATTICE_CELLS[i]));
+        center = [0, 0, 0];
+        for (const id of ids) for (let k = 0; k < 3; k++) center[k] += nodes[id][k] / ids.size;
+      } else
+        center = [0, 1, 2].map(
+          (k) => core[k] + r[k * 3] * local[0] + r[k * 3 + 1] * local[1] + r[k * 3 + 2] * local[2],
+        );
+      let out = center.map((v, k) => v - core[k]);
+      const distance = Math.hypot(...out);
+      if (distance < 0.05) {
+        const a = random() * Math.PI * 2;
+        out = [Math.cos(a), 0, Math.sin(a)];
+      } else out = out.map((v) => v / distance);
+      const cells = piece.ids.length,
+        speed = (0.55 + random() * 0.85) / Math.sqrt(cells),
+        spin = (5 + random() * 8) / Math.sqrt(cells),
+        axis = [random() - 0.5, random() - 0.5, random() - 0.5],
+        axisLength = Math.hypot(...axis) || 1;
+      this.chunks.push({
+        kind: 'chunk',
+        position: center,
+        velocity: out.map((v, k) => carry[k] + v * speed + (k === 1 ? 1.8 + random() * 1.5 : 0)),
+        rotation: r.slice(),
+        omega: axis.map((v) => (v / axisLength) * spin),
+        half: piece.size.map((v) => v * cell * (0.42 + random() * 0.05)),
+        color,
+        squash: 0,
+        squashAge: 0,
+        age: 0,
+        life: 1.5 + random() * 0.6,
+      });
+    }
+    this.chunks = this.chunks.slice(-CHUNK_LIMIT);
+  }
+  stepChunks(dt, world) {
+    this.chunks = this.chunks.filter((c) => c.age < c.life);
+    if (!this.chunks.length) return;
+    const walls = (world.collisionBoxes?.() || []).filter(
+      (b) => b.kind === 'wall' || b.maxY > 0.15,
+    );
+    for (const c of this.chunks) {
+      c.age += dt;
+      c.squashAge += dt;
+      const previousBottom = c.position[1] - chunkExtent(c, 1);
+      c.velocity[1] -= CHUNK_GRAVITY * dt;
+      for (let k = 0; k < 3; k++) c.position[k] += c.velocity[k] * dt;
+      const spin = Math.hypot(...c.omega);
+      if (spin > 1e-4)
+        c.rotation = rotate(
+          c.rotation,
+          c.omega.map((v) => v / spin),
+          spin * dt,
+        );
+      const extent = [0, 1, 2].map((k) => chunkExtent(c, k));
+      for (const b of walls) {
+        const lo = [
+            b.x - (b.halfX ?? b.half) - extent[0],
+            b.minY - extent[1],
+            b.z - (b.halfZ ?? b.half) - extent[2],
+          ],
+          hi = [
+            b.x + (b.halfX ?? b.half) + extent[0],
+            b.maxY + extent[1],
+            b.z + (b.halfZ ?? b.half) + extent[2],
+          ];
+        if (c.position.some((v, k) => v < lo[k] || v > hi[k])) continue;
+        let axis = 0,
+          side = lo[0],
+          distance = Infinity;
+        for (let k = 0; k < 3; k++)
+          for (const edge of [lo[k], hi[k]])
+            if (Math.abs(c.position[k] - edge) < distance) {
+              distance = Math.abs(c.position[k] - edge);
+              axis = k;
+              side = edge;
+            }
+        c.position[axis] = side;
+        if (axis === 1 && side === hi[1]) c.velocity[1] = Math.max(0, c.velocity[1]);
+        else c.velocity[axis] *= -0.3;
+        for (let k = 0; k < 3; k++) c.omega[k] *= 0.8;
+      }
+      const floor = world.heightAt(c.position[0], c.position[2], previousBottom + 0.05);
+      if (
+        floor === null ||
+        previousBottom < floor - 0.02 ||
+        c.position[1] - extent[1] > floor + 0.002
+      )
+        continue;
+      // On the floor: bounce a little, squash, roll from any slide, rub and settle on a face.
+      c.position[1] = floor + extent[1];
+      const impact = -c.velocity[1];
+      if (impact > 0.9) {
+        c.squash = Math.min(0.4, impact * 0.075);
+        c.squashAge = 0;
+        const reach = Math.max(...c.half);
+        c.omega = [c.velocity[2] / reach, c.omega[1] * 0.5, -c.velocity[0] / reach].map(
+          (v, k) => (v + c.omega[k]) * 0.5,
+        );
+      }
+      c.velocity[1] = impact > 0.9 ? impact * 0.26 : 0;
+      const rub = Math.exp(-dt * 7);
+      c.velocity[0] *= rub;
+      c.velocity[2] *= rub;
+      for (let k = 0; k < 3; k++) c.omega[k] *= Math.exp(-dt * 6);
+      // Turn the local axis nearest to vertical upright.
+      let best = 0;
+      for (let a = 1; a < 3; a++)
+        if (Math.abs(c.rotation[3 + a]) > Math.abs(c.rotation[3 + best])) best = a;
+      const sign = Math.sign(c.rotation[3 + best]) || 1,
+        up = [c.rotation[best] * sign, c.rotation[3 + best] * sign, c.rotation[6 + best] * sign],
+        // up × (0, 1, 0)
+        tilt = [-up[2], 0, up[0]],
+        sine = Math.hypot(...tilt);
+      if (sine > 1e-4)
+        c.rotation = rotate(
+          c.rotation,
+          tilt.map((v) => v / sine),
+          Math.asin(Math.min(1, sine)) * Math.min(1, dt * 10),
+        );
+    }
   }
   skeletonBurst(event) {
     this.bones = this.bones.filter((p) => p.archer !== event.archer);
@@ -219,26 +446,29 @@ class System {
       }
       const player = players[event.player],
         body = soft.get(player),
-        count = this.reducedMotion ? 6 : 22;
+        color = palettes[player.slot ?? event.player],
+        count = this.reducedMotion ? 6 : 10;
       if (event.beam) this.laserImpact(event.beam, player, this.reducedMotion ? 2 : 10);
-      const life = Math.min(this.reducedMotion ? 0.3 : 0.68, player.respawnTimer || 0.68);
+      if (!this.reducedMotion) this.shatter(body, color);
+      const life = this.reducedMotion ? Math.min(0.3, player.respawnTimer || 0.3) : 0.55;
       for (let i = 0; i < count; i++) {
         const q = body.positions[Math.floor(random() * body.positions.length)],
           a = random() * Math.PI * 2,
           speed = 0.6 + random() * 1.8;
-        // Most pieces are small tumbling jelly cubes; the rest are droplets.
-        const cube = i % 3 !== 2;
+        // With reduced motion a few tiny cubes stand in for the chunks; otherwise these are
+        // splash droplets around them.
+        const cube = this.reducedMotion && i % 3 !== 2;
         this.particles.push({
           kind: 'jelly',
           cube,
           position: [...q],
           velocity: [Math.cos(a) * speed, 1 + random() * 2.2, Math.sin(a) * speed],
-          size: cube ? 0.07 + random() * 0.08 : 0.035 + random() * 0.03,
+          size: cube ? 0.07 + random() * 0.08 : 0.03 + random() * 0.03,
           phase: random() * 6.28,
           spin: (random() < 0.5 ? -1 : 1) * (5 + random() * 9),
-          color: palettes[player.slot ?? event.player],
+          color,
           age: 0,
-          life,
+          life: life * (0.7 + random() * 0.3),
         });
       }
     } else if (event.type === 'archerDeath') {
@@ -621,6 +851,7 @@ class System {
       }
     }
     this.particles = this.particles.filter((p) => p.age < p.life);
+    this.stepChunks(dt, world);
     this.stepLaserImpacts(dt, world, players);
     for (const ring of this.rings) ring.age += dt;
     this.rings = this.rings.filter((r) => r.age < r.life);
@@ -713,4 +944,4 @@ class System {
       });
   }
 }
-export { System };
+export { System, CHUNK_MELT };
