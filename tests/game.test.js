@@ -394,7 +394,8 @@ test('continuous keyboard motion, release friction, undo and camera-relative inp
   g.key('z');
   assert.equal(g.run('players[0].z'), 8);
   assert.equal(g.run('heldKeys.size'), 0);
-  g.run('targetAngle=Math.PI/2');
+  // Input follows the view actually on screen: turn the camera itself, not only its target.
+  g.run('angle=targetAngle=Math.PI/2');
   g.key('d');
   g.run('simulate(.05)');
   assert.ok(g.run('players[0].z<8'));
@@ -799,7 +800,7 @@ test('single movement keys stay on grid axes at 45 degree and free orbit angles'
     -0.83,
     8.2,
   ]) {
-    g.run(`targetAngle=${angle}`);
+    g.run(`angle=targetAngle=${angle}`);
     for (const key of ['w', 'a', 's', 'd']) {
       g.key(key);
       const input = g.run('inputs()[0]');
@@ -812,10 +813,41 @@ test('single movement keys stay on grid axes at 45 degree and free orbit angles'
       g.up(key);
     }
   }
-  g.run('targetAngle=Math.PI/2');
+  // Every key moves the way it points on screen, whatever the view: W up, A left, S down,
+  // D right (screen y grows downwards), within 45° plus a little hysteresis and the squash of
+  // a tilted camera.
+  for (const angle of [Math.PI / 2, -Math.PI / 4, 0.5, 2.6, -2]) {
+    g.run(`angle=targetAngle=${angle}`);
+    for (const [key, sx, sy] of [
+      ['w', 0, -1],
+      ['a', -1, 0],
+      ['s', 0, 1],
+      ['d', 1, 0],
+    ]) {
+      g.key(key);
+      const [x, y] = g.run(`(() => {
+        const v = inputs()[0], y = camera.targetY ?? 0,
+          o = project(camera.x, y, camera.z), q = project(camera.x + v.x, y, camera.z + v.z),
+          l = Math.hypot(q.x - o.x, q.y - o.y);
+        return [(q.x - o.x) / l, (q.y - o.y) / l];
+      })()`);
+      assert.ok(x * sx + y * sy > 0.55, `${key} at ${angle} moves along its screen direction`);
+      g.up(key);
+    }
+  }
+});
+
+test('mouse orbit turns the controls with the view, without needing the turn keys', async () => {
+  const g = await game();
+  // An orbit only changes the camera angle; no Q/E. Half a turn later W still means "up".
+  g.run('angle=targetAngle=-Math.PI/4');
   g.key('w');
-  assert.equal(g.run('inputs()[0].x'), -1);
-  assert.ok(g.run('inputs()[0].z') === 0);
+  const before = g.run('inputs()[0]');
+  g.up('w');
+  g.run('angle=targetAngle=-Math.PI/4+Math.PI');
+  g.key('w');
+  const after = g.run('inputs()[0]');
+  assert.ok(after.x === -before.x && after.z === -before.z, 'W now moves the opposite way');
 });
 
 test('camera frame correction and focal height advance with follow smoothing', async () => {

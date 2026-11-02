@@ -1312,6 +1312,15 @@ html[lang='ru'] .menu-panel h1 {
   grid-column: 3;
   grid-row: 2;
 }
+/* Near a diagonal camera the keys stand in an X around a narrow centre; each key's corner
+   cell is set inline, and arrow labels turn to point the way the key moves. */
+.player-key-hint.diagonal {
+  grid-template-columns: 28px 6px 28px;
+  grid-template-rows: 28px 6px 28px;
+}
+.player-key-hint kbd span {
+  display: inline-block;
+}
 /* A body waiting for its taken spawn: its outline there, dashed and slowly marching. Jellies
    use their own colour, crates and barrels white (set inline as `color`). */
 .spawn-outlines {

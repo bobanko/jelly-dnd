@@ -407,10 +407,54 @@ function inputs() {
     result[i].x += x;
     result[i].z += z;
   }
-  // Keep each movement key on a grid axis, including between camera quarter-turns.
-  const quarter = ((Math.round(targetAngle / (Math.PI / 2)) % 4) + 4) % 4;
+  const quarter = controlTurn().quarter;
   for (const v of result) for (let k = 0; k < quarter; k++) [v.x, v.z] = [v.z, -v.x];
   return result;
+}
+// Movement keys follow the view actually on screen, however the camera was turned (keys,
+// mouse orbit, intro): each key moves along the grid axis that looks most like its own
+// direction. A key vector [x, z] is also its screen direction (x right, z down), turned by
+// `quarter` quarter-turns onto the grid. Near a diagonal view two turns fit almost equally;
+// the current one is kept until another fits clearly better, so the keys never flicker.
+let controlQuarter = null;
+const turnKey = ([x, z], quarter) => {
+  for (let k = 0; k < quarter; k++) [x, z] = [z, -x];
+  return [x, z];
+};
+function controlTurn() {
+  const y = camera.targetY ?? 0,
+    origin = project(camera.x, y, camera.z),
+    alongX = project(camera.x + 1, y, camera.z),
+    alongZ = project(camera.x, y, camera.z + 1),
+    // Screen direction of a grid vector [x, z].
+    screen = ([x, z]) => {
+      const sx = x * (alongX.x - origin.x) + z * (alongZ.x - origin.x),
+        sy = x * (alongX.y - origin.y) + z * (alongZ.y - origin.y),
+        length = Math.hypot(sx, sy) || 1;
+      return [sx / length, sy / length];
+    },
+    keys = [
+      [0, -1],
+      [-1, 0],
+      [0, 1],
+      [1, 0],
+    ],
+    fit = (quarter) =>
+      keys.reduce((sum, key) => {
+        const [sx, sy] = screen(turnKey(key, quarter));
+        return sum + sx * key[0] + sy * key[1];
+      }, 0);
+  if (controlQuarter === null) controlQuarter = ((Math.round(angle / (Math.PI / 2)) % 4) + 4) % 4;
+  let best = controlQuarter;
+  for (let quarter = 0; quarter < 4; quarter++) if (fit(quarter) > fit(best)) best = quarter;
+  if (fit(best) > fit(controlQuarter) + 0.3) controlQuarter = best;
+  // How far "up" sits from straight up on screen: past 22.5° the view is nearer a diagonal.
+  const [ux] = screen(turnKey(keys[0], controlQuarter));
+  return {
+    quarter: controlQuarter,
+    diagonal: Math.abs(ux) > Math.sin(Math.PI / 8),
+    screen: keys.map((key) => screen(turnKey(key, controlQuarter))),
+  };
 }
 function simulate(dt, elapsed = dt) {
   const active = !(
@@ -719,8 +763,10 @@ function createPlayerHints() {
       keys = layouts[control];
     if (control === 4) node.title = 'NumPad';
     keys.forEach((key) => {
-      const kbd = document.createElement('kbd');
-      kbd.textContent = key;
+      const kbd = document.createElement('kbd'),
+        label = document.createElement('span');
+      label.textContent = key;
+      kbd.append(label);
       node.append(kbd);
     });
     node.setAttribute('aria-label', tr('helpMove'));
@@ -866,7 +912,8 @@ function updatePlayerHints(dt) {
   updateSpawnMarks(dt);
   if (!playerHints.length) return;
   const inactive = menuOpen || won || loadingActive || restartTransition || level.assembly;
-  const boxes = [];
+  const boxes = [],
+    turn = controlTurn();
   playerHints.forEach((hint, i) => {
     const p = players[i],
       moving =
@@ -883,6 +930,25 @@ function updatePlayerHints(dt) {
     boxes.push({ x, y });
     hint.node.style.left = x + 'px';
     hint.node.style.top = y + 'px';
+    layoutHint(hint.node, turn);
+  });
+}
+// Near a diagonal view the keys form an X, each in the corner of the screen its jelly will
+// move towards; otherwise the usual T (see .player-key-hint in the styles).
+// Arrow labels also turn to point the way their key moves; letters stay upright.
+const ARROW_LABEL = /^[↑↓←→]$/,
+  KEY_UP_ANGLE = [0, -90, 180, 90];
+function layoutHint(node, turn) {
+  node.classList.toggle('diagonal', turn.diagonal);
+  [...node.children].forEach((kbd, k) => {
+    const [sx, sy] = turn.screen[k];
+    kbd.style.gridColumn = turn.diagonal ? (sx > 0 ? '3' : '1') : '';
+    kbd.style.gridRow = turn.diagonal ? (sy > 0 ? '3' : '1') : '';
+    const label = kbd.firstElementChild;
+    if (!label || !ARROW_LABEL.test(label.textContent)) return;
+    // Screen heading of the move, against the arrow's own heading (up, left, down, right).
+    const heading = (Math.atan2(sx, -sy) * 180) / Math.PI - KEY_UP_ANGLE[k];
+    label.style.rotate = turn.diagonal ? Math.round(heading) + 'deg' : '';
   });
 }
 function frame(t) {
