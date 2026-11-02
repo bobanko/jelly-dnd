@@ -848,16 +848,21 @@ class System {
       return false;
     const upper = dy > 0 ? a : b,
       lower = dy > 0 ? b : a;
-    const top = Math.max(...lower.positions.map((n) => n[1])),
-      bottom = Math.min(...upper.positions.map((n) => n[1]));
+    // Only the upper body's nodes above the lower one's roof rest on it.
+    const [lx, , lz] = lower.center,
+      roof = lower.extent + 0.02,
+      over = (n) => Math.abs(n[0] - lx) < roof && Math.abs(n[2] - lz) < roof,
+      top = Math.max(...lower.positions.map((n) => n[1]));
+    let bottom = Infinity;
+    for (const n of upper.positions) if (over(n)) bottom = Math.min(bottom, n[1]);
     if (bottom > top + 0.065) return false;
-    // Keep a consistent upward contact normal during a fall. Whole-body separation
-    // prevents deeply embedded nodes from choosing opposite exit faces.
-    const lift = top + 0.012 - bottom;
-    if (lift > 0) {
-      for (const n of upper.positions) n[1] += lift;
-      upper.summarize();
-    }
+    // Sunk deep into it, the body came in from the side (say, dropping off a ledge beside a
+    // crate): side contacts separate them. Lifting it out here would fling it upwards.
+    if (top - bottom > 0.2) return false;
+    // Each node over the roof is held on it, like a node on the floor, so a body standing on
+    // another settles flat instead of balancing on an edge. Pushes are upward only.
+    for (const n of upper.positions) if (over(n) && n[1] < top + 0.012) n[1] = top + 0.012;
+    upper.summarize();
     upper.support = dy > 0 ? pb : pa;
     return true;
   }

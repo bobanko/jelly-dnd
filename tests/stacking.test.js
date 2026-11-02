@@ -178,3 +178,39 @@ test('lift carries a two-body stack without leaving the passenger behind', () =>
   separation(g, 1, 0);
   assert.ok(g.bodies.every((p) => p.state === 'alive'));
 });
+
+// Angle between world up and the nearest axis of a body: 0 when it rests flat on any face.
+const misalignment = (r) =>
+  Math.acos(Math.min(1, Math.max(Math.abs(r[3]), Math.abs(r[4]), Math.abs(r[5])))) *
+  (180 / Math.PI);
+
+test('a jelly stepping down onto a crate or another jelly settles flat on top', () => {
+  for (const other of [{ kind: 'crate' }, {}, { kind: 'crate', large: true }]) {
+    const g = scene([
+      { x: 2.6, y: 1 },
+      { ...other, x: 4 },
+    ]);
+    for (let x = 0; x <= 3; x++) for (let z = 0; z < 9; z++) g.world.heights.set(`${x},${z}`, 1);
+    const jelly = g.bodies[0];
+    for (let n = 0; n < 480; n++) g.step(jelly.x < 3.95 ? [{ x: 1, z: 0 }] : []);
+    assert.ok(g.soft.get(jelly).support, 'it rests on the other body');
+    assert.ok(
+      misalignment(g.soft.get(jelly).r) < 6,
+      'not balanced on an edge: ' + misalignment(g.soft.get(jelly).r),
+    );
+  }
+});
+
+test('a jelly dropping off a ledge beside a large crate is not flung upwards', () => {
+  const g = scene([
+    { x: 2, y: 1 },
+    { kind: 'crate', large: true, x: 4.5 },
+  ]);
+  for (let x = 0; x <= 3; x++) for (let z = 0; z < 9; z++) g.world.heights.set(`${x},${z}`, 1);
+  let highest = 0;
+  for (let n = 0; n < 400; n++) {
+    g.step([{ x: 1, z: 0 }]);
+    highest = Math.max(highest, g.bodies[0].y);
+  }
+  assert.ok(highest < 1.1, 'never rises above the ledge: ' + highest);
+});
