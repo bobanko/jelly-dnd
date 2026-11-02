@@ -88,6 +88,14 @@ export const soundCatalog = [
     [0.3, 2.4],
   ),
   sample(
+    'crateLand',
+    'crate-land-2026-11-02T01-31-06-069Z.mp3',
+    0.45,
+    'mechanisms',
+    'Ящик упал',
+    'Гулкий глухой «бум», когда ящик или бочка падает с высоты на пол; громче с высотой.',
+  ),
+  sample(
     'crateBreak',
     'crate-break-2026-11-02T01-24-09-340Z.mp3',
     0.4,

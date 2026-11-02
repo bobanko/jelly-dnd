@@ -480,6 +480,14 @@ function simulate(dt, elapsed = dt) {
           soft,
         );
       }
+      // A crate or barrel landing after a drop: a dull boom, louder from higher up.
+      const body = bodies[event.player];
+      if (body?.kind === 'crate' && event.type === 'fall') body.fallFrom = body.y;
+      if (body?.kind === 'crate' && event.type === 'land' && body.fallFrom !== undefined) {
+        const drop = body.fallFrom - body.y;
+        if (drop > 0.3) gameAudio.play('crateLand', Math.min(1, 0.55 + drop * 0.25));
+        body.fallFrom = undefined;
+      }
       // A crate or barrel lost off the level breaks apart.
       if (event.type === 'death' && bodies[event.player]?.kind === 'crate')
         gameAudio.play('crateBreak');
