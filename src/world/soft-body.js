@@ -222,8 +222,11 @@ const BARREL_RADIUS = 0.49,
   SETTLE_DAMPING = 18,
   // Pivoting over an edge: angular acceleration g/L·sin(θ + lean), the centre about 0.5 from
   // the edge and slightly past it; then a short damped rock on landing.
-  TIP_GRAVITY = 30,
-  TIP_LEAN = 0.15,
+  TIP_GRAVITY = 19,
+  TIP_LEAN = 0.1,
+  // Past this angle it leaves the edge and flies, still turning, onto the next cell.
+  TIP_RELEASE = 0.6,
+  FALL_GRAVITY = 15,
   ROCK_ANGLE = 0.09,
   ROCK_TIME = 1;
 // Rotation by `angle` about the unit vector `a`, and 3×3 row-major products.
@@ -697,7 +700,7 @@ class System {
       below = world.heightAt(center[0], center[2], (p.y || 0) + 0.2, p);
     if (!headFirst || (below !== null && below >= (p.y || 0) - 0.3)) return false;
     b.settle = null;
-    this.startTip(p, b, center, d, Math.abs(dx * d.x + dz * d.z) / dt);
+    this.startTip(world, p, b, center, d, Math.abs(dx * d.x + dz * d.z) / dt);
     return true;
   }
   barrelStep(world, p, b, center, vcom, grounded, dt, players) {
@@ -795,36 +798,73 @@ class System {
   }
   // The barrel starts pivoting about the edge it is leaving, the edge line under its leading
   // face; `speed` is how fast it was pushed over.
-  startTip(p, b, center, d, speed) {
+  // Tipping over an edge has two parts. First the body pivots about the edge line under its
+  // leading face, speeding up under gravity from the push. Past TIP_RELEASE it leaves the edge
+  // and flies a ballistic arc, still turning at a steady rate, timed so that it lands lying
+  // flat on the centre of the next cell. With no floor down there it just pivots a full
+  // quarter turn and drops. `speed` is how fast it was pushed over.
+  startTip(world, p, b, center, d, speed) {
     const k = d.x ? 0 : 2,
       sign = d.x || d.z,
       pivot = center.slice();
     pivot[k] = Math.round(center[k] - sign * 0.5) + sign * 0.5;
     pivot[1] = (p.y || 0) + 0.035;
+    const landing = center.slice();
+    landing[k] = pivot[k] + sign * 0.5;
+    const floor = world.heightAt(landing[0], landing[2], (p.y || 0) - 0.3, p);
+    landing[1] = floor === null ? null : floor + b.lift;
     b.tipping = {
       pivot,
       arm: sub(center, pivot),
       axis: [d.z, 0, -d.x],
       angle: 0,
-      omega: Math.max(2, speed / 0.5),
+      omega: Math.max(0.8, speed / 0.5),
+      landing: floor === null ? null : landing,
+      center: center.slice(),
     };
     Object.assign(p, { tipBase: slideOrientation(p), tipAxis: b.tipping.axis, tipAngle: 0 });
   }
-  // One step of the pivot: the barrel is moved kinematically along the arc about the edge, so
-  // after a quarter turn its centre hangs over the next cell. It is then released to fall.
   advanceTip(p, b, dt) {
-    const t = b.tipping;
-    t.omega += TIP_GRAVITY * Math.sin(t.angle + TIP_LEAN) * dt;
-    t.angle = Math.min(Math.PI / 2, t.angle + t.omega * dt);
-    const r = axisRotation(t.axis, t.angle),
+    const t = b.tipping,
+      previous = t.center;
+    let center;
+    if (t.flight) {
+      // In the air: a ballistic arc onto the landing spot, turning at a steady rate.
+      const f = t.flight;
+      f.time = Math.min(f.duration, f.time + dt);
+      const s = f.time / f.duration;
+      center = f.from.map((v, i) => v + (t.landing[i] - v) * s);
+      center[1] = f.from[1] + f.vy * f.time - (FALL_GRAVITY / 2) * f.time * f.time;
+      if (s >= 1) center[1] = t.landing[1];
+      t.angle = f.angle + (Math.PI / 2 - f.angle) * s;
+    } else {
+      t.omega += TIP_GRAVITY * Math.sin(t.angle + TIP_LEAN) * dt;
+      t.angle = Math.min(Math.PI / 2, t.angle + t.omega * dt);
+      const r = axisRotation(t.axis, t.angle);
       center = t.pivot.map(
         (v, i) => v + r[i * 3] * t.arm[0] + r[i * 3 + 1] * t.arm[1] + r[i * 3 + 2] * t.arm[2],
       );
+      if (t.landing && t.angle >= TIP_RELEASE) {
+        // Leave the edge with the swing's vertical speed; fall time to the landing height.
+        const vy = (center[1] - previous[1]) / dt,
+          drop = center[1] - t.landing[1],
+          duration =
+            (vy + Math.sqrt(vy * vy + 2 * FALL_GRAVITY * Math.max(0, drop))) / FALL_GRAVITY;
+        t.flight = {
+          from: center.slice(),
+          vy,
+          duration: Math.max(dt, duration),
+          time: 0,
+          angle: t.angle,
+        };
+      }
+    }
+    t.center = center;
     for (let n = 0; n < NODE_COUNT; n++)
       for (let i = 0; i < 3; i++) b.positions[n][i] = center[i] + largeRest[n][i];
     p.tipAngle = t.angle;
-    if (t.angle < Math.PI / 2) return;
-    // Over: it now rests on its head (or side) and falls the rest of the way as a crate.
+    if (t.angle < Math.PI / 2 || (t.flight && t.flight.time < t.flight.duration)) return;
+    // Over: it now rests on its head (or side).
     p.pose = matrixProduct(axisRotation(t.axis, Math.PI / 2), p.tipBase);
     p.tipBase = null;
     if (p.barrel) {
@@ -833,10 +873,12 @@ class System {
       // Back on its side: the mesh's long axis (first column) is the new rolling axis.
       if (!p.upright) p.barrel = Math.abs(p.pose[0]) > Math.abs(p.pose[6]) ? 'x' : 'z';
     }
-    // Released with only the vertical part of its swing, so it drops onto the cell centre.
+    // Landed from a flight it comes to rest; dropping off a full pivot it keeps only the
+    // vertical part of its swing, so it falls straight onto the cell centre.
     for (let n = 0; n < NODE_COUNT; n++) {
       b.old[n][0] = b.positions[n][0];
       b.old[n][2] = b.positions[n][2];
+      if (t.flight) b.old[n][1] = b.positions[n][1];
     }
     b.tipping = null;
     b.rockArmed = true;
