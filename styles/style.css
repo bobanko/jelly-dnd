@@ -2119,7 +2119,17 @@ body:has(#win:not([hidden])) #run-skulls {
 .level-skulls .run-skull {
   width: 0.88em;
   height: 1em;
-  filter: none;
+  filter: drop-shadow(0 0 3px #e9a83a55);
+}
+.level-skulls .run-skull.cracked {
+  opacity: 0.65;
+  filter: grayscale(1) brightness(0.65) drop-shadow(0 1px 0 #0008);
+}
+.level-skulls .run-skull.cracked .skull-crack {
+  opacity: 1;
+}
+.level-skulls .run-skull.cracked .skull-crack path {
+  stroke-width: 4.5px;
 }
 /* Restart gives the team its three skulls back: draw the eye to it after a loss. */
 #restart-hint .restart-reason {
