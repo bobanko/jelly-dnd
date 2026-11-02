@@ -6,26 +6,26 @@
     "prompt_influence": 0.5
   },
   "button-press": {
-    "text": "One ancient stone pressure plate being stepped down into a fitted stone socket. A short weighty low click-clack: muted gritty stone movement followed by a firm rounded slab seating against stone. Compact, tactile and restrained, like a small dungeon floor mechanism rather than a door. Dry isolated game sound with no wood, metal, sharp crack, debris, footsteps, voice, music or reverb.",
-    "duration_seconds": 0.6,
+    "text": "One single dry low muffled stone thud as a heavy floor pressure plate seats down. Dense rounded attack with a slightly drawn-out solid stone body, smoothly damped into silence. Close contact recording, soft high frequencies. One continuous compact sound, no second hit. No reverb, echo, room ambience, hollow cavity, rumbling tail, click-clack, metal, wood, footsteps, voice or music.",
+    "duration_seconds": 0.8,
     "loop": false,
     "prompt_influence": 0.7
   },
   "button-release": {
-    "text": "One ancient stone pressure plate rising back out of a fitted stone socket. A short lighter inverse clack-click: a muted upward stone shift with gentle gritty friction, ending in a small rounded stone stop. Clearly paired with a heavy stone plate press but quieter and slightly higher. Dry isolated game sound with no wood, metal, spring twang, sharp crack, debris, footsteps, voice, music or reverb.",
-    "duration_seconds": 0.6,
+    "text": "One single dry low muffled stone thud as a heavy floor pressure plate returns up. Same dense rounded stone body as the downward press, slightly softer, shorter and lighter. Close contact recording, soft high frequencies, smoothly damped into silence. One continuous compact sound, no second hit. No reverb, echo, room ambience, hollow cavity, rumbling tail, click-clack, metal, wood, footsteps, voice or music.",
+    "duration_seconds": 0.7,
     "loop": false,
     "prompt_influence": 0.7
   },
-  "bridge-slide": {
-    "text": "A heavy stone bridge slab sliding outward slowly across a smooth stone floor. One steady low muffled grinding tone with almost no variation, dark and dense, ending in a soft dull stop. Monotone ancient dungeon mechanism, close dry isolated game sound. No pebbles, sharp scraping, metal, crash, earthquake, voice, music or reverb.",
-    "duration_seconds": 1.2,
+  "bridge-hinge-open": {
+    "text": "One single short deep mellow hinge creak as a compact drawbridge pivots open. Soft warm low mechanical friction, a smooth rounded body and gentle fade. Pleasant understated close dry Foley, heavily damped upper harmonics, soft onset. No harsh rasp, nasal groan, abrasive buzz, squeal, second creak, repeated pulse, layered sound, scrape, click, knock, slam, rumble, chains, motor, voice, music, echo or reverb.",
+    "duration_seconds": 0.7,
     "loop": false,
     "prompt_influence": 0.7
   },
-  "bridge-retract": {
-    "text": "A heavy stone bridge slab sliding backward into a stone wall. One steady low muffled grinding tone with almost no variation, dark and dense, fading slightly as it retreats and ending in a soft hollow stop. Monotone ancient dungeon mechanism, close dry isolated game sound. No pebbles, sharp scraping, metal, crash, earthquake, voice, music or reverb.",
-    "duration_seconds": 1.2,
+  "bridge-hinge-close": {
+    "text": "One single short deep mellow hinge creak as a compact drawbridge pivots closed. Same soft warm low mechanical friction as its opening, a smooth rounded body and gentle fade. Pleasant close dry Foley, heavily damped upper harmonics, soft onset. No harsh rasp, nasal groan, abrasive buzz, squeal, second creak, repeated pulse, layered sound, scrape, click, knock, slam, rumble, chains, motor, voice, music, echo or reverb.",
+    "duration_seconds": 0.7,
     "loop": false,
     "prompt_influence": 0.7
   },
@@ -126,14 +126,14 @@
     "prompt_influence": 0.7
   },
   "lift-up": {
-    "text": "A compact fantasy stone lift rising for about two seconds. Soft low mechanical stone movement with a smooth gently ascending pitch and subtle wooden tension, ending in a quiet padded stop. Restrained background game sound. No harsh grinding, alarm, metal screech, crash, voice, music or reverb.",
-    "duration_seconds": 2.2,
+    "text": "A heavy stone lift rising slowly along a smooth stone shaft. One steady low muffled grinding tone with almost no variation, dark and dense, ending in a soft dull stop. Monotone ancient dungeon mechanism, close dry isolated game sound. No pebbles, sharp scraping, metal, crash, earthquake, voice, music or reverb.",
+    "duration_seconds": 1.2,
     "loop": false,
     "prompt_influence": 0.7
   },
   "lift-down": {
-    "text": "A compact fantasy stone lift descending for about two seconds. Soft low mechanical stone movement with a smooth gently descending pitch and subtle wooden release, ending in a quiet padded stop. Restrained background game sound. No harsh grinding, alarm, metal screech, crash, voice, music or reverb.",
-    "duration_seconds": 2.2,
+    "text": "A heavy stone lift descending slowly along a smooth stone shaft. One steady low muffled grinding tone with almost no variation, dark and dense, fading slightly as it lowers and ending in a soft hollow stop. Monotone ancient dungeon mechanism, close dry isolated game sound. No pebbles, sharp scraping, metal, crash, earthquake, voice, music or reverb.",
+    "duration_seconds": 1.2,
     "loop": false,
     "prompt_influence": 0.7
   },
