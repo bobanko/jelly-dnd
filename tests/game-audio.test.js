@@ -197,6 +197,14 @@ test('samples preload once, deduplicate simultaneous traps, and stop on mute or 
   audio.play('bridge', 1, 0.14);
   assert.equal(started.length, 3);
   assert.ok(Math.abs(started[2].when - 1.14) < 1e-9);
+  [2.55, 2.15, 1.75].forEach((delay) =>
+    audio.playUI('skullCrack', 1, delay, { allowOverlap: true }),
+  );
+  assert.deepEqual(
+    started.slice(-3).map((source) => source.when),
+    [3.55, 3.15, 2.75],
+    'each deliberately repeated skull crack is scheduled',
+  );
   audio.setEnabled(false);
   assert.ok(started.every((source) => source.stopped));
   assert.equal(audio.play('land'), null);

@@ -280,13 +280,14 @@ export class GameAudio {
     return this.start(name, volume, delay, false, options);
   }
   // options.pan: stereo position from -1 (left) to 1 (right); options.rate: playback speed,
-  // which also shifts the pitch, so repeats of one sample do not sound identical.
-  start(name, volume, delay, activeOnly, { pan = 0, rate = 1 } = {}) {
+  // which also shifts the pitch. allowOverlap keeps deliberate sequences of the same clip.
+  start(name, volume, delay, activeOnly, { pan = 0, rate = 1, allowOverlap = false } = {}) {
     // Never queue stale events while decoding, muted, paused or in menus.
     if (!this.enabled || (activeOnly && !this.active) || !this.buffers.has(name)) return null;
     const context = this.context();
     if (context.state === 'suspended') return null;
-    if (context.currentTime - (this.lastPlayed.get(name) ?? -Infinity) < 0.08) return null;
+    if (!allowOverlap && context.currentTime - (this.lastPlayed.get(name) ?? -Infinity) < 0.08)
+      return null;
     if (this.sources.size >= 12) return null;
     this.lastPlayed.set(name, context.currentTime);
     const source = context.createBufferSource();

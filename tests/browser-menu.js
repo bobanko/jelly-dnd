@@ -120,7 +120,21 @@ import assert from 'node:assert/strict';
       });
       assert.equal(await page.evaluate(() => won), true);
     };
+    await page.evaluate(() => {
+      runDeaths[0] = 3;
+      globalThis.skullCrackCalls = [];
+      const playUI = gameAudio.playUI.bind(gameAudio);
+      gameAudio.playUI = (name, volume, delay, options) => {
+        if (name === 'skullCrack') skullCrackCalls.push({ delay, options });
+        return playUI(name, volume, delay, options);
+      };
+    });
     await complete();
+    assert.deepEqual(await page.evaluate(() => skullCrackCalls), [
+      { delay: 2.55, options: { allowOverlap: true } },
+      { delay: 2.15, options: { allowOverlap: true } },
+      { delay: 1.75, options: { allowOverlap: true } },
+    ]);
     assert.equal(await page.evaluate(() => JellyProgress.unlocked), 2);
     assert.equal(await page.locator('#win-title').textContent(), 'Level complete');
     assert.equal(await page.locator('#win-next').textContent(), 'Next level');

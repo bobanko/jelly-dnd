@@ -1714,7 +1714,8 @@ function refreshWin() {
     const crackDelay = winSkullCrackDelay(i, winSkulls.length);
     skull.style.setProperty('--appear', 0.3 + i * 0.4 + 's');
     skull.style.setProperty('--crack', crackDelay + 's');
-    if (!winShown && i >= kept) gameAudio.playUI('skullCrack', 1, crackDelay);
+    if (!winShown && i >= kept)
+      gameAudio.playUI('skullCrack', 1, crackDelay, { allowOverlap: true });
   });
   document.querySelector('#win-next').textContent = tr(
     id && id < JellyLevels.standardNames.length
