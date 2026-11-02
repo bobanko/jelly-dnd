@@ -114,6 +114,9 @@ let targetPitch = camera.pitch,
 const effects = new JellyEffects.System({ reducedMotion });
 const level = { ...runtime, effects, won: false, finishProgress: 0, reducedMotion };
 const heldKeys = new Set();
+// Movement keys physically held down. A fall drops a jelly's keys from heldKeys; those still
+// down here drive it again once it lands, without pressing them anew.
+const downKeys = new Set();
 const keySets = {
   KeyW: [0, 0, -1],
   KeyS: [0, 0, 1],
@@ -480,6 +483,7 @@ function simulate(dt, elapsed = dt) {
       } else if (event.type === 'respawn') respawnTone(event.player);
       else if (event.type === 'portal') gameAudio.play('portal');
       else if (event.type === 'land') {
+        resumeHeldKeys(event.player);
         gameAudio.play('land');
         gameAudio.play('jellySlap');
       } else if (event.type === 'pickup') tone(720);
@@ -532,9 +536,23 @@ function simulate(dt, elapsed = dt) {
   });
   updateUI();
 }
+// Hands the keys still held for jelly `i` back to it, as a fresh move.
+function resumeHeldKeys(i) {
+  if (won) return;
+  for (const key of downKeys) {
+    if (movementKeys[key][0] !== i || heldKeys.has(key)) continue;
+    if (!heldKeys.size) {
+      history.push(snapshot());
+      moves++;
+      if (history.length > 256) history.shift();
+    }
+    heldKeys.add(key);
+  }
+}
 function stopInput() {
   endOrbit();
   heldKeys.clear();
+  downKeys.clear();
   players.forEach((p) => {
     if (p.launchTimer) return;
     p.vx = p.vz = 0;
@@ -585,6 +603,7 @@ addEventListener('keydown', (e) => {
   }
   if (movementKeys[k]) {
     e.preventDefault();
+    downKeys.add(k);
     if (won || e.repeat || heldKeys.has(k) || !JellyPhysics.alive(players[movementKeys[k][0]]))
       return;
     stopLevelAssemblySound();
@@ -608,6 +627,7 @@ addEventListener('keyup', (e) => {
   if (movementKeys[key]) {
     e.preventDefault();
     heldKeys.delete(key);
+    downKeys.delete(key);
   }
 });
 addEventListener('blur', stopInput);
