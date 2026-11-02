@@ -310,8 +310,9 @@ export const proceduralSoundCatalog = [
     id: 'torchGong',
     category: 'magic',
     title: 'Все факелы погашены',
-    description: 'Глубокий металлический удар в гонг, когда на уровне гаснет последний факел.',
-    duration: 4.8,
+    description:
+      'Глубокий драматичный удар в гонг с тяжёлыми биениями и долгим металлическим хвостом, когда на уровне гаснет последний факел.',
+    duration: 7.5,
     type: 'gong',
   },
 ];
@@ -332,28 +333,31 @@ export function playProceduralSound(context, sound) {
     return { stop: () => stopNode(oscillator) };
   }
   if (sound.type === 'gong') {
-    const duration = 4.8,
+    const duration = 7.5,
       master = context.createGain(),
       oscillators = [],
       partials = [
-        [82, 0.11, 1],
-        [116.4, 0.078, 0.95],
-        [158.3, 0.057, 0.85],
-        [226.1, 0.04, 0.72],
-        [295.7, 0.027, 0.58],
-        [381.2, 0.018, 0.42],
+        [62, 0.085, 0.78],
+        [86, 0.12, 1],
+        [87.15, 0.052, 0.96],
+        [121.7, 0.082, 0.9],
+        [171.3, 0.06, 0.8],
+        [239.4, 0.043, 0.68],
+        [318.5, 0.03, 0.56],
+        [427, 0.02, 0.42],
       ];
     master.gain.setValueAtTime(0.001, now);
-    master.gain.exponentialRampToValueAtTime(1.45, now + 0.012);
+    master.gain.exponentialRampToValueAtTime(1.62, now + 0.009);
+    master.gain.exponentialRampToValueAtTime(0.28, now + duration * 0.72);
     master.gain.exponentialRampToValueAtTime(0.001, now + duration);
     master.connect(context.destination);
     partials.forEach(([frequency, volume, life], index) => {
       const oscillator = context.createOscillator(),
         gain = context.createGain(),
         end = now + duration * life;
-      oscillator.type = index ? 'sine' : 'triangle';
+      oscillator.type = index < 2 ? 'triangle' : 'sine';
       oscillator.frequency.setValueAtTime(frequency, now);
-      oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.985, end);
+      oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.975, end);
       gain.gain.setValueAtTime(volume, now);
       gain.gain.exponentialRampToValueAtTime(0.0001, end);
       oscillator.connect(gain).connect(master);
