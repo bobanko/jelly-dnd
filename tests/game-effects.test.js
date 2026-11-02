@@ -180,6 +180,24 @@ test('teleport emits both endpoints at their own floor height and has a bounded 
   assert.equal(effects.rings.length + effects.particles.length, 0);
 });
 
+test('crate teleport uses the same travelling portal wisp without starting a jelly warp', () => {
+  const effects = new System(),
+    event = { ...portal, player: 1, crate: true };
+  effects.burst(event, players, soft);
+  assert.equal(effects.warpScale(1), 1);
+  assert.equal(effects.particles.filter((p) => p.kind === 'wisp').length, 26);
+  assert.equal(effects.particles.length, 68);
+  assert.deepEqual(
+    effects.rings.map((ring) => ring.center),
+    [portal.source, portal.destination],
+  );
+  assert.ok(
+    effects.particles.some(
+      (particle) => particle.kind === 'wisp' && String(particle.color) === '1,0.97,0.9',
+    ),
+  );
+});
+
 test('teleport particles and rings match every portal colour', () => {
   for (const color of Levels.portalColors) {
     const effects = new System();

@@ -403,6 +403,9 @@ export const propsMethods = {
       } else if (piece.kind === 'crate') {
         const p = level.crates[i];
         if (p.state === 'dead') continue;
+        // Portal travel keeps the already-translated body hidden until its wisp reaches the
+        // exit; at zero it starts the same white materialisation used by crate respawns.
+        if (p.appearTime !== undefined && p.appearTime < 0) continue;
         x = p.x;
         y = (p.y || 0) + bodyLift(p);
         z = p.z;

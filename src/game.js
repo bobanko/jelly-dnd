@@ -318,6 +318,8 @@ function reset(replayAssembly = false) {
       vz: 0,
       deaths: 0,
       respawnTimer: 0,
+      appearTime: 2,
+      portalAppearPending: false,
     }),
   );
   runSeconds = 0;
@@ -372,7 +374,15 @@ function undo() {
       squishVelocity: 0,
     }),
   );
-  crates.forEach((p, i) => Object.assign(p, previous.crates[i], { vx: 0, vy: 0, vz: 0 }));
+  crates.forEach((p, i) =>
+    Object.assign(p, previous.crates[i], {
+      vx: 0,
+      vy: 0,
+      vz: 0,
+      appearTime: 2,
+      portalAppearPending: false,
+    }),
+  );
   world.held = new Set(previous.bridges);
   world.restoreFeatures(previous.features);
   gameAudio.stop();
@@ -558,6 +568,21 @@ function simulate(dt, elapsed = dt) {
       // A crate or barrel lost off the level breaks apart.
       if (event.type === 'death' && bodies[event.player]?.kind === 'crate')
         gameAudio.play('crateBreak');
+      // Props keep their physical momentum through a portal, but remain visually hidden while
+      // the wisp travels. At the exit they use the same white materialisation as their spawn.
+      if (event.type === 'portal' && body?.kind === 'crate') {
+        const delay = reducedMotion ? 0 : JellyEffects.PORTAL_TRAVEL_TIME;
+        body.appearTime = -delay;
+        body.portalAppearPending = delay > 0;
+        effects.burst(event, players, soft);
+        if (!delay)
+          effects.burst(
+            { type: 'crateTeleport', center: crateFlashCenter(body, 0) },
+            players,
+            soft,
+          );
+        gameAudio.play('portal');
+      }
       if (event.player >= players.length) continue;
       effects.burst(event, players, soft);
       if (event.type === 'death') {
@@ -873,7 +898,14 @@ const SPAWN_GLYPH_EVERY = 0.3,
   SPAWN_GLYPH_LIFE = 1.4;
 function updateSpawnMarks(dt) {
   updateSpawnOutlines();
-  for (const crate of crates) if (crate.appearTime < 2) crate.appearTime += dt;
+  for (const crate of crates) {
+    const previous = crate.appearTime;
+    if (crate.appearTime < 2) crate.appearTime += dt;
+    if (crate.portalAppearPending && previous < 0 && crate.appearTime >= 0) {
+      crate.portalAppearPending = false;
+      effects.burst({ type: 'crateTeleport', center: crateFlashCenter(crate, 0) }, players, soft);
+    }
+  }
   const layer = document.querySelector('#player-hints');
   for (const p of bodies) {
     // With reduced motion only the still outline remains.

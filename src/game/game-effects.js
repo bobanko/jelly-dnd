@@ -2,6 +2,7 @@ import Levels from '../world/levels.js';
 // Short-lived visual particles. They never become gameplay colliders.
 // Live particles at most; the oldest are dropped first.
 const MAX_PARTICLES = 160;
+export const PORTAL_TRAVEL_TIME = 0.3;
 const palettes = [
   [0.12, 0.9, 0.16],
   [0.025, 0.17, 1],
@@ -271,18 +272,14 @@ class System {
           life: 0.18 + random() * 0.12,
         });
       }
-    } else if (
-      (event.type === 'portal' && !event.crate) ||
-      event.type === 'respawn' ||
-      event.type === 'summon'
-    ) {
+    } else if (event.type === 'portal' || event.type === 'respawn' || event.type === 'summon') {
       const player = players[event.player],
-        jelly = palettes[player?.slot ?? event.player];
-      // A portal hop: the jelly collapses into sparks at the entrance, a glowing wisp flies
-      // to the exit, and the jelly grows back there as the wisp arrives.
-      const travel = event.type === 'portal' ? 0.3 : 0;
+        traveller = event.crate ? [1, 0.97, 0.9] : palettes[player?.slot ?? event.player];
+      // A portal hop: the traveller collapses into sparks at the entrance, a glowing wisp
+      // flies to the exit, and the traveller materialises there as the wisp arrives.
+      const travel = event.type === 'portal' ? PORTAL_TRAVEL_TIME : 0;
       // During the level assembly the renderer grows the jelly itself; only add the sparkle.
-      if (event.type !== 'summon') this.warp(event.player, travel);
+      if (!event.crate && event.type !== 'summon') this.warp(event.player, travel);
       if (!this.reducedMotion && event.type === 'portal') {
         const [sx, sy, sz] = event.source,
           [dx, dy, dz] = event.destination;
@@ -300,7 +297,7 @@ class System {
             velocity: [(-Math.cos(a) * r) / life, 0, (-Math.sin(a) * r) / life],
             size: 0.03 + random() * 0.03,
             phase: a,
-            color: jelly,
+            color: traveller,
             age: 0,
             life,
           });
@@ -319,7 +316,7 @@ class System {
             velocity: [0, 0, 0],
             size: (0.09 - lag * 0.3) * (0.8 + random() * 0.4),
             phase: Math.floor(i / 9) * 2.09 + random() * 0.3,
-            color: i % 3 ? Levels.portalColor(event.color).glow : jelly,
+            color: i % 3 ? Levels.portalColor(event.color).glow : traveller,
             age: 0,
             life: travel + lag,
           });
@@ -328,7 +325,12 @@ class System {
       if (event.type === 'respawn' || event.type === 'summon') {
         // Summoned back: a ring and rising sparks at the spawn as the jelly grows in.
         const center = [player.x, (player.y || 0) + 0.04, player.z];
-        this.rings.push({ center, color: jelly, age: 0, life: this.reducedMotion ? 0.25 : 0.6 });
+        this.rings.push({
+          center,
+          color: traveller,
+          age: 0,
+          life: this.reducedMotion ? 0.25 : 0.6,
+        });
         for (let i = 0; i < (this.reducedMotion ? 0 : 16); i++) {
           const a = random() * Math.PI * 2,
             r = 0.2 + random() * 0.25;
@@ -342,7 +344,7 @@ class System {
             velocity: [-Math.cos(a) * 0.4, 0.8 + random() * 1.4, -Math.sin(a) * 0.4],
             size: 0.02 + random() * 0.03,
             phase: a,
-            color: jelly,
+            color: traveller,
             age: 0,
             life: 0.45 + random() * 0.25,
           });

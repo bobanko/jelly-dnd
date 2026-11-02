@@ -148,6 +148,35 @@ function partyMap(slots) {
   });
   return map;
 }
+
+function portalPropMap() {
+  const map = partyMap([0]);
+  map.crates.push({ x: 2, z: 2, large: true, barrel: 'z' });
+  map.portals.push({ x: 2, z: 2, color: 'violet' }, { x: 6, z: 2, color: 'violet' });
+  return map;
+}
+
+test('a prop travels as a portal wisp and materialises at the exit like a spawned prop', async () => {
+  const g = await game({ map: portalPropMap() });
+  g.run('simulate(.05)');
+  assert.ok(g.run('Math.abs(crates[0].x-6)<.05'));
+  assert.ok(g.run('crates[0].appearTime<0'), 'hidden while the portal wisp travels');
+  assert.equal(g.run("effects.particles.filter(p=>p.kind==='wisp').length"), 26);
+  assert.equal(g.run('effects.rings.length'), 2);
+  g.run('updateSpawnMarks(JellyEffects.PORTAL_TRAVEL_TIME+.01)');
+  assert.ok(g.run('crates[0].appearTime>=0'));
+  assert.equal(g.run('crates[0].portalAppearPending'), false);
+  assert.ok(
+    g.run(
+      "effects.particles.some(p=>p.kind==='magic'&&p.size===.66&&String(p.color)==='1,0.97,0.9')",
+    ),
+    'the exit starts the white prop materialisation flash',
+  );
+  g.run('crates[0].appearTime=-.2;crates[0].portalAppearPending=true;reset()');
+  assert.equal(g.run('crates[0].appearTime'), 2);
+  assert.equal(g.run('crates[0].portalAppearPending'), false);
+});
+
 test('solo and duo levels assign controls by active order, keeping undo/reset and victory', async () => {
   for (const slots of [[0], [1], [2], [3], [1, 3]]) {
     const g = await game({ map: partyMap(slots) });
