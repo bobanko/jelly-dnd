@@ -25,6 +25,7 @@ export const mossAt = ([x, y, z]) =>
 // crisp: flat faces with narrow rounded bevels (grid lines at the bevel start).
 // shade(axis,sign,s,t): per-vertex brightness, used for baked contact occlusion.
 // detail(position): per-vertex value 0..1 stored in the material's fraction (stone moss).
+// hole (crisp only): radius of a round opening cut into the flat part of the top face.
 export function box(
   mesh,
   center,
@@ -33,7 +34,7 @@ export function box(
   bevel = 0.04,
   material = 0,
   steps = 4,
-  { crisp = false, shade = null, detail = null } = {},
+  { crisp = false, shade = null, detail = null, hole = 0 } = {},
 ) {
   const h = size.map((v) => v * 0.5),
     radius = Math.min(bevel, ...h);
@@ -47,7 +48,46 @@ export function box(
     [2, 0, 1, -1],
   ];
   for (const [axis, u, v, sign] of faces) {
-    const verts = [];
+    const verts = [],
+      opening = hole > 0 && crisp && axis === 1 && sign > 0;
+    // A vertex of this face from its point `p` on the box (before rounding).
+    const vertex = (p) => {
+      const core = p.map((x, k) => Math.max(-h[k] + radius, Math.min(h[k] - radius, x))),
+        d = p.map((x, k) => x - core[k]),
+        n = normalize(d);
+      const position = core.map((x, k) => x + n[k] * radius + center[k]),
+        s = (p[u] / h[u] + 1) / 2,
+        t = (p[v] / h[v] + 1) / 2;
+      let uv = [0, 0];
+      if (material === 17) {
+        uv = [p[u] / h[u], p[v] / h[v]];
+      } else if (material < 0.5) {
+        const tile =
+          Math.abs(
+            Math.round(center[0] * 73 + center[1] * 41 + center[2] * 137) +
+              axis * 5 +
+              (sign > 0 ? 3 : 0),
+          ) % 16;
+        const a = tile % 2 ? t : s,
+          b = tile % 2 ? s : t;
+        uv = [((tile % 4) + 0.02 + a * 0.96) / 4, (Math.floor(tile / 4) + 0.02 + b * 0.96) / 4];
+      } else if (material === 11) {
+        const seed = Math.abs(Math.sin(dot(center, [19.7, 31.1, 47.3]))),
+          a = size[u] > size[v] ? t : s,
+          b = size[u] > size[v] ? s : t;
+        uv = [seed * 0.72 + a * 0.2, 0.04 + b * 0.92];
+      } else if (material === 16) {
+        uv = [s, t];
+      }
+      const brightness = shade ? shade(axis, sign, s, t) : 1;
+      return [
+        ...position,
+        ...n,
+        ...color.map((c) => c * brightness),
+        material + (detail ? Math.max(0, Math.min(1, detail(position))) * STONE_DETAIL : 0),
+        ...uv,
+      ];
+    };
     for (let j = 0; j <= steps; j++)
       for (let i = 0; i <= steps; i++) {
         const p = [0, 0, 0];
@@ -71,44 +111,34 @@ export function box(
           p[u] = samples(h[u])[i];
           p[v] = samples(h[v])[j];
         }
-        const core = p.map((x, k) => Math.max(-h[k] + radius, Math.min(h[k] - radius, x))),
-          d = p.map((x, k) => x - core[k]),
-          n = normalize(d);
-        const position = core.map((x, k) => x + n[k] * radius + center[k]),
-          s = (p[u] / h[u] + 1) / 2,
-          t = (p[v] / h[v] + 1) / 2;
-        let uv = [0, 0];
-        if (material === 17) {
-          uv = [p[u] / h[u], p[v] / h[v]];
-        } else if (material < 0.5) {
-          const tile =
-            Math.abs(
-              Math.round(center[0] * 73 + center[1] * 41 + center[2] * 137) +
-                axis * 5 +
-                (sign > 0 ? 3 : 0),
-            ) % 16;
-          const a = tile % 2 ? t : s,
-            b = tile % 2 ? s : t;
-          uv = [((tile % 4) + 0.02 + a * 0.96) / 4, (Math.floor(tile / 4) + 0.02 + b * 0.96) / 4];
-        } else if (material === 11) {
-          const seed = Math.abs(Math.sin(dot(center, [19.7, 31.1, 47.3]))),
-            a = size[u] > size[v] ? t : s,
-            b = size[u] > size[v] ? s : t;
-          uv = [seed * 0.72 + a * 0.2, 0.04 + b * 0.92];
-        } else if (material === 16) {
-          uv = [s, t];
-        }
-        const brightness = shade ? shade(axis, sign, s, t) : 1;
-        verts.push([
-          ...position,
-          ...n,
-          ...color.map((c) => c * brightness),
-          material + (detail ? Math.max(0, Math.min(1, detail(position))) * STONE_DETAIL : 0),
-          ...uv,
-        ]);
+        verts.push(vertex(p));
       }
     for (let j = 0; j < steps; j++)
       for (let i = 0; i < steps; i++) {
+        // The flat middle of a crisp top face becomes a ring round the opening.
+        if (opening && i === 1 && j === 1) {
+          const flat = Math.min(h[u], h[v]) - radius,
+            segments = 48,
+            point = (k, outer) => {
+              const a = (k / segments) * Math.PI * 2,
+                c = Math.cos(a),
+                s = Math.sin(a),
+                r = outer ? flat / Math.max(Math.abs(c), Math.abs(s)) : Math.min(hole, flat),
+                p = [0, 0, 0];
+              p[axis] = h[axis];
+              p[u] = c * r;
+              p[v] = s * r;
+              return vertex(p);
+            };
+          for (let k = 0; k < segments; k++) {
+            const inner = point(k, false),
+              outer = point(k, true),
+              nextOuter = point(k + 1, true),
+              nextInner = point(k + 1, false);
+            mesh.push(...inner, ...outer, ...nextOuter, ...inner, ...nextOuter, ...nextInner);
+          }
+          continue;
+        }
         const a = j * (steps + 1) + i,
           b = a + 1,
           c = a + steps + 1,

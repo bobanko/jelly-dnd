@@ -1,6 +1,6 @@
 import { rotateBridgeMesh, mossAt, box } from './mesh.js';
 import { OAK_WOOD, OAK_FRAME, bridgeOakPlank } from './geometry/wood.js';
-import { phaseTints } from './geometry/mechanisms.js';
+import { phaseTints, BUTTON_HOLE } from './geometry/mechanisms.js';
 import { phaseBlock, phaseGroundGlow } from './geometry/runes.js';
 import { torchDecor, scatterDecor } from './geometry/decor.js';
 import { occluderCells } from './see-through.js';
@@ -53,6 +53,11 @@ export const sceneMethods = {
         (bounds.maxZ - bounds.minZ + 1) * 0.5 + 3,
       ];
     } else this.fogArea = null;
+    // Tops that hold a button get a round opening for its well (see pressureSocket).
+    const buttonTops = new Set(
+        level.plates.map((p) => [p.x, p.y ?? level.world.heightAt(p.x, p.z) ?? 0, p.z].join(',')),
+      ),
+      opening = (x, y, z) => (buttonTops.has([x, y, z].join(',')) ? BUTTON_HOLE : 0);
     let blockIndex = 0;
     const lavaPools = [];
     const blockAssemblyIndices = new Map(),
@@ -149,6 +154,7 @@ export const sceneMethods = {
         crisp: true,
         shade: occlusion(b),
         detail: mossAt,
+        hole: opening(b.x, b.y, b.z),
       });
       recordBlock(assembly, mesh, from, [b.x, b.y - 0.5, b.z], [b.x, b.y, b.z]);
     }
@@ -194,11 +200,22 @@ export const sceneMethods = {
         const base = level.world.lifts.find((l) => l.x === x && l.z === z).base || 0;
         box(mesh, [x, base - 0.52, z], [0.99, 0.25, 0.99], [0.12, 0.14, 0.12], 0.025);
       } else {
-        box(mesh, [x, height - 0.36, z], [0.97, 0.72, 0.97], color, 0.045);
-        const upper = level.world.heights.get(key) || 0;
+        // A tile with a button turns crisp so its flat top can take the well's opening.
+        const upper = level.world.heights.get(key) || 0,
+          tileHole = (y) => (opening(x, y, z) ? { crisp: true, hole: BUTTON_HOLE } : {});
+        box(mesh, [x, height - 0.36, z], [0.97, 0.72, 0.97], color, 0.045, 0, 4, tileHole(0));
         for (let y = 0; y < upper; y++) {
           const span = Math.min(1, upper - y);
-          box(mesh, [x, y + span * 0.5, z], [0.97, span, 0.97], color, 0.045);
+          box(
+            mesh,
+            [x, y + span * 0.5, z],
+            [0.97, span, 0.97],
+            color,
+            0.045,
+            0,
+            4,
+            tileHole(y + span),
+          );
         }
       }
       recordBlock(assembly, mesh, from, [x, height - 0.36, z], [x, height, z]);

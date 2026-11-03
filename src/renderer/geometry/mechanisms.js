@@ -147,31 +147,33 @@ export function portalRing(mesh, x, y, z, color) {
       );
     }
 }
-// A button's dark stone socket: a raised rim round a recessed floor, centred on `center`.
+// Buttons sit in a round well cut into their stone block (see box's `hole`): the opening's
+// radius, the well's depth, and the button's rest, travel and hidden heights relative to the
+// block top. The button (radius 0.3, 0.065 tall) rests a little below the top face.
+export const BUTTON_HOLE = 0.345,
+  BUTTON_WELL_DEPTH = 0.14,
+  BUTTON_REST = -0.085,
+  BUTTON_TRAVEL = 0.045,
+  BUTTON_HIDDEN = 0.13;
+// The well: a chamfered lip, a dark wall and a floor, centred on the top face at `center`.
 export function pressureSocket(mesh, center) {
   pressureSurface(
     mesh,
     center,
     [
-      [0.293, 0.003],
-      [0.342, 0.003],
-      [0.346, 0.014],
-      [0.334, 0.038],
-      [0.304, 0.038],
-      [0.293, 0.024],
-      [0.293, 0.003],
+      [BUTTON_HOLE, 0],
+      [BUTTON_HOLE - 0.02, -0.02],
+      [BUTTON_HOLE - 0.02, -BUTTON_WELL_DEPTH],
     ],
     [0.09, 0.095, 0.093],
     12,
   );
   pressureSurface(
     mesh,
-    [center[0], center[1] + 0.004, center[2]],
+    center,
     [
-      [0, 0],
-      [0.294, 0],
-      [0.294, 0.012],
-      [0, 0.012],
+      [BUTTON_HOLE - 0.02, -BUTTON_WELL_DEPTH],
+      [0, -BUTTON_WELL_DEPTH],
     ],
     [0.027, 0.03, 0.029],
     13,

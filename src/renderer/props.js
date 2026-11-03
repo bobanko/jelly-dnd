@@ -26,6 +26,9 @@ import {
   spike,
   portalRing,
   pressureSocket,
+  BUTTON_REST,
+  BUTTON_TRAVEL,
+  BUTTON_HIDDEN,
   pressureSurface,
   conveyorTile,
 } from './geometry/mechanisms.js';
@@ -438,8 +441,8 @@ export const propsMethods = {
           z += fz * (0.21 - pull) + fx * 0.09;
         }
       } else if (piece.kind === 'pressureButton') {
-        // Its socket arrives with the cube (see the decorations below); during the level
-        // assembly the button then rises out of it from below the socket floor.
+        // It rests sunk in a well in its block (the socket arrives with the cube, see the
+        // decorations below); during the level assembly it rises through the well floor.
         const p = level.plates[i],
           rise = level.assembly
             ? (assemblyRise(level.assembly, landingIndex, landingCount) ?? 0)
@@ -447,9 +450,9 @@ export const propsMethods = {
         x = p.x;
         y =
           (p.y ?? level.world.heightAt(p.x, p.z) ?? 0) +
-          0.02 -
-          this.platePress[i] * 0.065 -
-          (1 - rise) * 0.09;
+          BUTTON_REST -
+          this.platePress[i] * BUTTON_TRAVEL -
+          (1 - rise) * BUTTON_HIDDEN;
         z = p.z;
       } else if (piece.kind === 'lift') {
         const lift = level.world.lifts[i];
