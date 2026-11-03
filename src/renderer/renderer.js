@@ -1112,12 +1112,13 @@ class Renderer {
     }
     opaque.setVertexBuffer(0, this.decorationBuffer);
     if (assembling && this.decorationCount) {
-      // Goal pads, spike and button sockets, belts and portal bases fly in with their cubes.
+      // Goal pads, spike and button sockets, pressed buttons, belts and portal bases fly in
+      // with their cubes.
       opaque.setPipeline(this.assemblyOpaque);
       opaque.setVertexBuffer(1, this.decorationAssembly);
       opaque.draw(this.decorationCount);
       opaque.setPipeline(this.opaque);
-    } else opaque.draw(this.decorationCount);
+    } else if (this.decorationSettled) opaque.draw(this.decorationSettled);
     const torchCount = assembling ? 0 : Math.min(8, (level.world.torches || []).length);
     if (torchCount) {
       opaque.setPipeline(this.flamePipeline);

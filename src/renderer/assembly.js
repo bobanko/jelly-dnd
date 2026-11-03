@@ -49,14 +49,12 @@ export function jellyScale(level, index, landingIndex, landingCount) {
     ? assemblyAppearScale(level.assembly, landingIndex, landingCount)
     : (level.effects?.warpScale?.(index) ?? 1);
 }
-// The landing wave after the blocks gives every object a slot, in this order: buttons,
-// lifts, bridges, spikes, jellies, crates, pickups, archers, drones. Returns the first slot of
+// The landing wave after the blocks gives every object a slot, in this order: lifts, bridges, spikes, jellies, crates, pickups, archers, drones. Returns the first slot of
 // each kind and the total count.
 export function landingLayout(level, playerCount) {
   const layout = {};
   let slot = 0;
   for (const [kind, count] of [
-    ['plates', level.plates.length],
     ['lifts', level.world.lifts.length],
     ['bridges', (level.bridges || []).length],
     ['spikes', level.world.spikes.length],
@@ -77,8 +75,8 @@ export function jellySummonProgress(level, players, index) {
   const layout = landingLayout(level, players.length);
   return assemblyLandingProgress(level.assembly, layout.jellies + index, layout.count);
 }
-// Spikes and buttons rise out of their sockets, which arrive with the cube beneath them,
-// during their landing slot (0..1, null before).
+// Spikes rise out of their sockets, which arrive with the cube beneath them, during their
+// landing slot (0..1, null before).
 export function assemblyRise(assembly, index, count) {
   const t = assemblyLandingProgress(assembly, index, count);
   return t === null ? null : smootherstep(t);

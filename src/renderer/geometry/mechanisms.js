@@ -147,23 +147,34 @@ export function portalRing(mesh, x, y, z, color) {
       );
     }
 }
-// Buttons sit in a round well cut into their stone block (see box's `hole`): the opening's
-// radius, the well's depth, and the button's rest, travel and hidden heights relative to the
-// block top. The button (radius 0.3, 0.065 tall) rests a little below the top face.
-export const BUTTON_HOLE = 0.345,
+// Buttons sit in a round well cut into their stone block (see box's `hole`), framed by a
+// rim raised above the top face that hides the cut edge. Heights are relative to the block
+// top: the button (radius 0.3, 0.065 tall) stands above the rim when released and sinks just
+// below the top face when pressed.
+export const BUTTON_HOLE = 0.355,
   BUTTON_WELL_DEPTH = 0.14,
-  BUTTON_REST = -0.085,
-  BUTTON_TRAVEL = 0.045,
-  BUTTON_HIDDEN = 0.13;
-// The well: a chamfered lip, a dark wall and a floor, centred on the top face at `center`.
+  BUTTON_REST = -0.005,
+  BUTTON_TRAVEL = 0.072;
+const BUTTON_COLORS = {
+  green: [0.22, 0.65, 0.035],
+  red: [0.78, 0.026, 0.012],
+  blue: [0.018, 0.25, 0.78],
+  violet: [0.5, 0.07, 0.78],
+  amber: [0.78, 0.36, 0.012],
+  dark: [0.12, 0.135, 0.14],
+};
+// The well: a raised, chamfered rim whose inner side runs down into a dark wall and floor.
 export function pressureSocket(mesh, center) {
   pressureSurface(
     mesh,
     center,
     [
-      [BUTTON_HOLE, 0],
-      [BUTTON_HOLE - 0.02, -0.02],
-      [BUTTON_HOLE - 0.02, -BUTTON_WELL_DEPTH],
+      [0.372, 0],
+      [0.376, 0.012],
+      [0.364, 0.038],
+      [0.334, 0.038],
+      [0.322, 0.024],
+      [0.322, -BUTTON_WELL_DEPTH],
     ],
     [0.09, 0.095, 0.093],
     12,
@@ -172,11 +183,29 @@ export function pressureSocket(mesh, center) {
     mesh,
     center,
     [
-      [BUTTON_HOLE - 0.02, -BUTTON_WELL_DEPTH],
+      [0.322, -BUTTON_WELL_DEPTH],
       [0, -BUTTON_WELL_DEPTH],
     ],
     [0.027, 0.03, 0.029],
     13,
+  );
+}
+// Button `index` of colour `color` with its base at `center`.
+export function pressureButton(mesh, center, color, index) {
+  pressureSurface(
+    mesh,
+    center,
+    [
+      [0, 0],
+      [0.285, 0],
+      [0.3, 0.009],
+      [0.3, 0.052],
+      [0.287, 0.065],
+      [0, 0.065],
+    ],
+    BUTTON_COLORS[color] || [BUTTON_COLORS.red, BUTTON_COLORS.blue][index % 2],
+    14,
+    (index * 7 + 2) % 16,
   );
 }
 export function pressureSurface(mesh, center, profile, color, material, tile = 0, segments = 48) {

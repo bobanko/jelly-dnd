@@ -26,9 +26,9 @@ import {
   spike,
   portalRing,
   pressureSocket,
+  pressureButton,
   BUTTON_REST,
   BUTTON_TRAVEL,
-  BUTTON_HIDDEN,
   pressureSurface,
   conveyorTile,
 } from './geometry/mechanisms.js';
@@ -161,32 +161,8 @@ export const propsMethods = {
       append('nockedArrow', i, arrow);
     }
     for (let i = 0; i < level.plates.length; i++) {
-      const mesh = [],
-        plate = level.plates[i],
-        palette = {
-          green: [0.22, 0.65, 0.035],
-          red: [0.78, 0.026, 0.012],
-          blue: [0.018, 0.25, 0.78],
-          violet: [0.5, 0.07, 0.78],
-          amber: [0.78, 0.36, 0.012],
-          dark: [0.12, 0.135, 0.14],
-        },
-        color = palette[plate.color] || [palette.red, palette.blue][i % 2];
-      pressureSurface(
-        mesh,
-        [0, 0, 0],
-        [
-          [0, 0],
-          [0.285, 0],
-          [0.3, 0.009],
-          [0.3, 0.052],
-          [0.287, 0.065],
-          [0, 0.065],
-        ],
-        color,
-        14,
-        (i * 7 + 2) % 16,
-      );
+      const mesh = [];
+      pressureButton(mesh, [0, 0, 0], level.plates[i].color, i);
       append('pressureButton', i, mesh);
     }
     for (let i = 0; i < level.world.lifts.length; i++) {
@@ -279,6 +255,11 @@ export const propsMethods = {
     const plateBodies = [...players, ...(level.crates || [])],
       pressFade = level.reducedMotion ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 14);
     level.plates.forEach((plate, i) => {
+      // Buttons arrive pressed with their cubes and pop up once the level has formed.
+      if (level.assembly) {
+        this.platePress[i] = 1;
+        return;
+      }
       const target = level.world.active(i, plateBodies) ? 1 : 0;
       this.platePress[i] =
         (this.platePress[i] || 0) + (target - (this.platePress[i] || 0)) * pressFade;
@@ -299,23 +280,21 @@ export const propsMethods = {
       let piece = this.propPieces[instance],
         i = piece.index,
         landingIndex =
-          piece.kind === 'pressureButton'
-            ? layout.plates + i
-            : piece.kind === 'jelly' || piece.kind === 'bubble'
-              ? layout.jellies + i
-              : piece.kind === 'crate'
-                ? layout.crates + i
-                : piece.kind === 'pickup'
-                  ? layout.pickups + i
-                  : piece.kind.startsWith('archer') || piece.kind === 'nockedArrow'
-                    ? layout.archers + i
-                    : piece.kind === 'drone' || piece.kind === 'droneCrystal'
-                      ? layout.drones + i
-                      : piece.kind === 'lift'
-                        ? layout.lifts + i
-                        : piece.kind === 'spikes'
-                          ? layout.spikes + i
-                          : null,
+          piece.kind === 'jelly' || piece.kind === 'bubble'
+            ? layout.jellies + i
+            : piece.kind === 'crate'
+              ? layout.crates + i
+              : piece.kind === 'pickup'
+                ? layout.pickups + i
+                : piece.kind.startsWith('archer') || piece.kind === 'nockedArrow'
+                  ? layout.archers + i
+                  : piece.kind === 'drone' || piece.kind === 'droneCrystal'
+                    ? layout.drones + i
+                    : piece.kind === 'lift'
+                      ? layout.lifts + i
+                      : piece.kind === 'spikes'
+                        ? layout.spikes + i
+                        : null,
         // Jellies and their gear grow in place (summoning, portal and respawn warps).
         warp =
           piece.kind === 'jelly' ||
@@ -331,7 +310,7 @@ export const propsMethods = {
             : piece.kind === 'jelly' || piece.kind === 'bubble'
               ? 0
               : // Spikes and buttons rise in place (see below): hidden only before their slot.
-                piece.kind === 'spikes' || piece.kind === 'pressureButton'
+                piece.kind === 'spikes'
                 ? level.assembly &&
                   assemblyRise(level.assembly, landingIndex, landingCount) === null
                   ? null
@@ -441,18 +420,15 @@ export const propsMethods = {
           z += fz * (0.21 - pull) + fx * 0.09;
         }
       } else if (piece.kind === 'pressureButton') {
-        // It rests sunk in a well in its block (the socket arrives with the cube, see the
-        // decorations below); during the level assembly it rises through the well floor.
-        const p = level.plates[i],
-          rise = level.assembly
-            ? (assemblyRise(level.assembly, landingIndex, landingCount) ?? 0)
-            : 1;
+        // While the level assembles, a pressed copy rides in with the cube instead (see the
+        // decorations below).
+        if (level.assembly) continue;
+        const p = level.plates[i];
         x = p.x;
         y =
           (p.y ?? level.world.heightAt(p.x, p.z) ?? 0) +
           BUTTON_REST -
-          this.platePress[i] * BUTTON_TRAVEL -
-          (1 - rise) * BUTTON_HIDDEN;
+          this.platePress[i] * BUTTON_TRAVEL;
         z = p.z;
       } else if (piece.kind === 'lift') {
         const lift = level.world.lifts[i];
@@ -500,7 +476,7 @@ export const propsMethods = {
       this.device.queue.writeBuffer(this.propInstanceBuffer, 0, instances);
     const decorationKey = [
       level.goals.length,
-      level.plates.length,
+      JSON.stringify(level.plates.map((p) => [p.x, p.y, p.z, p.color])),
       level.world.spikes.length,
       level.world.portals.length,
       level.world.conveyors.length,
@@ -626,6 +602,15 @@ export const propsMethods = {
           mesh[n + 11] = 0;
         }
         ride(start, portal.x, y, portal.z);
+      });
+      // Pressed buttons, drawn only during the level assembly so they come in with their
+      // cubes; they stay last so the renderer can leave them out afterwards.
+      this.decorationSettled = mesh.length / 12;
+      level.plates.forEach((plate, i) => {
+        const from = mesh.length,
+          y = plate.y ?? level.world.heightAt(plate.x, plate.z) ?? 0;
+        pressureButton(mesh, [plate.x, y + BUTTON_REST - BUTTON_TRAVEL, plate.z], plate.color, i);
+        ride(from, plate.x, y, plate.z);
       });
       this.decorationAssembly?.destroy();
       this.decorationAssembly = this.buffer(
