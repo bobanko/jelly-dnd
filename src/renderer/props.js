@@ -255,12 +255,12 @@ export const propsMethods = {
     const plateBodies = [...players, ...(level.crates || [])],
       pressFade = level.reducedMotion ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 14);
     level.plates.forEach((plate, i) => {
-      // Buttons arrive pressed with their cubes and pop up once the level has formed.
+      const target = level.world.active(i, plateBodies) ? 1 : 0;
+      // Buttons arrive with their cubes already as they will stand: no movement afterwards.
       if (level.assembly) {
-        this.platePress[i] = 1;
+        this.platePress[i] = target;
         return;
       }
-      const target = level.world.active(i, plateBodies) ? 1 : 0;
       this.platePress[i] =
         (this.platePress[i] || 0) + (target - (this.platePress[i] || 0)) * pressFade;
     });
@@ -420,7 +420,7 @@ export const propsMethods = {
           z += fz * (0.21 - pull) + fx * 0.09;
         }
       } else if (piece.kind === 'pressureButton') {
-        // While the level assembles, a pressed copy rides in with the cube instead (see the
+        // While the level assembles, a copy rides in with the cube instead (see the
         // decorations below).
         if (level.assembly) continue;
         const p = level.plates[i];
@@ -603,13 +603,20 @@ export const propsMethods = {
         }
         ride(start, portal.x, y, portal.z);
       });
-      // Pressed buttons, drawn only during the level assembly so they come in with their
-      // cubes; they stay last so the renderer can leave them out afterwards.
+      // Buttons as they start the level (pressed only under a body), drawn only during the
+      // level assembly so they come in with their cubes; they stay last so the renderer can
+      // leave them out afterwards.
       this.decorationSettled = mesh.length / 12;
       level.plates.forEach((plate, i) => {
         const from = mesh.length,
-          y = plate.y ?? level.world.heightAt(plate.x, plate.z) ?? 0;
-        pressureButton(mesh, [plate.x, y + BUTTON_REST - BUTTON_TRAVEL, plate.z], plate.color, i);
+          y = plate.y ?? level.world.heightAt(plate.x, plate.z) ?? 0,
+          press = this.platePress[i] ?? 0;
+        pressureButton(
+          mesh,
+          [plate.x, y + BUTTON_REST - press * BUTTON_TRAVEL, plate.z],
+          plate.color,
+          i,
+        );
         ride(from, plate.x, y, plate.z);
       });
       this.decorationAssembly?.destroy();
