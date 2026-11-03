@@ -147,6 +147,36 @@ export function portalRing(mesh, x, y, z, color) {
       );
     }
 }
+// A button's dark stone socket: a raised rim round a recessed floor, centred on `center`.
+export function pressureSocket(mesh, center) {
+  pressureSurface(
+    mesh,
+    center,
+    [
+      [0.293, 0.003],
+      [0.342, 0.003],
+      [0.346, 0.014],
+      [0.334, 0.038],
+      [0.304, 0.038],
+      [0.293, 0.024],
+      [0.293, 0.003],
+    ],
+    [0.09, 0.095, 0.093],
+    12,
+  );
+  pressureSurface(
+    mesh,
+    [center[0], center[1] + 0.004, center[2]],
+    [
+      [0, 0],
+      [0.294, 0],
+      [0.294, 0.012],
+      [0, 0.012],
+    ],
+    [0.027, 0.03, 0.029],
+    13,
+  );
+}
 export function pressureSurface(mesh, center, profile, color, material, tile = 0, segments = 48) {
   for (let band = 0; band < profile.length - 1; band++) {
     const [r0, y0] = profile[band],

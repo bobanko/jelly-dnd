@@ -1112,7 +1112,7 @@ class Renderer {
     }
     opaque.setVertexBuffer(0, this.decorationBuffer);
     if (assembling && this.decorationCount) {
-      // Goal pads, spike sockets, belts and portal bases fly in with their cubes.
+      // Goal pads, spike and button sockets, belts and portal bases fly in with their cubes.
       opaque.setPipeline(this.assemblyOpaque);
       opaque.setVertexBuffer(1, this.decorationAssembly);
       opaque.draw(this.decorationCount);

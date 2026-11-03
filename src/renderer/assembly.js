@@ -77,8 +77,9 @@ export function jellySummonProgress(level, players, index) {
   const layout = landingLayout(level, players.length);
   return assemblyLandingProgress(level.assembly, layout.jellies + index, layout.count);
 }
-// Spikes rise out of their sockets during their landing slot (0..1, null before).
-export function assemblySpikeRise(assembly, index, count) {
+// Spikes and buttons rise out of their sockets, which arrive with the cube beneath them,
+// during their landing slot (0..1, null before).
+export function assemblyRise(assembly, index, count) {
   const t = assemblyLandingProgress(assembly, index, count);
   return t === null ? null : smootherstep(t);
 }

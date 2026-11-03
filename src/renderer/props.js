@@ -7,7 +7,7 @@ import {
   assemblyDropOffset,
   assemblyFloatOffset,
   assemblyRock,
-  assemblySpikeRise,
+  assemblyRise,
   jellyScale,
   landingLayout,
 } from './assembly.js';
@@ -25,6 +25,7 @@ import {
   spikeSocket,
   spike,
   portalRing,
+  pressureSocket,
   pressureSurface,
   conveyorTile,
 } from './geometry/mechanisms.js';
@@ -157,35 +158,6 @@ export const propsMethods = {
       append('nockedArrow', i, arrow);
     }
     for (let i = 0; i < level.plates.length; i++) {
-      const socket = [];
-      pressureSurface(
-        socket,
-        [0, 0, 0],
-        [
-          [0.293, 0.003],
-          [0.342, 0.003],
-          [0.346, 0.014],
-          [0.334, 0.038],
-          [0.304, 0.038],
-          [0.293, 0.024],
-          [0.293, 0.003],
-        ],
-        [0.09, 0.095, 0.093],
-        12,
-      );
-      pressureSurface(
-        socket,
-        [0, 0.004, 0],
-        [
-          [0, 0],
-          [0.294, 0],
-          [0.294, 0.012],
-          [0, 0.012],
-        ],
-        [0.027, 0.03, 0.029],
-        13,
-      );
-      append('pressureSocket', i, socket);
       const mesh = [],
         plate = level.plates[i],
         palette = {
@@ -324,7 +296,7 @@ export const propsMethods = {
       let piece = this.propPieces[instance],
         i = piece.index,
         landingIndex =
-          piece.kind === 'pressureButton' || piece.kind === 'pressureSocket'
+          piece.kind === 'pressureButton'
             ? layout.plates + i
             : piece.kind === 'jelly' || piece.kind === 'bubble'
               ? layout.jellies + i
@@ -355,10 +327,10 @@ export const propsMethods = {
             ? null
             : piece.kind === 'jelly' || piece.kind === 'bubble'
               ? 0
-              : // Spikes rise in place (see below): hidden only before their slot.
-                piece.kind === 'spikes'
+              : // Spikes and buttons rise in place (see below): hidden only before their slot.
+                piece.kind === 'spikes' || piece.kind === 'pressureButton'
                 ? level.assembly &&
-                  assemblySpikeRise(level.assembly, landingIndex, landingCount) === null
+                  assemblyRise(level.assembly, landingIndex, landingCount) === null
                   ? null
                   : 0
                 : piece.kind === 'drone' || piece.kind === 'droneCrystal'
@@ -465,12 +437,19 @@ export const propsMethods = {
           y += 0.57;
           z += fz * (0.21 - pull) + fx * 0.09;
         }
-      } else if (piece.kind === 'pressureButton' || piece.kind === 'pressureSocket') {
-        const p = level.plates[i];
+      } else if (piece.kind === 'pressureButton') {
+        // Its socket arrives with the cube (see the decorations below); during the level
+        // assembly the button then rises out of it from below the socket floor.
+        const p = level.plates[i],
+          rise = level.assembly
+            ? (assemblyRise(level.assembly, landingIndex, landingCount) ?? 0)
+            : 1;
         x = p.x;
         y =
           (p.y ?? level.world.heightAt(p.x, p.z) ?? 0) +
-          (piece.kind === 'pressureButton' ? 0.02 - this.platePress[i] * 0.065 : 0);
+          0.02 -
+          this.platePress[i] * 0.065 -
+          (1 - rise) * 0.09;
         z = p.z;
       } else if (piece.kind === 'lift') {
         const lift = level.world.lifts[i];
@@ -482,7 +461,7 @@ export const propsMethods = {
           state = level.world.spikeState(trap),
           // During the level assembly the spikes rise out of their sockets in their slot.
           rise = level.assembly
-            ? (assemblySpikeRise(level.assembly, landingIndex, landingCount) ?? 0)
+            ? (assemblyRise(level.assembly, landingIndex, landingCount) ?? 0)
             : 1,
           extension = state.extension * rise;
         if (extension <= 0) continue;
@@ -567,6 +546,12 @@ export const propsMethods = {
         }
         ride(base, g.x, y, g.z);
       });
+      for (const plate of level.plates) {
+        const from = mesh.length,
+          y = plate.y ?? level.world.heightAt(plate.x, plate.z) ?? 0;
+        pressureSocket(mesh, [plate.x, y, plate.z]);
+        ride(from, plate.x, y, plate.z);
+      }
       for (const trap of level.world.spikes) {
         const from = mesh.length,
           f = level.world.spikeFrame(trap);
