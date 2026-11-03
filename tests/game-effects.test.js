@@ -152,7 +152,9 @@ test('spike death splits the jelly into chunks and splash droplets that bounce o
   for (let i = 0; i < 70; i++) effects.step(0.01, world);
   assert.equal(effects.particles.length, 0);
   assert.ok(effects.chunks.length > 0, 'chunks outlast the droplets');
-  for (let i = 0; i < 160; i++) effects.step(0.01, world);
+  for (let i = 0; i < 360; i++) effects.step(0.01, world);
+  assert.ok(effects.chunks.length > 0, 'chunks linger for a few seconds');
+  for (let i = 0; i < 300; i++) effects.step(0.01, world);
   assert.equal(effects.chunks.length, 0);
 });
 
@@ -178,6 +180,32 @@ test('jelly chunks land, settle flat on a face and are stopped by walls', () => 
     assert.ok(Math.abs(c.position[1] - bottom) < 0.01, 'chunk rests on the floor');
     assert.ok(Math.max(...[3, 4, 5].map((k) => Math.abs(r[k]))) > 0.99, 'chunk lies on a face');
   }
+});
+
+test('a living jelly shoves chunks out of its way without being touched itself', () => {
+  const effects = new System(),
+    body = { core: [1, 0.42, 3], r: [1, 0, 0, 0, 1, 0, 0, 0, 1], half: 0.315, rounding: 0.045 },
+    alive = [{ state: 'alive' }],
+    lattice = { get: (p) => (p === alive[0] ? body : soft.get()) };
+  effects.burst(death, players, lattice);
+  const chunk = effects.chunks[0];
+  effects.chunks = [chunk];
+  chunk.position = [1.7, 0.2, 3];
+  chunk.velocity = [0, 0, 0];
+  chunk.omega = [0, 0, 0];
+  chunk.rotation = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  chunk.half = [0.11, 0.11, 0.11];
+  const before = structuredClone(body);
+  effects.step(0.01, world, [], alive);
+  // The jelly slides towards the chunk at 3 units per second.
+  for (let i = 0; i < 20; i++) {
+    body.core[0] += 0.03;
+    effects.step(0.01, world, [], alive);
+    assert.ok(chunk.position[0] - body.core[0] >= 0.36 + 0.099 - 1e-6, 'chunk stays outside');
+  }
+  assert.ok(chunk.velocity[0] > 2, 'chunk is carried along');
+  assert.deepEqual(body.r, before.r);
+  assert.equal(body.half, before.half);
 });
 
 test('void death breaks the fallen lattice into scraps without snapping them up onto the level', () => {

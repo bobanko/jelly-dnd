@@ -59,7 +59,8 @@ export const effectsMethods = {
         );
         for (let k = from; k < mesh.length; k += 12) {
           const p = mesh.slice(k, k + 3),
-            n = mesh.slice(k + 3, k + 6);
+            // Faces bulge slightly, like the gel, so a glint is a spot, not a whole face.
+            n = mesh.slice(k + 3, k + 6).map((v, axis) => v + (p[axis] / item.half[axis]) * 0.3);
           for (let axis = 0; axis < 3; axis++) {
             const turned = r[axis * 3] * p[0] + r[axis * 3 + 1] * p[1] + r[axis * 3 + 2] * p[2];
             mesh[k + axis] =

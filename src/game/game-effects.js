@@ -245,14 +245,85 @@ class System {
         squash: 0,
         squashAge: 0,
         age: 0,
-        life: 1.5 + random() * 0.6,
+        life: 4.5 + random() * 1.5,
       });
     }
     this.chunks = this.chunks.slice(-CHUNK_LIMIT);
   }
-  stepChunks(dt, world) {
+  // Living jellies, crates and barrels as boxes for chunks to bump into, with their speed,
+  // measured from their last frame (a jump such as a respawn counts as standing still).
+  chunkPushers(dt, players, world) {
+    const pushers = [],
+      seen = new Set();
+    this.pusherCores ??= new Map();
+    for (const p of world.bodies || players) {
+      if (!p || p.state === 'dead') continue;
+      const b = this.soft?.get(p);
+      if (!b?.core || !b.r) continue;
+      seen.add(p);
+      const last = this.pusherCores.get(p),
+        step = last ? b.core.map((v, k) => v - last[k]) : [0, 0, 0],
+        jump = Math.hypot(...step);
+      this.pusherCores.set(p, b.core.slice());
+      pushers.push({
+        core: b.core,
+        r: b.r,
+        half: (b.half ?? 0.315) + (b.rounding ?? 0.045),
+        velocity: dt > 0 && jump < 0.5 ? step.map((v) => v / dt) : [0, 0, 0],
+      });
+    }
+    for (const p of this.pusherCores.keys()) if (!seen.has(p)) this.pusherCores.delete(p);
+    return pushers;
+  }
+  // One way only: a body shoves a chunk out of its box and carries it along; the chunk never
+  // touches the body, so gameplay and undo stay unaffected.
+  pushChunk(c, body) {
+    const r = body.r,
+      d = c.position.map((v, k) => v - body.core[k]),
+      local = [0, 1, 2].map((a) => r[a] * d[0] + r[3 + a] * d[1] + r[6 + a] * d[2]),
+      reach = (c.half[0] + c.half[1] + c.half[2]) / 3,
+      limit = body.half + reach * 0.9;
+    let axis = -1,
+      depth = Infinity;
+    for (let a = 0; a < 3; a++) {
+      const gap = limit - Math.abs(local[a]);
+      if (gap <= 0) return;
+      if (gap < depth) {
+        depth = gap;
+        axis = a;
+      }
+    }
+    const sign = Math.sign(local[axis]) || 1,
+      normal = [r[axis] * sign, r[3 + axis] * sign, r[6 + axis] * sign];
+    for (let k = 0; k < 3; k++) c.position[k] += normal[k] * depth;
+    const relative = c.velocity.map((v, k) => v - body.velocity[k]),
+      along = relative[0] * normal[0] + relative[1] * normal[1] + relative[2] * normal[2];
+    if (along >= 0) return;
+    // Bounce off the body's face, slide with it, and tumble from the knock.
+    for (let k = 0; k < 3; k++) {
+      const tangent = relative[k] - along * normal[k];
+      c.velocity[k] = body.velocity[k] - along * 0.35 * normal[k] + tangent * 0.5;
+    }
+    const knock = -along;
+    if (knock > 0.8) {
+      if (Math.abs(normal[1]) < 0.7) c.velocity[1] += knock * 0.3;
+      c.squash = Math.min(0.35, knock * 0.06);
+      c.squashAge = 0;
+      const spin = [
+        normal[1] * relative[2] - normal[2] * relative[1],
+        normal[2] * relative[0] - normal[0] * relative[2],
+        normal[0] * relative[1] - normal[1] * relative[0],
+      ];
+      for (let k = 0; k < 3; k++) c.omega[k] += (spin[k] / Math.max(...c.half)) * 0.4;
+    }
+  }
+  stepChunks(dt, world, players = []) {
     this.chunks = this.chunks.filter((c) => c.age < c.life);
-    if (!this.chunks.length) return;
+    if (!this.chunks.length) {
+      this.pusherCores?.clear();
+      return;
+    }
+    const pushers = this.chunkPushers(dt, players, world);
     const walls = (world.collisionBoxes?.() || []).filter(
       (b) => b.kind === 'wall' || b.maxY > 0.15,
     );
@@ -297,6 +368,7 @@ class System {
         else c.velocity[axis] *= -0.3;
         for (let k = 0; k < 3; k++) c.omega[k] *= 0.8;
       }
+      for (const body of pushers) this.pushChunk(c, body);
       const floor = world.heightAt(c.position[0], c.position[2], previousBottom + 0.05);
       if (
         floor === null ||
@@ -399,6 +471,7 @@ class System {
   }
   burst(event, players, soft) {
     const random = () => this.random();
+    if (soft) this.soft = soft;
     if (event.type === 'victory') {
       if (this.reducedMotion) return;
       players.forEach((player, index) => {
@@ -856,7 +929,7 @@ class System {
       }
     }
     this.particles = this.particles.filter((p) => p.age < p.life);
-    this.stepChunks(dt, world);
+    this.stepChunks(dt, world, players);
     this.stepLaserImpacts(dt, world, players);
     for (const ring of this.rings) ring.age += dt;
     this.rings = this.rings.filter((r) => r.age < r.life);
