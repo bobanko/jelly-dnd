@@ -75,17 +75,18 @@ async function boot({ entry = 'game.js', search = '', failure, deniedStorage = f
   return { ...result, elements, entries, alerts, requests, redirected, editorModel };
 }
 
-const extraCount = Array.isArray(catalog.extra)
-  ? catalog.extra.flatMap((entry) =>
-      typeof entry === 'string'
-        ? [entry]
-        : Array.isArray(entry.levels)
-          ? entry.levels
-          : entry.file
-            ? [entry.file]
-            : [],
-    ).length
-  : 0;
+const extraGroups = (Array.isArray(catalog.extra) ? catalog.extra : [])
+  .map((entry) =>
+    typeof entry === 'string'
+      ? [entry]
+      : Array.isArray(entry.levels)
+        ? entry.levels
+        : entry.file
+          ? [entry.file]
+          : [],
+  )
+  .filter((files) => files.length);
+const extraCount = extraGroups.flat().length;
 
 test('module loader publishes validated campaign maps before launching the menu', async () => {
   const result = await boot();
@@ -95,7 +96,7 @@ test('module loader publishes validated campaign maps before launching the menu'
   assert.equal(result.maps[1].name, Levels.standardLevel(1).name);
   assert.equal(
     result.elements['#menu-levels .level-list'].children.length,
-    catalog.standard.length + (extraCount ? extraCount + 1 : 0),
+    catalog.standard.length + extraCount + extraGroups.length,
   );
   assert.equal(result.progress.canPlay(1), true);
   assert.equal(result.progress.canPlay(2), false);

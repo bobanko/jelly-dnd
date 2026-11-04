@@ -19,6 +19,16 @@ const catalog = {
       subcat: 'gem',
       levels: ['gem-barrel-express.json', 'gem-mine-lift.json', 'gem-crystal-sanctum.json'],
     },
+    {
+      subcat: 'claude',
+      levels: [
+        'claude-counterweight.json',
+        'claude-ring-road.json',
+        'claude-green-wave.json',
+        'claude-crossfire.json',
+        'claude-shooting-gallery.json',
+      ],
+    },
   ],
 };
 export const { version, standard, extra } = catalog;
