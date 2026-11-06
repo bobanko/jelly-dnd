@@ -1,4 +1,4 @@
-import { PORTAL_LIMIT } from '../layout.js';
+import { PORTAL_LIMIT, KEY_LIMIT } from '../layout.js';
 import { STONE_DETAIL } from '../mesh.js';
 import { ASSEMBLY_BLOCK_END } from '../assembly.js';
 import { runeGlyphShader } from '../geometry/runes.js';
@@ -7,7 +7,7 @@ export const VOID_COLOR = '.0026,.0034,.0068';
 export const shared = `
  struct Portal { position:vec4f, color:vec4f, animation:vec4f };
  struct Goal { position:vec4f, color:vec4f };
- struct Scene { vp:mat4x4f, lightVP:mat4x4f, eye:vec4f, light:vec4f, body0:vec4f, body1:vec4f, body2:vec4f, options:vec4f, portals:array<Portal,${PORTAL_LIMIT}>, goals:array<Goal,5>, torches:array<vec4f,8>, body3:vec4f, body4:vec4f, bodySlots:array<vec4f,2>, finish:vec4f, goalSlots:array<vec4f,2>, depthGlow:vec4f, reveal:array<vec4f,5>, fog:vec4f };
+ struct Scene { vp:mat4x4f, lightVP:mat4x4f, eye:vec4f, light:vec4f, body0:vec4f, body1:vec4f, body2:vec4f, options:vec4f, portals:array<Portal,${PORTAL_LIMIT}>, goals:array<Goal,5>, torches:array<vec4f,8>, body3:vec4f, body4:vec4f, bodySlots:array<vec4f,2>, finish:vec4f, goalSlots:array<vec4f,2>, depthGlow:vec4f, reveal:array<vec4f,5>, fog:vec4f, keyCount:vec4f, keys:array<vec4f,${KEY_LIMIT * 2}> };
  @group(0) @binding(0) var<uniform> scene:Scene;
  struct Out { @builtin(position) clip:vec4f, @location(0) world:vec3f, @location(1) normal:vec3f, @location(2) color:vec3f, @location(3) material:f32, @location(4) local:vec3f };
  struct Vertex { position:vec4f, normal:vec4f, info:vec4f };
@@ -15,6 +15,7 @@ export const shared = `
  @group(0) @binding(4) var stoneAtlas:texture_2d<f32>;
  @group(0) @binding(5) var oakTexture:texture_2d<f32>;
  @group(0) @binding(7) var barrelTexture:texture_2d<f32>;
+ @group(0) @binding(8) var keyAtlas:texture_2d<f32>;
  @group(0) @binding(6) var materialSampler:sampler;
  ${runeGlyphShader}
  fn assemblyPosition(p:vec3f,block:vec4f)->vec3f{
@@ -326,6 +327,38 @@ export const shared = `
   }
   return r;
  }
+ // Control hints around an idle jelly (a developer option): a glowing keycap plate in its
+ // colour lying at its feet on each side, also over empty space. Letters face the camera;
+ // arrows point the way they move. Key k: (centre x, floor y, centre z, fade), (glyph, slot, dir).
+ struct KeyOut { @builtin(position) clip:vec4f, @location(0) local:vec2f, @location(1) @interpolate(flat) key:u32 };
+ const KEY_HALF=.15;
+ @vertex fn floorKeyVS(@builtin(vertex_index) v:u32,@builtin(instance_index) k:u32)->KeyOut{
+  let corners=array<vec2f,6>(vec2f(-1,-1),vec2f(1,-1),vec2f(1,1),vec2f(-1,-1),vec2f(1,1),vec2f(-1,1));
+  let a=scene.keys[k*2u];let c=corners[v];var o:KeyOut;o.local=c;o.key=k;
+  o.clip=scene.vp*vec4f(a.x+c.x*KEY_HALF,a.y+.015,a.z+c.y*KEY_HALF,1.);return o;
+ }
+ fn floorKey(o:KeyOut)->vec4f{
+  let a=scene.keys[o.key*2u];let b=scene.keys[o.key*2u+1u];let tint=jellyTint(b.y);
+  let q=abs(o.local)-vec2f(.6);let edge=length(max(q,vec2f(0.)))+min(max(q.x,q.y),0.)-.3;
+  var color=tint*(exp(-pow(edge/.06,2.))*1.6+exp(-max(edge,0.)*9.)*smoothstep(-.08,0.,edge)*.35);
+  color+=tint*.1*(1.-smoothstep(-.06,0.,edge));
+  let right=normalize(vec2f(scene.vp[0].x,scene.vp[2].x));
+  var away=vec2f(-right.y,right.x);
+  if(dot(away,vec2f(scene.vp[0].y,scene.vp[2].y))<0.){away=-away;}
+  var axisUp=away;if(b.x<.5){axisUp=b.zw;}
+  let axisRight=sign(away.x*right.y-away.y*right.x)*vec2f(-axisUp.y,axisUp.x);
+  let uv=vec2f(dot(o.local,axisRight),-dot(o.local,axisUp))*.66+.5;
+  if(all(uv>vec2f(0.))&&all(uv<vec2f(1.))){
+   let cell=vec2f(b.x%8.,floor(b.x/8.));
+   let glyph=textureSampleLevel(keyAtlas,materialSampler,(cell+clamp(uv,vec2f(.02),vec2f(.98)))/vec2f(8.,4.),0.).r;
+   color+=mix(tint,vec3f(1.),.6)*glyph*1.8;
+  }
+  // Additive blend (src-alpha, one): alpha carries the fade.
+  return vec4f(color,a.w);
+ }
+ @fragment fn floorKeyFS(o:KeyOut)->@location(0) vec4f{return floorKey(o);}
+ // Parts hidden behind the jelly itself or masonry still show, dimmer.
+ @fragment fn floorKeyHiddenFS(o:KeyOut)->@location(0) vec4f{let c=floorKey(o);return vec4f(c.rgb,c.a*.4);}
  // Shared dungeon lighting: cool sky ambient and moonlit key with shadows, warm torches,
  // and each jelly's coloured transmission pool plus its glowing footprint outline (marks).
  fn dungeonLight(p:vec3f,n:vec3f,up:f32,occlusion:f32)->Lighting{

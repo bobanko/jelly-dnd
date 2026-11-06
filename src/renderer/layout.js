@@ -14,6 +14,29 @@ export const PORTAL_LIMIT = Levels.limits.portals,
   REVEAL_OFFSET = DEPTH_GLOW_OFFSET + 4,
   // Low fog footprint: centre XZ and half extents XZ.
   FOG_OFFSET = REVEAL_OFFSET + 20,
-  SCENE_FLOATS = FOG_OFFSET + 4;
+  // Control keys around idle jellies: a count, then two vec4s per key (see floorKeyVS).
+  KEYS_OFFSET = FOG_OFFSET + 4,
+  KEY_LIMIT = 20,
+  SCENE_FLOATS = KEYS_OFFSET + 4 + KEY_LIMIT * 8;
+// Labels in the floor key atlas, 8 per row; arrows share the first one and are turned.
+export const KEY_GLYPHS = [
+  '↑',
+  'W',
+  'A',
+  'S',
+  'D',
+  'I',
+  'J',
+  'K',
+  'L',
+  'T',
+  'F',
+  'G',
+  'H',
+  '8',
+  '4',
+  '5',
+  '6',
+];
 // Floating dust motes at 100% density; the developer slider goes up to 300%.
 export const DUST_MOTES = 128;

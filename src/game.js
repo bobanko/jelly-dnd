@@ -856,7 +856,7 @@ function createPlayerHints() {
     });
     node.setAttribute('aria-label', tr('helpMove'));
     document.querySelector('#player-hints').append(node);
-    return { node, idle: 0 };
+    return { node, idle: 0, labels: keys };
   });
   // Dashed outlines of bodies waiting for a taken spawn, drawn over the scene.
   spawnOutlines = document.createElementNS(SVG_NS, 'svg');
@@ -997,8 +997,37 @@ function updateSpawnMarks(dt) {
     return true;
   });
 }
+// Developer option: 'overlay' keys float above each idle jelly; 'floor' lays them around it
+// at its feet (see floorKeyVS in the shaders).
+let controlHintStyle = 'overlay';
+const KEY_MOVES = [
+  [0, -1],
+  [-1, 0],
+  [0, 1],
+  [1, 0],
+];
+// The four keys lie around the jelly at its feet, each on the side it moves towards, also
+// over empty space, so all of them are always shown.
+const KEY_DISTANCE = 0.66;
+function floorHintKeys(hint, p, turn, keys) {
+  const fade = Math.min(1, (hint.idle - 2) / 0.35);
+  hint.labels.forEach((label, k) => {
+    const [dx, dz] = turnKey(KEY_MOVES[k], turn.quarter);
+    keys.push({
+      x: p.x + dx * KEY_DISTANCE,
+      y: p.y || 0,
+      z: p.z + dz * KEY_DISTANCE,
+      alpha: fade,
+      label: ARROW_LABEL.test(label) ? '↑' : label,
+      slot: p.slot ?? 0,
+      dx,
+      dz,
+    });
+  });
+}
 function updatePlayerHints(dt) {
   updateSpawnMarks(dt);
+  level.floorKeys = [];
   if (!playerHints.length) return;
   const inactive = menuOpen || won || loadingActive || restartTransition || level.assembly;
   const boxes = [],
@@ -1010,6 +1039,11 @@ function updatePlayerHints(dt) {
         [...heldKeys].some((key) => movementKeys[key][0] === i);
     hint.idle = inactive || moving || !JellyPhysics.alive(p) ? 0 : hint.idle + dt;
     const point = project(p.rx, (p.y || 0) + 1.2, p.rz);
+    if (controlHintStyle === 'floor') {
+      hint.node.hidden = true;
+      if (hint.idle >= 2) floorHintKeys(hint, p, turn, level.floorKeys);
+      return;
+    }
     hint.node.hidden = hint.idle < 2 || !point.visible;
     if (hint.node.hidden) return;
     const x = Math.max(50, Math.min(W - 50, point.x));
@@ -1468,6 +1502,8 @@ document.querySelector('#level-pillars').addEventListener('change', (e) => {
 document
   .querySelector('#depth-glow')
   .addEventListener('change', (e) => (sceneRenderer.underglow = e.target.checked));
+for (const radio of document.querySelectorAll('[name=control-hints]'))
+  radio.addEventListener('change', (e) => (controlHintStyle = e.target.value));
 for (const radio of document.querySelectorAll('[name=see-through]'))
   radio.addEventListener('change', (e) => (sceneRenderer.seeThrough = e.target.value));
 for (const radio of document.querySelectorAll('[name=depth-glow-color]'))

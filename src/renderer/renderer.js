@@ -13,6 +13,9 @@ import {
   DEPTH_GLOW_OFFSET,
   REVEAL_OFFSET,
   FOG_OFFSET,
+  KEYS_OFFSET,
+  KEY_LIMIT,
+  KEY_GLYPHS,
   DUST_MOTES,
 } from './layout.js';
 import { dot, normalize, viewMatrix, cameraFrame } from './math.js';
@@ -175,6 +178,7 @@ class Renderer {
         { binding: 5, visibility: GPUShaderStage.FRAGMENT, texture: {} },
         { binding: 6, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
         { binding: 7, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+        { binding: 8, visibility: GPUShaderStage.FRAGMENT, texture: {} },
       ],
     });
     this.skinLayout = d.createBindGroupLayout({
@@ -349,6 +353,24 @@ class Renderer {
       color: { srcFactor: 'src-alpha', dstFactor: 'one', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
     };
+    this.floorKeyPipeline = pipeline(
+      'floorKeyVS',
+      'floorKeyFS',
+      'none',
+      4,
+      'less',
+      false,
+      additive,
+    );
+    this.floorKeyHiddenPipeline = pipeline(
+      'floorKeyVS',
+      'floorKeyHiddenFS',
+      'none',
+      4,
+      'greater',
+      false,
+      additive,
+    );
     this.runePipeline = pipeline('runeVS', 'runeFS', 'none', 4, 'less', false, additive, [
       vertexBuffers[0],
       {
@@ -604,7 +626,9 @@ class Renderer {
       mipmapFilter: 'linear',
       maxAnisotropy: 4,
     });
+    this.keyAtlas = this.keyGlyphAtlas();
     const materialEntries = [
+      { binding: 8, resource: this.keyAtlas.createView() },
       { binding: 4, resource: this.stoneTexture.createView() },
       { binding: 5, resource: this.woodTexture.createView() },
       { binding: 6, resource: this.materialSampler },
@@ -709,6 +733,46 @@ class Renderer {
     this.device.queue.copyExternalImageToTexture({ source: bitmap }, { texture }, [width, height]);
     bitmap.close();
     await this.generateMipmaps(texture);
+    return texture;
+  }
+  // White key labels on black, 64 px cells, 8 per row (see KEY_GLYPHS and floorKeys).
+  keyGlyphAtlas() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 256;
+    const g = canvas.getContext('2d');
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, 512, 256);
+    g.fillStyle = '#fff';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.font = '700 42px Arial, sans-serif';
+    // A bold arrow pointing up (the font's arrow is too thin when projected).
+    g.beginPath();
+    for (const [x, y] of [
+      [32, 10],
+      [52, 32],
+      [39, 32],
+      [39, 54],
+      [25, 54],
+      [25, 32],
+      [12, 32],
+    ])
+      g.lineTo(x, y);
+    g.fill();
+    KEY_GLYPHS.forEach((label, i) => {
+      if (i) g.fillText(label, (i % 8) * 64 + 32, Math.floor(i / 8) * 64 + 34);
+    });
+    const texture = this.device.createTexture({
+      label: 'Floor key labels',
+      size: [512, 256],
+      format: 'rgba8unorm',
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    this.device.queue.copyExternalImageToTexture({ source: canvas }, { texture }, [512, 256]);
     return texture;
   }
   // Each mip level is a bilinear half-size draw of the previous one, entirely on the GPU:
@@ -930,6 +994,15 @@ class Renderer {
       DEPTH_GLOW_OFFSET,
     );
     uniforms.set(this.fogArea || [0, 0, 0, 0], FOG_OFFSET);
+    const keys = (level.floorKeys || []).slice(0, KEY_LIMIT);
+    uniforms[KEYS_OFFSET] = keys.length;
+    this.keyCount = keys.length;
+    keys.forEach((k, i) =>
+      uniforms.set(
+        [k.x, k.y, k.z, k.alpha, Math.max(0, KEY_GLYPHS.indexOf(k.label)), k.slot, k.dx, k.dz],
+        KEYS_OFFSET + 4 + i * 8,
+      ),
+    );
     this.updateReveal(level, players, frame, dt, uniforms);
     (level.world.torches || [])
       .slice(0, 8)

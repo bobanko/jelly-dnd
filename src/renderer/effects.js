@@ -373,6 +373,12 @@ export const effectsMethods = {
         pass.draw(gel, 1, first);
       }
     }
+    if (this.keyCount) {
+      pass.setPipeline(this.floorKeyHiddenPipeline);
+      pass.draw(6, this.keyCount);
+      pass.setPipeline(this.floorKeyPipeline);
+      pass.draw(6, this.keyCount);
+    }
     if (level.assembly) return;
     if (this.runeCount) {
       pass.setPipeline(this.runePipeline);
