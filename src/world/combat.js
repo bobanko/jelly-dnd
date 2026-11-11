@@ -59,6 +59,14 @@ function install(World) {
   Object.assign(World.prototype, {
     combatSnapshot() {
       return {
+        droneFollowing: (this.droneFollowing || []).map((state) =>
+          state
+            ? {
+                ...state,
+                position: [...state.position],
+              }
+            : null,
+        ),
         archers: this.archers.map((a) => ({
           cooldown: a.cooldown ?? a.firstShot ?? 1.6,
           shotFlash: a.shotFlash || 0,
@@ -75,6 +83,9 @@ function install(World) {
     },
     restoreCombat(state) {
       this.droneBeams = [];
+      this.droneFollowing = (state?.droneFollowing || []).map((follow) =>
+        follow ? { ...follow, position: [...follow.position] } : null,
+      );
       this.archers.forEach((a, i) =>
         Object.assign(
           a,
@@ -92,8 +103,8 @@ function install(World) {
       );
     },
     droneTarget(d, bodies = this.bodies || []) {
-      // Measure nearest targets from the authored anchor. Following needs no hidden state,
-      // so undo, respawn and network replay derive the same position from the same bodies.
+      // Measure nearest targets from the authored anchor so a moving drone does not
+      // repeatedly switch targets merely because its own position changed.
       const anchor = Levels.droneOrigin(d, this.heightAt(d.x, d.z) ?? 0);
       let target = null,
         nearest = Infinity;
@@ -117,21 +128,57 @@ function install(World) {
       return target;
     },
     droneOrigin(d, bodies = this.bodies || [], target = null) {
-      return Levels.droneOrigin(
-        d,
-        this.heightAt(d.x, d.z) ?? 0,
-        d.follow?.length ? (target ?? this.droneTarget(d, bodies)?.p) : null,
-      );
+      const followed = d.follow?.length ? (target ?? this.droneTarget(d, bodies)?.p) : null,
+        state = this.droneFollowing?.[this.drones.indexOf(d)],
+        targetIndex = followed ? bodies.indexOf(followed) : -1;
+      return state && targetIndex >= 0 && state.targetIndex === targetIndex
+        ? [...state.position]
+        : Levels.droneOrigin(d, this.heightAt(d.x, d.z) ?? 0, followed);
+    },
+    updateDroneFollowing(bodies, dt) {
+      this.droneFollowing ??= [];
+      this.drones.forEach((d, index) => {
+        const target = d.follow?.length ? this.droneTarget(d, bodies) : null;
+        if (!target) {
+          this.droneFollowing[index] = null;
+          return;
+        }
+        const desired = Levels.droneOrigin(d, this.heightAt(d.x, d.z) ?? 0, target.p),
+          previous = this.droneFollowing[index];
+        if (!previous || previous.targetIndex !== target.i) {
+          this.droneFollowing[index] = { targetIndex: target.i, position: desired, flying: false };
+          return;
+        }
+        const delta = desired.map((value, axis) => value - previous.position[axis]),
+          distance = DMath.hypot(...delta);
+        if ((target.p.portalFlash || 0) > 0.5 && distance > 0.75) previous.flying = true;
+        if (!previous.flying) {
+          previous.position = desired;
+          return;
+        }
+        const step = Math.min(distance, 4 * dt);
+        if (distance > 1e-8)
+          previous.position = previous.position.map(
+            (value, axis) => value + (delta[axis] / distance) * step,
+          );
+        if (step >= distance - 1e-8) {
+          previous.position = desired;
+          previous.flying = false;
+        }
+      });
+      this.droneFollowing.length = this.drones.length;
     },
     traceDrones(bodies, soft) {
       if (!this.drones?.length) return [];
       const targets = bodies.flatMap((p, i) =>
         p.state === 'dead' ? [] : [{ p, i, box: bodyBox(p, soft) }],
       );
-      const bounds = this.collisionBoxes().map((o) => ({
-          min: [o.x - (o.halfX ?? o.half), o.minY, o.z - (o.halfZ ?? o.half)],
-          max: [o.x + (o.halfX ?? o.half), o.maxY, o.z + (o.halfZ ?? o.half)],
-        })),
+      const bounds = this.collisionBoxes()
+          .filter((o) => o.kind !== 'grate')
+          .map((o) => ({
+            min: [o.x - (o.halfX ?? o.half), o.minY, o.z - (o.halfZ ?? o.half)],
+            max: [o.x + (o.halfX ?? o.half), o.maxY, o.z + (o.halfZ ?? o.half)],
+          })),
         beams = [];
       for (const [index, d] of this.drones.entries()) {
         const target = this.droneTarget(d, bodies);
@@ -372,12 +419,15 @@ function install(World) {
           a.cooldown += a.interval ?? 2.4;
           a.shotFlash = 0.2;
         }
+      this.updateDroneFollowing(bodies, dt);
       events.push(...this.afterDrones(bodies, soft));
       if (!this.arrows.length) return events;
-      const bounds = this.collisionBoxes().map((o) => ({
-        min: [o.x - (o.halfX ?? o.half), o.minY, o.z - (o.halfZ ?? o.half)],
-        max: [o.x + (o.halfX ?? o.half), o.maxY, o.z + (o.halfZ ?? o.half)],
-      }));
+      const bounds = this.collisionBoxes()
+        .filter((o) => o.kind !== 'grate')
+        .map((o) => ({
+          min: [o.x - (o.halfX ?? o.half), o.minY, o.z - (o.halfZ ?? o.half)],
+          max: [o.x + (o.halfX ?? o.half), o.maxY, o.z + (o.halfZ ?? o.half)],
+        }));
       const targets = bodies
         .map((p, i) => (p.state !== 'dead' ? { p, i, box: bodyBox(p, soft) } : null))
         .filter(Boolean);

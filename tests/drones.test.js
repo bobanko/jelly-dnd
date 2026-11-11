@@ -366,6 +366,33 @@ test('following restores from body positions after snapshot, death, respawn and 
   assert.deepEqual(w.droneOrigin(d), [p.x, p.y + 0.64 + d.hover, p.z]);
 });
 
+test('axis-following drone flies to a teleported target instead of teleporting with it', () => {
+  const r = scene([1]),
+    w = r.world,
+    d = w.drones[0],
+    p = r.players[0];
+  d.follow = ['x', 'z'];
+  d.target = 1;
+  w.updateDroneFollowing(r.bodies, 1 / 120);
+  const before = w.droneOrigin(d);
+  Object.assign(p, { x: p.x + 8, z: p.z + 4, portalFlash: 0.55 });
+  w.updateDroneFollowing(r.bodies, 0.1);
+  const flying = w.droneOrigin(d),
+    destination = L.droneOrigin(d, 0, p);
+  assert.ok(flying[0] > before[0] && flying[0] < destination[0]);
+  assert.ok(flying[2] > before[2] && flying[2] < destination[2]);
+  assert.equal(w.droneFollowing[0].flying, true);
+  assert.deepEqual(w.traceDrones(r.bodies, null)[0].from, flying, 'beam leaves the flying drone');
+  const snapshot = w.combatSnapshot();
+  w.updateDroneFollowing(r.bodies, 0.1);
+  w.restoreCombat(snapshot);
+  assert.deepEqual(w.droneOrigin(d), flying, 'undo restores the in-flight position');
+  p.portalFlash = 0;
+  for (let i = 0; i < 40; i++) w.updateDroneFollowing(r.bodies, 0.1);
+  assert.deepEqual(w.droneOrigin(d), destination);
+  assert.equal(w.droneFollowing[0].flying, false);
+});
+
 test('editor can pick the followed preview while retaining authored cell metadata', () => {
   const m = L.blank();
   m.drones = [{ x: 1, y: 0, z: 2, color: 1, target: 1, hover: 1.16, follow: ['x', 'z'] }];

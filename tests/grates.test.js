@@ -126,7 +126,7 @@ test('small crates, large cubes and barrels pushed by slime stop against either 
       }
 });
 
-test('rigid movement, projectile sweeps and support use the thin grate bounds', () => {
+test('rigid movement and support use thin bounds while beams and arrows pass through', () => {
   for (const axis of ['x', 'z']) {
     const r = runtime(room(axis)),
       direction = axis === 'z' ? 'x' : 'z';
@@ -137,20 +137,35 @@ test('rigid movement, projectile sweeps and support use the thin grate bounds', 
       to = [3, 0.42, 3];
     from[direction === 'x' ? 0 : 2] = 1;
     to[direction === 'x' ? 0 : 2] = 5;
-    assert.equal(r.world.combatLineClear(from, to), false);
-    r.world.archers = [
+    r.world.drones = [
       {
         x: from[0],
         y: 0,
         z: from[2],
+        color: 4,
+        target: 0,
+        hover: 0,
+      },
+    ];
+    r.players[0].x = to[0];
+    r.players[0].z = to[2];
+    assert.equal(r.world.traceDrones(r.bodies, null)[0].hit, 0, 'grate does not stop the beam');
+    r.world.drones = [];
+    r.players[0].state = 'alive';
+    r.world.arrows = [
+      {
+        x: from[0],
+        y: from[1],
+        z: from[2],
         dx: direction === 'x' ? 1 : 0,
         dz: direction === 'z' ? 1 : 0,
-        cooldown: 0,
+        speed: 5.5,
+        life: 4,
       },
     ];
     r.world._collisionCache = null;
     r.world.afterCombat(r.bodies, null, 0.7);
-    assert.equal(r.world.arrows.length, 0, 'grate consumes swept arrow');
+    assert.equal(r.players[0].deathReason, 'arrow', 'arrow crosses the grate and hits the jelly');
     assert.equal(r.world.heightAt(3, 3, Infinity, { kind: 'crate' }), 1);
     assert.equal(
       r.world.heightAt(3.3, 3.3, Infinity, { kind: 'crate' }),
