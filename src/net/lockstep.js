@@ -116,8 +116,11 @@ export class Session {
     this.transport.send({ type: 'ask', what });
   }
   // Host only: something every machine must do on the same tick, e.g. { type: 'restart' }.
-  command(command) {
-    if (this.host) this.pending.push(command);
+  // release: everybody's keys count as let go from that tick, until they press anew.
+  command(command, { release = false } = {}) {
+    if (!this.host) return;
+    this.pending.push(command);
+    if (release) this.current = this.current.map(idle);
   }
   // Timers: greetings, liveness and lag detection. Call once per frame.
   poll() {

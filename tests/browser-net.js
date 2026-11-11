@@ -107,6 +107,27 @@ import fs from 'node:fs';
     assert.equal(await guest.locator('#net-status').isVisible(), true);
     await guest.screenshot({ path: 'artifacts/net-guest.png' });
 
+    // The host undoes the last move for everybody; both keep the same history of moves.
+    const movesBefore = await host.evaluate(() => [moves, history.length]);
+    assert.ok(movesBefore[1] > 0, 'moves were remembered');
+    assert.deepEqual(await guest.evaluate(() => [moves, history.length]), movesBefore);
+    await host.bringToFront();
+    await host.keyboard.press('KeyZ');
+    await guest.waitForFunction((n) => history.length === n - 1, movesBefore[1]);
+    [a, b] = await settled(host, guest);
+    assert.deepEqual(await host.evaluate(() => [moves, history.length]), [
+      movesBefore[0] - 1,
+      movesBefore[1] - 1,
+    ]);
+    // A guest's Z only asks.
+    await guest.bringToFront();
+    await guest.keyboard.press('KeyZ');
+    await host.bringToFront();
+    await host.waitForFunction(() => !netAskMarks[1].hidden);
+    assert.match(await host.locator('.player-net-ask:not([hidden])').innerText(), /Z\s*Undo!/);
+    assert.equal(await host.evaluate(() => history.length), movesBefore[1] - 1);
+    await host.waitForFunction(() => netAskMarks[1].hidden, null, { timeout: 6000 });
+
     // Changing the simulated delay while playing must not reorder or stall the stream.
     for (const ping of [200, 0, 120, 30, 60]) {
       await guest.evaluate((ping) => (net.transport.ping = ping), ping);

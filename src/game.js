@@ -33,10 +33,13 @@ let loadingActive = false,
   loadingFailed = false,
   loadingStage = 'loadingGraphics',
   autoZoom = 1;
-const NET_ASK_SECONDS = 3;
+const NET_ASK_SECONDS = 3,
+  // What a guest may ask the host for: the key it pressed and the name of the action.
+  NET_ASKS = { restart: ['R', 'helpRestart'], undo: ['Z', 'helpUndo'] };
 let netLagMarks = [],
   netAskMarks = [],
-  netAsks = [], // per machine: the game time until which its restart request shows
+  netAsks = [], // per machine: what it asks the host for and the game time it shows until
+  netIdle = true, // nobody held a movement key on the last network tick
   netReplaying = false;
 let playerHints = [],
   spawnGlyphs = [],
@@ -409,8 +412,16 @@ function reset(replayAssembly = false) {
   updateGameCamera(0, true);
   updateUI();
 }
-function undo() {
-  if (!history.length || net) return;
+// In network play only the host undoes, for everybody on the same tick (`ordered`); a guest's
+// Z asks it to.
+function undo(ordered = false) {
+  if (net && !ordered) {
+    if (!net.session.host) return net.session.ask('undo');
+    if (!history.length || won) return;
+    heldKeys.clear();
+    return net.session.command({ type: 'undo' }, { release: true });
+  }
+  if (!history.length) return;
   const previous = history.pop();
   effects.clear();
   clearGoalVisuals();
@@ -448,11 +459,16 @@ function undo() {
   });
   sceneRenderer.bridgeKey = undefined;
   heldKeys.clear();
-  accumulator = 0;
+  if (!net) accumulator = 0;
   moves--;
   won = false;
   finishHold = 0;
   updateUI();
+}
+function rememberMove() {
+  history.push(snapshot());
+  moves++;
+  if (history.length > 256) history.shift();
 }
 function snapshot() {
   return {
@@ -748,6 +764,11 @@ function simulateNet(dt) {
         // randomness from the tick: debris, runes and torches match on every screen.
         effects.seed =
           (Math.imul(item.tick + 1, 2654435761) ^ Math.imul(session.epoch + 1, 40503)) >>> 0;
+        // A move to undo begins on the tick somebody presses a key after everybody had let go:
+        // the same tick on every machine, so they all keep the same history.
+        const idle = item.inputs.every((held) => !held.x && !held.z);
+        if (netIdle && !idle) rememberMove();
+        netIdle = idle;
         stepWorld(item.inputs);
         updateTorches(STEP);
         effects.step(STEP, world, goals, players);
@@ -763,10 +784,16 @@ function simulateNet(dt) {
 function applyNetCommand(command) {
   if (command.type === 'ask') {
     // Timed by the game clock, so a replayed log shows no stale requests.
-    if (command.what === 'restart') netAsks[command.peer] = runSeconds + NET_ASK_SECONDS;
+    if (NET_ASKS[command.what])
+      netAsks[command.peer] = { what: command.what, until: runSeconds + NET_ASK_SECONDS };
     tone(520);
+  } else if (command.type === 'undo') {
+    undo(true);
+    // Keys still held do not begin a new move: that takes letting go and pressing again.
+    netIdle = false;
   } else if (command.type === 'restart') {
     netAsks = [];
+    netIdle = true;
     reset(false);
     // The fade back in is decoration: the world is already running again.
     restartTransition = { elapsed: 0.22, reset: true };
@@ -808,11 +835,7 @@ function resumeHeldKeys(i) {
   if (won) return;
   for (const key of downKeys) {
     if (movementKeys[key][0] !== i || heldKeys.has(key)) continue;
-    if (!heldKeys.size && !net) {
-      history.push(snapshot());
-      moves++;
-      if (history.length > 256) history.shift();
-    }
+    if (!heldKeys.size && !net) rememberMove();
     heldKeys.add(key);
   }
 }
@@ -878,11 +901,7 @@ addEventListener('keydown', (e) => {
     stopLevelAssemblySound();
     level.assembly = null;
     focusPlayer(movementKeys[k][0]);
-    if (!heldKeys.size && !net) {
-      history.push(snapshot());
-      moves++;
-      if (history.length > 256) history.shift();
-    }
+    if (!heldKeys.size && !net) rememberMove();
     heldKeys.add(k);
   } else if (!e.repeat) {
     if (k === 'KeyQ') turnCamera(-Math.PI / 4);
@@ -908,8 +927,11 @@ document.addEventListener('visibilitychange', () => {
 document.querySelector('#again').onclick = () => restartLevel();
 function restartLevel() {
   // The host restarts for everybody, on the same tick; a guest can only ask it to.
-  if (net)
-    return net.session.host ? net.session.command({ type: 'restart' }) : net.session.ask('restart');
+  if (net) {
+    if (!net.session.host) return net.session.ask('restart');
+    heldKeys.clear();
+    return net.session.command({ type: 'restart' }, { release: true });
+  }
   const replayAssembly = document.querySelector('#restart-assembly').checked;
   if (!JellyI18n) {
     reset(replayAssembly);
@@ -983,7 +1005,6 @@ function createPlayerHints() {
         node.className = 'player-net-ask shortcut-tooltip';
         node.hidden = true;
         node.style.setProperty('--jelly-color', colors[p.slot]);
-        key.textContent = 'R';
         node.append(key, action);
         document.querySelector('#player-hints').append(node);
         return node;
@@ -1218,14 +1239,15 @@ function updateNetStatus() {
   netAskMarks.forEach((node, i) => {
     const p = players[i],
       point = project(p.rx, (p.y || 0) + 1.25, p.rz);
-    node.hidden = !((netAsks[session.owners[i]] ?? 0) > runSeconds) || !point.visible;
+    const ask = netAsks[session.owners[i]];
+    node.hidden = !(ask?.until > runSeconds) || !point.visible;
     if (node.hidden) return;
-    node.lastChild.textContent = tr('helpRestart') + '!';
+    node.firstChild.textContent = NET_ASKS[ask.what][0];
+    node.lastChild.textContent = tr(NET_ASKS[ask.what][1]) + '!';
     node.style.left = point.x + 'px';
     node.style.top = point.y + 'px';
   });
-  // Nobody can undo a shared world. Only the host decides what follows a win.
-  document.querySelector('#undo-hint').hidden = true;
+  // Only the host decides what follows a win.
   document.querySelector('#win-wait').hidden = session.host;
   document.querySelector('#win .menu-items').hidden = !session.host;
 }
