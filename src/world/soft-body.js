@@ -1,3 +1,4 @@
+import * as DMath from './det-math.js';
 // CPU XPBD tetrahedral solids. No rendering code or graphics-library dependency.
 const RES = 3,
   WIDTH = 0.76,
@@ -12,7 +13,7 @@ const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
     a[2] * b[0] - a[0] * b[2],
     a[0] * b[1] - a[1] * b[0],
   ];
-const len = (a) => Math.hypot(...a),
+const len = (a) => DMath.hypot(...a),
   ident = () => [1, 0, 0, 0, 1, 0, 0, 0, 1];
 const mv = (m, v) => [dot(m.slice(0, 3), v), dot(m.slice(3, 6), v), dot(m.slice(6, 9), v)];
 const SIXTH = 1 / 6;
@@ -28,7 +29,7 @@ function multiply(a, b, out) {
   return out;
 }
 function nearestMovementFace(r, direction) {
-  const length = Math.hypot(direction.x, direction.z);
+  const length = DMath.hypot(direction.x, direction.z);
   if (length < 1e-8) return null;
   const target = [direction.x / length, direction.z / length],
     faces = [
@@ -40,7 +41,7 @@ function nearestMovementFace(r, direction) {
   let best = null,
     bestDot = -Infinity;
   for (const face of faces) {
-    const faceLength = Math.hypot(...face);
+    const faceLength = DMath.hypot(...face);
     if (faceLength < 1e-8) continue;
     const normal = face.map((v) => v / faceLength),
       alignment = normal[0] * target[0] + normal[1] * target[1];
@@ -52,7 +53,7 @@ function nearestMovementFace(r, direction) {
   if (!best) return null;
   return {
     normal: best,
-    angle: Math.atan2(best[1] * target[0] - best[0] * target[1], bestDot),
+    angle: DMath.atan2(best[1] * target[0] - best[0] * target[1], bestDot),
   };
 }
 // Row-major 3x3 determinant: row0 · (row1 × row2).
@@ -231,8 +232,8 @@ const BARREL_RADIUS = 0.49,
   ROCK_TIME = 1;
 // Rotation by `angle` about the unit vector `a`, and 3×3 row-major products.
 function axisRotation([x, y, z], angle) {
-  const c = Math.cos(angle),
-    s = Math.sin(angle),
+  const c = DMath.cos(angle),
+    s = DMath.sin(angle),
     t = 1 - c;
   return [
     t * x * x + c,
@@ -268,7 +269,7 @@ function slideOrientation(p) {
   if (p.tipBase) return matrixProduct(axisRotation(p.tipAxis, p.tipAngle), p.tipBase);
   if (p.rockTime < ROCK_TIME) {
     const t = p.rockTime,
-      angle = -ROCK_ANGLE * Math.exp(-t * 5) * Math.sin(t * 20);
+      angle = -ROCK_ANGLE * DMath.exp(-t * 5) * DMath.sin(t * 20);
     m = matrixProduct(axisRotation(p.tipAxis, angle), m);
   }
   return m;
@@ -411,10 +412,10 @@ class Lattice {
       dl = (-(v - t.volume) - alpha * lambda) / Math.max(1e-12, denom);
     const bound =
         Math.max(
-          Math.hypot(gax, gay, gaz),
-          Math.hypot(gbx, gby, gbz),
-          Math.hypot(gcx, gcy, gcz),
-          Math.hypot(gdx, gdy, gdz),
+          DMath.hypot(gax, gay, gaz),
+          DMath.hypot(gbx, gby, gbz),
+          DMath.hypot(gcx, gcy, gcz),
+          DMath.hypot(gdx, gdy, gdz),
         ) * Math.abs(dl),
       limited = dl * Math.min(1, 0.045 / (bound || 1));
     a[0] += gax * limited;
@@ -440,7 +441,7 @@ class Lattice {
         dx = b[0] - a[0],
         dy = b[1] - a[1],
         dz = b[2] - a[2],
-        l = Math.hypot(dx, dy, dz),
+        l = DMath.hypot(dx, dy, dz),
         target = Math.max(e.length * 0.65, Math.min(e.length * 1.35, l));
       if (l > 1e-9 && l !== target) {
         const s = ((l - target) / l) * 0.5,
@@ -584,7 +585,7 @@ class System {
     b.disturbance = 0.3;
     for (let i = 0; i < NODE_COUNT; i++) {
       const d = len(sub(b.positions[i], point));
-      b.velocities[i][1] -= 2.8 * Math.exp((-d * d) / 0.045);
+      b.velocities[i][1] -= 2.8 * DMath.exp((-d * d) / 0.045);
     }
   }
   contacts(world, p, b) {
@@ -606,7 +607,7 @@ class System {
         node[1] = height + 0.035;
         const dx = node[0] - old[0] - (b.surfaceVelocity?.x || 0) * (this.contactStep || 0),
           dz = node[2] - old[2] - (b.surfaceVelocity?.z || 0) * (this.contactStep || 0),
-          slip = Math.hypot(dx, dz);
+          slip = DMath.hypot(dx, dz);
         // Coulomb floor friction: static contact sticks; sliding uses a smaller coefficient.
         const friction =
           b.roll || b.settle
@@ -668,7 +669,7 @@ class System {
         dx += b.positions[n][0] - b.center[0];
         dz += b.positions[n][2] - b.center[2];
       });
-      const length = Math.hypot(dx, dz);
+      const length = DMath.hypot(dx, dz);
       if (length > 1e-6)
         for (const node of b.positions) {
           node[0] += (dx / length) * SLIP_STEP;
@@ -693,7 +694,7 @@ class System {
     if (p.rockTime < ROCK_TIME) p.rockTime += dt;
     const dx = center[0] - b.previousCenter[0],
       dz = center[2] - b.previousCenter[2];
-    if (b.roll || p.state !== 'alive' || Math.hypot(dx, dz) <= 1e-4) return false;
+    if (b.roll || p.state !== 'alive' || DMath.hypot(dx, dz) <= 1e-4) return false;
     const d = cardinal(dx, dz),
       axis = barrelAxis(p),
       headFirst = !p.barrel || p.upright || Math.abs(d.x * axis[0] + d.z * axis[2]) > 0.5,
@@ -743,7 +744,7 @@ class System {
         return;
       }
       if (b.rollPeaked)
-        b.rollSpeed += (ROLL_CRUISE - b.rollSpeed) * (1 - Math.exp(-dt * ROLL_EASE));
+        b.rollSpeed += (ROLL_CRUISE - b.rollSpeed) * (1 - DMath.exp(-dt * ROLL_EASE));
       else {
         b.rollSpeed = Math.min(ROLL_PEAK, b.rollSpeed + ROLL_ACCELERATION * dt);
         b.rollPeaked = b.rollSpeed >= ROLL_PEAK;
@@ -838,7 +839,7 @@ class System {
       if (s >= 1) center[1] = t.landing[1];
       t.angle = f.angle + (Math.PI / 2 - f.angle) * s;
     } else {
-      t.omega += TIP_GRAVITY * Math.sin(t.angle + TIP_LEAN) * dt;
+      t.omega += TIP_GRAVITY * DMath.sin(t.angle + TIP_LEAN) * dt;
       t.angle = Math.min(Math.PI / 2, t.angle + t.omega * dt);
       const r = axisRotation(t.axis, t.angle);
       center = t.pivot.map(
@@ -915,7 +916,7 @@ class System {
     if (pa.state === 'dead' || pb.state === 'dead' || (a.sleeping && b.sleeping)) return;
     const ac = a.summarize(),
       bc = b.summarize();
-    if (Math.hypot(ac[0] - bc[0], ac[1] - bc[1], ac[2] - bc[2]) > 1.5) return;
+    if (DMath.hypot(ac[0] - bc[0], ac[1] - bc[1], ac[2] - bc[2]) > 1.5) return;
     if (this.stackContact(pa, pb, a, b)) return;
     let touching = false;
     // Symmetric node/rounded-body contacts. Contact corrections deform the lattice,
@@ -944,7 +945,7 @@ class System {
           o0 = Math.max(0, q0),
           o1 = Math.max(0, q1),
           o2 = Math.max(0, q2),
-          l = Math.hypot(o0, o1, o2),
+          l = DMath.hypot(o0, o1, o2),
           qMax = Math.max(q0, q1, q2),
           distance = l + Math.min(qMax, 0) - rounding;
         if (distance >= 0) continue;
@@ -984,7 +985,7 @@ class System {
           t0 = r0 - n0 * along,
           t1 = r1 - n1 * along,
           t2 = r2 - n2 * along,
-          distanceMoved = Math.hypot(t0, t1, t2),
+          distanceMoved = DMath.hypot(t0, t1, t2),
           friction = Math.min(1, (push * 0.28) / (distanceMoved || 1)),
           f0 = t0 * friction,
           f1 = t1 * friction,
@@ -1031,7 +1032,7 @@ class System {
       p.respawnFlash = Math.max(0, (p.respawnFlash || 0) - dt);
       const b = lattices[i],
         input = inputs[i] || { x: 0, z: 0 },
-        magnitude = p.launchTimer > 0 ? 0 : Math.hypot(input.x, input.z);
+        magnitude = p.launchTimer > 0 ? 0 : DMath.hypot(input.x, input.z);
       const belt =
           supports[i] >= 0
             ? { x: 0, z: 0 }
@@ -1039,7 +1040,7 @@ class System {
                 p,
                 b.rigid ? Math.min(...b.positions.map((n) => n[1])) - 0.035 : p.y || 0,
               ),
-        onBelt = Math.hypot(belt.x, belt.z) > 0.001;
+        onBelt = DMath.hypot(belt.x, belt.z) > 0.001;
       b.surfaceVelocity = belt;
       b.driven = magnitude > 0 || onBelt;
       b.driveDirection = magnitude > 0 ? input : onBelt ? belt : null;
@@ -1072,7 +1073,7 @@ class System {
         return;
       }
       if (
-        Math.hypot(p.x - b.center[0], p.z - b.center[2]) > 0.25 ||
+        DMath.hypot(p.x - b.center[0], p.z - b.center[2]) > 0.25 ||
         Math.abs((p.y || 0) + b.lift - b.center[1]) > 0.5
       )
         b.reset(p);
@@ -1090,10 +1091,10 @@ class System {
           j !== i &&
           other.state !== 'dead' &&
           !lattices[j].sleeping &&
-          (Math.hypot(other.vx, other.vy || 0, other.vz) > 0.05 ||
+          (DMath.hypot(other.vx, other.vy || 0, other.vz) > 0.05 ||
             lattices[j].disturbance > 0 ||
-            Math.hypot(inputs[j]?.x || 0, inputs[j]?.z || 0) > 0) &&
-          Math.hypot(p.x - other.x, p.z - other.z) < 1.25,
+            DMath.hypot(inputs[j]?.x || 0, inputs[j]?.z || 0) > 0) &&
+          DMath.hypot(p.x - other.x, p.z - other.z) < 1.25,
       );
       if (b.pendingRoll) {
         this.startRoll(b, b.pendingRoll.direction, b.pendingRoll.speed, true);
@@ -1275,11 +1276,11 @@ class System {
       let omega = mv(inverse(inertia), angular);
       if (b.slides) omega = [0, 0, 0];
       else if (b.rigid)
-        omega = mul(omega, Math.exp(-dt * (stableCratePush ? 50 : crateGrounded ? 2.5 : 0.12)));
+        omega = mul(omega, DMath.exp(-dt * (stableCratePush ? 50 : crateGrounded ? 2.5 : 0.12)));
       else if (p.state === 'alive') {
-        omega = mul(omega, Math.exp(-dt * 12));
+        omega = mul(omega, DMath.exp(-dt * 12));
         if (stableCratePush) {
-          const tiltDamping = Math.exp(-dt * 20);
+          const tiltDamping = DMath.exp(-dt * 20);
           omega[0] *= tiltDamping;
           omega[2] *= tiltDamping;
         }
@@ -1287,10 +1288,10 @@ class System {
         if (face) {
           const targetOmega = Math.max(-5.6, Math.min(5.6, face.angle * 14));
           const response = stableCratePush ? 50 : 10;
-          omega[1] += (targetOmega - omega[1]) * (1 - Math.exp(-dt * response));
+          omega[1] += (targetOmega - omega[1]) * (1 - DMath.exp(-dt * response));
         }
       }
-      const damping = Math.exp(-dt * (3 + this.decay * 10)),
+      const damping = DMath.exp(-dt * (3 + this.decay * 10)),
         // A sliding crate moves as one piece: no internal wobble survives the step.
         keep = b.slides ? 0 : damping;
       let energy = 0;

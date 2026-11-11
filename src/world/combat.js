@@ -1,4 +1,5 @@
 import Levels from './levels.js';
+import * as DMath from './det-math.js';
 // Cardinal archery, durable shields, ballistic bashes and automatic sword attacks.
 const alive = (p) => !p.state || p.state === 'alive';
 const carrying = (p) => alive(p) || (p.state === 'falling' && (p.launchTimer || 0) > 0);
@@ -112,14 +113,14 @@ function install(World) {
           );
         eligible.sort(
           (a, b) =>
-            Math.hypot(a.p.x - from[0], (a.p.y || 0) + 0.42 - from[1], a.p.z - from[2]) -
-            Math.hypot(b.p.x - from[0], (b.p.y || 0) + 0.42 - from[1], b.p.z - from[2]),
+            DMath.hypot(a.p.x - from[0], (a.p.y || 0) + 0.42 - from[1], a.p.z - from[2]) -
+            DMath.hypot(b.p.x - from[0], (b.p.y || 0) + 0.42 - from[1], b.p.z - from[2]),
         );
         const target = eligible[0];
         if (!target) continue;
         const aim = [target.p.x, (target.p.y || 0) + 0.42, target.p.z],
           delta = aim.map((v, k) => v - from[k]),
-          length = Math.hypot(...delta);
+          length = DMath.hypot(...delta);
         if (length < 0.001) continue;
         const end = from.map((v, k) => v + (delta[k] / length) * Math.min(32, length + 0.5));
         let nearest = 1,
@@ -194,7 +195,7 @@ function install(World) {
           return;
         }
         const input = inputs[i];
-        if (!p.launchTimer && input && Math.hypot(input.x, input.z) > 0.01) {
+        if (!p.launchTimer && input && DMath.hypot(input.x, input.z) > 0.01) {
           // Keep the current face on equal diagonals when it remains in the input.
           const old = facing(p),
             tie = Math.abs(input.x) === Math.abs(input.z);
@@ -242,7 +243,7 @@ function install(World) {
             !p.shield &&
             !p.sword &&
             Math.abs((p.y || 0) - height) < 0.18 &&
-            Math.hypot(p.x - item.x, p.z - item.z) < 0.55,
+            DMath.hypot(p.x - item.x, p.z - item.z) < 0.55,
         );
         if (i >= 0) {
           const kind = item.kind === 'sword' ? 'sword' : 'shield';

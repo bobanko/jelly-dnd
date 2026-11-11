@@ -1,3 +1,4 @@
+import * as DMath from './det-math.js';
 // Height-aware level surfaces and triggers, shared by physics, rendering and debug overlays.
 const alive = (p) => !p.state || p.state === 'alive';
 const near = (p, q, r) => Math.abs(p.x - q.x) < r && Math.abs(p.z - q.z) < r;
@@ -44,7 +45,7 @@ function bridgePose(bridge, progress = 0) {
   return {
     angle,
     hinge,
-    center: [bridge.x, hinge[1] - Math.sin(angle) * 0.5, hinge[2] + Math.cos(angle) * 0.5],
+    center: [bridge.x, hinge[1] - DMath.sin(angle) * 0.5, hinge[2] + DMath.cos(angle) * 0.5],
   };
 }
 const spikeNormals = {
@@ -138,7 +139,7 @@ function install(World) {
         alive(player) &&
         player.kind !== 'crate' &&
         Math.abs((player.y || 0) - (goal.y ?? this.heightAt(goal.x, goal.z) ?? 0)) < 0.15 &&
-        Math.hypot(player.x - goal.x, player.z - goal.z) < 0.32
+        DMath.hypot(player.x - goal.x, player.z - goal.z) < 0.32
       );
     },
     goalCharge(goal, player) {
@@ -152,7 +153,7 @@ function install(World) {
         return 0;
       const t = Math.max(
         0,
-        Math.min(1, (Math.hypot(player.x - goal.x, player.z - goal.z) - 0.32) / 0.4),
+        Math.min(1, (DMath.hypot(player.x - goal.x, player.z - goal.z) - 0.32) / 0.4),
       );
       return 1 - t * t * (3 - 2 * t);
     },
@@ -217,7 +218,7 @@ function install(World) {
         if (!alive(p) || p.kind === 'crate' || Math.abs((p.y || 0) - height) > 0.2) continue;
         const dx = Math.max(0, Math.abs(p.x - portal.x) - 0.38),
           dz = Math.max(0, Math.abs(p.z - portal.z) - 0.38),
-          t = Math.min(1, Math.hypot(dx, dz) / 0.3);
+          t = Math.min(1, DMath.hypot(dx, dz) / 0.3);
         charge = Math.max(charge, 1 - t * t * (3 - 2 * t));
       }
       return charge;
@@ -674,7 +675,7 @@ function install(World) {
           velocity = bridge.velocity || 0,
           omega = 10,
           c = velocity + omega * error,
-          decay = Math.exp(-omega * dt);
+          decay = DMath.exp(-omega * dt);
         bridge.progress = Math.max(0, Math.min(1, target + (error + c * dt) * decay));
         bridge.velocity = (velocity - omega * c * dt) * decay;
         if (Math.abs(bridge.progress - target) < 0.001 && Math.abs(bridge.velocity) < 0.015) {

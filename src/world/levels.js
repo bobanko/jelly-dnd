@@ -1,5 +1,6 @@
 import { levelPillars } from './pillars.js';
 import * as campaign from '../../levels/catalog.js';
+import * as DMath from './det-math.js';
 // Shared editable map format. No live physics state is stored in level files.
 const DRAFT_KEY = 'jelly-dnd.editor.v1',
   PLAY_KEY = 'jelly-dnd.play.v1',
@@ -277,7 +278,7 @@ function read(input) {
       )
         continue;
       for (const [face, n] of Object.entries(wallFaces)) {
-        const distance = Math.hypot(
+        const distance = DMath.hypot(
           old.x - b.x - n[0] * 0.7,
           old.z - b.z - n[2] * 0.7,
           old.base + 0.5 - (b.y - 0.5),

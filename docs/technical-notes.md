@@ -90,6 +90,16 @@ Body contacts remain active in the falling state. Vertical contacts use a consis
 
 physics.js retains the original rigid solver as an independently tested baseline; the running game attaches the soft-body System and delegates all physical stepping to it.
 
+### Determinism (groundwork for network play)
+
+`world.step(bodies, inputs)` is bit-reproducible: the same level and the same per-tick inputs give the same state on every machine, CPU architecture and JavaScript engine. Planned network play is lockstep: machines exchange inputs only and each runs the simulation itself.
+
+- Code in `src/world/` must not call `Math.hypot/exp/sin/cos/atan2/pow/log/random`, `Date.now` or `performance.now`. Engines round the transcendental functions differently (Node, Chromium, Firefox and WebKit all disagreed, as did x64 and arm64). Use `src/world/det-math.js` (`DMath.hypot`, `DMath.exp`, ...), built from `+ - * /` and `Math.sqrt` only. A test enforces this.
+- `src/net/state-hash.js`: `hashState(world, bodies)` fingerprints the whole simulation state; `hashBodies(bodies)` is the cheap per-tick check.
+- `tests/determinism.test.js` (part of `npm test`) replays every catalog level twice with seeded random input and compares state hashes.
+- `npm run test:determinism:browser` compares fingerprints of every level between Node, Chromium, Firefox and WebKit (needs `npx playwright install chromium firefox webkit`; no WebGPU or server).
+- Cosmetic state driven by frame time or `Math.random` (particles, sweat, hints) must stay outside what `world.step` reads.
+
 ## Graphics
 
 The HUD has a single speaker icon toggle, compact character rows and keyboard shortcut legends. Permanent gameplay explanations have been removed; live state announcements remain available to screen readers. Elevator slabs retain their lit trim without side guide posts.

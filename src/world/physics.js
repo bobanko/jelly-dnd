@@ -1,5 +1,6 @@
 import { install as installFeatures } from './level-features.js';
 import { install as installCombat } from './combat.js';
+import * as DMath from './det-math.js';
 // Fixed-step movement, collisions, gravity and independent fall/death/respawn lifecycles.
 // Rendering is independent: jelly deformation never changes the collision shape.
 const HALF = 0.36,
@@ -174,8 +175,8 @@ class World {
         p.x += p.vx * dt;
         p.z += p.vz * dt;
         if (!p.launchTimer) {
-          p.vx *= Math.exp(-dt * 0.8);
-          p.vz *= Math.exp(-dt * 0.8);
+          p.vx *= DMath.exp(-dt * 0.8);
+          p.vz *= DMath.exp(-dt * 0.8);
         }
         const surface = this.heightAt(p.x, p.z, previousY + 0.1, p);
         if (
@@ -202,9 +203,9 @@ class World {
         return;
       }
       const input = inputs[i] || { x: 0, z: 0 },
-        length = Math.hypot(input.x, input.z),
+        length = DMath.hypot(input.x, input.z),
         belt = this.conveyorVelocity(p),
-        gain = 1 - Math.exp(-(length ? 13 : Math.hypot(belt.x, belt.z) > 0.001 ? 8 : 18) * dt);
+        gain = 1 - DMath.exp(-(length ? 13 : DMath.hypot(belt.x, belt.z) > 0.001 ? 8 : 18) * dt);
       p.vx += ((length ? (input.x / length) * SPEED : 0) + belt.x - p.vx) * gain;
       p.vz += ((length ? (input.z / length) * SPEED : 0) + belt.z - p.vz) * gain;
       for (const axis of ['x', 'z']) {
@@ -258,14 +259,14 @@ class World {
       }
     });
     bodies.forEach((p) => {
-      p.impact = (p.impact || 0) * Math.exp(-dt * 8);
+      p.impact = (p.impact || 0) * DMath.exp(-dt * 8);
       // A damped visual spring responds to speed and contact without destabilizing collisions.
-      const target = Math.min(0.35, Math.hypot(p.vx, p.vz) * 0.055 + p.impact * 0.2);
+      const target = Math.min(0.35, DMath.hypot(p.vx, p.vz) * 0.055 + p.impact * 0.2);
       p.squish = p.squish || 0;
       p.squishVelocity = p.squishVelocity || 0;
       p.squishVelocity += (95 * (target - p.squish) - 11 * p.squishVelocity) * dt;
       p.squish += p.squishVelocity * dt;
-      if (Math.hypot(p.vx, p.vz) < 0.001) p.vx = p.vz = 0;
+      if (DMath.hypot(p.vx, p.vz) < 0.001) p.vx = p.vz = 0;
     });
     this.refresh(bodies);
     return [...events, ...this.enforceHeightLimit(bodies), ...this.afterCombat(bodies, null, dt)];

@@ -1,3 +1,4 @@
+import * as DMath from './det-math.js';
 // Stone columns under base cubes (cells with nothing anywhere below them). Deterministic per
 // cell, so a level always looks and plays the same.
 //
@@ -39,7 +40,7 @@ export function levelPillars(blocks) {
     if (b.color !== undefined || lowest.get(b.x + ',' + b.z) !== b) continue;
     let wall = 0;
     for (let k = 1; b.y - k >= bottom - 1; k++) if (besidePlay(b.x, b.y - k, b.z)) wall = k;
-    const hash = Math.abs(Math.sin(b.x * 12.9898 + b.z * 78.233 + b.y * 37.719) * 43758.5453) % 1,
+    const hash = Math.abs(DMath.sin(b.x * 12.9898 + b.z * 78.233 + b.y * 37.719) * 43758.5453) % 1,
       decorative = hash > 0.7 ? 0 : 3 + Math.floor((hash / 0.7) * 8),
       depth = Math.max(wall, decorative);
     for (let k = 1; k <= depth; k++) pillars.push({ x: b.x, y: b.y - k, z: b.z, solid: k <= wall });
