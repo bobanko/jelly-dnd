@@ -378,13 +378,17 @@ test('axis-following drone flies to a teleported target instead of teleporting w
   Object.assign(p, { x: p.x + 8, z: p.z + 4, portalFlash: 0.55 });
   w.updateDroneFollowing(r.bodies, 0.1);
   const flying = w.droneOrigin(d),
-    destination = L.droneOrigin(d, 0, p);
+    destination = L.droneOrigin(d, 0, p),
+    firstStep = Math.hypot(flying[0] - before[0], flying[2] - before[2]);
   assert.ok(flying[0] > before[0] && flying[0] < destination[0]);
   assert.ok(flying[2] > before[2] && flying[2] < destination[2]);
   assert.equal(w.droneFollowing[0].flying, true);
   assert.deepEqual(w.traceDrones(r.bodies, null), [], 'beam stays off while the drone is flying');
   const snapshot = w.combatSnapshot();
   w.updateDroneFollowing(r.bodies, 0.1);
+  const second = w.droneOrigin(d),
+    secondStep = Math.hypot(second[0] - flying[0], second[2] - flying[2]);
+  assert.ok(secondStep > firstStep, 'smooth easing accelerates at the start of the flight');
   w.restoreCombat(snapshot);
   assert.deepEqual(w.droneOrigin(d), flying, 'undo restores the in-flight position');
   p.portalFlash = 0;

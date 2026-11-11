@@ -64,6 +64,7 @@ function install(World) {
             ? {
                 ...state,
                 position: [...state.position],
+                ...(state.flightStart ? { flightStart: [...state.flightStart] } : {}),
               }
             : null,
         ),
@@ -84,7 +85,13 @@ function install(World) {
     restoreCombat(state) {
       this.droneBeams = [];
       this.droneFollowing = (state?.droneFollowing || []).map((follow) =>
-        follow ? { ...follow, position: [...follow.position] } : null,
+        follow
+          ? {
+              ...follow,
+              position: [...follow.position],
+              ...(follow.flightStart ? { flightStart: [...follow.flightStart] } : {}),
+            }
+          : null,
       );
       this.archers.forEach((a, i) =>
         Object.assign(
@@ -151,19 +158,28 @@ function install(World) {
         }
         const delta = desired.map((value, axis) => value - previous.position[axis]),
           distance = DMath.hypot(...delta);
-        if ((target.p.portalFlash || 0) > 0.5 && distance > 0.75) previous.flying = true;
+        if ((target.p.portalFlash || 0) > 0.5 && distance > 0.75 && !previous.flying) {
+          previous.flying = true;
+          previous.flightStart = [...previous.position];
+          previous.flightElapsed = 0;
+          previous.flightDuration = Math.max(0.12, distance / 10);
+        }
         if (!previous.flying) {
           previous.position = desired;
           return;
         }
-        const step = Math.min(distance, 10 * dt);
-        if (distance > 1e-8)
-          previous.position = previous.position.map(
-            (value, axis) => value + (delta[axis] / distance) * step,
-          );
-        if (step >= distance - 1e-8) {
+        previous.flightElapsed += dt;
+        const progress = Math.min(1, previous.flightElapsed / previous.flightDuration),
+          eased = progress * progress * (3 - 2 * progress);
+        previous.position = previous.flightStart.map(
+          (value, axis) => value + (desired[axis] - value) * eased,
+        );
+        if (progress >= 1) {
           previous.position = desired;
           previous.flying = false;
+          delete previous.flightStart;
+          delete previous.flightElapsed;
+          delete previous.flightDuration;
         }
       });
       this.droneFollowing.length = this.drones.length;
