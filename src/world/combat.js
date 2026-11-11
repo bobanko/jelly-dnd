@@ -156,7 +156,7 @@ function install(World) {
           previous.position = desired;
           return;
         }
-        const step = Math.min(distance, 4 * dt);
+        const step = Math.min(distance, 10 * dt);
         if (distance > 1e-8)
           previous.position = previous.position.map(
             (value, axis) => value + (delta[axis] / distance) * step,
@@ -183,6 +183,7 @@ function install(World) {
       for (const [index, d] of this.drones.entries()) {
         const target = this.droneTarget(d, bodies);
         if (!target) continue;
+        if (this.droneFollowing?.[index]?.flying) continue;
         const from = this.droneOrigin(d, bodies, target.p),
           aim = [target.p.x, (target.p.y || 0) + 0.42, target.p.z],
           delta = aim.map((v, k) => v - from[k]),

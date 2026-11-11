@@ -382,7 +382,7 @@ test('axis-following drone flies to a teleported target instead of teleporting w
   assert.ok(flying[0] > before[0] && flying[0] < destination[0]);
   assert.ok(flying[2] > before[2] && flying[2] < destination[2]);
   assert.equal(w.droneFollowing[0].flying, true);
-  assert.deepEqual(w.traceDrones(r.bodies, null)[0].from, flying, 'beam leaves the flying drone');
+  assert.deepEqual(w.traceDrones(r.bodies, null), [], 'beam stays off while the drone is flying');
   const snapshot = w.combatSnapshot();
   w.updateDroneFollowing(r.bodies, 0.1);
   w.restoreCombat(snapshot);
@@ -391,6 +391,7 @@ test('axis-following drone flies to a teleported target instead of teleporting w
   for (let i = 0; i < 40; i++) w.updateDroneFollowing(r.bodies, 0.1);
   assert.deepEqual(w.droneOrigin(d), destination);
   assert.equal(w.droneFollowing[0].flying, false);
+  assert.deepEqual(w.traceDrones(r.bodies, null)[0].from, destination, 'beam turns on at arrival');
 });
 
 test('editor can pick the followed preview while retaining authored cell metadata', () => {
