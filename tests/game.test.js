@@ -9,6 +9,9 @@ import * as Physics from '../src/world/physics.js';
 import * as SoftBody from '../src/world/soft-body.js';
 import * as GPU from '../src/renderer/index.js';
 import sunkenSanctum from '../levels/05-sunken-sanctum.json' with { type: 'json' };
+import * as Net from '../src/net/index.js';
+import * as Lockstep from '../src/net/lockstep.js';
+import * as StateHash from '../src/net/state-hash.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -91,6 +94,9 @@ async function game(options = {}) {
     './game/menu-scene.js': menuSceneModule,
     './i18n/i18n.js': { i18n: null },
     './runtime-context.js': { menuOnly: !!options.menuOnly, progress: null },
+    './net/index.js': Net,
+    './net/lockstep.js': Lockstep,
+    './net/state-hash.js': StateHash,
   };
   const source =
     fs.readFileSync('src/game.js', 'utf8') +

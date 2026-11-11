@@ -15,6 +15,9 @@ import * as JellySharedCamera from './camera/shared-camera.js';
 import * as LevelCamera from './camera/level-camera.js';
 import { createMenuScene } from './game/menu-scene.js';
 import { menuOnly as JellyMenuOnly, progress as JellyProgress } from './runtime-context.js';
+import { createNet } from './net/index.js';
+import { pace, CHECK_EVERY } from './net/lockstep.js';
+import { hashBodies } from './net/state-hash.js';
 
 const tr = (key) => JellyI18n?.t(key) ?? key;
 let menuOpen = false,
@@ -30,6 +33,7 @@ let loadingActive = false,
   loadingFailed = false,
   loadingStage = 'loadingGraphics',
   autoZoom = 1;
+let netLagMarks = [];
 let playerHints = [],
   spawnGlyphs = [],
   spawnOutlines = null;
@@ -68,7 +72,9 @@ let mapError = null,
 try {
   let search = globalThis.location?.search || '';
   const requested = /(?:^|[?&])level=(\d+)(?:&|$)/.exec(search);
-  if (requested && JellyProgress && !JellyProgress.canPlay(Number(requested[1]))) {
+  // A guest in a network room follows the host, whatever its own progress.
+  const guest = /(?:^|[?&])room=/.test(search) && !/(?:^|[?&])host=1(?:&|$)/.test(search);
+  if (requested && JellyProgress && !guest && !JellyProgress.canPlay(Number(requested[1]))) {
     search = '?level=1';
     globalThis.history.replaceState(null, '', search);
   }
@@ -86,6 +92,11 @@ const runtime = menuOnly
   ? menuScene
   : JellyLevels.instantiate(definition, JellyPhysics, JellySoftBody);
 const { start, players, crates, bodies, plates, goals, bridges, floor, world, soft } = runtime;
+// Network play (see src/net/index.js); null when playing on one machine.
+const net =
+  menuOnly || mapError || /(?:^|[?&])level=editor(?:&|$)/.test(globalThis.location?.search || '')
+    ? null
+    : createNet(globalThis.location?.search || '', players.length, levelKey());
 const gameAudio = new GameAudio(() => (audio ??= new AudioContext()));
 const spikeSounds = new SpikeSounds();
 const mechanismSounds = new MechanismSounds();
@@ -139,18 +150,24 @@ const keySets = {
   Numpad4: [4, -1, 0],
   Numpad6: [4, 1, 0],
 };
-// Assign controls by the active roster's order, independently of character colour.
-const controlOwners =
-  players.length === 1
-    ? [0, 0, 0, 0, 0]
-    : players.length === 2
-      ? [0, 1, 1, 0, 1]
-      : [0, 1, 2, 3, 4].map((i) => (i < players.length ? i : -1));
-const movementKeys = Object.fromEntries(
-  Object.entries(keySets)
-    .map(([key, [set, x, z]]) => [key, [controlOwners[set], x, z]])
-    .filter(([, value]) => value[0] >= 0),
-);
+// Assign controls by the active roster's order, independently of character colour. In network
+// play the roster is the jellies this machine drives; the others have no keys here.
+let controlOwners, movementKeys;
+function assignControls() {
+  const local = players.map((_, i) => i).filter((i) => !net || net.session.owns(i));
+  controlOwners =
+    local.length === 1
+      ? [0, 0, 0, 0, 0].map(() => local[0])
+      : local.length === 2
+        ? [0, 1, 1, 0, 1].map((k) => local[k])
+        : [0, 1, 2, 3, 4].map((i) => local[i] ?? -1);
+  movementKeys = Object.fromEntries(
+    Object.entries(keySets)
+      .map(([key, [set, x, z]]) => [key, [controlOwners[set], x, z]])
+      .filter(([, value]) => value[0] >= 0),
+  );
+}
+assignControls();
 let accumulator = 0;
 function resize() {
   W = innerWidth;
@@ -389,7 +406,7 @@ function reset(replayAssembly = false) {
   updateUI();
 }
 function undo() {
-  if (!history.length) return;
+  if (!history.length || net) return;
   const previous = history.pop();
   effects.clear();
   clearGoalVisuals();
@@ -499,190 +516,31 @@ function controlTurn() {
   };
 }
 function simulate(dt, elapsed = dt) {
-  const active = !(
-    loadingActive ||
-    level.assembly ||
-    menuOpen ||
-    restartTransition ||
-    won ||
-    mapError ||
-    document.hidden
-  );
-  gameAudio.setActive(active);
+  // A network game has no private pause: the menu, a win and a restart leave the clock running.
+  // The host holds the first tick until its level has assembled.
+  const active = net
+    ? !(loadingActive || leaving || mapError || (net.session.host && level.assembly))
+    : !(
+        loadingActive ||
+        level.assembly ||
+        menuOpen ||
+        restartTransition ||
+        won ||
+        mapError ||
+        document.hidden
+      );
+  gameAudio.setActive(active && !won);
   gameAudio.updateWind();
   if (!active) return;
-  runSeconds += Math.max(0, elapsed);
-  accumulator += Math.min(dt, 0.05);
-  const input = inputs();
-  while (accumulator >= JellyPhysics.STEP && !won) {
-    const events = world.step(bodies, input);
-    updateEffortEffects(JellyPhysics.STEP, input);
-    for (const { name } of jellyCollisionSounds.update(players)) gameAudio.play(name);
-    gameAudio.setLoopLevel(
-      'crateSlide',
-      crates.reduce((level, crate) => {
-        const speed = Math.hypot(crate.vx || 0, crate.vz || 0);
-        return soft.get(crate).pushingCrate && world.supported(crate)
-          ? Math.max(level, Math.min(1, speed / 0.9))
-          : level;
-      }, 0),
-    );
-    // A rolling barrel rumbles louder the faster it goes.
-    gameAudio.setLoopLevel(
-      'barrelRoll',
-      crates.reduce((level, crate) => {
-        const roll = soft.get(crate).roll;
-        return roll && crate.state === 'alive'
-          ? Math.max(level, Math.min(1, Math.hypot(crate.vx || 0, crate.vz || 0) / 3))
-          : level;
-      }, 0),
-    );
-    gameAudio.setLoopLevel(
-      'crystalEnergy',
-      world.droneBeams?.length ? Math.min(1, 0.65 + (world.droneBeams.length - 1) * 0.12) : 0,
-    );
-    for (const { name, spike } of spikeSounds.update(world)) {
-      const distance = Math.min(...players.map((p) => Math.hypot(p.x - spike.x, p.z - spike.z)));
-      if (distance < 8) gameAudio.play(name, 1 / (1 + distance * 0.3));
+  if (net) simulateNet(dt);
+  else {
+    runSeconds += Math.max(0, elapsed);
+    accumulator += Math.min(dt, 0.05);
+    const input = inputs();
+    while (accumulator >= JellyPhysics.STEP && !won) {
+      stepWorld(input);
+      accumulator -= JellyPhysics.STEP;
     }
-    for (const { name, object } of mechanismSounds.update(world, bodies)) {
-      const distance = Math.min(...players.map((p) => Math.hypot(p.x - object.x, p.z - object.z)));
-      if (distance < 8)
-        gameAudio.play(
-          name,
-          1 / (1 + distance * 0.25),
-          name === 'bridge' || name === 'bridgeRetract' ? 0.14 : 0,
-        );
-    }
-    for (const event of events) {
-      // A destroyed crate comes back the way it first arrived: a flash, then a drop.
-      // A crate or barrel materialises where it comes back (see solidFS), with a flash.
-      if (event.type === 'respawn' && bodies[event.player]?.kind === 'crate') {
-        bodies[event.player].appearTime = 0;
-        // The same chime a jelly makes when it appears.
-        respawnTone(0);
-        effects.burst(
-          { type: 'crateTeleport', center: crateFlashCenter(bodies[event.player], 0) },
-          players,
-          soft,
-        );
-      }
-      // Any body landing after a drop raises dust round its base; a crate or barrel also
-      // booms dully, louder from higher up.
-      const body = bodies[event.player];
-      // Measured from where the drop began, also across a pivot over an edge.
-      if (body && event.type === 'fall') body.fallFrom ??= body.y;
-      if (body && event.type === 'land') body.landedAt = runSeconds;
-      if (body && event.type === 'death') body.fallFrom = undefined;
-      // A crate or barrel reappears a little above its spawn and drops: dust when it lands.
-      if (body && event.type === 'respawn')
-        body.fallFrom = body.kind === 'crate' ? body.y : undefined;
-      if (body && event.type === 'land' && body.fallFrom !== undefined) {
-        const drop = body.fallFrom - body.y,
-          crate = body.kind === 'crate';
-        // A graze on the way down (a crate catching a ledge's rim) keeps the drop's start;
-        // it is forgotten once the body has stood still a moment (updateEffortEffects).
-        if (drop > 0.3) {
-          if (crate) gameAudio.play('crateLand', Math.min(1, 0.55 + drop * 0.25));
-          effects.burst(
-            {
-              type: 'dust',
-              center: [body.x, body.y || 0, body.z],
-              half: crate && body.large ? 0.47 : 0.38,
-              strength: drop / 2,
-            },
-            players,
-            soft,
-          );
-          body.fallFrom = undefined;
-        }
-      }
-      // A crate or barrel lost off the level breaks apart.
-      if (event.type === 'death' && bodies[event.player]?.kind === 'crate')
-        gameAudio.play('crateBreak');
-      // Props keep their physical momentum through a portal, but remain visually hidden while
-      // the wisp travels. At the exit they use the same white materialisation as their spawn.
-      if (event.type === 'portal' && body?.kind === 'crate') {
-        const delay = reducedMotion ? 0 : JellyEffects.PORTAL_TRAVEL_TIME;
-        body.appearTime = -delay;
-        body.portalAppearPending = delay > 0;
-        effects.burst(event, players, soft);
-        if (!delay)
-          effects.burst(
-            { type: 'crateTeleport', center: crateFlashCenter(body, 0) },
-            players,
-            soft,
-          );
-        gameAudio.play('portal');
-      }
-      if (event.player >= players.length) continue;
-      effects.burst(event, players, soft);
-      if (event.type === 'death') {
-        runDeaths[event.player]++;
-        updateRunSkulls();
-        relightTorches();
-      }
-      if (event.type === 'fall' || event.type === 'death') {
-        for (const key of heldKeys) if (movementKeys[key][0] === event.player) heldKeys.delete(key);
-        input[event.player] = { x: 0, z: 0 };
-        if (event.type === 'death') gameAudio.play('death');
-        else tone(95);
-      } else if (event.type === 'shieldBash') {
-        for (const key of heldKeys) if (movementKeys[key][0] === event.target) heldKeys.delete(key);
-        input[event.target] = { x: 0, z: 0 };
-        woodHit();
-      } else if (event.type === 'respawn') respawnTone(event.player);
-      else if (event.type === 'portal') gameAudio.play('portal');
-      else if (event.type === 'land') {
-        resumeHeldKeys(event.player);
-        gameAudio.play('land');
-        gameAudio.play('jellySlap');
-      } else if (event.type === 'pickup') tone(720);
-      else if (event.type === 'archerShot') gameAudio.play('arrow');
-      else if (event.type === 'arrowBlock' && event.durability > 0) woodHit();
-      else if (event.type === 'shieldBreak') woodHit(true);
-      else if (event.type === 'archerDeath') tone(180);
-    }
-    gameAudio.setRuneLevel(
-      goals.reduce((charge, goal, index) => {
-        const slot = goal.slot ?? index,
-          player = players.find(
-            (candidate, playerIndex) => (candidate.slot ?? playerIndex) === slot,
-          );
-        return Math.max(charge, world.goalCharge(goal, player));
-      }, 0),
-    );
-    const allFinished =
-      players.length > 0 &&
-      players.every(
-        (p) =>
-          world.goalActive(
-            goals.find((g) => g.slot === p.slot),
-            p,
-          ) && Math.hypot(p.vx, p.vz) < 0.25,
-      );
-    finishHold = allFinished ? Math.min(WIN_HOLD_SECONDS, finishHold + JellyPhysics.STEP) : 0;
-    if (finishHold >= WIN_HOLD_SECONDS - 1e-9) {
-      finishHold = WIN_HOLD_SECONDS;
-      won = true;
-      players.forEach((p) => {
-        p.vx = p.vz = 0;
-      });
-      effects.burst({ type: 'victory' }, players, soft);
-      heldKeys.clear();
-      tone(640);
-      const extraCurrent = currentExtraLevel();
-      const current = currentStandardLevel();
-      if (extraCurrent && JellyProgress) {
-        JellyProgress.complete('extra-' + extraCurrent, runSeconds, skullsLeft());
-        updateLevelLocks();
-      } else if (current && JellyProgress) {
-        JellyProgress.complete(current, runSeconds, skullsLeft());
-        updateLevelLocks();
-      }
-    }
-    level.finishProgress = finishHold / WIN_HOLD_SECONDS;
-    accumulator -= JellyPhysics.STEP;
   }
   players.forEach((p) => {
     p.rx = p.x;
@@ -691,12 +549,247 @@ function simulate(dt, elapsed = dt) {
   });
   updateUI();
 }
+// One simulation tick and everything the game derives from it: sounds, effects, the win.
+function stepWorld(input) {
+  const events = world.step(bodies, input);
+  updateEffortEffects(JellyPhysics.STEP, input);
+  for (const { name } of jellyCollisionSounds.update(players)) gameAudio.play(name);
+  gameAudio.setLoopLevel(
+    'crateSlide',
+    crates.reduce((level, crate) => {
+      const speed = Math.hypot(crate.vx || 0, crate.vz || 0);
+      return soft.get(crate).pushingCrate && world.supported(crate)
+        ? Math.max(level, Math.min(1, speed / 0.9))
+        : level;
+    }, 0),
+  );
+  // A rolling barrel rumbles louder the faster it goes.
+  gameAudio.setLoopLevel(
+    'barrelRoll',
+    crates.reduce((level, crate) => {
+      const roll = soft.get(crate).roll;
+      return roll && crate.state === 'alive'
+        ? Math.max(level, Math.min(1, Math.hypot(crate.vx || 0, crate.vz || 0) / 3))
+        : level;
+    }, 0),
+  );
+  gameAudio.setLoopLevel(
+    'crystalEnergy',
+    world.droneBeams?.length ? Math.min(1, 0.65 + (world.droneBeams.length - 1) * 0.12) : 0,
+  );
+  for (const { name, spike } of spikeSounds.update(world)) {
+    const distance = Math.min(...players.map((p) => Math.hypot(p.x - spike.x, p.z - spike.z)));
+    if (distance < 8) gameAudio.play(name, 1 / (1 + distance * 0.3));
+  }
+  for (const { name, object } of mechanismSounds.update(world, bodies)) {
+    const distance = Math.min(...players.map((p) => Math.hypot(p.x - object.x, p.z - object.z)));
+    if (distance < 8)
+      gameAudio.play(
+        name,
+        1 / (1 + distance * 0.25),
+        name === 'bridge' || name === 'bridgeRetract' ? 0.14 : 0,
+      );
+  }
+  for (const event of events) {
+    // A destroyed crate comes back the way it first arrived: a flash, then a drop.
+    // A crate or barrel materialises where it comes back (see solidFS), with a flash.
+    if (event.type === 'respawn' && bodies[event.player]?.kind === 'crate') {
+      bodies[event.player].appearTime = 0;
+      // The same chime a jelly makes when it appears.
+      respawnTone(0);
+      effects.burst(
+        { type: 'crateTeleport', center: crateFlashCenter(bodies[event.player], 0) },
+        players,
+        soft,
+      );
+    }
+    // Any body landing after a drop raises dust round its base; a crate or barrel also
+    // booms dully, louder from higher up.
+    const body = bodies[event.player];
+    // Measured from where the drop began, also across a pivot over an edge.
+    if (body && event.type === 'fall') body.fallFrom ??= body.y;
+    if (body && event.type === 'land') body.landedAt = runSeconds;
+    if (body && event.type === 'death') body.fallFrom = undefined;
+    // A crate or barrel reappears a little above its spawn and drops: dust when it lands.
+    if (body && event.type === 'respawn')
+      body.fallFrom = body.kind === 'crate' ? body.y : undefined;
+    if (body && event.type === 'land' && body.fallFrom !== undefined) {
+      const drop = body.fallFrom - body.y,
+        crate = body.kind === 'crate';
+      // A graze on the way down (a crate catching a ledge's rim) keeps the drop's start;
+      // it is forgotten once the body has stood still a moment (updateEffortEffects).
+      if (drop > 0.3) {
+        if (crate) gameAudio.play('crateLand', Math.min(1, 0.55 + drop * 0.25));
+        effects.burst(
+          {
+            type: 'dust',
+            center: [body.x, body.y || 0, body.z],
+            half: crate && body.large ? 0.47 : 0.38,
+            strength: drop / 2,
+          },
+          players,
+          soft,
+        );
+        body.fallFrom = undefined;
+      }
+    }
+    // A crate or barrel lost off the level breaks apart.
+    if (event.type === 'death' && bodies[event.player]?.kind === 'crate')
+      gameAudio.play('crateBreak');
+    // Props keep their physical momentum through a portal, but remain visually hidden while
+    // the wisp travels. At the exit they use the same white materialisation as their spawn.
+    if (event.type === 'portal' && body?.kind === 'crate') {
+      const delay = reducedMotion ? 0 : JellyEffects.PORTAL_TRAVEL_TIME;
+      body.appearTime = -delay;
+      body.portalAppearPending = delay > 0;
+      effects.burst(event, players, soft);
+      if (!delay)
+        effects.burst({ type: 'crateTeleport', center: crateFlashCenter(body, 0) }, players, soft);
+      gameAudio.play('portal');
+    }
+    if (event.player >= players.length) continue;
+    effects.burst(event, players, soft);
+    if (event.type === 'death') {
+      runDeaths[event.player]++;
+      updateRunSkulls();
+      relightTorches();
+    }
+    if (event.type === 'fall' || event.type === 'death') {
+      for (const key of heldKeys) if (movementKeys[key][0] === event.player) heldKeys.delete(key);
+      input[event.player] = { x: 0, z: 0 };
+      if (event.type === 'death') gameAudio.play('death');
+      else tone(95);
+    } else if (event.type === 'shieldBash') {
+      for (const key of heldKeys) if (movementKeys[key][0] === event.target) heldKeys.delete(key);
+      input[event.target] = { x: 0, z: 0 };
+      woodHit();
+    } else if (event.type === 'respawn') respawnTone(event.player);
+    else if (event.type === 'portal') gameAudio.play('portal');
+    else if (event.type === 'land') {
+      resumeHeldKeys(event.player);
+      gameAudio.play('land');
+      gameAudio.play('jellySlap');
+    } else if (event.type === 'pickup') tone(720);
+    else if (event.type === 'archerShot') gameAudio.play('arrow');
+    else if (event.type === 'arrowBlock' && event.durability > 0) woodHit();
+    else if (event.type === 'shieldBreak') woodHit(true);
+    else if (event.type === 'archerDeath') tone(180);
+  }
+  gameAudio.setRuneLevel(
+    goals.reduce((charge, goal, index) => {
+      const slot = goal.slot ?? index,
+        player = players.find((candidate, playerIndex) => (candidate.slot ?? playerIndex) === slot);
+      return Math.max(charge, world.goalCharge(goal, player));
+    }, 0),
+  );
+  const allFinished =
+    players.length > 0 &&
+    players.every(
+      (p) =>
+        world.goalActive(
+          goals.find((g) => g.slot === p.slot),
+          p,
+        ) && Math.hypot(p.vx, p.vz) < 0.25,
+    );
+  finishHold = allFinished ? Math.min(WIN_HOLD_SECONDS, finishHold + JellyPhysics.STEP) : 0;
+  if (finishHold >= WIN_HOLD_SECONDS - 1e-9) {
+    finishHold = WIN_HOLD_SECONDS;
+    won = true;
+    players.forEach((p) => {
+      p.vx = p.vz = 0;
+    });
+    effects.burst({ type: 'victory' }, players, soft);
+    heldKeys.clear();
+    tone(640);
+    const extraCurrent = currentExtraLevel();
+    const current = currentStandardLevel();
+    if (extraCurrent && JellyProgress) {
+      JellyProgress.complete('extra-' + extraCurrent, runSeconds, skullsLeft());
+      updateLevelLocks();
+    } else if (current && JellyProgress) {
+      JellyProgress.complete(current, runSeconds, skullsLeft());
+      updateLevelLocks();
+    }
+  }
+  level.finishProgress = finishHold / WIN_HOLD_SECONDS;
+}
+// Network play: the session says which ticks to simulate and with whose input.
+function simulateNet(dt) {
+  const session = net.session,
+    STEP = JellyPhysics.STEP;
+  session.poll();
+  if (session.goto) return openNetLevel(session.goto);
+  session.setIntent(won ? players.map(() => ({ x: 0, z: 0 })) : inputs());
+  accumulator += Math.min(dt, 0.05);
+  const due = Math.floor(accumulator / STEP);
+  accumulator -= due * STEP;
+  // A finished level simulates nothing more; a client still reads on to the host's next order.
+  let steps = session.host ? (won ? 0 : due) : won ? Infinity : pace(due, session.queued);
+  const deadline = performance.now() + 10;
+  do {
+    const chunk = Math.min(steps, 8),
+      items = session.advance(chunk);
+    for (const item of items) {
+      if (item.command) applyNetCommand(item.command);
+      else if (!won) {
+        if (level.assembly) {
+          stopLevelAssemblySound();
+          level.assembly = null;
+        }
+        stepWorld(item.inputs);
+        runSeconds += STEP;
+        if (item.tick % CHECK_EVERY === 0) session.checkpoint(item.tick, hashBodies(bodies));
+      }
+    }
+    steps -= chunk;
+    if (!items.length) break;
+  } while (steps > 0 && performance.now() < deadline);
+}
+// Something the host ordered every machine to do on this tick.
+function applyNetCommand(command) {
+  if (command.type === 'restart') {
+    reset(false);
+    // The fade back in is decoration: the world is already running again.
+    restartTransition = { elapsed: 0.22, reset: true };
+    document.querySelector('#restart-fade').hidden = false;
+    document.querySelector('#restart-fade').style.opacity = '1';
+  } else if (command.type === 'goto') {
+    // Give the order time to leave this machine before the page unloads.
+    if (net.session.host) setTimeout(() => openNetLevel(command.level), 120 + net.transport.ping);
+    else openNetLevel(command.level);
+  }
+}
+function openNetLevel(key) {
+  navigate(
+    '?level=' + key + '&play=1' + net.suffix,
+    levelTitle(/^\d+$/.test(key) ? Number(key) : key),
+    'loadingLevel',
+    true,
+  );
+}
+// The host dealt the jellies out anew: this machine's keys and hints follow. Keys already
+// held survive when its own jellies stay the same (somebody else joined or is lagging).
+let netLocalPlayers = '';
+function netRosterChanged() {
+  net.remember();
+  const local = players.map((_, i) => net.session.owns(i)).join();
+  if (local === netLocalPlayers) return;
+  netLocalPlayers = local;
+  heldKeys.clear();
+  downKeys.clear();
+  assignControls();
+  if (JellyI18n) createPlayerHints();
+}
+if (net) {
+  netLocalPlayers = players.map((_, i) => net.session.owns(i)).join();
+  net.session.onroster = netRosterChanged;
+}
 // Hands the keys still held for jelly `i` back to it, as a fresh move.
 function resumeHeldKeys(i) {
   if (won) return;
   for (const key of downKeys) {
     if (movementKeys[key][0] !== i || heldKeys.has(key)) continue;
-    if (!heldKeys.size) {
+    if (!heldKeys.size && !net) {
       history.push(snapshot());
       moves++;
       if (history.length > 256) history.shift();
@@ -708,6 +801,8 @@ function stopInput() {
   endOrbit();
   heldKeys.clear();
   downKeys.clear();
+  // In network play only inputs may touch the world.
+  if (net) return;
   players.forEach((p) => {
     if (p.launchTimer) return;
     p.vx = p.vz = 0;
@@ -764,7 +859,7 @@ addEventListener('keydown', (e) => {
     stopLevelAssemblySound();
     level.assembly = null;
     focusPlayer(movementKeys[k][0]);
-    if (!heldKeys.size) {
+    if (!heldKeys.size && !net) {
       history.push(snapshot());
       moves++;
       if (history.length > 256) history.shift();
@@ -793,6 +888,8 @@ document.addEventListener('visibilitychange', () => {
 
 document.querySelector('#again').onclick = () => restartLevel();
 function restartLevel() {
+  // The host restarts for everybody, on the same tick.
+  if (net) return net.session.command({ type: 'restart' });
   const replayAssembly = document.querySelector('#restart-assembly').checked;
   if (!JellyI18n) {
     reset(replayAssembly);
@@ -839,13 +936,29 @@ function createPlayerHints() {
     ['T', 'F', 'G', 'H'],
     ['8', '4', '5', '6'],
   ];
+  // Built again whenever network play hands the jellies out differently.
+  document
+    .querySelectorAll('#player-hints > :is(.player-key-hint, .player-net-lag, .spawn-outlines)')
+    .forEach((node) => node.remove());
+  netLagMarks = !net
+    ? []
+    : players.map((p) => {
+        const node = document.createElement('div');
+        node.className = 'player-net-lag';
+        node.hidden = true;
+        node.style.setProperty('--jelly-color', colors[p.slot]);
+        node.append(document.querySelector('#net-status svg').cloneNode(true));
+        document.querySelector('#player-hints').append(node);
+        return node;
+      });
   playerHints = players.map((p, i) => {
     const node = document.createElement('div');
     node.className = 'player-key-hint';
     node.hidden = true;
     node.style.setProperty('--jelly-color', colors[p.slot]);
+    // A jelly driven from another machine has no keys here.
     const control = controlOwners.indexOf(i),
-      keys = layouts[control];
+      keys = layouts[control] ?? [];
     if (control === 4) node.title = 'NumPad';
     keys.forEach((key) => {
       const kbd = document.createElement('kbd'),
@@ -1025,14 +1138,62 @@ function floorHintKeys(hint, p, turn, keys) {
     });
   });
 }
+// Network play: the room and connection quality, and a mark over every jelly whose machine
+// the host has stopped hearing from.
+function updateNetStatus() {
+  const session = net.session,
+    chip = document.querySelector('#net-status'),
+    trouble = session.desync
+      ? 'netDesync'
+      : !session.ready
+        ? 'netConnecting'
+        : session.stalled
+          ? 'netHostLost'
+          : '';
+  const detail = session.host
+    ? String(session.peerIds.length)
+    : session.ping === null
+      ? '…'
+      : Math.round(session.ping) + ' ms';
+  chip.hidden = false;
+  chip.classList.toggle('trouble', Boolean(trouble));
+  const text = net.room + ' · ' + (session.desync ? '≠' : trouble ? '…' : detail);
+  if (document.querySelector('#net-text').textContent !== text) {
+    document.querySelector('#net-text').textContent = text;
+    chip.title = trouble
+      ? tr(trouble)
+      : tr('netRoom') +
+        ' ' +
+        net.room +
+        ', ' +
+        (session.host ? tr('netMachines') + ': ' + detail : tr('netPing') + ' ' + detail);
+    chip.setAttribute('aria-label', chip.title);
+  }
+  netLagMarks.forEach((node, i) => {
+    const p = players[i],
+      point = project(p.rx, (p.y || 0) + 1.25, p.rz);
+    node.hidden = !session.playerLagging(i) || !point.visible;
+    if (node.hidden) return;
+    node.setAttribute('aria-label', tr('netPlayerLagging'));
+    node.style.left = point.x + 'px';
+    node.style.top = point.y + 'px';
+  });
+  // Nobody can undo a shared world; only the host restarts and decides what follows a win.
+  document.querySelector('#undo-hint').hidden = true;
+  document.querySelector('#restart-hint').hidden = !session.host;
+  document.querySelector('#win-wait').hidden = session.host;
+  document.querySelector('#win .menu-items').hidden = !session.host;
+}
 function updatePlayerHints(dt) {
   updateSpawnMarks(dt);
+  if (net && JellyI18n) updateNetStatus();
   level.floorKeys = [];
   if (!playerHints.length) return;
   const inactive = menuOpen || won || loadingActive || restartTransition || level.assembly;
   const boxes = [],
     turn = controlTurn();
   playerHints.forEach((hint, i) => {
+    if (!hint.labels.length) return;
     const p = players[i],
       moving =
         Math.hypot(p.vx || 0, p.vz || 0) > 0.08 ||
@@ -1374,8 +1535,14 @@ function updateLoading(progress, stage, files) {
 }
 // The next page may take a while on a slow connection: show its loading screen at once
 // and stop input instead of leaving the finished level visible and interactive.
-function navigate(url, title = '', stage = 'loadingLevel') {
+function navigate(url, title = '', stage = 'loadingLevel', ordered = false) {
   if (leaving) return;
+  // In network play the host picks the level and every machine opens it on its order.
+  const target = /^\?level=([\w-]+)/.exec(url)?.[1];
+  if (net && target && !ordered) {
+    net.session.command({ type: 'goto', level: target });
+    return;
+  }
   leaving = loadingActive = true;
   stopInput();
   document.querySelector('#win').hidden = true;
@@ -1470,6 +1637,21 @@ sceneRenderer
     loadingActive = false;
   })
   .catch((error) => gpuFailure(error.message));
+if (net) {
+  // Jelly softness is part of the simulation: every machine must keep the same values.
+  document.querySelector('#softness').disabled = document.querySelector('#decay').disabled = true;
+  const slider = document.querySelector('#net-ping'),
+    show = () =>
+      (document.querySelector('#net-ping-value').textContent =
+        Math.round(net.transport.ping) + ' мс');
+  document.querySelector('#net-ping-row').hidden = false;
+  slider.value = String(net.transport.ping);
+  slider.addEventListener('input', () => {
+    net.transport.ping = Number(slider.value);
+    show();
+  });
+  show();
+}
 document.querySelector('#softness').addEventListener('input', (e) => {
   soft.softness = Number(e.target.value);
   players.forEach((p) => {
@@ -1614,7 +1796,8 @@ canvas.addEventListener('pointerdown', (e) => {
       distance = d;
     }
   });
-  if (closest !== null) {
+  // Poking and undo rewrite the world outside the shared inputs: single machine only.
+  if (closest !== null && !net) {
     history.push(snapshot());
     moves++;
     soft.poke(players[closest]);
@@ -1695,6 +1878,10 @@ function currentStandardLevel() {
 function currentExtraLevel() {
   const match = /(?:^|[?&])level=extra-(\d+)(?:&|$)/.exec(globalThis.location?.search || '');
   return match ? Number(match[1]) : 0;
+}
+function levelKey() {
+  const extraId = currentExtraLevel();
+  return extraId ? 'extra-' + extraId : String(currentStandardLevel());
 }
 function currentLevelTitle() {
   if (menuOnly) return '';

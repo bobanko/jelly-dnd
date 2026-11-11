@@ -36,6 +36,12 @@
           <path d="M4 6h16M4 12h16M4 18h16" />
         </svg></button
       ><span id="fps" aria-label="Frames per second">— FPS</span
+      ><span id="net-status" role="status" hidden
+        ><svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M2 9a15 15 0 0 1 20 0M5.5 12.8a10 10 0 0 1 13 0M9 16.4a5 5 0 0 1 6 0" />
+          <circle cx="12" cy="19.6" r="0.9" />
+          <path class="net-off" d="M4 3l16 18" /></svg
+        ><span id="net-text"></span></span
       ><button
         id="sound"
         class="icon-button"
@@ -60,6 +66,7 @@
           <div id="win-skulls" role="img"></div>
           <p id="win-time"></p>
           <div id="win-deaths"></div>
+          <p id="win-wait" data-t="netWaitingHost" hidden></p>
           <nav class="menu-items">
             <button id="again" data-t="replay"></button
             ><button id="win-next" data-t="nextLevel"></button>
@@ -92,6 +99,10 @@
       >
       <label class="mesh-toggle"
         ><input id="restart-assembly" type="checkbox" /> Формирование при рестарте</label
+      >
+      <label id="net-ping-row" for="net-ping" hidden
+        >Пинг сети (тест)<input id="net-ping" type="range" min="0" max="400" step="10" value="0" />
+        <output id="net-ping-value" for="net-ping">0 мс</output></label
       >
       <label class="mesh-toggle"
         ><input id="film-grain" type="checkbox" checked /> Зернистость</label
@@ -245,7 +256,8 @@
     </section>
     <footer class="controls-footer screen-controls">
       <div class="controls">
-        <span><kbd>Q</kbd><kbd>E</kbd> Поворот</span><span><kbd>Z</kbd> Отменить</span
+        <span><kbd>Q</kbd><kbd>E</kbd> Поворот</span
+        ><span id="undo-hint"><kbd>Z</kbd> Отменить</span
         ><span id="restart-hint"
           ><kbd>R</kbd> Сначала<span class="restart-reason" data-t="restoreSkulls"></span
         ></span>

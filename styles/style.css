@@ -1290,6 +1290,86 @@ html[lang='ru'] .menu-panel h1 {
 .level-won .game-tools {
   visibility: hidden;
 }
+#net-status {
+  position: absolute;
+  left: 54px;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #bc995d3d;
+  background: #141718b8;
+  color: #b3c0b7;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(10px);
+}
+#net-status[hidden] {
+  display: none;
+}
+#net-status svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+}
+#net-status .net-off {
+  display: none;
+}
+#net-status.trouble {
+  color: #ff9d7a;
+  border-color: #ff9d7a80;
+}
+#net-status.trouble .net-off {
+  display: inline;
+}
+#win-wait {
+  margin: 14px 0 0;
+  color: #b3c0b7;
+}
+/* Shown over a jelly whose machine has gone quiet. */
+.player-net-lag {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--jelly-color);
+  border-radius: 50%;
+  background: #141718d9;
+  color: #ffd9a0;
+  transform: translate(-50%, -100%);
+  filter: drop-shadow(0 3px 8px #000b);
+  animation: net-lag-blink 1.1s ease-in-out infinite;
+}
+.player-net-lag[hidden] {
+  display: none;
+}
+.player-net-lag svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.player-net-lag .net-off {
+  display: inline;
+}
+@keyframes net-lag-blink {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .player-net-lag {
+    animation: none;
+  }
+}
 #player-hints {
   position: fixed;
   inset: 0;
@@ -2251,4 +2331,10 @@ body:has(#win:not([hidden])) #run-skulls {
   #win:not([hidden]) #win-skulls .cracked .skull-crack {
     animation: none;
   }
+}
+#win .menu-items[hidden],
+#undo-hint[hidden],
+#restart-hint[hidden],
+#net-ping-row[hidden] {
+  display: none;
 }
