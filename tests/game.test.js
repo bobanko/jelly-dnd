@@ -10,6 +10,7 @@ import * as SoftBody from '../src/world/soft-body.js';
 import * as GPU from '../src/renderer/index.js';
 import sunkenSanctum from '../levels/05-sunken-sanctum.json' with { type: 'json' };
 import * as Net from '../src/net/index.js';
+import * as TouchSticksModule from '../src/game/touch-sticks.js';
 import * as Lockstep from '../src/net/lockstep.js';
 import * as StateHash from '../src/net/state-hash.js';
 import { test } from 'node:test';
@@ -92,6 +93,7 @@ async function game(options = {}) {
     './camera/shared-camera.js': SharedCamera,
     './camera/level-camera.js': LevelCamera,
     './game/menu-scene.js': menuSceneModule,
+    './game/touch-sticks.js': TouchSticksModule,
     './i18n/i18n.js': { i18n: null },
     './runtime-context.js': { menuOnly: !!options.menuOnly, progress: null },
     './net/index.js': Net,

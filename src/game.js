@@ -14,6 +14,7 @@ import { playProceduralSound } from './game/sound-catalog.js';
 import * as JellySharedCamera from './camera/shared-camera.js';
 import * as LevelCamera from './camera/level-camera.js';
 import { createMenuScene } from './game/menu-scene.js';
+import { TouchSticks } from './game/touch-sticks.js';
 import { menuOnly as JellyMenuOnly, progress as JellyProgress } from './runtime-context.js';
 import { createNet } from './net/index.js';
 import { pace, CHECK_EVERY } from './net/lockstep.js';
@@ -826,6 +827,7 @@ function netRosterChanged() {
   heldKeys.clear();
   downKeys.clear();
   assignControls();
+  touchSticks?.refresh();
   if (JellyI18n) createPlayerHints();
 }
 if (net) {
@@ -843,6 +845,7 @@ function resumeHeldKeys(i) {
 }
 function stopInput() {
   endOrbit();
+  touchSticks?.reset();
   heldKeys.clear();
   downKeys.clear();
   // In network play only inputs may touch the world.
@@ -897,14 +900,8 @@ addEventListener('keydown', (e) => {
   }
   if (movementKeys[k]) {
     e.preventDefault();
-    downKeys.add(k);
-    if (won || e.repeat || heldKeys.has(k) || !JellyPhysics.alive(players[movementKeys[k][0]]))
-      return;
-    stopLevelAssemblySound();
-    level.assembly = null;
-    focusPlayer(movementKeys[k][0]);
-    if (!heldKeys.size && !net) rememberMove();
-    heldKeys.add(k);
+    setTouchMode(false);
+    if (!e.repeat) pressMoveKey(k);
   } else if (!e.repeat) {
     if (k === 'KeyQ') turnCamera(-Math.PI / 4);
     else if (k === 'KeyE') turnCamera(Math.PI / 4);
@@ -916,10 +913,65 @@ addEventListener('keyup', (e) => {
   const key = e.code;
   if (movementKeys[key]) {
     e.preventDefault();
-    heldKeys.delete(key);
-    downKeys.delete(key);
+    releaseMoveKey(key);
   }
 });
+// A movement key goes down: from the keyboard or a touch stick.
+function pressMoveKey(k) {
+  if (!movementKeys[k]) return;
+  downKeys.add(k);
+  if (won || heldKeys.has(k) || !JellyPhysics.alive(players[movementKeys[k][0]])) return;
+  stopLevelAssemblySound();
+  level.assembly = null;
+  focusPlayer(movementKeys[k][0]);
+  if (!heldKeys.size && !net) rememberMove();
+  heldKeys.add(k);
+}
+function releaseMoveKey(k) {
+  heldKeys.delete(k);
+  downKeys.delete(k);
+}
+// Touch screens: joysticks in the bottom corners instead of key hints. A touch turns them on,
+// a movement key turns them off again (a tablet with a keyboard).
+const STICK_KEY_SETS = [
+  ['KeyW', 'KeyA', 'KeyS', 'KeyD'],
+  ['ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'],
+];
+let touchMode = false,
+  touchSticks = null;
+function setTouchMode(on) {
+  if (touchMode === on || !touchSticks) return;
+  touchMode = on;
+  touchSticks.reset();
+  document.body.classList.toggle('touch-controls', on);
+}
+function createTouchSticks() {
+  // With one jelly on this machine both sticks drive it, for either thumb; with two or more,
+  // the left stick drives the first and the right stick the second (the keyboard's first two
+  // key sets).
+  touchSticks = new TouchSticks(document.body, {
+    sets: () =>
+      STICK_KEY_SETS.map((codes, set) => {
+        const player = controlOwners[set];
+        return player >= 0 && players[player]
+          ? { codes, color: colors[players[player].slot] }
+          : null;
+      }),
+    press: (code) => {
+      if (!menuOpen && !loadingActive && !restartTransition) pressMoveKey(code);
+    },
+    release: releaseMoveKey,
+  });
+  addEventListener(
+    'pointerdown',
+    (e) => {
+      if (e.pointerType === 'touch') setTouchMode(true);
+    },
+    { capture: true },
+  );
+  if (matchMedia?.('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches)
+    setTouchMode(true);
+}
 addEventListener('blur', stopInput);
 document.addEventListener('visibilitychange', () => {
   last = 0;
@@ -1258,6 +1310,11 @@ function updatePlayerHints(dt) {
   if (net && JellyI18n) updateNetStatus();
   level.floorKeys = [];
   if (!playerHints.length) return;
+  // Touch players have the sticks, not keys.
+  if (touchMode) {
+    for (const hint of playerHints) hint.node.hidden = true;
+    return;
+  }
   const inactive = menuOpen || won || loadingActive || restartTransition || level.assembly;
   const boxes = [],
     turn = controlTurn();
@@ -1830,7 +1887,7 @@ function endOrbit() {
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('pointermove', (e) => {
   if (!orbitGesture || e.pointerId !== orbitGesture.id) return;
-  if (!(e.buttons & 2)) {
+  if (e.pointerType !== 'touch' && !(e.buttons & 2)) {
     endOrbit();
     return;
   }
@@ -1847,7 +1904,8 @@ for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
   });
 canvas.addEventListener('pointerdown', (e) => {
   if (menuOpen || restartTransition || loadingActive) return;
-  if (e.button === 2) {
+  // The right mouse button, or a finger on the scene outside the sticks, orbits the camera.
+  if (e.button === 2 || e.pointerType === 'touch') {
     e.preventDefault();
     cancelCameraIntro();
     endOrbit();
@@ -2241,6 +2299,7 @@ function setMenu(open) {
 }
 if (JellyI18n) {
   createPlayerHints();
+  if (!menuOnly) createTouchSticks();
   updateRunSkulls();
   document.querySelector('#win-next').onclick = () => {
     const extraId = currentExtraLevel();

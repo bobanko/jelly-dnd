@@ -2385,3 +2385,77 @@ body:has(#win:not([hidden])) #run-skulls {
 #net-ping-row[hidden] {
   display: none;
 }
+
+/* Touch screens: two joysticks in the bottom corners; key hints are hidden. */
+.touch-sticks {
+  display: none;
+  position: fixed;
+  inset: auto 0 0;
+  height: 45%;
+  z-index: 4;
+  pointer-events: none;
+}
+.touch-controls .touch-sticks {
+  display: block;
+}
+.touch-controls .screen-controls,
+.menu-open .touch-sticks,
+.level-won .touch-sticks {
+  display: none;
+}
+.touch-stick-zone {
+  position: absolute;
+  bottom: 0;
+  width: 45%;
+  height: 100%;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.touch-stick-zone[hidden] {
+  display: none;
+}
+.touch-stick-zone.left {
+  left: 0;
+}
+.touch-stick-zone.right {
+  right: 0;
+}
+.touch-stick {
+  position: absolute;
+  top: calc(100% - 92px - env(safe-area-inset-bottom));
+  width: 116px;
+  height: 116px;
+  margin: -58px 0 0 -58px;
+  border: 2px solid color-mix(in srgb, var(--jelly-color) 55%, transparent);
+  border-radius: 50%;
+  background: #14171859;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.left .touch-stick {
+  left: calc(92px + env(safe-area-inset-left));
+}
+.right .touch-stick {
+  left: calc(100% - 92px - env(safe-area-inset-right));
+}
+.touch-stick.active {
+  opacity: 1;
+  transition: none;
+}
+.touch-stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 50px;
+  height: 50px;
+  margin: -25px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--jelly-color) 70%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--jelly-color) 45%, transparent);
+}
+#scene {
+  touch-action: none;
+}
