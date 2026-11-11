@@ -749,7 +749,9 @@ function simulateNet(dt) {
   accumulator -= due * STEP;
   // A finished level simulates nothing more; a client still reads on to the host's next order.
   let steps = session.host ? (won ? 0 : due) : won ? Infinity : pace(due, session.queued);
-  const deadline = performance.now() + 10;
+  // A machine far behind (it joined late or its tab was hidden) gives most of each frame to
+  // catching up; otherwise ticks may take 10 ms of it.
+  const deadline = performance.now() + (session.queued > 240 ? 40 : 10);
   do {
     const chunk = Math.min(steps, 8),
       items = session.advance(chunk);
