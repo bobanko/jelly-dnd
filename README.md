@@ -44,7 +44,7 @@ Dying won't help. The wizard simply brings them back for another attempt. No esc
 
 Vanilla JavaScript, WebGPU, custom soft-body physics. Includes a built-in 3D level editor — design your own workplace accidents.
 
-Requires a browser with WebGPU (Chrome or Edge). Run `npm start` and open http://localhost:3000.
+Requires a browser with WebGPU (Chrome or Edge). Run `npm start` and open http://localhost:3000. For iPhone/LAN testing, use `npm run start:https` and follow the [one-time certificate setup](docs/development.md#проверка-с-iphone-по-локальной-сети).
 
 ## More
 

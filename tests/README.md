@@ -6,6 +6,7 @@ Run commands from the project root so source-file reads and generated `artifacts
 
 ```sh
 npm test
+npm run test:https
 npm run test:browser
 npm run test:editor:browser
 npm run profile:browser
@@ -23,3 +24,5 @@ Browser checks use the existing server at `http://localhost:3000/`; they do not 
 On Windows PowerShell, use `npm.cmd` if the execution policy prevents `npm.ps1` from running.
 
 `tests/setup.js` preloads campaign maps for Node tests. Gameplay tests use Node VM modules to run each game instance in an isolated context; `npm test` includes the required flag. Browser checks use `browser-harness.js` to inspect private module state through test-only instrumentation, without adding debug globals to the shipped game.
+
+`npm run test:https` is a separate development-server integration check. It needs OpenSSL and permission to listen on temporary loopback ports; it verifies trusted TLS, certificate reuse and IP renewal, HTTP/HTTPS serving, public CA download and private-key access restrictions. It does not change system trust stores.

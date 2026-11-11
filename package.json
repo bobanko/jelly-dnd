@@ -11,6 +11,8 @@
     "format": "prettier --write \"**/*.{js,mjs,cjs,json,html,css}\"",
     "format:check": "prettier --check \"**/*.{js,mjs,cjs,json,html,css}\"",
     "start": "node scripts/server.js",
+    "start:https": "node scripts/server.js --https",
+    "test:https": "node --test tests/dev-https.test.js",
     "relay:dev": "wrangler dev --config relay/wrangler.toml --port 8787",
     "relay:deploy": "wrangler deploy --config relay/wrangler.toml",
     "build": "npm run check && node scripts/build-itch.js",

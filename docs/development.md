@@ -30,6 +30,21 @@ If the browser has no WebGPU adapter, an explanation appears instead of a blank 
 
 Each level opens with a 3.2-second assembly: stone and coloured blocks arrive in sequence from the screen edges, above and below, with low arrivals emerging through the void fog. Scattered stones, bones, webs and torch bodies travel with their supporting masonry. Once every block locks into place, pressure buttons, characters, crates, pickups, skeleton archers and hovering drones fall from above in a short staggered cascade. Grounded props are lowered with a slow, smooth ease and settle without bouncing, archers sway slightly before standing still, and drone crystals ripple around their hovering height as if meeting water. The animation moves only rendered geometry, leaving physics state unchanged; other mechanisms and hazards appear after the landing phase, while the run timer remains paused throughout. A movement key skips assembly, and reduced-motion settings show the completed level immediately. Restart replays assembly when its Developer settings flag is enabled. `npm run test:assembly:browser` checks construction frames, prop landings, pause, skip and reduced-motion paths on WebGPU.
 
+## Проверка с iPhone по локальной сети
+
+Запустите `npm run start:https`. При первом запуске скрипт через OpenSSL создаст отдельный локальный центр сертификации и сертификат для `localhost` и текущих IPv4-адресов компьютера. На macOS OpenSSL уже доступен; на Windows/Linux он должен быть установлен и доступен в PATH. Сервер выведет адреса вида `https://192.168.1.20:3443`. Обычный `npm start` продолжает использовать HTTP на порту 3000; оба сервера могут работать одновременно. Для другого порта: `npm run start:https -- --port=3445`.
+
+Один раз настройте доверие на телефоне:
+
+1. Передайте **только** `.certs/rootCA.cer` на iPhone через AirDrop и откройте его. На Mac открыть папку можно командой `open .certs`. Альтернатива: после генерации сертификата перезапустите обычный HTTP-сервер (`npm start`) и откройте на телефоне `http://<IP-компьютера>:3000/dev-ca.cer` в Safari, чтобы скачать профиль.
+2. В Настройках откройте «Профиль загружен» (либо «Основные → VPN и управление устройством»), выберите `Jelly and Bones Local Development CA` и установите профиль.
+3. В «Настройки → Основные → Об этом устройстве → Доверие сертификатам» включите полное доверие для `Jelly and Bones Local Development CA`. Apple описывает этот отдельный шаг в [инструкции по доверию сертификатам](https://support.apple.com/en-us/102390).
+4. Подключите iPhone к той же сети Wi-Fi и откройте напечатанный сервером **HTTPS**-адрес на порту 3443. Соединение должно открываться без предупреждения о сертификате; простой обход предупреждения не заменяет настройку доверия. На телефоне также нужна версия iOS с поддержкой WebGPU (26 или новее).
+
+Файлы `.certs/` исключены из Git и недоступны через сервер. Единственный специальный маршрут `/dev-ca.cer` отдаёт публичный корневой сертификат. Закрытые ключи `rootCA-key.pem` и `dev-key.pem` передавать не нужно. Скрипт не меняет доверие сертификатам на Mac или телефоне автоматически. Если IP компьютера изменится, перезапустите HTTPS-сервер: сертификат сайта обновится под тем же корневым сертификатом, повторная установка профиля не потребуется. После удаления `.certs/` будет создан новый корневой сертификат, который нужно заново установить на iPhone. Для удаления доверия удалите профиль в «VPN и управление устройством».
+
+`npm run test:https` проверяет цепочку доверия TLS, адреса в сертификате, повторный запуск, смену IP, выдачу игры по HTTP/HTTPS, загрузку публичного сертификата и запрет доступа к закрытым ключам. Для этой проверки нужны OpenSSL и возможность слушать локальный порт.
+
 ## Генерация звуков через ElevenLabs
 
 Локальная утилита использует официальный [Sound Effects API](https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert). Ключ не используется браузером: в игру входят только готовые аудиофайлы.

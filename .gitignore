@@ -9,3 +9,4 @@ dist/
 !.env.vectorizer.example
 .DS_Store
 .wrangler/
+.certs/
