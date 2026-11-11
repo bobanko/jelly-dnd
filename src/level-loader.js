@@ -139,8 +139,11 @@ export async function loadLevels({
       const isExtra = !!extraMatch;
       const extraSelected = extraMatch ? Number(extraMatch[1]) : 0;
       let selected = Number(levelParam) || 1;
+      // A guest in a network room follows the host, whatever its own progress.
+      const guest = params.has('room') && params.get('host') !== '1';
       if (
         !isExtra &&
+        !guest &&
         params.get('level') !== 'editor' &&
         params.has('level') &&
         progress &&

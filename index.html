@@ -59,6 +59,14 @@
     <main>
       <div id="player-hints" aria-hidden="true"></div>
       <div id="status" class="sr-only" role="status" aria-live="polite"></div>
+      <div id="net-wait" hidden role="dialog" aria-labelledby="net-wait-title">
+        <div class="net-wait-panel">
+          <h2 id="net-wait-title" data-t="netWaitTitle"></h2>
+          <p class="net-wait-code"><span data-t="netRoom"></span> <b id="net-wait-code"></b></p>
+          <p id="net-wait-hint" data-t="netWaitHint" hidden></p>
+          <button id="net-wait-leave" data-t="netLeave"></button>
+        </div>
+      </div>
       <div id="win" hidden role="dialog" aria-modal="true" aria-labelledby="win-title">
         <div class="win-panel">
           <h2 id="win-title" data-t="levelComplete"></h2>
@@ -292,6 +300,7 @@
           <nav class="menu-items" aria-label="Main menu">
             <button id="play" data-t="play"></button
             ><button id="show-levels" data-t="levels"></button
+            ><button id="show-online" data-t="online"></button
             ><button id="show-controls" data-t="how"></button
             ><button id="open-editor" data-t="editor"></button
             ><button id="exit-to-menu" data-t="mainMenu" hidden></button>
@@ -329,6 +338,34 @@
           <h2 data-t="levels"></h2>
           <nav class="level-list" aria-label="Levels"></nav>
           <button id="levels-back" data-t="back"></button>
+        </div>
+        <div id="menu-online" hidden>
+          <h2 data-t="online"></h2>
+          <p class="net-intro" data-t="netIntro"></p>
+          <nav class="menu-items" aria-label="Online game">
+            <button id="net-create" data-t="netCreate"></button>
+          </nav>
+          <form id="net-join-form" class="net-join">
+            <label for="net-code" data-t="netJoinLabel"></label>
+            <div class="net-join-row">
+              <input
+                id="net-code"
+                type="text"
+                maxlength="80"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+              /><button id="net-join" type="submit" data-t="netJoin"></button>
+            </div>
+            <p id="net-join-error" role="alert" data-t="netBadCode" hidden></p>
+          </form>
+          <button id="online-back" data-t="back"></button>
+        </div>
+        <div id="room-card" hidden>
+          <span class="room-label" data-t="netRoom"></span>
+          <b id="room-code"></b>
+          <button id="copy-invite" data-t="netCopyLink"></button>
+          <p id="room-note" data-t="netChooseLevel"></p>
         </div>
         <div class="menu-key-hints controls-footer screen-controls">
           <span

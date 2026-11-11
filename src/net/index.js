@@ -24,6 +24,27 @@ function stored(key, create) {
   }
 }
 
+// Room codes: five characters, without look-alikes (0/O, 1/I/L), easy to read out loud.
+const CODE_LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789',
+  CODE_LENGTH = 5;
+export function newRoomCode() {
+  const bytes = new Uint8Array(CODE_LENGTH);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => CODE_LETTERS[b % CODE_LETTERS.length]).join('');
+}
+// A code typed or pasted by a player, or a whole invite link: the room code, or null.
+export function parseRoomCode(text) {
+  const raw = /[?&]room=([\w-]+)/.exec(text)?.[1] ?? text,
+    code = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return code.length >= 4 && code.length <= 12 ? code : null;
+}
+// The address a friend opens to join `room`.
+export function inviteLink(room, search = globalThis.location?.search || '') {
+  const relay = param(search, 'relay'),
+    page = new URL('./', globalThis.location?.href);
+  return page.href + '?room=' + room + '&play=1' + (relay ? '&relay=' + relay : '');
+}
+
 // Returns null when the address asks for no room.
 export function createNet(search, playerCount, level) {
   const room = param(search, 'room');
@@ -65,6 +86,7 @@ export function createNet(search, playerCount, level) {
         (choice ? '&relay=' + choice : '')
       );
     },
+    invite: inviteLink(room, search),
     // The host keeps the joining order across level loads: everybody keeps their jelly.
     remember() {
       try {

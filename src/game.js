@@ -16,7 +16,7 @@ import * as LevelCamera from './camera/level-camera.js';
 import { createMenuScene } from './game/menu-scene.js';
 import { TouchSticks } from './game/touch-sticks.js';
 import { menuOnly as JellyMenuOnly, progress as JellyProgress } from './runtime-context.js';
-import { createNet } from './net/index.js';
+import { createNet, newRoomCode, parseRoomCode, inviteLink } from './net/index.js';
 import { pace, CHECK_EVERY } from './net/lockstep.js';
 import { hashBodies } from './net/state-hash.js';
 
@@ -25,6 +25,9 @@ let menuOpen = false,
   hasPlayed = false,
   menuHelp = false,
   menuLevelSelect = false,
+  menuOnline = false,
+  // The room code chosen with "Create game", while its host picks the first level.
+  hostingRoom = null,
   menuSelected = 0;
 let winShown = false,
   winSelected = 0;
@@ -34,6 +37,7 @@ let loadingActive = false,
   loadingFailed = false,
   loadingStage = 'loadingGraphics',
   autoZoom = 1;
+const netStarted = globalThis.performance?.now() ?? 0;
 const NET_ASK_SECONDS = 3,
   // What a guest may ask the host for: the key it pressed and the name of the action.
   NET_ASKS = { restart: ['R', 'helpRestart'], undo: ['Z', 'helpUndo'] };
@@ -538,9 +542,10 @@ function controlTurn() {
 }
 function simulate(dt, elapsed = dt) {
   // A network game has no private pause: the menu, a win and a restart leave the clock running.
-  // The host holds the first tick until its level has assembled.
+  // The host holds the first tick until its level has assembled (see simulateNet), but keeps
+  // talking meanwhile: guests hear it is alive, and orders such as a level choice go out.
   const active = net
-    ? !(loadingActive || leaving || mapError || (net.session.host && level.assembly))
+    ? !(loadingActive || leaving || mapError)
     : !(
         loadingActive ||
         level.assembly ||
@@ -749,7 +754,13 @@ function simulateNet(dt) {
   const due = Math.floor(accumulator / STEP);
   accumulator -= due * STEP;
   // A finished level simulates nothing more; a client still reads on to the host's next order.
-  let steps = session.host ? (won ? 0 : due) : won ? Infinity : pace(due, session.queued);
+  let steps = session.host
+    ? won || level.assembly
+      ? 0
+      : due
+    : won
+      ? Infinity
+      : pace(due, session.queued);
   // A machine far behind (it joined late or its tab was hidden) gives most of each frame to
   // catching up; otherwise ticks may take 10 ms of it.
   const deadline = performance.now() + (session.queued > 240 ? 40 : 10);
@@ -1301,6 +1312,13 @@ function updateNetStatus() {
     node.style.left = point.x + 'px';
     node.style.top = point.y + 'px';
   });
+  // A guest whose host has not answered yet: the room it waits in, and a hint after a while.
+  const waiting = !session.host && !session.ready && !session.goto;
+  document.querySelector('#net-wait').hidden = !waiting || menuOpen;
+  if (waiting) {
+    document.querySelector('#net-wait-code').textContent = net.room;
+    document.querySelector('#net-wait-hint').hidden = performance.now() - netStarted < 8000;
+  }
   // Only the host decides what follows a win.
   document.querySelector('#win-wait').hidden = session.host;
   document.querySelector('#win .menu-items').hidden = !session.host;
@@ -1537,7 +1555,8 @@ function updateEffortEffects(dt, input) {
   });
 }
 function updateLevelAssembly(dt) {
-  if (!level.assembly || loadingActive || menuOpen || document.hidden) return;
+  // Network play does not pause for one player's menu: the host's first tick waits for this.
+  if (!level.assembly || loadingActive || (menuOpen && !net) || document.hidden) return;
   level.assembly.whooshes ??= assemblyWhooshes();
   level.assembly.whooshSources ??= [];
   level.assembly.progress = Math.min(1, level.assembly.progress + dt / LEVEL_ASSEMBLY_SECONDS);
@@ -2211,15 +2230,15 @@ function updateLevelLocks() {
   });
 }
 function menuButtons() {
-  return [
-    ...document.querySelectorAll(
-      menuHelp
-        ? '#menu-back'
-        : menuLevelSelect
-          ? '#menu-levels button:not(:disabled)'
-          : '#menu-root button:not([hidden])',
-    ),
-  ];
+  const screen = menuHelp
+    ? '#menu-back'
+    : menuLevelSelect
+      ? '#menu-levels button:not(:disabled)'
+      : menuOnline
+        ? '#menu-online :is(button, input)'
+        : '#menu-root button:not([hidden])';
+  // The room card's copy button comes last, after the screen's own items.
+  return [...document.querySelectorAll(screen + ', #room-card:not([hidden]) button')];
 }
 function selectMenuItem(index, focus = true) {
   const buttons = menuButtons();
@@ -2242,13 +2261,74 @@ function selectMenuItem(index, focus = true) {
 function showMenuScreen(screen) {
   menuHelp = screen === 'help';
   menuLevelSelect = screen === 'levels';
+  menuOnline = screen === 'online';
   if (menuLevelSelect) updateLevelLocks();
-  document.querySelector('#menu-root').hidden = menuHelp || menuLevelSelect;
+  document.querySelector('#menu-root').hidden = menuHelp || menuLevelSelect || menuOnline;
   document.querySelector('#menu-help').hidden = !menuHelp;
   document.querySelector('#menu-levels').hidden = !menuLevelSelect;
+  document.querySelector('#menu-online').hidden = !menuOnline;
+  document.querySelector('#net-join-error').hidden = true;
   document.querySelector('#main-menu').classList.toggle('selecting-level', menuLevelSelect);
-  document.querySelector('#main-menu').classList.toggle('submenu', menuHelp || menuLevelSelect);
+  document
+    .querySelector('#main-menu')
+    .classList.toggle('submenu', menuHelp || menuLevelSelect || menuOnline);
+  updateOnlineMenu();
   selectMenuItem(0);
+}
+// Back from a submenu: from the levels of a game being created, back to the online screen.
+function menuBack() {
+  if (menuLevelSelect && hostingRoom) {
+    hostingRoom = null;
+    showMenuScreen('online');
+  } else showMenuScreen('root');
+}
+// Menu items that depend on network play, and the room card with its code and invite link.
+function updateOnlineMenu() {
+  const guest = net && !net.session.host,
+    exit = document.querySelector('#exit-to-menu');
+  document.querySelector('#show-online').hidden = Boolean(net);
+  // A guest follows the host's choice of level.
+  document.querySelector('#show-levels').hidden = Boolean(guest);
+  exit.dataset.t = net ? 'netLeave' : 'mainMenu';
+  exit.textContent = tr(exit.dataset.t);
+  const room = net?.room ?? hostingRoom,
+    card = document.querySelector('#room-card');
+  card.hidden = !room || menuHelp || menuOnline || (!net && !menuLevelSelect);
+  document.querySelector('#room-code').textContent = room || '';
+  document.querySelector('#room-note').hidden = !(hostingRoom && menuLevelSelect);
+  document.querySelector('#net-code').placeholder = tr('netCodePlaceholder');
+}
+async function copyInvite() {
+  const button = document.querySelector('#copy-invite'),
+    link = inviteLink(net?.room ?? hostingRoom);
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(link);
+    copied = true;
+  } catch {
+    // Embedded pages (itch.io) may not get the clipboard API: the old way.
+    const field = document.createElement('textarea');
+    field.value = link;
+    document.body.append(field);
+    field.select();
+    try {
+      copied = document.execCommand('copy');
+    } catch {}
+    field.remove();
+  }
+  button.textContent = tr(copied ? 'netCopied' : 'netCopyFailed');
+  clearTimeout(copyInvite.timer);
+  copyInvite.timer = setTimeout(() => (button.textContent = tr('netCopyLink')), 1800);
+}
+function joinRoom() {
+  const field = document.querySelector('#net-code'),
+    code = parseRoomCode(field.value);
+  document.querySelector('#net-join-error').hidden = Boolean(code);
+  if (!code) {
+    field.focus();
+    return;
+  }
+  navigate(inviteLink(code), '', 'loadingLevel');
 }
 function showMenuHelp(show) {
   showMenuScreen(show ? 'help' : 'root');
@@ -2266,7 +2346,7 @@ function handleMenuKey(e) {
   } else if (k === 'Escape' || k === 'KeyQ') {
     e.preventDefault();
     if (e.repeat) return;
-    if (menuHelp || menuLevelSelect) showMenuScreen('root');
+    if (menuHelp || menuLevelSelect || menuOnline) menuBack();
     else if (hasPlayed) setMenu(false);
   }
 }
@@ -2326,10 +2406,53 @@ if (JellyI18n) {
     button.addEventListener('pointerenter', () => selectWinItem(index, false));
     button.addEventListener('focus', () => selectWinItem(index, false));
   });
-  document.querySelector('#play').onclick = () =>
+  document.querySelector('#play').onclick = () => {
+    hostingRoom = null;
     hasPlayed ? setMenu(false) : showMenuScreen('levels');
-  document.querySelector('#show-levels').onclick = () => showMenuScreen('levels');
-  document.querySelector('#levels-back').onclick = () => showMenuScreen('root');
+  };
+  document.querySelector('#show-levels').onclick = () => {
+    hostingRoom = null;
+    showMenuScreen('levels');
+  };
+  document.querySelector('#levels-back').onclick = menuBack;
+  // Online game: create a room (then pick its first level) or join one by its code.
+  document.querySelector('#show-online').onclick = () => showMenuScreen('online');
+  document.querySelector('#online-back').onclick = menuBack;
+  document.querySelector('#net-create').onclick = () => {
+    // The same code for the whole tab: a link already sent stays good.
+    try {
+      hostingRoom = sessionStorage.getItem('jelly-dnd.net.hostRoom');
+      if (!hostingRoom)
+        sessionStorage.setItem('jelly-dnd.net.hostRoom', (hostingRoom = newRoomCode()));
+    } catch {
+      hostingRoom ??= newRoomCode();
+    }
+    showMenuScreen('levels');
+  };
+  document.querySelector('#copy-invite').onclick = copyInvite;
+  document.querySelector('#net-join-form').onsubmit = (e) => {
+    e.preventDefault();
+    joinRoom();
+  };
+  // The code field is a menu item too: arrows leave it, Escape goes back.
+  const codeField = document.querySelector('#net-code');
+  codeField.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+      e.preventDefault();
+      selectMenuItem(menuSelected + (e.code === 'ArrowUp' ? -1 : 1));
+    } else if (e.code === 'Escape') {
+      e.preventDefault();
+      menuBack();
+    }
+  });
+  codeField.addEventListener('focus', () => {
+    const index = menuButtons().indexOf(codeField);
+    if (index >= 0) selectMenuItem(index, false);
+  });
+  codeField.addEventListener('input', () => {
+    document.querySelector('#net-join-error').hidden = true;
+  });
+  document.querySelector('#net-wait-leave').onclick = () => navigate('./', '', 'loadingMenu');
   document.querySelector('#open-editor').onclick = openEditor;
   // Leaving a level for the title screen ends the current run.
   document.querySelector('#exit-to-menu').hidden = menuOnly;
@@ -2339,7 +2462,19 @@ if (JellyI18n) {
       (button.onclick = () => {
         const isExtra = button.dataset.level.startsWith('extra-');
         if (isExtra || !JellyProgress || JellyProgress.canPlay(Number(button.dataset.level)))
-          navigate('?level=' + button.dataset.level + '&play=1', levelTitle(button.dataset.level));
+          navigate(
+            '?level=' +
+              button.dataset.level +
+              '&play=1' +
+              (hostingRoom
+                ? '&room=' +
+                  hostingRoom +
+                  '&host=1' +
+                  // Development: keep the chosen transport (&relay=local or dev).
+                  (/(?:^|[?&])(relay=\w+)/.exec(location.search)?.[1].replace(/^/, '&') ?? '')
+                : ''),
+            levelTitle(button.dataset.level),
+          );
       }),
   );
   document.querySelector('#menu-button').onclick = () => setMenu(true);

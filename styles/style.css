@@ -981,9 +981,172 @@ footer {
   letter-spacing: 0.15em;
   user-select: none;
 }
-#levels-back {
+#levels-back,
+#online-back {
   margin-top: 12px;
   font-size: 26px;
+}
+/* Online game: create a room or join one by its code. */
+#menu-online {
+  max-width: 540px;
+}
+#menu-online h2 {
+  font-family: Georgia, serif;
+  font-size: 30px;
+  font-weight: 400;
+  margin: 0 0 10px;
+  color: #c6b38e;
+}
+.net-intro {
+  margin: 0 0 18px;
+  max-width: 460px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: #b9ab92;
+}
+.net-join {
+  margin: 22px 0 0 22px;
+}
+.net-join label {
+  display: block;
+  margin-bottom: 10px;
+  font-family: Georgia, serif;
+  font-size: 22px;
+  color: #c6b38e;
+}
+.net-join-row {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+#net-code {
+  width: 7.2em;
+  min-width: 0;
+  padding: 8px 14px;
+  border: 1px solid #b48c4e55;
+  border-radius: 0;
+  background: #ffffff08;
+  color: #fff0ce;
+  font-family: Georgia, serif;
+  font-size: 30px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+#net-code::placeholder {
+  color: #8f8470;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+#net-code.selected,
+#net-code:focus {
+  outline: none;
+  border-color: #e2bb75;
+  box-shadow: inset 4px 0 #e2bb75;
+}
+#net-join {
+  font-size: 24px;
+}
+#net-join-error {
+  margin: 10px 0 0;
+  font-size: 15px;
+  color: #ff9d7a;
+}
+#online-back {
+  margin-top: 18px;
+}
+#room-card button.selected {
+  background: linear-gradient(90deg, #b48c4e55, #b48c4e12);
+  color: #fff0ce;
+  box-shadow: inset 4px 0 #e2bb75;
+}
+/* The room being played or created: its code and the invite link. */
+#room-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 22px 0 0 22px;
+  max-width: 520px;
+}
+#room-card[hidden],
+#net-join-error[hidden],
+#room-note[hidden] {
+  display: none;
+}
+.room-label {
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #b48c4e;
+}
+#room-code {
+  font-family: Georgia, serif;
+  font-size: 34px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  color: #fff0ce;
+}
+#copy-invite {
+  padding: 8px 14px;
+  border: 1px solid #b48c4e55;
+  font-size: 17px;
+}
+#room-note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #b1a38b;
+}
+/* A guest waiting for its host to open the room. */
+#net-wait {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #101214b3;
+}
+#net-wait[hidden] {
+  display: none;
+}
+.net-wait-panel {
+  max-width: 460px;
+  text-align: center;
+}
+.net-wait-panel h2 {
+  margin: 0 0 14px;
+  font-family: Georgia, serif;
+  font-size: 40px;
+  font-weight: 400;
+  color: #f2e4c4;
+}
+.net-wait-code {
+  margin: 0 0 14px;
+  color: #b48c4e;
+  font-size: 14px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.net-wait-code b {
+  margin-left: 8px;
+  font-family: Georgia, serif;
+  font-size: 30px;
+  font-weight: 400;
+  color: #fff0ce;
+}
+#net-wait-hint {
+  margin: 0 0 18px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #d0c3ab;
+}
+#net-wait-leave {
+  padding: 10px 22px;
+  border: 1px solid #b48c4e55;
+  font-size: 18px;
 }
 @media (max-width: 600px) {
   .menu-panel h1 {
@@ -1650,7 +1813,8 @@ html[lang='ru'] .menu-panel h1 {
     margin: 12px 14px 4px;
     padding-top: 8px;
   }
-  #levels-back {
+  #levels-back,
+  #online-back {
     font-size: 23px;
     margin-top: 8px;
   }
@@ -1761,7 +1925,9 @@ html[lang='ru'] .menu-panel h1 {
   align-items: center;
   margin-left: auto;
 }
-#levels-back {
+#levels-back,
+#online-back,
+#net-join {
   flex-shrink: 0;
   align-self: stretch;
   text-align: left;
@@ -1774,7 +1940,9 @@ html[lang='ru'] .menu-panel h1 {
   line-height: 1.2;
   text-transform: uppercase;
 }
-#levels-back.selected {
+#levels-back.selected,
+#online-back.selected,
+#net-join.selected {
   background: linear-gradient(90deg, #b48c4e55, #b48c4e12);
   color: #fff0ce;
   box-shadow: inset 4px 0 #e2bb75;
