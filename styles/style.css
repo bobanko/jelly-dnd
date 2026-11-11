@@ -6,10 +6,23 @@
 }
 * {
   box-sizing: border-box;
+  /* Repeated taps are game input; scrolling and pinch zoom stay available. */
+  touch-action: manipulation;
 }
 body {
   margin: 0;
   overflow: hidden;
+  /* Prevent iOS text selection and its magnifier over the game and menus. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+input,
+textarea,
+[contenteditable='true'] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 canvas {
   position: fixed;
