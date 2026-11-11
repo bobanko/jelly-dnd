@@ -36,6 +36,10 @@ export class Session {
     this.goto = null; // level this machine must (re)load to rejoin the host
     this.onroster = null; // called when owners or the lagging set change
     transport.onmessage = (message, from) => this.receive(message, from);
+    // After a reconnect a guest says afresh what its players hold: the last word may be lost.
+    transport.onopen = () => {
+      this.sent = '';
+    };
     if (host) {
       const start = this.now();
       this.peers = [...new Set([id, ...peers])].map((peer) => ({ id: peer, lastSeen: start }));

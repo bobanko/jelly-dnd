@@ -1,0 +1,15 @@
+# Cloudflare Worker that relays network play. See docs/multiplayer.md.
+#   npm run relay:dev      local relay on ws://localhost:8787 (no account needed)
+#   npm run relay:deploy   publish (after `npx wrangler login`)
+name = "jelly-bones-relay"
+main = "src/index.js"
+compatibility_date = "2025-10-01"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+# SQLite-backed Durable Objects are the kind available on the free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

@@ -1,7 +1,8 @@
 // Network play between two pages of one browser (BroadcastChannel transport): joining, the
 // host sending a guest to its level, shared simulation, restart, a dropped guest and its
 // return, and moving on to another level together.
-// Needs the dev server (npm start) and Chrome with WebGPU.
+// Needs the dev server (npm start) and Chrome with WebGPU. With RELAY=dev in the environment
+// the pages talk through the local relay instead (npm run relay:dev).
 import { chromium } from './browser-harness.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -15,14 +16,15 @@ import fs from 'node:fs';
   });
   try {
     const context = await browser.newContext({ viewport: { width: 1100, height: 700 } }),
-      errors = [];
+      errors = [],
+      relay = process.env.RELAY ? '&relay=' + process.env.RELAY : '';
     const open = async (url) => {
       const page = await context.newPage();
       page.on('pageerror', (e) => errors.push(e.message));
       page.on('console', (m) => {
         if (m.type() === 'error') errors.push(m.text());
       });
-      await page.goto('http://localhost:3000/' + url);
+      await page.goto('http://localhost:3000/' + url + relay);
       return page;
     };
     // Once playing, keep the whole physical state (bodies and jelly lattices) at every
@@ -186,7 +188,7 @@ import fs from 'node:fs';
     assert.ok(a.tick > 100);
     assert.ok(debrisCompared > 0, 'jelly debris was compared between the machines');
     assert.deepEqual(errors, []);
-    console.log('network play: ok');
+    console.log('network play: ok' + (relay ? ' (through the relay)' : ''));
   } finally {
     await browser.close();
   }

@@ -11,6 +11,8 @@
     "format": "prettier --write \"**/*.{js,mjs,cjs,json,html,css}\"",
     "format:check": "prettier --check \"**/*.{js,mjs,cjs,json,html,css}\"",
     "start": "node scripts/server.js",
+    "relay:dev": "wrangler dev --config relay/wrangler.toml --port 8787",
+    "relay:deploy": "wrangler deploy --config relay/wrangler.toml",
     "build": "npm run check && node scripts/build-itch.js",
     "check": "node scripts/check-syntax.js",
     "test": "node --experimental-vm-modules --import ./tests/setup.js --test tests/module-loading.test.js tests/level-loader.test.js tests/sky-height.test.js tests/shared-camera.test.js tests/progression.test.js tests/game.test.js tests/physics.test.js tests/soft-body.test.js tests/level-features.test.js tests/portals.test.js tests/combat.test.js tests/drones.test.js tests/game-effects.test.js tests/game-audio.test.js tests/sound-catalog.test.js tests/stacking.test.js tests/camera.test.js tests/levels.test.js tests/conveyor.test.js tests/editor-space.test.js tests/voxel.test.js tests/color-blocks.test.js tests/spikes.test.js tests/pillars.test.js tests/large-crate.test.js tests/barrel.test.js tests/determinism.test.js tests/lockstep.test.js",
@@ -51,7 +53,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
-    "prettier": "3.9.10"
+    "prettier": "3.9.10",
+    "wrangler": "^4.160.0"
   },
   "type": "module"
 }
