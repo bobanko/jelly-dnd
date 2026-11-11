@@ -165,18 +165,6 @@ import fs from 'node:fs';
     );
     await page.waitForTimeout(1800);
     await page.screenshot({ path: 'artifacts/candy-contact.png' });
-    const pokePoint = await page.evaluate(() =>
-      project(players[0].x, 0.42 + players[0].y, players[0].z),
-    );
-    const movesBeforePoke = await page.evaluate(() => moves);
-    await page.mouse.click(pokePoint.x, pokePoint.y);
-    assert.equal(
-      await page.evaluate(() => moves),
-      movesBeforePoke + 1,
-      'perspective picking must match rendered jelly',
-    );
-    await page.waitForTimeout(60);
-    await page.screenshot({ path: 'artifacts/candy-poke.png' });
     await page.evaluate(() => (sceneRenderer.mesh = true));
     await page.waitForTimeout(100);
     await page.screenshot({ path: 'artifacts/tetrahedral-lattice.png' });
@@ -696,7 +684,7 @@ import fs from 'node:fs';
     assert.ok(await unsupported.locator('#loading-retry').isVisible());
     await unsupported.screenshot({ path: 'artifacts/webgpu-unavailable.png' });
     console.log(
-      'PASS: WebGPU/WGSL, three player controls and refraction layers, camera, soft-body pushing, poke, lattice overlay, falls and landing, stacked jelly carrying, lift boarding/upper exit/return, crate pushing/drop/undo, smooth bridge extension/crossing/retraction/undo, lethal spikes/respawn, paired height-changing portals, separate blue finish, matching tile illumination/fade and victory beams/reset, level collider toggle, responsive layout and WebGPU fallback. No browser or GPU validation errors.',
+      'PASS: WebGPU/WGSL, three player controls and refraction layers, camera, soft-body pushing, lattice overlay, falls and landing, stacked jelly carrying, lift boarding/upper exit/return, crate pushing/drop/undo, smooth bridge extension/crossing/retraction/undo, lethal spikes/respawn, paired height-changing portals, separate blue finish, matching tile illumination/fade and victory beams/reset, level collider toggle, responsive layout and WebGPU fallback. No browser or GPU validation errors.',
     );
   } finally {
     await browser.close();

@@ -28,7 +28,7 @@ test('sound gallery lists every active sample once with its game volume and exis
 });
 
 test('procedural gallery entries are uniquely identified and playable', () => {
-  assert.equal(proceduralSoundCatalog.length, 11);
+  assert.equal(proceduralSoundCatalog.length, 10);
   const all = [...soundCatalog, ...proceduralSoundCatalog];
   assert.equal(new Set(all.map((sound) => sound.id)).size, all.length);
   for (const sound of proceduralSoundCatalog) {

@@ -1831,24 +1831,6 @@ canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
     return;
   }
-  if (e.button !== 0 || level.assembly) return;
-  let closest = null,
-    distance = Infinity;
-  players.forEach((p, i) => {
-    const q = project(p.x, 0.42 + (p.y || 0), p.z),
-      d = Math.hypot(e.clientX - q.x, e.clientY - q.y);
-    if (q.visible && JellyPhysics.alive(p) && d < q.scale * 0.7 && d < distance) {
-      closest = i;
-      distance = d;
-    }
-  });
-  // Poking and undo rewrite the world outside the shared inputs: single machine only.
-  if (closest !== null && !net) {
-    history.push(snapshot());
-    moves++;
-    soft.poke(players[closest]);
-    tone(240);
-  }
 });
 requestAnimationFrame(frame);
 focusPlayer(0);

@@ -880,7 +880,7 @@ test('level titles format numbers with leading zero and dot', async () => {
   assert.equal(gEditor.run('currentLevelTitle()'), 'The Sunken Sanctum');
 });
 
-test('right drag orbits without poking players and releases on cancellation or blur', async () => {
+test('right drag orbits without counting a move and releases on cancellation or blur', async () => {
   const g = await game();
   const moves = g.run('moves'),
     initialAngle = g.run('targetAngle');

@@ -287,7 +287,6 @@ export const proceduralSoundCatalog = [
   ),
   tone('victoryTone', 640, 'signals', 'Победа', 'Короткий сигнал завершения уровня.'),
   tone('soundOnTone', 400, 'interface', 'Звук включён', 'Проверочный сигнал аудиокнопки.'),
-  tone('pokeTone', 240, 'jelly', 'Толчок желейки', 'Сигнал клика по желейке на игровом поле.'),
   {
     id: 'woodHit',
     category: 'combat',
