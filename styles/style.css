@@ -2131,21 +2131,23 @@ html[lang='ru'] .menu-panel h1 {
  * displays can make those controls physically much smaller than the game art.
  * Scale only the fixed HUD surfaces: scaling the document would also enlarge
  * the canvas coordinate system and push the main menu outside the viewport.
+ * Any window size gets the same scale, so a half-screen window keeps a large HUD.
+ * Phones and tablets (no fine pointer) keep their own sizes.
  */
 :root {
   --ui-density-scale: 1;
 }
-@media (min-width: 1025px) and (min-resolution: 1.5dppx) {
+@media (pointer: fine) and (min-resolution: 1.5dppx) {
   :root {
     --ui-density-scale: 1.5;
   }
 }
-@media (min-width: 1025px) and (min-resolution: 2dppx) {
+@media (pointer: fine) and (min-resolution: 2dppx) {
   :root {
     --ui-density-scale: 2;
   }
 }
-@media (min-width: 1025px) and (min-resolution: 1.5dppx) {
+@media (pointer: fine) and (min-resolution: 1.5dppx) {
   .game-tools,
   .controls-footer.screen-controls,
   .jelly-settings {
