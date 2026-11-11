@@ -10,7 +10,10 @@ export const SILENT_AFTER = 700, // ms without a word before a machine is shown 
   CHECK_EVERY = 120; // ticks between state hash comparisons
 const HELLO_EVERY = 500,
   ACK_EVERY = 200,
-  KEEPALIVE_EVERY = 250;
+  KEEPALIVE_EVERY = 250,
+  RESEND_AFTER = 250, // ms a gap in the bundles may last before the client asks again
+  RECENT = 900, // bundles the host can resend, about 15 seconds
+  ASK_EVERY = 1000; // ms between two requests a machine may show to the others
 const idle = () => ({ x: 0, z: 0 });
 const sign = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 
@@ -43,6 +46,7 @@ export class Session {
       this.run = Math.floor(this.now() * 1000) % 2147483647; // tells this level load from the last
       this.pendingHash = null;
       this.lastSent = 0;
+      this.recent = [];
       this.assign();
     } else {
       this.queue = [];
@@ -50,6 +54,11 @@ export class Session {
       this.run = null;
       this.stale = false;
       this.sent = '';
+      this.inputs = 0; // numbers this machine's input messages, so a late one cannot win
+      this.ahead = new Map(); // bundles that overtook a missing one
+      this.gapSince = null;
+      this.lastResend = -Infinity;
+      this.lastAsk = -Infinity;
       this.lastHello = -Infinity;
       this.lastAck = -Infinity;
       this.lastHeard = this.now();
@@ -98,7 +107,13 @@ export class Session {
     const text = JSON.stringify(held);
     if (text === this.sent) return;
     this.sent = text;
-    this.transport.send({ type: 'input', i: held });
+    this.transport.send({ type: 'input', q: ++this.inputs, i: held });
+  }
+  // A guest cannot give orders, but it can show the others a request: 'restart'.
+  ask(what) {
+    if (this.host || !this.ready || this.now() - this.lastAsk < ASK_EVERY) return;
+    this.lastAsk = this.now();
+    this.transport.send({ type: 'ask', what });
   }
   // Host only: something every machine must do on the same tick, e.g. { type: 'restart' }.
   command(command) {
@@ -115,6 +130,15 @@ export class Session {
       if (this.ready && now - this.lastAck >= ACK_EVERY) {
         this.lastAck = now;
         this.transport.send({ type: 'ack', sent: now });
+      }
+      // A bundle is missing while later ones wait: ask the host for it again.
+      if (
+        this.gapSince !== null &&
+        now - this.gapSince >= RESEND_AFTER &&
+        now - this.lastResend >= RESEND_AFTER * 2
+      ) {
+        this.lastResend = now;
+        this.transport.send({ type: 'resend', from: this.next });
       }
       return;
     }
@@ -164,6 +188,8 @@ export class Session {
     this.pendingHash = null;
     this.lastSent = this.now();
     this.transport.send(bundle);
+    this.recent.push(bundle);
+    if (this.recent.length > RECENT) this.recent.shift();
     const items = [];
     for (const command of bundle.c || []) this.apply(command, items);
     this.record(bundle);
@@ -250,16 +276,20 @@ export class Session {
         this.next = null;
         return;
       }
+      this.lastHeard = this.now();
       // Bundles sent before the welcome are already in its log.
       if (message.s < this.next) return;
-      if (message.s > this.next) {
-        this.desync ??= 'lost'; // a gap: the transport dropped a bundle
-        return;
+      // Bundles may arrive out of order or go missing: later ones wait for the gap to fill.
+      this.ahead.set(message.s, message);
+      for (let bundle; (bundle = this.ahead.get(this.next)); this.next++) {
+        this.ahead.delete(this.next);
+        if (bundle.h) this.compare(bundle.h[0], bundle.h[1], this.theirs, this.mine);
+        if (bundle.n || bundle.c) this.queue.push({ n: bundle.n, i: bundle.i, c: bundle.c });
       }
-      this.next++;
-      this.lastHeard = this.now();
-      if (message.h) this.compare(message.h[0], message.h[1], this.theirs, this.mine);
-      if (message.n || message.c) this.queue.push({ n: message.n, i: message.i, c: message.c });
+      this.gapSince = this.ahead.size ? (this.gapSince ?? this.now()) : null;
+    } else if (message.type === 'reload') {
+      // The missing bundles are older than the host remembers: load the level anew.
+      this.goto ??= this.level;
     } else if (message.type === 'pong') this.ping = this.now() - message.sent;
   }
   receiveAsHost(message, from) {
@@ -270,6 +300,7 @@ export class Session {
         this.assign();
       }
       this.peers[index].lastSeen = this.now();
+      this.peers[index].inputs = 0;
       // Whatever it held before it dropped is forgotten.
       this.owners.forEach((owner, player) => {
         if (owner === index) this.current[player] = idle();
@@ -292,11 +323,25 @@ export class Session {
     }
     if (index < 0) return;
     this.peers[index].lastSeen = this.now();
+    const peer = this.peers[index];
     if (message.type === 'input') {
+      // An input that was overtaken by a newer one is out of date.
+      if (message.q <= (peer.inputs || 0)) return;
+      peer.inputs = message.q;
       for (const [player, x, z] of message.i)
         if (this.owners[player] === index) this.current[player] = { x: sign(x), z: sign(z) };
     } else if (message.type === 'ack')
       this.transport.send({ type: 'pong', sent: message.sent }, from);
+    else if (message.type === 'ask') {
+      if (this.now() - (peer.lastAsk ?? -Infinity) < ASK_EVERY) return;
+      peer.lastAsk = this.now();
+      this.pending.push({ type: 'ask', peer: index, what: String(message.what).slice(0, 16) });
+    } else if (message.type === 'resend') {
+      if (!this.recent.length || this.recent[0].s > message.from)
+        return this.transport.send({ type: 'reload' }, from);
+      for (const bundle of this.recent)
+        if (bundle.s >= message.from) this.transport.send(bundle, from);
+    }
   }
 }
 

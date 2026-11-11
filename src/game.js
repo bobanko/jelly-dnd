@@ -33,7 +33,11 @@ let loadingActive = false,
   loadingFailed = false,
   loadingStage = 'loadingGraphics',
   autoZoom = 1;
-let netLagMarks = [];
+const NET_ASK_SECONDS = 3;
+let netLagMarks = [],
+  netAskMarks = [],
+  netAsks = [], // per machine: the game time until which its restart request shows
+  netReplaying = false;
 let playerHints = [],
   spawnGlyphs = [],
   spawnOutlines = null;
@@ -203,7 +207,7 @@ function resumeAudio() {
 addEventListener('pointerdown', resumeAudio, { capture: true });
 addEventListener('keydown', resumeAudio, { capture: true });
 function tone(freq) {
-  if (!audioOn) return;
+  if (!audioOn || netReplaying) return;
   audio ??= new AudioContext();
   if (audio.state === 'suspended') return;
   playProceduralSound(audio, { type: 'tone', frequency: freq });
@@ -212,13 +216,13 @@ function respawnTone(player) {
   tone(player ? 400 : 300);
 }
 function woodHit(broken = false) {
-  if (!audioOn) return;
+  if (!audioOn || netReplaying) return;
   audio ??= new AudioContext();
   if (audio.state === 'suspended') return;
   playProceduralSound(audio, { type: 'wood', broken });
 }
 function gong() {
-  if (!audioOn) return;
+  if (!audioOn || netReplaying) return;
   audio ??= new AudioContext();
   if (audio.state === 'suspended') return;
   playProceduralSound(audio, { type: 'gong' });
@@ -276,7 +280,7 @@ function updateTorches(dt) {
     torchGongCountdown = null;
   }
   level.torchLight = torchStates.map((s) => s.lit);
-  if (menuOpen || level.assembly || loadingActive) return;
+  if ((menuOpen && !net) || level.assembly || loadingActive) return;
   torches.forEach((torch, i) => {
     const s = torchStates[i],
       flame = JellyLevels.torchFrame(torch).light,
@@ -529,7 +533,9 @@ function simulate(dt, elapsed = dt) {
         mapError ||
         document.hidden
       );
-  gameAudio.setActive(active && !won);
+  // A machine catching up replays minutes in seconds: silently.
+  netReplaying = Boolean(net) && !net.session.host && net.session.queued > 30;
+  gameAudio.setActive(active && !won && !netReplaying);
   gameAudio.updateWind();
   if (!active) return;
   if (net) simulateNet(dt);
@@ -713,6 +719,8 @@ function stepWorld(input) {
   }
   level.finishProgress = finishHold / WIN_HOLD_SECONDS;
 }
+// While a network level is being played, its ticks advance the shared effects and torches.
+const netTicking = () => Boolean(net) && net.session.ready && !won && !level.assembly;
 // Network play: the session says which ticks to simulate and with whose input.
 function simulateNet(dt) {
   const session = net.session,
@@ -736,7 +744,13 @@ function simulateNet(dt) {
           stopLevelAssemblySound();
           level.assembly = null;
         }
+        // What players watch together is advanced by ticks, not frames, and draws its
+        // randomness from the tick: debris, runes and torches match on every screen.
+        effects.seed =
+          (Math.imul(item.tick + 1, 2654435761) ^ Math.imul(session.epoch + 1, 40503)) >>> 0;
         stepWorld(item.inputs);
+        updateTorches(STEP);
+        effects.step(STEP, world, goals, players);
         runSeconds += STEP;
         if (item.tick % CHECK_EVERY === 0) session.checkpoint(item.tick, hashBodies(bodies));
       }
@@ -747,7 +761,12 @@ function simulateNet(dt) {
 }
 // Something the host ordered every machine to do on this tick.
 function applyNetCommand(command) {
-  if (command.type === 'restart') {
+  if (command.type === 'ask') {
+    // Timed by the game clock, so a replayed log shows no stale requests.
+    if (command.what === 'restart') netAsks[command.peer] = runSeconds + NET_ASK_SECONDS;
+    tone(520);
+  } else if (command.type === 'restart') {
+    netAsks = [];
     reset(false);
     // The fade back in is decoration: the world is already running again.
     restartTransition = { elapsed: 0.22, reset: true };
@@ -888,8 +907,9 @@ document.addEventListener('visibilitychange', () => {
 
 document.querySelector('#again').onclick = () => restartLevel();
 function restartLevel() {
-  // The host restarts for everybody, on the same tick.
-  if (net) return net.session.command({ type: 'restart' });
+  // The host restarts for everybody, on the same tick; a guest can only ask it to.
+  if (net)
+    return net.session.host ? net.session.command({ type: 'restart' }) : net.session.ask('restart');
   const replayAssembly = document.querySelector('#restart-assembly').checked;
   if (!JellyI18n) {
     reset(replayAssembly);
@@ -938,7 +958,9 @@ function createPlayerHints() {
   ];
   // Built again whenever network play hands the jellies out differently.
   document
-    .querySelectorAll('#player-hints > :is(.player-key-hint, .player-net-lag, .spawn-outlines)')
+    .querySelectorAll(
+      '#player-hints > :is(.player-key-hint, .player-net-lag, .player-net-ask, .spawn-outlines)',
+    )
     .forEach((node) => node.remove());
   netLagMarks = !net
     ? []
@@ -948,6 +970,21 @@ function createPlayerHints() {
         node.hidden = true;
         node.style.setProperty('--jelly-color', colors[p.slot]);
         node.append(document.querySelector('#net-status svg').cloneNode(true));
+        document.querySelector('#player-hints').append(node);
+        return node;
+      });
+  // A guest's "restart, please": the key and its action, in a bubble over its jelly.
+  netAskMarks = !net
+    ? []
+    : players.map((p) => {
+        const node = document.createElement('div'),
+          key = document.createElement('kbd'),
+          action = document.createElement('span');
+        node.className = 'player-net-ask shortcut-tooltip';
+        node.hidden = true;
+        node.style.setProperty('--jelly-color', colors[p.slot]);
+        key.textContent = 'R';
+        node.append(key, action);
         document.querySelector('#player-hints').append(node);
         return node;
       });
@@ -1178,9 +1215,17 @@ function updateNetStatus() {
     node.style.left = point.x + 'px';
     node.style.top = point.y + 'px';
   });
-  // Nobody can undo a shared world; only the host restarts and decides what follows a win.
+  netAskMarks.forEach((node, i) => {
+    const p = players[i],
+      point = project(p.rx, (p.y || 0) + 1.25, p.rz);
+    node.hidden = !((netAsks[session.owners[i]] ?? 0) > runSeconds) || !point.visible;
+    if (node.hidden) return;
+    node.lastChild.textContent = tr('helpRestart') + '!';
+    node.style.left = point.x + 'px';
+    node.style.top = point.y + 'px';
+  });
+  // Nobody can undo a shared world. Only the host decides what follows a win.
   document.querySelector('#undo-hint').hidden = true;
-  document.querySelector('#restart-hint').hidden = !session.host;
   document.querySelector('#win-wait').hidden = session.host;
   document.querySelector('#win .menu-items').hidden = !session.host;
 }
@@ -1194,6 +1239,7 @@ function updatePlayerHints(dt) {
     turn = controlTurn();
   playerHints.forEach((hint, i) => {
     if (!hint.labels.length) return;
+    if (netAskMarks[i] && !netAskMarks[i].hidden) hint.idle = 0;
     const p = players[i],
       moving =
         Math.hypot(p.vx || 0, p.vz || 0) > 0.08 ||
@@ -1249,7 +1295,7 @@ function frame(t) {
     fpsFrames = 0;
   }
   updateRestart(dt);
-  updateTorches(dt);
+  if (!netTicking()) updateTorches(dt);
   updateLevelAssembly(dt);
   if (cameraIntro) updateCameraIntro(dt);
   else
@@ -1258,7 +1304,7 @@ function frame(t) {
     ? targetPitch
     : camera.pitch + (targetPitch - camera.pitch) * (1 - Math.exp(-dt * 11));
   if (sceneRenderer.ready) simulate(dt, elapsed);
-  effects.step(dt, world, goals, players);
+  if (!netTicking()) effects.step(dt, world, goals, players);
   updateGameCamera(dt);
   level.won = won;
   if (menuBackdrop()) {
@@ -1396,7 +1442,7 @@ function updateEffortEffects(dt, input) {
     }
     p.sweatTimer -= dt;
     if (p.sweatTimer > 0) return;
-    p.sweatTimer = 0.35 + Math.random() * 0.3;
+    p.sweatTimer = 0.35 + effects.random() * 0.3;
     // Towards the camera, so the drop runs down a face that can be seen.
     const eye = JellyGPU.cameraFrame(camera, angle, W, H, scale).eye,
       dx = eye[0] - p.x,

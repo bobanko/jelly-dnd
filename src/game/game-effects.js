@@ -95,6 +95,7 @@ class System {
     return this.seed / 4294967296;
   }
   clear() {
+    this.seed = 1;
     this.warps = [];
     this.particles.length = 0;
     this.rings.length = 0;

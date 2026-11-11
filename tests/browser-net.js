@@ -37,10 +37,15 @@ import fs from 'node:fs';
           __marks.set(
             net.session.epoch + ':' + tick,
             JSON.stringify(
-              bodies.map((p) => [
-                [p.x, p.y, p.z, p.vx, p.vy, p.vz, p.state],
-                soft.get(p).positions.map((v) => [...v]),
-              ]),
+              // The world, then what players watch together: jelly debris and goal runes.
+              [
+                bodies.map((p) => [
+                  [p.x, p.y, p.z, p.vx, p.vy, p.vz, p.state],
+                  soft.get(p).positions.map((v) => [...v]),
+                ]),
+                effects.chunks.map((c) => [c.position, c.velocity, c.rotation, c.half]),
+                effects.runes.map((r) => [r.position, r.size]),
+              ],
             ),
           );
           checkpoint(tick, hash);
@@ -68,10 +73,13 @@ import fs from 'node:fs';
       assert.equal(a.desync, null);
       assert.equal(b.desync, null);
       assert.ok(shared.length >= 2, 'checkpoints to compare: ' + shared.length);
-      for (const [key, world] of shared)
+      for (const [key, world] of shared) {
         assert.equal(theirs.get(key) === world, true, 'the machines differ at ' + key);
+        if (JSON.parse(world)[1].length) debrisCompared++;
+      }
       return [a, b];
     };
+    let debrisCompared = 0;
     const hold = async (page, key, ms) => {
       await page.bringToFront();
       await page.keyboard.down(key);
@@ -99,11 +107,26 @@ import fs from 'node:fs';
     assert.equal(await guest.locator('#net-status').isVisible(), true);
     await guest.screenshot({ path: 'artifacts/net-guest.png' });
 
+    // Changing the simulated delay while playing must not reorder or stall the stream.
+    for (const ping of [200, 0, 120, 30, 60]) {
+      await guest.evaluate((ping) => (net.transport.ping = ping), ping);
+      await guest.waitForTimeout(250);
+    }
+    await guest.waitForTimeout(600);
+    assert.equal(await guest.evaluate(() => net.session.stalled), false);
+    assert.ok((await state(host)).tick - (await state(guest)).tick < 40, 'still keeping up');
+
     // Only the host restarts, and it restarts everybody.
     await guest.bringToFront();
     await guest.keyboard.press('KeyR');
     await guest.waitForTimeout(400);
     assert.equal((await state(host)).epoch, 0, 'a guest cannot restart');
+    // Its R is a request everybody sees over the guest's jelly.
+    await host.bringToFront();
+    await host.waitForFunction(() => !netAskMarks[1].hidden && netAskMarks[0].hidden);
+    assert.match(await host.locator('.player-net-ask:not([hidden])').innerText(), /R\s*Restart!/);
+    await host.screenshot({ path: 'artifacts/net-ask.png' });
+    assert.equal(await guest.locator('#restart-hint').isVisible(), true);
     await host.bringToFront();
     await host.keyboard.press('KeyR');
     await guest.waitForFunction(() => net.session.epoch === 1);
@@ -140,6 +163,7 @@ import fs from 'node:fs';
     await hold(host, 'KeyA', 300);
     [a, b] = await settled(host, guest);
     assert.ok(a.tick > 100);
+    assert.ok(debrisCompared > 0, 'jelly debris was compared between the machines');
     assert.deepEqual(errors, []);
     console.log('network play: ok');
   } finally {

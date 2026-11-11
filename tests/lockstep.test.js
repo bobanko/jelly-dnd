@@ -24,13 +24,25 @@ function machine(network, id, { host = false, latency = 0, level = 1, seed = 1 }
       now: network.now,
     });
   const keys = scriptedInputs(seed, runtime.players.length),
-    m = { id, link, session, runtime, frames: 0, hashes: new Map(), commands: [], simulated: 0 };
+    m = {
+      id,
+      link,
+      session,
+      runtime,
+      frames: 0,
+      hashes: new Map(),
+      commands: [],
+      asks: [],
+      simulated: 0,
+    };
   m.frame = () => {
     session.poll();
     session.setIntent(keys(++m.frames));
     for (const item of session.advance(host ? 2 : pace(2, session.queued))) {
       if (item.command) {
         m.commands.push(item.command.type);
+        if (item.command.type === 'ask')
+          m.asks.push({ peer: item.command.peer, what: item.command.what });
         if (item.command.type === 'restart')
           m.runtime = L.instantiate(L.read(L.standardLevel(level)), Physics, Soft);
         continue;
@@ -135,6 +147,59 @@ test('a silent machine is flagged, its jelly stops, and it rejoins with the same
   assert.equal(host.session.lagging.size, 0);
   assert.equal(back.session.lagging.size, 0);
   assertInSync(host, back, 10);
+});
+
+test('bundles that arrive out of order or get lost are put right', () => {
+  const network = new MemoryNetwork(),
+    host = machine(network, 'h', { host: true, seed: 1 }),
+    client = machine(network, 'a', { latency: 20, seed: 2 });
+  client.link.jitter = 60; // up to four frames late: constant overtaking
+  let n = 0;
+  client.link.lose = (message) => message.type === 'ticks' && ++n % 9 === 0;
+  // The client's own messages overtake each other too.
+  host.link.jitter = 40;
+  run(network, [host, client], 900);
+  assert.ok(n > 500, 'bundles were sent');
+  assert.equal(client.session.goto, null);
+  assert.ok(host.session.tick - client.session.tick < 120, 'the client keeps up');
+  assertInSync(host, client, 12);
+  // Input that was overtaken by newer input must not win: all keys released, all jellies stop.
+  client.frame = () => {
+    client.session.poll();
+    client.session.setIntent(client.runtime.players.map(() => ({ x: 0, z: 0 })));
+    client.session.advance(0);
+  };
+  run(network, [host, client], 60);
+  assert.deepEqual(host.session.current[1], { x: 0, z: 0 });
+});
+
+test('a client that fell too far behind to be resent is told to reload', () => {
+  const network = new MemoryNetwork(),
+    host = machine(network, 'h', { host: true, seed: 1 }),
+    client = machine(network, 'a', { latency: 20, seed: 2 });
+  run(network, [host, client], 60);
+  let losing = true;
+  client.link.lose = (message) => losing && message.type === 'ticks';
+  run(network, [host, client], 1200);
+  losing = false;
+  run(network, [host, client], 60);
+  assert.equal(client.session.goto, '1');
+});
+
+test('a guest can ask for a restart; everybody sees who asked, nothing restarts', () => {
+  const network = new MemoryNetwork(),
+    host = machine(network, 'h', { host: true, seed: 1 }),
+    client = machine(network, 'a', { latency: 20, seed: 2 });
+  run(network, [host, client], 60);
+  client.session.ask('restart');
+  client.session.ask('restart'); // too soon after the first: not shown twice
+  run(network, [host, client], 60);
+  for (const m of [host, client]) {
+    assert.equal(m.commands.filter((type) => type === 'ask').length, 1);
+    assert.equal(m.session.epoch, 0);
+  }
+  assert.deepEqual(host.asks, [{ peer: 1, what: 'restart' }]);
+  assert.deepEqual(client.asks, [{ peer: 1, what: 'restart' }]);
 });
 
 test('a client on another level is told which level to load', () => {

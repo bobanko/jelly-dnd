@@ -1331,6 +1331,38 @@ html[lang='ru'] .menu-panel h1 {
   margin: 14px 0 0;
   color: #b3c0b7;
 }
+/* A guest asking the host to restart: the key and its action over the guest's jelly. */
+.player-net-ask {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 7px;
+  border: 2px solid var(--jelly-color);
+  border-radius: 14px 14px 14px 3px;
+  background: #141718e6;
+  color: #f0e6d0;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translate(-12px, -100%);
+  filter: drop-shadow(0 3px 8px #000b);
+  animation: net-ask-pop 0.25s ease-out;
+}
+.player-net-ask[hidden] {
+  display: none;
+}
+@keyframes net-ask-pop {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .player-net-ask {
+    animation: none;
+  }
+}
 /* Shown over a jelly whose machine has gone quiet. */
 .player-net-lag {
   position: absolute;

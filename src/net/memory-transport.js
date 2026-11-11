@@ -6,18 +6,26 @@ export class MemoryNetwork {
     this.pending = [];
     this.machines = new Map();
     this.order = 0;
+    this.seed = 7;
+  }
+  random() {
+    this.seed = (Math.imul(this.seed, 1664525) + 1013904223) >>> 0;
+    return this.seed / 4294967296;
   }
   now = () => this.time;
   // latency: one-way milliseconds between this machine and the network.
   join(id, { host = false, latency = 0 } = {}) {
-    const machine = { id, host, latency, online: true, transport: { onmessage: null } };
+    // jitter: extra random delay per message, which reorders them; lose(message) drops one.
+    const machine = { id, host, latency, jitter: 0, lose: null, online: true };
+    machine.transport = { onmessage: null };
     machine.transport.send = (message, to) => {
       if (!machine.online) return;
       for (const other of this.machines.values()) {
         if (other === machine || (host ? to !== undefined && other.id !== to : !other.host))
           continue;
+        if (other.lose?.(message)) continue;
         this.pending.push({
-          at: this.time + machine.latency + other.latency,
+          at: this.time + machine.latency + other.latency + this.random() * other.jitter,
           order: this.order++,
           to: other,
           from: id,
