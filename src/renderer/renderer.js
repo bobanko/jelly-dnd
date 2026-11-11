@@ -31,6 +31,7 @@ import { sceneMethods } from './scene.js';
 import { propsMethods, PROP_FLOATS } from './props.js';
 import { effectsMethods } from './effects.js';
 import { hiddenFraction } from './see-through.js';
+import { requestAdapter } from './support.js';
 // Developer choices for the light from the depths, in linear HDR.
 const DEPTH_GLOW_COLORS = {
   warm: [1, 0.3, 0.06],
@@ -83,13 +84,7 @@ class Renderer {
   }
   async init() {
     this.onProgress?.(0.05, 'loadingGraphics');
-    if (!navigator.gpu)
-      throw Error(
-        'В этом браузере нет WebGPU. Откройте игру в актуальном Chrome или Edge с аппаратным ускорением.',
-      );
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter)
-      throw Error('Браузер не предоставил WebGPU-адаптер. Проверьте аппаратное ускорение.');
+    const adapter = await requestAdapter();
     const d = (this.device = await adapter.requestDevice());
     this.adapterInfo = adapter.info;
     // Shaders and textures load in parallel; progress combines both so it never moves back.
