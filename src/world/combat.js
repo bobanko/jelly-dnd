@@ -91,8 +91,37 @@ function install(World) {
         Object.assign(p, state?.pickups?.[i] || { holder: null, durability: 3, destroyed: false }),
       );
     },
-    droneOrigin(d) {
-      return Levels.droneOrigin(d, this.heightAt(d.x, d.z) ?? 0);
+    droneTarget(d, bodies = this.bodies || []) {
+      // Measure nearest targets from the authored anchor. Following needs no hidden state,
+      // so undo, respawn and network replay derive the same position from the same bodies.
+      const anchor = Levels.droneOrigin(d, this.heightAt(d.x, d.z) ?? 0);
+      let target = null,
+        nearest = Infinity;
+      bodies.forEach((p, i) => {
+        if (
+          p.state === 'dead' ||
+          p.kind === 'crate' ||
+          (d.target !== undefined && d.target !== -1 && (p.slot ?? i) !== d.target)
+        )
+          return;
+        const distance = DMath.hypot(
+          p.x - anchor[0],
+          (p.y || 0) + 0.42 - anchor[1],
+          p.z - anchor[2],
+        );
+        if (distance < nearest) {
+          nearest = distance;
+          target = { p, i };
+        }
+      });
+      return target;
+    },
+    droneOrigin(d, bodies = this.bodies || [], target = null) {
+      return Levels.droneOrigin(
+        d,
+        this.heightAt(d.x, d.z) ?? 0,
+        d.follow?.length ? (target ?? this.droneTarget(d, bodies)?.p) : null,
+      );
     },
     traceDrones(bodies, soft) {
       if (!this.drones?.length) return [];
@@ -105,20 +134,10 @@ function install(World) {
         })),
         beams = [];
       for (const [index, d] of this.drones.entries()) {
-        const from = this.droneOrigin(d),
-          eligible = targets.filter(
-            (t) =>
-              t.p.kind !== 'crate' &&
-              (d.target === undefined || d.target === -1 || (t.p.slot ?? t.i) === d.target),
-          );
-        eligible.sort(
-          (a, b) =>
-            DMath.hypot(a.p.x - from[0], (a.p.y || 0) + 0.42 - from[1], a.p.z - from[2]) -
-            DMath.hypot(b.p.x - from[0], (b.p.y || 0) + 0.42 - from[1], b.p.z - from[2]),
-        );
-        const target = eligible[0];
+        const target = this.droneTarget(d, bodies);
         if (!target) continue;
-        const aim = [target.p.x, (target.p.y || 0) + 0.42, target.p.z],
+        const from = this.droneOrigin(d, bodies, target.p),
+          aim = [target.p.x, (target.p.y || 0) + 0.42, target.p.z],
           delta = aim.map((v, k) => v - from[k]),
           length = DMath.hypot(...delta);
         if (length < 0.001) continue;

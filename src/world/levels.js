@@ -1,3 +1,4 @@
+import { grateKey } from './grates.js';
 import { levelPillars } from './pillars.js';
 import * as campaign from '../../levels/catalog.js';
 import * as DMath from './det-math.js';
@@ -25,6 +26,7 @@ const limits = {
   blocks: 4096,
   tiles: 256,
   walls: 256,
+  grates: 256,
   torches: 8,
   drones: 8,
   plates: 16,
@@ -49,8 +51,14 @@ function torchFrame(p) {
   };
 }
 // Hover measures extra clearance above a crystal resting just clear of its tile.
-function droneOrigin(p, base = 0) {
-  return [p.x, (p.y ?? base) + 0.64 + (p.hover ?? 0), p.z];
+function droneOrigin(p, base = 0, target = null) {
+  const origin = [p.x, (p.y ?? base) + 0.64 + (p.hover ?? 0), p.z];
+  if (target) {
+    if (p.follow?.includes('x')) origin[0] = target.x;
+    if (p.follow?.includes('y')) origin[1] = (target.y ?? 0) + 0.64 + (p.hover ?? 0);
+    if (p.follow?.includes('z')) origin[2] = target.z;
+  }
+  return origin;
 }
 function blank() {
   return {
@@ -60,6 +68,7 @@ function blank() {
     blocks: [],
     tiles: [],
     walls: [],
+    grates: [],
     torches: [],
     drones: [],
     spawns: characters.map(() => null),
@@ -221,8 +230,10 @@ function read(input) {
     map[key] = items.map((p, i) => {
       const q = point(p),
         cell =
-          `${q.x},${q.y ?? ''},${q.z}` +
-          (key === 'spikes' || key === 'torches' ? ',' + (p.face || 'top') : '');
+          key === 'grates'
+            ? grateKey({ ...p, ...q })
+            : `${q.x},${q.y ?? ''},${q.z}` +
+              (key === 'spikes' || key === 'torches' ? ',' + (p.face || 'top') : '');
       if (cells.has(cell)) fail(`Два объекта одного типа в одной клетке: ${key}.`);
       cells.add(cell);
       return { ...q, ...convert(p, i) };
@@ -249,6 +260,27 @@ function read(input) {
     base: number(p.base, 0, -2, 12),
     height: number(p.height, 1.4, 0.1, 6),
   }));
+  list('grates', (p) => {
+    if (!Number.isInteger(p.y)) fail('Координата Y решётки должна быть целой.');
+    if (p.axis !== undefined && p.axis !== 'x' && p.axis !== 'z')
+      fail('Ось решётки должна быть x или z.');
+    if (p.plane !== undefined && !['vertical', 'horizontal'].includes(p.plane))
+      fail('Положение решётки должно быть вертикальным или горизонтальным.');
+    if (p.offset !== undefined && ![-0.5, 0, 0.5].includes(p.offset))
+      fail('Решётку можно поставить в центре или на границе клетки.');
+    return {
+      y: p.y,
+      axis: p.axis ?? 'x',
+      ...(p.plane === 'horizontal' ? { plane: 'horizontal' } : {}),
+      ...(p.offset ? { offset: p.offset } : {}),
+    };
+  });
+  if (
+    map.grates.some(
+      (g) => !g.offset && map.blocks.some((b) => b.x === g.x && b.y === g.y && b.z === g.z),
+    )
+  )
+    fail('Решётка и каменный куб не могут занимать одну клетку.');
   list('torches', (p) => {
     if (!Number.isInteger(p.y)) fail('Для факела укажите целый Y блока крепления.');
     if (!Object.hasOwn(wallFaces, p.face)) fail('Выберите боковую грань крепления факела.');
@@ -361,7 +393,21 @@ function read(input) {
       fail('Неизвестный цвет луча дрона.');
     if (!Number.isInteger(target) || target < -1 || target >= characters.length)
       fail('Неизвестная цель дрона.');
-    return { color, target, hover: number(p.hover, 0, 0, 6) };
+    if (
+      p.follow !== undefined &&
+      (!Array.isArray(p.follow) ||
+        p.follow.some((axis) => !['x', 'y', 'z'].includes(axis)) ||
+        new Set(p.follow).size !== p.follow.length)
+    )
+      fail('Для движения дрона выберите оси X, Y или Z.');
+    return {
+      color,
+      target,
+      hover: number(p.hover, 0, 0, 6),
+      ...(p.follow?.length
+        ? { follow: ['x', 'y', 'z'].filter((axis) => p.follow.includes(axis)) }
+        : {}),
+    };
   });
   list('conveyors', (p) => {
     const dx = number(p.dx, 0, -1, 1),
@@ -550,6 +596,7 @@ function instantiate(map, Physics, Soft) {
       height: p.base + p.height,
     })),
   );
+  world.grates = copy(map.grates || []);
   world.torches = copy(map.torches || []);
   world.drones = copy(map.drones || []);
   world.blocks = copy(map.blocks || []);

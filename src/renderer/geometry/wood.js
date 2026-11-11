@@ -1,4 +1,4 @@
-import { box, lowSphere, sphere } from '../mesh.js';
+import { box, lowSphere, sphere, BARREL_HOOP_ROWS } from '../mesh.js';
 export const OAK_WOOD = [0.64, 0.355, 0.145],
   OAK_FRAME = [0.8, 0.49, 0.225],
   OAK_END_GRAIN = [0.69, 0.405, 0.19],
@@ -242,7 +242,7 @@ const ATLAS = {
     [0.75, 0.25, (0.25 * 185) / 188],
   ],
   staves: [512 / 1024, 912 / 1024],
-  hoop: [922 / 1024, 998 / 1024],
+  hoop: BARREL_HOOP_ROWS,
 };
 // Head texture: the ring of stave ends spans the outer quarter of the circle's radius.
 const HEAD_RING = 0.773;

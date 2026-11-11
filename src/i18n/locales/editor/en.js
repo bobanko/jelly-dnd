@@ -1,4 +1,38 @@
 export default {
+  'Двигаться по осям': 'Follow axes',
+  'Следовать по X': 'Follow X',
+  'Следовать по Y': 'Follow Y',
+  'Следовать по Z': 'Follow Z',
+  'Разрешённые оси повторяют координаты цели. Высота полёта сохраняется.':
+    'Enabled axes follow the target. Hover height is preserved.',
+  'Для движения дрона выберите оси X, Y или Z.': 'Choose X, Y or Z axes for drone movement.',
+  'Плоскость решётки': 'Grate plane',
+  Вертикально: 'Vertical',
+  Горизонтально: 'Horizontal',
+  'Положение в клетке': 'Position in cell',
+  'Центр клетки': 'Cell centre',
+  'Нижняя граница': 'Bottom boundary',
+  'Верхняя граница': 'Top boundary',
+  'Западная граница': 'West boundary',
+  'Восточная граница': 'East boundary',
+  'Северная граница': 'North boundary',
+  'Южная граница': 'South boundary',
+  'Положение решётки должно быть вертикальным или горизонтальным.':
+    'Grate plane must be vertical or horizontal.',
+  'Решётку можно поставить в центре или на границе клетки.':
+    'Place a grate at the centre or boundary of a cell.',
+  Решётка: 'Grate',
+  'Направление решётки': 'Grate direction',
+  'Вдоль X': 'Along X',
+  'Вдоль Z': 'Along Z',
+  'Слизни проходят сквозь решётку. Ящики и другие предметы не проходят.':
+    'Slimes pass through the grate. Crates and other objects are blocked.',
+  'Координата Y решётки должна быть целой.': 'Grate Y coordinate must be an integer.',
+  'Ось решётки должна быть x или z.': 'Grate axis must be x or z.',
+  'Решётка и каменный куб не могут занимать одну клетку.':
+    'A grate and a stone cube cannot occupy the same cell.',
+  'Достигнут лимит решёток.': 'Grate limit reached.',
+  'В этой клетке уже есть другой блок.': 'This cell already contains another block.',
   Редактор: 'Editor',
   МАСТЕРСКАЯ: 'WORKSHOP',
   'Название уровня': 'Level name',

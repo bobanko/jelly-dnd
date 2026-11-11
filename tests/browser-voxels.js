@@ -84,7 +84,7 @@ import fs from 'node:fs';
     await tool('floor');
     await page.selectOption('#placement-mode', 'layer');
     await page.selectOption('#brush-height', '2');
-    await page.selectOption('#brush-shape', 'rectangle');
+    await page.locator('#brush-shape input[value="rectangle"]').check();
     const before = await page.evaluate(() => model.map.blocks.length),
       a = await screen(3, 2, 3),
       b = await screen(5, 2, 4);
@@ -96,7 +96,7 @@ import fs from 'node:fs';
     await page.locator('#undo').click();
     assert.equal(await page.evaluate(() => model.map.blocks.length), before);
     await page.locator('#redo').click();
-    await page.selectOption('#brush-shape', 'brush');
+    await page.locator('#brush-shape input[value="brush"]').check();
     await page.selectOption('#brush-height', '4');
     const c = await screen(1, 4, 6),
       d = await screen(3, 4, 6);

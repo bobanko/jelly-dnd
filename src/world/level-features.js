@@ -1,3 +1,4 @@
+import { grateBounds } from './grates.js';
 import * as DMath from './det-math.js';
 // Height-aware level surfaces and triggers, shared by physics, rendering and debug overlays.
 const alive = (p) => !p.state || p.state === 'alive';
@@ -326,6 +327,8 @@ function install(World) {
       };
     },
     blockSolid(body, block) {
+      if (block.kind === 'grate')
+        return !body || body.kind === 'crate' || !Number.isInteger(body.slot);
       return (
         block.color === undefined || !body || body.kind === 'crate' || body.slot !== block.color
       );
@@ -339,6 +342,16 @@ function install(World) {
       return false;
     },
     heightAt(x, z, ceiling = Infinity, body = null) {
+      let grateTop = null;
+      if (!body || body.kind === 'crate' || !Number.isInteger(body.slot))
+        for (const g of (this._grateBoxes ??= this.grates.map(grateBounds))) {
+          if (
+            g.maxY <= ceiling + 0.001 &&
+            Math.abs(x - g.x) <= g.halfX &&
+            Math.abs(z - g.z) <= g.halfZ
+          )
+            grateTop = grateTop === null ? g.maxY : Math.max(grateTop, g.maxY);
+        }
       if (this.blocks?.length) {
         // Called for every lattice node on every solver iteration: highest surface at or
         // below the ceiling, found without temporary arrays.
@@ -348,7 +361,7 @@ function install(World) {
           limit = ceiling + 0.001,
           ownColor =
             body && body.kind !== 'crate' && Number.isInteger(body.slot) && this.blockColors?.size;
-        let best = null;
+        let best = grateTop;
         const ys = this.blockColumns
           ? this.blockColumns.get(column) || []
           : this.blocks.filter((b) => b.x === tx && b.z === tz).map((b) => b.y);
@@ -390,14 +403,15 @@ function install(World) {
           this.blockSolid(body, bounds) &&
           Math.abs(x - bounds.x) <= bounds.halfX &&
           Math.abs(z - bounds.z) <= bounds.halfZ + 1e-8
-          ? bounds.maxY
-          : null;
+          ? Math.max(grateTop ?? -Infinity, bounds.maxY)
+          : grateTop;
       }
       // No bridge here, so the tile is solid exactly when it is off the floor (see solid()).
       const key = `${tileX},${tileZ}`;
-      if (!this.floor.has(key)) return null;
-      for (const l of this.lifts) if (l.x === tileX && l.z === tileZ) return l.height;
-      return this.heights.get(key) || 0;
+      if (!this.floor.has(key)) return grateTop;
+      for (const l of this.lifts)
+        if (l.x === tileX && l.z === tileZ) return Math.max(grateTop ?? -Infinity, l.height);
+      return Math.max(grateTop ?? -Infinity, this.heights.get(key) || 0);
     },
     supported(p) {
       const height = this.heightAt(p.x, p.z, (p.y || 0) + 0.2, p);
@@ -407,7 +421,7 @@ function install(World) {
       );
     },
     obstaclesNear(p) {
-      return this.blocks?.length
+      return this.blocks?.length || this.grates.length
         ? this.collisionBoxes().filter(
             (b) =>
               this.blockSolid(p, b) && b.maxY > (p.y || 0) + 0.05 && b.minY < (p.y || 0) + 0.84,
@@ -451,6 +465,8 @@ function install(World) {
             .map((p) => ({ x: p.x, z: p.z, half: 0.5, minY: p.y - 1, maxY: p.y, kind: 'block' })),
         );
       boxes.push(...this._blockBoxes);
+      this._grateBoxes ??= this.grates.map(grateBounds);
+      boxes.push(...this._grateBoxes);
       if (this.blocks?.length) {
         for (let i = 0; i < this.bridges.length; i++) {
           const p = this.bridges[i],
@@ -813,10 +829,11 @@ function install(World) {
         this.collisionBoxes().some(
           (o) =>
             this.blockSolid(p, o) &&
-            (o.kind === 'wall' || o.kind === 'archer' || o.kind === 'block') &&
+            ['wall', 'archer', 'block', 'grate'].includes(o.kind) &&
             height + 0.03 < o.maxY &&
             height + 0.84 > o.minY &&
-            near(c, o, 0.36 + o.half + 0.015),
+            Math.abs(c.x - o.x) < 0.375 + (o.halfX ?? o.half) &&
+            Math.abs(c.z - o.z) < 0.375 + (o.halfZ ?? o.half),
         )
       )
         return;

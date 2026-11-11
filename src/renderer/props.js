@@ -351,7 +351,11 @@ export const propsMethods = {
               piece.bubble * BUBBLE_SPACING) *
             warp;
       } else if (piece.kind === 'drone' || piece.kind === 'droneCrystal') {
-        [x, y, z] = level.world.droneOrigin(level.world.drones[i]);
+        // A lethal hit can remove the target during this tick. Keep its beam and mesh
+        // together until the next trace selects a new target or returns to the anchor.
+        [x, y, z] =
+          level.world.droneBeams.find((beam) => beam.drone === i)?.from ??
+          level.world.droneOrigin(level.world.drones[i]);
         const spin = level.reducedMotion ? 0 : time * 0.35;
         matrix = [Math.cos(spin), 0, Math.sin(spin), 0, 1, 0, -Math.sin(spin), 0, Math.cos(spin)];
       } else if (piece.kind === 'crate') {

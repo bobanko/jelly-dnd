@@ -26,6 +26,7 @@ class World {
     this.portals = [];
     this.conveyors = [];
     this.torches = [];
+    this.grates = [];
     this.goals = [];
     this.archers = [];
     this.arrows = [];
@@ -64,6 +65,7 @@ class World {
   enforceHeightLimit(bodies) {
     let top = 0;
     for (const b of this.blocks || []) top = Math.max(top, b.y || 0);
+    for (const g of this.grates) top = Math.max(top, g.y);
     for (const y of this.heights.values()) top = Math.max(top, y);
     for (const l of this.lifts) top = Math.max(top, l.top || 0, l.height || 0);
     for (const o of this.obstacles) top = Math.max(top, o.maxY ?? o.height ?? 0);
@@ -114,8 +116,9 @@ class World {
       before = p[axis];
     let allowed = amount;
     for (const b of this.obstaclesNear(p, axis, amount)) {
-      const extent = HALF + b.half;
-      if (Math.abs(p[other] - b[other]) >= extent - 1e-8) continue;
+      const extent = HALF + (b[axis === 'x' ? 'halfX' : 'halfZ'] ?? b.half),
+        crossExtent = HALF + (b[other === 'x' ? 'halfX' : 'halfZ'] ?? b.half);
+      if (Math.abs(p[other] - b[other]) >= crossExtent - 1e-8) continue;
       if (amount > 0 && p[axis] <= b[axis] - extent + 1e-8)
         allowed = Math.min(allowed, Math.max(0, b[axis] - extent - p[axis]));
       if (amount < 0 && p[axis] >= b[axis] + extent - 1e-8)

@@ -45,12 +45,23 @@
               <option value="2">2 · платформа</option>
               <option value="3">3 · платформа</option>
             </select></label
-          ><label id="shape-label"
-            ><select id="brush-shape" aria-label="Форма кисти">
-              <option value="brush">Кисть</option>
-              <option value="rectangle">Прямоугольник</option>
-            </select></label
-          ><button id="fit" title="Вписать карту (F)">⊡ Вписать</button>
+          >
+          <div id="shape-label">
+            <fieldset id="brush-shape" class="projection-options brush-shapes">
+              <legend class="visually-hidden">Форма кисти</legend>
+              <label
+                ><input type="radio" name="brush-shape" value="brush" checked /><span
+                  >Кисть</span
+                ></label
+              >
+              <label
+                ><input type="radio" name="brush-shape" value="rectangle" /><span
+                  >Прямоугольник</span
+                ></label
+              >
+            </fieldset>
+          </div>
+          <button id="fit" title="Вписать карту (F)">⊡ Вписать</button>
           <div class="camera-buttons">
             <button id="rotate-left" aria-label="Повернуть влево">↶ 45°</button
             ><button id="rotate-right" aria-label="Повернуть вправо">45° ↷</button>

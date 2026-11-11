@@ -1,3 +1,4 @@
+import { grateBounds } from '../world/grates.js';
 import * as GPU from '../renderer/index.js';
 const geometryCache = new WeakMap(),
   overviewCache = new WeakMap();
@@ -18,6 +19,10 @@ function geometry(definition) {
         for (const y of [bottom, top]) corners.push([p.x + dx, y, p.z + dz]);
   };
   for (const p of definition.blocks || []) box(p, (p.y ?? 0) - 1.1, (p.y ?? 0) + 1.15);
+  for (const p of definition.grates || []) {
+    const g = grateBounds(p);
+    box(g, g.minY - 0.1, g.maxY + 0.15);
+  }
   for (const p of definition.tiles || []) box(p, -1.1, (p.height ?? 0) + 1.15);
   for (const p of definition.walls || [])
     box(p, (p.base ?? 0) - 0.1, (p.base ?? 0) + (p.height ?? 1) + 0.15);

@@ -37,7 +37,7 @@ import fs from 'node:fs';
     // Belt direction is a visible radio group now, in the brush and in the inspector.
     await page.locator('input[name="belt-direction"][value="1,0"]').check();
     await page.locator('#belt-speed').fill('1.1');
-    await page.selectOption('#brush-shape', 'rectangle');
+    await page.locator('#brush-shape input[value="rectangle"]').check();
     const point = async (x, z) =>
       page.evaluate(
         ([x, z]) => {

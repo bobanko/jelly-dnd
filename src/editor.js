@@ -1,3 +1,4 @@
+import { grateCorners } from './world/grates.js';
 import JellyLevels from './world/levels.js';
 import { i18n as JellyI18n } from './i18n/i18n.js';
 import * as JellyGPU from './renderer/index.js';
@@ -47,6 +48,7 @@ const groups = [
     'Блоки',
     [
       ['floor', '▣', 'Каменный куб'],
+      ['grate', '▥', 'Решётка', '#8e959e'],
       ...L.characters.map((p, i) => ['color-' + i, phaseSymbols[i], p.name, p.color]),
       ['lava', '≋', 'Лава', '#ff6a1a'],
     ],
@@ -101,11 +103,17 @@ const plateGroupOptions = () =>
   model.map.plates
     .filter((p, i, all) => all.findIndex((q) => q.color === p.color) === i)
     .map((p) => [p.color, plateGroupNames[p.color] || p.color]);
-const cubeTool = (value) => value === 'floor' || value === 'lava' || /^color-[0-4]$/.test(value);
+const cubeTool = (value) =>
+  value === 'floor' || value === 'grate' || value === 'lava' || /^color-[0-4]$/.test(value);
+const grateAxes = [
+  ['x', '↔', 'Вдоль X'],
+  ['z', '↕', 'Вдоль Z'],
+];
 const labels = {
   blocks: 'Каменный куб',
   tiles: 'Камень',
   walls: 'Стена',
+  grates: 'Решётка',
   torches: 'Настенный факел',
   drones: 'Кристаллический дрон',
   spawns: 'Спавн',
@@ -180,6 +188,9 @@ function toolIcon(id, glyph) {
   const cube =
     '<path d="M16 3 29 10 16 17 3 10Z" fill="currentColor" fill-opacity=".55"/><path d="M3 10v14l13 7V17Z" fill="currentColor" fill-opacity=".3"/><path d="m16 17 13-7v14l-13 7Z" fill="currentColor" fill-opacity=".18"/><path d="m16 3 13 7v14l-13 7-13-7V10Zm0 14v14M3 10l13 7 13-7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>';
   let drawing = '';
+  if (id === 'grate')
+    drawing =
+      '<path d="M3 3h26v4H3ZM3 27h26v4H3Z" fill="currentColor"/><path d="M7 7v20m6-20v20m6-20v20m6-20v20" stroke="currentColor" stroke-width="2.5"/><path d="M5 5h1m20 0h1M5 29h1m20 0h1" stroke="#c6a575" stroke-width="2"/>';
   if (id === 'spikes')
     drawing =
       '<path d="M3 27 7 9l4 18 5-23 5 23 4-18 4 18Z" fill="currentColor" fill-opacity=".8" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M3 28h26v4H3Z" fill="currentColor" fill-opacity=".4" stroke="currentColor" stroke-width="1.3"/>';
@@ -279,6 +290,7 @@ function selectTool(value) {
   for (const button of document.querySelectorAll('[data-tool]'))
     button.setAttribute('aria-pressed', String(button.dataset.tool === tool));
   $('active-tool').textContent = tools[tool]?.label || 'Переместить';
+  $('grate-brush').hidden = tool !== 'grate';
   $('conveyor-brush').hidden = tool !== 'conveyor';
   $('bridge-brush').hidden = tool !== 'bridge';
   $('spike-brush').hidden = tool !== 'spikes';
@@ -393,6 +405,21 @@ for (const [id, text, factor, label] of [
   }
 }
 document.querySelector('.viewport-toolbar').insertBefore(zoomButtons, $('fit'));
+const grateBrush = element('div', undefined, 'conveyor-brush');
+grateBrush.id = 'grate-brush';
+grateBrush.hidden = true;
+const grateSettings = { axis: 'x', plane: 'vertical', offset: 0 };
+function renderGrateBrush() {
+  grateBrush.replaceChildren();
+  grateControls(grateBrush, 'brush', grateSettings, (property, value) => {
+    grateSettings[property] = value;
+    renderGrateBrush();
+    refreshHover();
+    invalidate();
+  });
+}
+renderGrateBrush();
+document.querySelector('.viewport-toolbar').append(grateBrush);
 const conveyorBrush = element('div', undefined, 'conveyor-brush');
 conveyorBrush.id = 'conveyor-brush';
 conveyorBrush.hidden = true;
@@ -515,6 +542,7 @@ function objectTool(key, index, p) {
   if (key === 'crates') return p.barrel ? 'barrel' : p.large ? 'crate-large' : 'crate';
   if (key === 'pickups') return p.kind;
   return {
+    grates: 'grate',
     torches: 'torch',
     drones: 'drone',
     plates: 'plate',
@@ -531,6 +559,7 @@ function cellObjects(x, z, y) {
     'blocks',
     'tiles',
     'walls',
+    'grates',
     'torches',
     'drones',
     'spawns',
@@ -639,6 +668,86 @@ function directionRadios(
   group.append(options);
   card.append(group);
 }
+function droneAxisControls(card, p, onChange) {
+  const group = element('fieldset', undefined, 'block-colors direction-radios'),
+    options = element('div', undefined, 'direction-options');
+  group.append(element('legend', 'Двигаться по осям'));
+  for (const axis of ['x', 'y', 'z']) {
+    const row = element('label'),
+      input = element('input');
+    input.type = 'checkbox';
+    input.name = 'follow-' + card.dataset.object;
+    input.id = input.name + '-' + axis;
+    input.value = axis;
+    input.checked = p.follow?.includes(axis) ?? false;
+    input.setAttribute('aria-label', 'Следовать по ' + axis.toUpperCase());
+    row.title = 'Следовать по ' + axis.toUpperCase();
+    input.onchange = () => {
+      const focused = document.activeElement === input;
+      onChange(['x', 'y', 'z'].filter((a) => (a === axis ? input.checked : p.follow?.includes(a))));
+      if (focused) document.getElementById(input.id)?.focus({ preventScroll: true });
+    };
+    row.append(input, element('span', axis.toUpperCase()));
+    options.append(row);
+  }
+  group.append(options);
+  card.append(
+    group,
+    element(
+      'p',
+      'Разрешённые оси повторяют координаты цели. Высота полёта сохраняется.',
+      'empty-state',
+    ),
+  );
+}
+function grateControls(card, name, p, onChange) {
+  directionRadios(
+    card,
+    'Плоскость решётки',
+    p.plane ?? 'vertical',
+    'grate-plane-' + name,
+    (v) => onChange('plane', v),
+    [
+      ['vertical', '▥', 'Вертикально'],
+      ['horizontal', '▱', 'Горизонтально'],
+    ],
+  );
+  directionRadios(
+    card,
+    'Направление решётки',
+    p.axis,
+    'grate-axis-' + name,
+    (v) => onChange('axis', v),
+    grateAxes,
+  );
+  const sides =
+    p.plane === 'horizontal'
+      ? [
+          ['⊥', 'Нижняя граница'],
+          ['⊤', 'Верхняя граница'],
+        ]
+      : p.axis === 'z'
+        ? [
+            ['←', 'Западная граница'],
+            ['→', 'Восточная граница'],
+          ]
+        : [
+            ['↑', 'Северная граница'],
+            ['↓', 'Южная граница'],
+          ];
+  directionRadios(
+    card,
+    'Положение в клетке',
+    String(p.offset ?? 0),
+    'grate-offset-' + name,
+    (v) => onChange('offset', Number(v)),
+    [
+      ['-0.5', ...sides[0]],
+      ['0', '⊙', 'Центр клетки'],
+      ['0.5', ...sides[1]],
+    ],
+  );
+}
 function colorRadios(
   card,
   title,
@@ -725,7 +834,7 @@ function renderProperties() {
           return 'color-' + key + '-' + v;
         },
       );
-    if (key === 'blocks')
+    if (key === 'blocks' || key === 'grates')
       for (const axis of ['x', 'y', 'z'])
         field(
           card,
@@ -738,7 +847,7 @@ function renderProperties() {
           (value) => {
             const q = { ...p, [axis]: value };
             try {
-              if (model.move('blocks', index, q.x, q.z, q.y)) {
+              if (model.move(key, index, q.x, q.z, q.y)) {
                 selected = q;
                 changed();
               }
@@ -836,6 +945,7 @@ function renderProperties() {
         (v) => set('target', Number(v)),
         'target-' + card.dataset.object,
       );
+      droneAxisControls(card, p, (follow) => set('follow', follow));
       field(card, 'Высота полёта', p.hover, { min: 0, max: 6, step: 0.1 }, (v) => set('hover', v));
       for (const axis of ['x', 'y', 'z'])
         field(
@@ -1043,6 +1153,16 @@ function renderProperties() {
           chain.length > 1
             ? `Переход ${order} → ${(order % chain.length) + 1}`
             : 'Добавьте ещё портал этого цвета.',
+          'empty-state',
+        ),
+      );
+    }
+    if (key === 'grates') {
+      grateControls(card, card.dataset.object, p, set);
+      card.append(
+        element(
+          'p',
+          'Слизни проходят сквозь решётку. Ящики и другие предметы не проходят.',
           'empty-state',
         ),
       );
@@ -1300,8 +1420,13 @@ function screenRay(event) {
   const r = $('viewport').getBoundingClientRect();
   return S.ray(screenFrame(), event.clientX - r.left, event.clientY - r.top, r.width, r.height);
 }
+function editorBoxes() {
+  return S.boxes(model.map, {
+    droneOrigin: (p) => previewRuntime?.world.droneOrigin(p) ?? L.droneOrigin(p),
+  });
+}
 function point(event) {
-  pickBounds ??= S.boxes(model.map);
+  pickBounds ??= editorBoxes();
   const layer = Number($('brush-height').value),
     painting = !['select', 'erase', 'pan', 'orbit'].includes(tool) && !event.shiftKey;
   if (gesture?.tool === 'spikes' && gesture.face && gesture.face !== 'top') return gesture.start;
@@ -1352,8 +1477,8 @@ function point(event) {
             : 'south'
         : torchFace.value;
   if (
-    p.key === 'blocks' &&
-    ((painting && cubeTool(tool)) || moveObject?.key === 'blocks') &&
+    ['blocks', 'grates'].includes(p.key) &&
+    ((painting && cubeTool(tool)) || ['blocks', 'grates'].includes(moveObject?.key)) &&
     placementMode.value === 'face'
   ) {
     if (p.hit.axis === 0) p.x += p.hit.sign;
@@ -1406,6 +1531,7 @@ function paintCell(p, activeTool) {
       dx,
       dz,
       speed,
+      ...(activeTool === 'grate' ? grateSettings : {}),
       ...(activeTool === 'torch'
         ? {
             face:
@@ -1510,7 +1636,7 @@ $('viewport').addEventListener('pointerdown', (event) => {
     offsetX: p.hit ? p.x - Math.round(p.hit.position[0]) : 0,
     offsetZ: p.hit ? p.z - Math.round(p.hit.position[2]) : 0,
     rectangle:
-      $('brush-shape').value === 'rectangle' &&
+      document.querySelector('input[name="brush-shape"]:checked').value === 'rectangle' &&
       (cubeTool(activeTool) || ['conveyor'].includes(activeTool)),
   };
   if (!gesture.rectangle) paintCell(p, activeTool);
@@ -1789,9 +1915,7 @@ function drawSpatialOverlay() {
     color = isErase ? '#f2a78b' : tools[active]?.color || '#ceecaa',
     fill = isErase ? '#ef8c732b' : color + '24';
   if (isErase && hover.key) {
-    for (const box of S.boxes(model.map).filter(
-      (b) => b.key === hover.key && b.index === hover.index,
-    )) {
+    for (const box of editorBoxes().filter((b) => b.key === hover.key && b.index === hover.index)) {
       const [x, y, z] = box.min,
         [X, Y, Z] = box.max;
       for (const h of [y, Y])
@@ -1921,6 +2045,12 @@ function drawSpatialOverlay() {
     return;
   }
   const y = hover.y ?? layer;
+  if (active === 'grate' || moveObject?.key === 'grates') {
+    const p = moveObject?.key === 'grates' ? model.map.grates[moveObject.index] : grateSettings,
+      corners = grateCorners({ ...p, x: hover.x, y, z: hover.z });
+    path([...corners, corners[0]], color, fill, true);
+    return;
+  }
   square(hover, y + 0.045, color, fill, active !== 'select');
   const height =
     active === 'crate-large' || active === 'barrel'
@@ -1969,6 +2099,7 @@ function rebuildPreview() {
   previewRenderer.propGeometryKey = undefined;
   previewRenderer.goalGlowStrength = [];
   previewRenderer.goalWinGlow = 0;
+  pickBounds = null;
   previewDirty = false;
 }
 function previewTick(t) {

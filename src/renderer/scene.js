@@ -1,3 +1,5 @@
+import { grateFrame } from '../world/grates.js';
+import { grate } from './geometry/grate.js';
 import { rotateBridgeMesh, mossAt, box } from './mesh.js';
 import { OAK_WOOD, OAK_FRAME, bridgeOakPlank } from './geometry/wood.js';
 import { phaseTints, BUTTON_HOLE } from './geometry/mechanisms.js';
@@ -237,6 +239,11 @@ export const sceneMethods = {
       const from = decor.length;
       box(decor, [b.x, b.y - 0.15, b.z], [1, 0.04, 1], [1, 0.4, 0.1], 0.002, 29, 1);
       recordDecor(decor, from, b);
+    }
+    for (const p of level.world.grates || []) {
+      const from = decor.length;
+      grate(decor, p);
+      recordBlock(decorAssembly, decor, from, grateFrame(p).center, [p.x, p.y, p.z]);
     }
     scatterDecor(decor, level, occupied, recordDecor);
     for (const [index, torch] of (level.world.torches || []).entries()) {

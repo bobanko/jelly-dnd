@@ -18,6 +18,8 @@ export function rotateBridgeMesh(mesh, from, bridge, progress) {
 }
 // Stone stays below material id .5, so its fraction can carry the baked moss amount.
 export const STONE_DETAIL = 0.45;
+// Shared atlas strip for the barrel hoops and the grate's forged iron.
+export const BARREL_HOOP_ROWS = [922 / 1024, 998 / 1024];
 // Broad moss patches, evaluated per vertex: smooth enough to interpolate across a face.
 export const mossAt = ([x, y, z]) =>
   Math.sin(x * 1.9 + z * 0.7 + Math.sin(z * 1.3)) * Math.sin(z * 2.3 - y * 1.4 + x * 0.5) * 0.45 +
@@ -78,6 +80,13 @@ export function box(
         uv = [seed * 0.72 + a * 0.2, 0.04 + b * 0.92];
       } else if (material === 16) {
         uv = [s, t];
+      } else if (material === 31) {
+        // Run the strip along each piece, keeping its chipped edges across the width.
+        // Sample the central iron between the atlas rivets; grate bolts have their own geometry.
+        const along = size[u] > size[v] ? s : t,
+          across = size[u] > size[v] ? t : s,
+          [v0, v1] = BARREL_HOOP_ROWS;
+        uv = [0.1 + (along * Math.max(size[u], size[v])) / 1.5, v0 + across * (v1 - v0)];
       }
       const brightness = shade ? shade(axis, sign, s, t) : 1;
       return [

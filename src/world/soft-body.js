@@ -625,7 +625,7 @@ class System {
           ex = (o.halfX ?? o.half) + 0.015 - Math.abs(dx),
           ez = (o.halfZ ?? o.half) + 0.015 - Math.abs(dz);
         if (ex > 0 && ez > 0) {
-          if (o.kind === 'block' && old[1] <= o.minY + 0.04) {
+          if ((o.kind === 'block' || o.kind === 'grate') && old[1] <= o.minY + 0.04) {
             node[1] = o.minY - 0.015;
             continue;
           }
@@ -1268,7 +1268,7 @@ class System {
           for (let k = 0; k < 3; k++) inertia[j * 3 + k] += (j === k ? r2 : 0) - r[j] * r[k];
       }
       const touchingGround = b.positions.some((node) => {
-          const height = world.heightAt(node[0], node[2], node[1] + 0.06);
+          const height = world.heightAt(node[0], node[2], node[1] + 0.06, p);
           return height !== null && Math.abs(node[1] - height - 0.035) < 0.025;
         }),
         crateGrounded = b.rigid && touchingGround,

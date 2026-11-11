@@ -63,7 +63,7 @@ import fs from 'node:fs';
     await page.locator('#undo').click();
     await page.selectOption('#placement-mode', 'layer');
     await page.selectOption('#brush-height', '1');
-    await page.selectOption('#brush-shape', 'rectangle');
+    await page.locator('#brush-shape input[value="rectangle"]').check();
     await tool('color-0');
     const a = await screen(4, 1, 2),
       b = await screen(5, 1, 3);
@@ -80,7 +80,7 @@ import fs from 'node:fs';
       await page.evaluate(() => model.map.blocks.filter((b) => b.color === 0).length),
       1,
     );
-    await page.selectOption('#brush-shape', 'brush');
+    await page.locator('#brush-shape input[value="brush"]').check();
     await page.waitForFunction(
       () => previewRuntime.world.blocks.filter((b) => b.color !== undefined).length === 4,
     );

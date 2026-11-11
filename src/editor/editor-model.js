@@ -1,3 +1,4 @@
+import { grateKey } from '../world/grates.js';
 import * as levelFormat from '../world/levels.js';
 
 const surface = ['plates', 'bridges', 'lifts', 'spikes', 'portals', 'conveyors'],
@@ -76,6 +77,9 @@ export class Model {
   }
   cube(x, y, z) {
     this.layer(y);
+    this.map.grates = this.map.grates.filter(
+      (p) => p.x !== x || p.y !== y || p.z !== z || p.offset,
+    );
     let p = this.at('blocks', x, z, y);
     if (!p) {
       if (this.map.blocks.length >= levelFormat.limits.blocks)
@@ -103,6 +107,32 @@ export class Model {
       else delete p.color;
       if (tool === 'lava') p.lava = true;
       else delete p.lava;
+      return;
+    }
+    if (tool === 'grate') {
+      this.layer(y);
+      const p = {
+          x,
+          y,
+          z,
+          axis: options.axis ?? 'x',
+          ...(options.plane === 'horizontal' ? { plane: 'horizontal' } : {}),
+          ...(options.offset ? { offset: options.offset } : {}),
+        },
+        existing = this.map.grates.find((q) => grateKey(q) === grateKey(p));
+      if (existing) {
+        existing.axis = p.axis;
+        return;
+      }
+      if (this.map.grates.length >= levelFormat.limits.grates)
+        throw new Error('Достигнут лимит решёток.');
+      // Boundary sections can share a cell with stone; only an interior section replaces it.
+      if (!p.offset) {
+        const grates = this.map.grates;
+        this.erase(x, z, y);
+        this.map.grates = grates;
+      }
+      this.map.grates.push(p);
       return;
     }
     if (/^(spawn|goal)-[0-4]$/.test(tool)) {
@@ -244,7 +274,7 @@ export class Model {
   }
   paint(tool, x, z, options = {}) {
     if (!Number.isSafeInteger(x) || !Number.isSafeInteger(z) || tool === 'select') return;
-    if (tool === 'torch' || tool === 'drone') {
+    if (tool === 'torch' || tool === 'drone' || tool === 'grate') {
       this.paintVoxel(tool, x, options.y ?? options.height ?? 0, z, options);
       return;
     }
@@ -383,15 +413,23 @@ export class Model {
           (q, j) =>
             j !== index &&
             q &&
-            q.x === x &&
-            q.z === z &&
-            (!voxel || q.y === height) &&
+            (key === 'grates'
+              ? grateKey(q) === grateKey({ ...p, x, y: height, z })
+              : q.x === x && q.z === z && (!voxel || q.y === height)) &&
             (!['spikes', 'torches'].includes(key) || (q.face || 'top') === (p.face || 'top')),
         )
       )
         throw new Error('В этой клетке уже есть такой объект.');
       if (voxel) {
-        if (key === 'blocks') {
+        if (key === 'blocks' || key === 'grates') {
+          const other = key === 'blocks' ? 'grates' : 'blocks';
+          if (
+            key === 'grates'
+              ? !p.offset && this.at(other, x, z, height)
+              : this.map.grates.some((g) => g.x === x && g.y === height && g.z === z && !g.offset)
+          )
+            throw new Error('В этой клетке уже есть другой блок.');
+          this.layer(height);
           if (!Number.isInteger(height)) throw new Error('Y должен быть целым.');
         } else if (key === 'bridges' || key === 'lifts') this.layer(height);
         else if (key !== 'drones') this.cube(x, height, z);

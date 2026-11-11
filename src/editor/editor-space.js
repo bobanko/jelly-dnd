@@ -1,3 +1,4 @@
+import { grateBounds } from '../world/grates.js';
 import * as GPU from '../renderer/index.js';
 import * as Features from '../world/level-features.js';
 import Levels from '../world/levels.js';
@@ -73,7 +74,7 @@ function boxHit(ray, box) {
     sign,
   };
 }
-function boxes(map) {
+function boxes(map, { droneOrigin = Levels.droneOrigin } = {}) {
   const result = [],
     heights = new Map(map.tiles.map((p) => [`${p.x},${p.z}`, p.height]));
   const add = (p, key, half, lo, hi) =>
@@ -88,14 +89,31 @@ function boxes(map) {
     });
   for (const [pickIndex, p] of (map.blocks || []).entries())
     add({ ...p, pickIndex }, 'blocks', 0.5, p.y - 1, p.y);
+  for (const [index, p] of (map.grates || []).entries()) {
+    const b = grateBounds(p);
+    result.push({
+      ...p,
+      key: 'grates',
+      index,
+      min: [b.x - b.halfX, b.minY, b.z - b.halfZ],
+      max: [b.x + b.halfX, b.maxY, b.z + b.halfZ],
+    });
+  }
   for (const [pickIndex, p] of map.tiles.entries())
     add({ ...p, pickIndex }, 'tiles', 0.5, -0.72, p.height);
   for (const [pickIndex, p] of map.walls.entries())
     add({ ...p, pickIndex }, 'walls', p.half, p.base, p.base + p.height);
   for (const [pickIndex, p] of (map.drones || []).entries()) {
     const y = p.y ?? heights.get(`${p.x},${p.z}`) ?? Levels.surfaceY(map, p.x, p.z) ?? 0;
-    const center = Levels.droneOrigin({ ...p, y })[1];
-    add({ ...p, y, pickIndex }, 'drones', 0.32, center - 0.56, center + 0.56);
+    const origin = droneOrigin({ ...p, y });
+    result.push({
+      ...p,
+      y,
+      key: 'drones',
+      index: pickIndex,
+      min: [origin[0] - 0.32, origin[1] - 0.56, origin[2] - 0.32],
+      max: [origin[0] + 0.32, origin[1] + 0.56, origin[2] + 0.32],
+    });
   }
   for (const [index, p] of (map.torches || []).entries()) {
     const f = Levels.torchFrame(p),
