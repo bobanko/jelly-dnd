@@ -2,7 +2,8 @@
 // host sending a guest to its level, shared simulation, restart, a dropped guest and its
 // return, and moving on to another level together.
 // Needs the dev server (npm start) and Chrome with WebGPU. With RELAY=dev in the environment
-// the pages talk through the local relay instead (npm run relay:dev).
+// the pages talk through the local relay instead (npm run relay:dev); with RELAY=cloud,
+// through the deployed one (src/net/config.js), which adds its own real delay.
 import { chromium } from './browser-harness.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -17,7 +18,11 @@ import fs from 'node:fs';
   try {
     const context = await browser.newContext({ viewport: { width: 1100, height: 700 } }),
       errors = [],
-      relay = process.env.RELAY ? '&relay=' + process.env.RELAY : '';
+      mode = process.env.RELAY || 'local',
+      cloud = mode === 'cloud',
+      relay = cloud ? '' : '&relay=' + mode,
+      // A room of its own on the shared relay.
+      room = cloud ? 't' + Math.random().toString(36).slice(2, 8) : 't1';
     const open = async (url) => {
       const page = await context.newPage();
       page.on('pageerror', (e) => errors.push(e.message));
@@ -89,11 +94,11 @@ import fs from 'node:fs';
       await page.keyboard.up(key);
     };
 
-    const host = await open('?level=1&play=1&room=t1&host=1');
+    const host = await open(`?level=1&play=1&room=${room}&host=1`);
     await playing(host);
     // The guest asks for another level and is sent to the host's.
-    const guest = await open('?level=extra-1&play=1&room=t1&ping=60');
-    await guest.waitForURL(/level=1&play=1&room=t1&ping=60/);
+    const guest = await open(`?level=extra-1&play=1&room=${room}&ping=60`);
+    await guest.waitForURL(new RegExp(`level=1&play=1&room=${room}&ping=60`));
     await playing(guest);
     await guest.waitForFunction(() => net.session.owners.join() === '0,1' && net.session.me === 1);
     assert.deepEqual((await state(host)).owners, [0, 1]);
@@ -104,8 +109,11 @@ import fs from 'node:fs';
     let [a, b] = await settled(host, guest);
     assert.ok(a.moved[0] > 0.3, 'the host moved its jelly');
     assert.ok(a.moved[1] > 0.3, 'the guest moved its jelly on the host too');
-    assert.ok(b.tick > 300 && a.tick - b.tick < 40, 'the guest keeps up');
-    assert.ok(b.ping > 40 && b.ping < 140, 'simulated ping is measured: ' + b.ping);
+    assert.ok(b.tick > 300 && a.tick - b.tick < (cloud ? 80 : 40), 'the guest keeps up');
+    // Through the cloud the real round trip adds to the simulated 60 ms.
+    assert.ok(b.ping > 40 && b.ping < (cloud ? 600 : 140), 'ping is measured: ' + b.ping);
+    if (cloud)
+      console.log('ping through the deployed relay, less the simulated 60 ms:', b.ping - 60);
     assert.equal(await guest.locator('#net-status').isVisible(), true);
     await guest.screenshot({ path: 'artifacts/net-guest.png' });
 
@@ -137,7 +145,10 @@ import fs from 'node:fs';
     }
     await guest.waitForTimeout(600);
     assert.equal(await guest.evaluate(() => net.session.stalled), false);
-    assert.ok((await state(host)).tick - (await state(guest)).tick < 40, 'still keeping up');
+    assert.ok(
+      (await state(host)).tick - (await state(guest)).tick < (cloud ? 80 : 40),
+      'still keeping up',
+    );
 
     // Only the host restarts, and it restarts everybody.
     await guest.bringToFront();
@@ -178,8 +189,8 @@ import fs from 'node:fs';
 
     // The host picks the next level; the guest follows and keeps its jelly.
     await host.evaluate(() => navigate('?level=extra-1&play=1', ''));
-    await host.waitForURL(/level=extra-1&play=1&room=t1&host=1/);
-    await guest.waitForURL(/level=extra-1&play=1&room=t1&ping=60/);
+    await host.waitForURL(new RegExp(`level=extra-1&play=1&room=${room}&host=1`));
+    await guest.waitForURL(new RegExp(`level=extra-1&play=1&room=${room}&ping=60`));
     await playing(host);
     await playing(guest);
     await guest.waitForFunction(() => net.session.me === 1);
@@ -188,7 +199,7 @@ import fs from 'node:fs';
     assert.ok(a.tick > 100);
     assert.ok(debrisCompared > 0, 'jelly debris was compared between the machines');
     assert.deepEqual(errors, []);
-    console.log('network play: ok' + (relay ? ' (through the relay)' : ''));
+    console.log('network play: ok (' + mode + ')');
   } finally {
     await browser.close();
   }
