@@ -675,6 +675,7 @@ function directionRadios(
   }
   group.append(options);
   card.append(group);
+  return group;
 }
 function droneAxisControls(card, p, onChange) {
   const group = element('fieldset', undefined, 'block-colors direction-radios'),
@@ -938,6 +939,52 @@ function renderProperties() {
         );
     }
     if (key === 'drones') {
+      directionRadios(
+        card,
+        'Лазерный луч',
+        p.beamMode ?? 'always',
+        'beam-mode-' + card.dataset.object,
+        (v) =>
+          edit((map) => {
+            const d = map.drones[index];
+            if (v === 'always') delete d.beamMode;
+            else d.beamMode = v;
+            if (v.startsWith('trigger-') && !d.plate) d.plate = triggerSources()[0]?.color || '';
+          }),
+        [
+          ['always', 'Всегда включён', 'Всегда включён'],
+          ['off', 'Всегда выключен', 'Всегда выключен'],
+          ['trigger-on', 'Вкл. по триггеру', 'Включать луч по триггеру'],
+          ['trigger-off', 'Выкл. по триггеру', 'Выключать луч по триггеру'],
+        ],
+      ).classList.add('text-radios');
+      if (p.beamMode?.startsWith('trigger-')) {
+        colorRadios(
+          card,
+          'Группа триггера',
+          plateGroupValue(p.plate) || '',
+          [
+            ['', 'Не выбрана', '#777e78'],
+            ...plateGroupOptions().map(([v, name]) => [
+              v,
+              name,
+              L.portalColor(v)?.color || '#777e78',
+            ]),
+            ...(p.plate && !triggerSources().some((q) => q.id === p.plate || q.color === p.plate)
+              ? [[p.plate, 'Триггер удалён', '#777e78']]
+              : []),
+          ],
+          (v) =>
+            edit((map) => {
+              if (v) map.drones[index].plate = v;
+              else delete map.drones[index].plate;
+            }),
+          'beam-trigger-' + card.dataset.object,
+        );
+      }
+      card.append(
+        element('p', 'Слежение и движение работают при выключенном луче.', 'empty-state'),
+      );
       colorRadios(
         card,
         'Цвет луча',
@@ -1022,7 +1069,7 @@ function renderProperties() {
       card.append(
         element(
           'p',
-          `Группа: ${plateGroupNames[p.color]} · триггеров: ${[...model.map.bridges, ...model.map.spikes].filter((b) => b.plate && plateGroup(b.plate) === p.color).length}`,
+          `Группа: ${plateGroupNames[p.color]} · триггеров: ${[...model.map.bridges, ...model.map.spikes, ...model.map.drones.filter((d) => d.beamMode?.startsWith('trigger-'))].filter((b) => b.plate && plateGroup(b.plate) === p.color).length}`,
           'empty-state',
         ),
       );
@@ -1928,7 +1975,11 @@ function drawSpatialOverlay() {
         ctx.stroke();
       }
     };
-    for (const b of [...model.map.bridges, ...model.map.spikes])
+    for (const b of [
+      ...model.map.bridges,
+      ...model.map.spikes,
+      ...model.map.drones.filter((d) => d.beamMode?.startsWith('trigger-')),
+    ])
       for (const p of triggerSources().filter((p) => b.plate && p.color === plateGroup(b.plate)))
         line(p, b, '#d4e9a88a');
     for (const color of L.portalColors) {
@@ -2162,6 +2213,11 @@ function previewTick(t) {
   if (previewDirty) rebuildPreview();
   previewRuntime.world.featureTime += dt;
   previewRuntime.world.beholderBeams = previewRuntime.world.traceBeholders(previewRuntime.bodies);
+  previewRuntime.world.updateDroneFollowing(previewRuntime.bodies, dt);
+  previewRuntime.world.droneBeams = previewRuntime.world.traceDrones(
+    previewRuntime.bodies,
+    previewRuntime.soft,
+  );
   previewRuntime.effects.step(dt, previewRuntime.world, [], previewRuntime.players);
   previewRuntime.world.stepSpikes(previewRuntime.bodies, dt);
   // The editor's single toggle shows both the masonry and the object colliders.

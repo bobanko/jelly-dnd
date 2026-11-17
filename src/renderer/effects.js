@@ -296,7 +296,10 @@ export const effectsMethods = {
   updateBeams(level) {
     const beams = [
       ...(level.world.droneBeams || []),
-      ...(level.effects?.lasers || []),
+      ...(level.effects?.lasers || []).filter((b) => {
+        const drone = level.world.drones?.[b.drone];
+        return !drone || level.world.droneBeamEnabled(drone);
+      }),
       ...(level.world.beholderBeams || []),
     ]
       .filter((b) => Math.hypot(...b.to.map((v, k) => v - b.from[k])) > 0.001)

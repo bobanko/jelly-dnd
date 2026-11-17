@@ -1,4 +1,18 @@
 export default {
+  'Лазерный луч': 'Laser beam',
+  'Всегда включён': 'Always on',
+  'Всегда выключен': 'Always off',
+  'Вкл. по триггеру': 'On with trigger',
+  'Выкл. по триггеру': 'Off with trigger',
+  'Включать луч по триггеру': 'Enable beam with trigger',
+  'Выключать луч по триггеру': 'Disable beam with trigger',
+  'Группа триггера': 'Trigger group',
+  'Триггер удалён': 'Trigger deleted',
+  'Слежение и движение работают при выключенном луче.':
+    'Tracking and movement continue while the beam is off.',
+  'Неизвестный режим луча дрона.': 'Unknown drone beam mode.',
+  'Неверный триггер луча дрона.': 'Invalid drone beam trigger.',
+  'Триггер луча не найден:': 'Beam trigger not found:',
   'Бехольдер {x}, {z} находится внутри камня.': 'Beholder {x}, {z} is inside stone.',
   Бехольдер: 'Beholder',
   'Направление взгляда': 'Gaze direction',

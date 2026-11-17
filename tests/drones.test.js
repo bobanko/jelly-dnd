@@ -7,6 +7,7 @@ import * as P from '../src/world/physics.js';
 import * as S from '../src/world/soft-body.js';
 import { Model } from '../src/editor/editor-model.js';
 import * as Effects from '../src/game/game-effects.js';
+import { effectsMethods } from '../src/renderer/effects.js';
 function scene(slots = [1]) {
   const m = L.blank();
   m.size = 8;
@@ -413,4 +414,165 @@ test('editor can pick the followed preview while retaining authored cell metadat
     [1, 0, 2],
     'selection edits the anchor rather than baking a target position',
   );
+});
+
+test('beam modes control light and damage with normal and inverted button signals', () => {
+  for (const mode of ['always', 'off', 'trigger-on', 'trigger-off'])
+    for (const pressed of [false, true]) {
+      const r = scene([1]),
+        w = r.world,
+        d = w.drones[0],
+        victim = r.players[0];
+      w.plates = [{ x: 2, y: 0, z: 6, id: 'switch', color: 'red' }];
+      Object.assign(d, { beamMode: mode, plate: 'switch' });
+      const weight = { x: 2, y: 0, z: pressed ? 6 : 7, kind: 'crate', state: 'alive' },
+        bodies = [...r.bodies, weight],
+        enabled =
+          mode === 'always' ||
+          (mode === 'trigger-on' && pressed) ||
+          (mode === 'trigger-off' && !pressed),
+        events = w.afterDrones(bodies, null);
+      assert.equal(w.droneBeams.length, enabled ? 1 : 0, `${mode}, pressed=${pressed}`);
+      assert.equal(victim.state, enabled ? 'dead' : 'alive');
+      assert.equal(events.length, enabled ? 1 : 0);
+      if (!enabled) {
+        const fx = new Effects.System();
+        fx.step(0.01, w, [], r.players);
+        assert.equal(fx.particles.length, 0, 'disabled laser emits no impact particles');
+      }
+    }
+});
+
+test('laser trigger groups accept multiple buttons, height-aware weights and beholder signals', () => {
+  const r = scene([1]),
+    w = r.world,
+    d = w.drones[0],
+    p = r.players[0];
+  w.soft = null;
+  w.plates = [
+    { x: 2, y: 1, z: 5, id: 'a', color: 'red' },
+    { x: 3, y: 0, z: 5, id: 'b', color: 'red' },
+  ];
+  Object.assign(d, { beamMode: 'trigger-on', plate: 'a' });
+  for (const plate of w.plates) {
+    const weight = { ...plate, kind: 'crate', state: 'alive' };
+    assert.equal(w.droneBeamEnabled(d, [p, weight]), true);
+    assert.equal(w.droneBeamEnabled(d, [p, { ...weight, y: weight.y + 1 }]), false);
+    assert.equal(w.droneBeamEnabled(d, [p, { ...weight, state: 'dead' }]), false);
+  }
+  w.beholders = [{ x: 3, y: 0, z: 2, dx: 1, dz: 0, id: 'watcher', color: 'blue' }];
+  for (const plate of ['watcher', 'blue']) {
+    d.plate = plate;
+    assert.equal(w.droneBeamEnabled(d, [p]), true);
+    d.beamMode = 'trigger-off';
+    assert.equal(w.droneBeamEnabled(d, [p]), false);
+    assert.equal(w.droneBeamEnabled(d, [{ ...p, z: 4 }]), true);
+    d.beamMode = 'trigger-on';
+  }
+  for (const beamMode of ['trigger-on', 'trigger-off']) {
+    d.beamMode = beamMode;
+    for (const plate of ['', 'removed']) {
+      d.plate = plate;
+      assert.equal(w.droneBeamEnabled(d, [p]), false);
+    }
+  }
+});
+
+test('disabled beams keep target selection, XYZ tracking and smooth teleport flights active', () => {
+  for (const beamMode of ['off', 'trigger-on', 'trigger-off']) {
+    const r = scene([1]),
+      w = r.world,
+      d = w.drones[0],
+      p = r.players[0];
+    Object.assign(d, { follow: ['x', 'y', 'z'], beamMode, plate: 'red' });
+    w.plates = [{ x: 3, y: 0, z: 6, id: 'switch', color: 'red' }];
+    const weight = {
+      x: 3,
+      y: 0,
+      z: beamMode === 'trigger-off' ? 6 : 7,
+      kind: 'crate',
+      state: 'alive',
+    };
+    r.bodies.push(weight);
+    w.afterCombat(r.bodies, null, 1 / 120);
+    assert.equal(w.droneBeams.length, 0);
+    Object.assign(p, { x: 4.25, y: 1.5, z: 4.75 });
+    w.afterCombat(r.bodies, null, 1 / 120);
+    nearVector(w.droneOrigin(d), L.droneOrigin(d, 0, p));
+    assert.equal(w.droneTarget(d).p, p);
+    const before = w.droneOrigin(d);
+    Object.assign(p, { x: 6, z: 6, portalFlash: 0.55 });
+    w.afterCombat(r.bodies, null, 0.02);
+    assert.equal(w.droneFollowing[0].flying, true);
+    assert.ok(w.droneOrigin(d)[0] > before[0] && w.droneOrigin(d)[0] < p.x);
+    p.portalFlash = 0;
+    for (let i = 0; i < 30; i++) w.afterCombat(r.bodies, null, 0.02);
+    nearVector(w.droneOrigin(d), L.droneOrigin(d, 0, p));
+    assert.equal(w.droneBeams.length, 0);
+    assert.equal(p.state, 'alive');
+    d.beamMode = 'always';
+    d.color = 1;
+    assert.equal(
+      w.traceDrones(r.bodies, null).length,
+      1,
+      'beam resumes from the current followed position',
+    );
+  }
+});
+
+test('beam settings survive editor history, moving, export and reset; old files keep lasers enabled', () => {
+  const m = new Model(L.blank());
+  m.change(() => m.paint('drone', 2, 2, { voxel: true, y: 0 }));
+  assert.equal(m.map.drones[0].beamMode, undefined);
+  m.change((map) => {
+    map.drones[0].beamMode = 'trigger-off';
+    map.drones[0].plate = 'red';
+    map.plates.push({ x: 3, y: 0, z: 3, id: 'switch', color: 'red' });
+  });
+  m.move('drones', 0, 4, 5, 2);
+  assert.deepEqual(L.read(JSON.stringify(m.map)), m.map);
+  assert.equal(m.map.drones[0].beamMode, 'trigger-off');
+  m.change((map) => {
+    map.drones[0].beamMode = 'off';
+  });
+  m.undo();
+  assert.equal(m.map.drones[0].beamMode, 'trigger-off');
+  m.redo();
+  assert.equal(m.map.drones[0].beamMode, 'off');
+  const r = L.instantiate(m.map, P, S);
+  r.world.resetFeatures();
+  assert.equal(r.world.drones[0].beamMode, 'off');
+  assert.deepEqual(r.world.droneBeams, []);
+  for (const bad of [
+    { beamMode: 'bad' },
+    { beamMode: null },
+    { beamMode: false },
+    { plate: 1 },
+    { plate: null },
+  ]) {
+    const map = L.copy(m.map);
+    Object.assign(map.drones[0], bad);
+    assert.throws(() => L.read(map));
+  }
+  for (const beamMode of ['trigger-on', 'trigger-off']) {
+    const map = L.copy(m.map);
+    Object.assign(map.drones[0], { beamMode, plate: 'missing' });
+    assert.ok(L.issues(map).some((s) => s.startsWith('Триггер луча не найден:')));
+  }
+  const legacy = scene();
+  assert.equal(legacy.world.droneBeamEnabled(legacy.world.drones[0]), true);
+});
+
+test('switching a laser off also hides its short death afterglow', () => {
+  const r = scene(),
+    d = r.world.drones[0],
+    event = r.world.afterDrones(r.bodies, null)[0],
+    fx = new Effects.System(),
+    renderer = { beamData: new Float32Array(24 * 12), device: { queue: { writeBuffer() {} } } };
+  fx.burst(event, r.players, r.soft);
+  assert.equal(fx.lasers.length, 1);
+  d.beamMode = 'off';
+  r.world.afterDrones(r.bodies, null);
+  effectsMethods.updateBeams.call(renderer, { ...r, effects: fx });
+  assert.equal(renderer.beamCount, 0);
 });

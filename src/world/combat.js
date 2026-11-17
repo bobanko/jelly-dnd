@@ -184,6 +184,18 @@ function install(World) {
       });
       this.droneFollowing.length = this.drones.length;
     },
+    droneBeamEnabled(d, bodies = this.bodies || []) {
+      const mode = d.beamMode ?? 'always';
+      if (mode === 'always') return true;
+      if (mode === 'off' || !d.plate) return false;
+      const index = [...this.plates, ...this.beholders].findIndex(
+        (p) => p.id === d.plate || p.color === d.plate,
+      );
+      // A deleted or unassigned trigger leaves the laser safely off in either mode.
+      if (index < 0) return false;
+      const active = this.active(index, bodies);
+      return mode === 'trigger-off' ? !active : active;
+    },
     traceDrones(bodies, soft) {
       if (!this.drones?.length) return [];
       const targets = bodies.flatMap((p, i) =>
@@ -197,6 +209,7 @@ function install(World) {
           })),
         beams = [];
       for (const [index, d] of this.drones.entries()) {
+        if (!this.droneBeamEnabled(d, bodies)) continue;
         const target = this.droneTarget(d, bodies);
         if (!target) continue;
         if (this.droneFollowing?.[index]?.flying) continue;

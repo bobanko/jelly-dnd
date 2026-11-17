@@ -414,6 +414,12 @@ function read(input) {
     if (!Number.isInteger(target) || target < -1 || target >= characters.length)
       fail('Неизвестная цель дрона.');
     if (
+      p.beamMode !== undefined &&
+      !['always', 'off', 'trigger-on', 'trigger-off'].includes(p.beamMode)
+    )
+      fail('Неизвестный режим луча дрона.');
+    if (p.plate !== undefined && typeof p.plate !== 'string') fail('Неверный триггер луча дрона.');
+    if (
       p.follow !== undefined &&
       (!Array.isArray(p.follow) ||
         p.follow.some((axis) => !['x', 'y', 'z'].includes(axis)) ||
@@ -424,6 +430,8 @@ function read(input) {
       color,
       target,
       hover: number(p.hover, 0, 0, 6),
+      ...(p.beamMode && p.beamMode !== 'always' ? { beamMode: p.beamMode } : {}),
+      ...(p.plate ? { plate: p.plate } : {}),
       ...(p.follow?.length
         ? { follow: ['x', 'y', 'z'].filter((axis) => p.follow.includes(axis)) }
         : {}),
@@ -605,6 +613,13 @@ function issues(map) {
       result.push(`Бехольдер ${p.x}, ${p.z} находится внутри камня.`);
   }
   for (const p of map.drones || []) {
+    if (
+      ['trigger-on', 'trigger-off'].includes(p.beamMode) &&
+      ![...map.plates, ...(map.beholders || [])].some(
+        (q) => p.plate && (q.id === p.plate || q.color === p.plate),
+      )
+    )
+      result.push(`Триггер луча не найден: ${p.x}, ${p.z}.`);
     if (p.target >= 0 && !map.spawns[p.target])
       result.push(`Дрон ${p.x}, ${p.z}: выбранная цель не участвует в уровне.`);
     const y = droneOrigin(p, surfaceY(map, p.x, p.z) ?? 0)[1];
