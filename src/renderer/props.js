@@ -17,6 +17,7 @@ import {
   BUBBLES,
   BUBBLE_SPACING,
   droneGeometry,
+  beholderGeometry,
   archerGeometry,
   bowGeometry,
 } from './geometry/mobs.js';
@@ -107,6 +108,10 @@ export const propsMethods = {
       const geometry = droneGeometry(beamColors[level.world.drones[i].color]);
       append('drone', i, geometry.mesh);
       crystals.push(geometry.crystal);
+    }
+    if (level.world.beholders?.length) {
+      const beholder = beholderGeometry();
+      for (let i = 0; i < level.world.beholders.length; i++) append('beholder', i, beholder);
     }
     const shield = shieldGeometry(),
       heldShield = shield.slice();
@@ -244,6 +249,7 @@ export const propsMethods = {
       level.world.spikes.length,
       level.plates.length,
       level.world.archers.length,
+      (level.world.beholders || []).length,
       level.world.pickups.length,
       (level.world.drones || []).map((d) => d.color).join('.'),
     ].join(',');
@@ -288,13 +294,15 @@ export const propsMethods = {
                 ? layout.pickups + i
                 : piece.kind.startsWith('archer') || piece.kind === 'nockedArrow'
                   ? layout.archers + i
-                  : piece.kind === 'drone' || piece.kind === 'droneCrystal'
-                    ? layout.drones + i
-                    : piece.kind === 'lift'
-                      ? layout.lifts + i
-                      : piece.kind === 'spikes'
-                        ? layout.spikes + i
-                        : null,
+                  : piece.kind === 'beholder'
+                    ? layout.beholders + i
+                    : piece.kind === 'drone' || piece.kind === 'droneCrystal'
+                      ? layout.drones + i
+                      : piece.kind === 'lift'
+                        ? layout.lifts + i
+                        : piece.kind === 'spikes'
+                          ? layout.spikes + i
+                          : null,
         // Jellies and their gear grow in place (summoning, portal and respawn warps).
         warp =
           piece.kind === 'jelly' ||
@@ -358,6 +366,14 @@ export const propsMethods = {
           level.world.droneOrigin(level.world.drones[i]);
         const spin = level.reducedMotion ? 0 : time * 0.35;
         matrix = [Math.cos(spin), 0, Math.sin(spin), 0, 1, 0, -Math.sin(spin), 0, Math.cos(spin)];
+      } else if (piece.kind === 'beholder') {
+        const b = level.world.beholders[i],
+          dx = b.dx ?? 0,
+          dz = b.dz ?? 1;
+        x = b.x;
+        y = (b.y ?? level.world.heightAt(b.x, b.z) ?? 0) + 0.58;
+        z = b.z;
+        matrix = [dz, 0, dx, 0, 1, 0, -dx, 0, dz];
       } else if (piece.kind === 'crate') {
         const p = level.crates[i];
         if (p.state === 'dead') continue;

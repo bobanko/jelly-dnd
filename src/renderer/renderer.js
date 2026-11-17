@@ -394,7 +394,7 @@ class Renderer {
         ],
       },
     ]);
-    this.beamData = new Float32Array(16 * 12);
+    this.beamData = new Float32Array(24 * 12);
     this.beamBuffer = d.createBuffer({
       size: this.beamData.byteLength,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,

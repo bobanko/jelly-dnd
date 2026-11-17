@@ -39,6 +39,7 @@ function geometry(definition) {
     'spikes',
     'torches',
     'drones',
+    'beholders',
     'lifts',
   ])
     for (const p of definition[key] || []) {

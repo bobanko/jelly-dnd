@@ -125,7 +125,7 @@ export const shared = `
   let stroke=1.-smoothstep(.022-aa,.022+aa,distance);let glow=exp(-distance*35.)*.22;
   return vec4f(o.color,(stroke*.85+glow)*o.local.z);
  }
- struct BeamOut { @builtin(position) clip:vec4f, @location(0) uv:vec2f, @location(1) tint:vec4f, @location(2) @interpolate(flat) beamLength:f32, @location(3) @interpolate(flat) impact:f32, @location(4) @interpolate(flat) tip:f32 };
+ struct BeamOut { @builtin(position) clip:vec4f, @location(0) uv:vec2f, @location(1) tint:vec4f, @location(2) @interpolate(flat) beamLength:f32, @location(3) @interpolate(flat) impact:f32, @location(4) @interpolate(flat) tip:f32, @location(5) @interpolate(flat) dashed:f32 };
  @vertex fn beamVS(@builtin(vertex_index) vertex:u32,@location(4) start:vec4f,@location(5) end:vec4f,@location(6) tint:vec4f)->BeamOut{
   let corners=array<vec2f,6>(vec2f(-1,-1),vec2f(1,-1),vec2f(1,1),vec2f(-1,-1),vec2f(1,1),vec2f(-1,1));let p=corners[vertex%6u];
   let direction=normalize(end.xyz-start.xyz);let view=normalize(scene.eye.xyz-(start.xyz+end.xyz)*.5);let side=cross(direction,view);
@@ -140,21 +140,29 @@ export const shared = `
    let towardEye=normalize(scene.eye.xyz-end.xyz);
    world=end.xyz-direction*.025+towardEye*.045+(cameraRight*p.x+cameraUp*p.y)*.2;o.uv=p;o.tip=1.;
   }
-  o.clip=scene.vp*vec4f(world,1.);o.tint=tint;o.beamLength=beamLength;o.impact=end.w;return o;
+  o.clip=scene.vp*vec4f(world,1.);o.tint=tint;o.beamLength=beamLength;o.impact=end.w;o.dashed=start.w;return o;
  }
  fn arcNoise(x:f32,seed:f32)->f32{
   let cell=floor(x);let a=fract(sin(cell*127.1+seed*311.7)*43758.5453)*2.-1.;let b=fract(sin((cell+1.)*127.1+seed*311.7)*43758.5453)*2.-1.;
   return mix(a,b,fract(x));
  }
  @fragment fn beamFS(o:BeamOut)->@location(0) vec4f{
-  let uv=o.uv;let time=scene.options.z;let along=uv.y;let progress=clamp(along/o.beamLength,0.,1.);let envelope=sin(progress*3.14159265);
+  let uv=o.uv;let time=scene.options.z;let beamAA=fwidth(uv.x);
+  if(o.dashed>.5){
+   let along=uv.y;
+   let dash=1.-smoothstep(.11,.15,abs(fract((along-time*.32)/.38)-.5)*.38);
+   let core=exp(-pow(uv.x/.07,2.));let glow=exp(-pow(uv.x/.2,2.));
+   let ends=smoothstep(0.,.025,along)*(1.-smoothstep(o.beamLength-.025,o.beamLength,along));
+   return vec4f(o.tint.rgb*1.8,(core*.85+glow*.12)*dash*ends*o.tint.w*(1.-o.tip));
+  }
+  let along=uv.y;let progress=clamp(along/o.beamLength,0.,1.);let envelope=sin(progress*3.14159265);
   // Piecewise linear noise forms travelling lightning kinks. Both endpoints
   // stay attached to the emitter and the raycast hit, even on short beams.
   let epoch=floor(time*11.);let blend=smoothstep(0.,1.,fract(time*11.));
   let arc=mix(arcNoise(along*5.5,epoch),arcNoise(along*5.5,epoch+1.),blend)*.34*envelope;
   let branch=arc+arcNoise(along*9.-time*3.,19.)*.42*envelope;
-  let distance=abs(uv.x-arc);let width=max(.08,fwidth(uv.x)*.7);let core=exp(-pow(distance/width,2.));
-  let glow=exp(-pow(distance/.36,2.));let filament=exp(-pow((uv.x-branch)/max(.018,fwidth(uv.x)*.5),2.));
+  let distance=abs(uv.x-arc);let width=max(.08,beamAA*.7);let core=exp(-pow(distance/width,2.));
+  let glow=exp(-pow(distance/.36,2.));let filament=exp(-pow((uv.x-branch)/max(.018,beamAA*.5),2.));
   let flow=.88+.12*sin(along*24.-time*17.);
   let endFade=1.-smoothstep(o.beamLength-min(.1,o.beamLength*.35),o.beamLength+.005,along);
   let startFade=smoothstep(-.025,min(.045,o.beamLength*.35),along);

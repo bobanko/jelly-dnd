@@ -1,5 +1,6 @@
 import { install as installFeatures } from './level-features.js';
 import { install as installCombat } from './combat.js';
+import { install as installBeholders } from './beholders.js';
 import * as DMath from './det-math.js';
 // Fixed-step movement, collisions, gravity and independent fall/death/respawn lifecycles.
 // Rendering is independent: jelly deformation never changes the collision shape.
@@ -31,6 +32,8 @@ class World {
     this.archers = [];
     this.arrows = [];
     this.pickups = [];
+    this.beholders = [];
+    this.beholderBeams = [];
     this.drones = [];
     this.droneBeams = [];
   }
@@ -277,4 +280,5 @@ class World {
 }
 installFeatures(World);
 installCombat(World);
+installBeholders(World);
 export { World, HALF, SIZE, STEP, SPEED, GRAVITY, DEATH_HEIGHT, RESPAWN_DELAY, SKY_MARGIN, alive };

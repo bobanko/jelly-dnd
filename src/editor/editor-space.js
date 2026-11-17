@@ -127,16 +127,16 @@ function boxes(map, { droneOrigin = Levels.droneOrigin } = {}) {
       max: center.map((v, k) => v + half[k]),
     });
   }
-  for (const key of ['spawns', 'crates', 'archers'])
+  for (const key of ['spawns', 'crates', 'archers', 'beholders'])
     for (const [pickIndex, p] of map[key].entries())
       if (p) {
         const y = p.y ?? heights.get(`${p.x},${p.z}`) ?? 0;
         add(
           { ...p, y, pickIndex },
           key,
-          key === 'archers' ? 0.26 : p.large ? 0.48 : 0.4,
+          key === 'beholders' ? 0.6 : key === 'archers' ? 0.26 : p.large ? 0.48 : 0.4,
           y,
-          y + (key === 'archers' ? 1.2 : p.large ? 0.98 : 0.84),
+          y + (key === 'beholders' ? 1.2 : key === 'archers' ? 1.2 : p.large ? 0.98 : 0.84),
         );
       }
   for (const key of ['goals', 'plates', 'bridges', 'lifts', 'portals', 'conveyors', 'pickups'])

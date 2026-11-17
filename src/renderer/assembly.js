@@ -63,6 +63,7 @@ export function landingLayout(level, playerCount) {
     ['pickups', level.world.pickups.length],
     ['archers', level.world.archers.length],
     ['drones', (level.world.drones || []).length],
+    ['beholders', (level.world.beholders || []).length],
   ]) {
     layout[kind] = slot;
     slot += count;

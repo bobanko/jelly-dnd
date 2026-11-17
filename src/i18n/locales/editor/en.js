@@ -1,4 +1,11 @@
 export default {
+  'Бехольдер {x}, {z} находится внутри камня.': 'Beholder {x}, {z} is inside stone.',
+  Бехольдер: 'Beholder',
+  'Направление взгляда': 'Gaze direction',
+  'Активирует группу, пока живая желейка пересекает луч. Стены и ящики перекрывают взгляд.':
+    'Activates its group while a living jelly crosses the beam. Walls and crates block sight.',
+  'Бехольдер должен смотреть вдоль сетки.': 'The beholder must face along the grid.',
+  'Идентификаторы триггеров должны быть уникальными.': 'Trigger IDs must be unique.',
   'Двигаться по осям': 'Follow axes',
   'Следовать по X': 'Follow X',
   'Следовать по Y': 'Follow Y',

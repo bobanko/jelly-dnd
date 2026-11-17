@@ -71,6 +71,7 @@ class System {
     this.chunks = [];
     this.lasers = [];
     this.laserTimers = new Map();
+    this.beholderActive = [];
     this.runeTimers = [];
     this.runeActive = [];
     // Per-player materialisation: hidden for `delay`, then grows from a point (visual only).
@@ -104,6 +105,7 @@ class System {
     this.chunks.length = 0;
     this.lasers.length = 0;
     this.laserTimers.clear();
+    this.beholderActive = [];
     this.runeTimers = [];
     this.runeActive = [];
   }
@@ -134,6 +136,33 @@ class System {
       });
     }
     this.particles = this.particles.slice(-MAX_PARTICLES);
+  }
+  stepBeholderAlerts(world) {
+    const beams = world.beholderBeams || [];
+    for (const beam of beams) {
+      const i = beam.beholder;
+      if (beam.detected && !this.beholderActive[i]) {
+        const b = world.beholders[i],
+          y = (b.y ?? world.heightAt(b.x, b.z) ?? 0) + 1.25;
+        for (let j = 0; j < (this.reducedMotion ? 1 : 3); j++) {
+          const a = (j * Math.PI * 2) / 3;
+          this.particles.push({
+            kind: 'alert',
+            position: [b.x + Math.cos(a) * 0.18, y + j * 0.06, b.z + Math.sin(a) * 0.18],
+            velocity: this.reducedMotion
+              ? [0, 0.15, 0]
+              : [Math.cos(a) * 0.22, 0.65 + j * 0.12, Math.sin(a) * 0.22],
+            size: 0.14,
+            color: [1, 0.52, 0.12],
+            age: 0,
+            life: 0.85,
+          });
+        }
+        this.particles = this.particles.slice(-MAX_PARTICLES);
+      }
+      this.beholderActive[i] = beam.detected;
+    }
+    this.beholderActive.length = world.beholders?.length || 0;
   }
   stepLaserImpacts(dt, world, players) {
     const active = new Set(),
@@ -932,6 +961,7 @@ class System {
     this.particles = this.particles.filter((p) => p.age < p.life);
     this.stepChunks(dt, world, players);
     this.stepLaserImpacts(dt, world, players);
+    this.stepBeholderAlerts(world);
     for (const ring of this.rings) ring.age += dt;
     this.rings = this.rings.filter((r) => r.age < r.life);
     // These fragments follow the gameplay resurrection clock, including after undo.

@@ -71,6 +71,25 @@ export const effectsMethods = {
           const length = Math.hypot(mesh[k + 3], mesh[k + 4], mesh[k + 5]) || 1;
           for (let axis = 3; axis < 6; axis++) mesh[k + axis] /= length;
         }
+      } else if (item.kind === 'alert') {
+        // A solid 3D exclamation mark remains readable from every camera direction.
+        const size = item.size * (0.7 + fade * 0.3),
+          [x, y, z] = item.position;
+        box(
+          mesh,
+          [x, y + size * 0.65, z],
+          [size * 0.4, size * 1.5, size * 0.4],
+          item.color,
+          size * 0.08,
+          7,
+        );
+        sphere(
+          mesh,
+          [x, y - size * 0.55, z],
+          [size * 0.25, size * 0.25, size * 0.25],
+          item.color,
+          7,
+        );
       } else if (item.kind === 'spark') {
         rod(
           mesh,
@@ -275,18 +294,22 @@ export const effectsMethods = {
     this.runeCount = count;
   },
   updateBeams(level) {
-    const beams = [...(level.world.droneBeams || []), ...(level.effects?.lasers || [])]
+    const beams = [
+      ...(level.world.droneBeams || []),
+      ...(level.effects?.lasers || []),
+      ...(level.world.beholderBeams || []),
+    ]
       .filter((b) => Math.hypot(...b.to.map((v, k) => v - b.from[k])) > 0.001)
-      .slice(0, 16);
+      .slice(0, 24);
     this.beamCount = beams.length;
     beams.forEach((b, i) => {
       const k = i * 12;
       this.beamData.set(
         [
           ...b.from,
-          0,
+          b.dashed ? 1 : 0,
           ...b.to,
-          b.impact ? 1 : 0,
+          b.dashed ? 0 : b.impact ? 1 : 0,
           ...beamColors[b.color],
           b.life ? Math.max(0, 1 - b.age / b.life) : 1,
         ],

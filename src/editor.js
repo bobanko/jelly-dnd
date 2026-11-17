@@ -72,6 +72,7 @@ const groups = [
       ['crate-large', '⧈', 'Большой ящик', '#a98552'],
       ['barrel', '◍', 'Бочка', '#c07a3c'],
       ['archer', '☠', 'Лучник', '#ded3b2'],
+      ['beholder', '◉', 'Бехольдер', '#e78b73'],
       ['drone', '♜', 'Кристаллический дрон', '#c98cff'],
       ['shield', '◈', 'Щит', '#cba778'],
       ['sword', '⚔', 'Меч', '#c2ced0'],
@@ -97,10 +98,11 @@ const plateGroupNames = {
   amber: 'Золотая',
   dark: 'Каменная',
 };
-const plateGroup = (value) => model.map.plates.find((p) => p.id === value)?.color || value;
+const triggerSources = () => [...model.map.plates, ...model.map.beholders];
+const plateGroup = (value) => triggerSources().find((p) => p.id === value)?.color || value;
 const plateGroupValue = plateGroup;
 const plateGroupOptions = () =>
-  model.map.plates
+  triggerSources()
     .filter((p, i, all) => all.findIndex((q) => q.color === p.color) === i)
     .map((p) => [p.color, plateGroupNames[p.color] || p.color]);
 const cubeTool = (value) =>
@@ -116,6 +118,7 @@ const labels = {
   grates: 'Решётка',
   torches: 'Настенный факел',
   drones: 'Кристаллический дрон',
+  beholders: 'Бехольдер',
   spawns: 'Спавн',
   goals: 'Финиш',
   plates: 'Кнопка',
@@ -188,6 +191,9 @@ function toolIcon(id, glyph) {
   const cube =
     '<path d="M16 3 29 10 16 17 3 10Z" fill="currentColor" fill-opacity=".55"/><path d="M3 10v14l13 7V17Z" fill="currentColor" fill-opacity=".3"/><path d="m16 17 13-7v14l-13 7Z" fill="currentColor" fill-opacity=".18"/><path d="m16 3 13 7v14l-13 7-13-7V10Zm0 14v14M3 10l13 7 13-7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>';
   let drawing = '';
+  if (id === 'beholder')
+    drawing =
+      '<path d="m9 12-4-5m11 4V3m7 9 4-5M7 20H2m23 0h5m-19 6-5 4m15-4 5 4" fill="none" stroke="#9c766a" stroke-width="2.5"/><g fill="#e76c4d" stroke="#5d4140"><circle cx="5" cy="6" r="2.7"/><circle cx="16" cy="3" r="2.7"/><circle cx="27" cy="6" r="2.7"/></g><path d="m7 13 8-4 9 4 3 9-7 7H11l-6-7Z" fill="#826258" stroke="#c7a38b"/><path d="M8 20q8-11 16 0-8 11-16 0Z" fill="#ff6341" stroke="#3c292c" stroke-width="2"/><path d="m16 14-2 6 2 6 2-6Z" fill="#231d25"/>';
   if (id === 'grate')
     drawing =
       '<path d="M3 3h26v4H3ZM3 27h26v4H3Z" fill="currentColor"/><path d="M7 7v20m6-20v20m6-20v20m6-20v20" stroke="currentColor" stroke-width="2.5"/><path d="M5 5h1m20 0h1M5 29h1m20 0h1" stroke="#c6a575" stroke-width="2"/>';
@@ -545,6 +551,7 @@ function objectTool(key, index, p) {
     grates: 'grate',
     torches: 'torch',
     drones: 'drone',
+    beholders: 'beholder',
     plates: 'plate',
     bridges: 'bridge',
     lifts: 'lift',
@@ -562,6 +569,7 @@ function cellObjects(x, z, y) {
     'grates',
     'torches',
     'drones',
+    'beholders',
     'spawns',
     'goals',
     'plates',
@@ -970,7 +978,33 @@ function renderProperties() {
           },
         );
     }
-    if (key === 'plates') {
+    if (key === 'beholders') {
+      directionRadios(
+        card,
+        'Направление взгляда',
+        `${p.dx},${p.dz}`,
+        'gaze-' + card.dataset.object,
+        (v) =>
+          edit((map) => {
+            const [dx, dz] = v.split(',').map(Number);
+            Object.assign(map.beholders[index], { dx, dz });
+          }),
+        [
+          ['0,-1', '↑', 'Север'],
+          ['1,0', '→', 'Восток'],
+          ['0,1', '↓', 'Юг'],
+          ['-1,0', '←', 'Запад'],
+        ],
+      );
+      card.append(
+        element(
+          'p',
+          'Активирует группу, пока живая желейка пересекает луч. Стены и ящики перекрывают взгляд.',
+          'empty-state',
+        ),
+      );
+    }
+    if (key === 'plates' || key === 'beholders') {
       colorRadios(
         card,
         'Цвет',
@@ -1006,12 +1040,20 @@ function renderProperties() {
           }),
         'bridge-color-' + card.dataset.object,
       );
-      field(
+      colorRadios(
         card,
         'Группа кнопок',
-        plateGroupValue(p.plate),
-        { values: [['', 'Не выбрана'], ...plateGroupOptions()] },
+        plateGroupValue(p.plate) || '',
+        [
+          ['', 'Не выбрана', '#777e78'],
+          ...plateGroupOptions().map(([v, name]) => [
+            v,
+            name,
+            L.portalColor(v)?.color || '#777e78',
+          ]),
+        ],
         (v) => set('plate', v),
+        'trigger-' + card.dataset.object,
       );
     }
     if (key === 'lifts') {
@@ -1075,7 +1117,7 @@ function renderProperties() {
         [
           ['', 'Без кнопки', '#d4dbe5'],
           ...plateGroupOptions().map(([value, name]) => [value, name, triggerColors[value]]),
-          ...(p.plate && !model.map.plates.some((b) => b.id === p.plate || b.color === p.plate)
+          ...(p.plate && !triggerSources().some((b) => b.id === p.plate || b.color === p.plate)
             ? [[p.plate, 'Кнопка удалена', '#777e78']]
             : []),
         ],
@@ -1887,7 +1929,7 @@ function drawSpatialOverlay() {
       }
     };
     for (const b of [...model.map.bridges, ...model.map.spikes])
-      for (const p of model.map.plates.filter((p) => b.plate && p.color === plateGroup(b.plate)))
+      for (const p of triggerSources().filter((p) => b.plate && p.color === plateGroup(b.plate)))
         line(p, b, '#d4e9a88a');
     for (const color of L.portalColors) {
       const chain = model.map.portals.filter((p) => p.color === color.id);
@@ -2119,6 +2161,8 @@ function previewTick(t) {
   fpsLast = t;
   if (previewDirty) rebuildPreview();
   previewRuntime.world.featureTime += dt;
+  previewRuntime.world.beholderBeams = previewRuntime.world.traceBeholders(previewRuntime.bodies);
+  previewRuntime.effects.step(dt, previewRuntime.world, [], previewRuntime.players);
   previewRuntime.world.stepSpikes(previewRuntime.bodies, dt);
   // The editor's single toggle shows both the masonry and the object colliders.
   previewRenderer.colliders = previewRenderer.objectColliders = $('preview-colliders').checked;

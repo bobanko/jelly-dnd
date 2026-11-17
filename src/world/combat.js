@@ -533,4 +533,4 @@ function install(World) {
     },
   });
 }
-export { install, facing, segmentBox };
+export { install, facing, segmentBox, bodyBox };

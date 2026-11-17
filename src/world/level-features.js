@@ -429,10 +429,13 @@ function install(World) {
         : this.obstacles;
     },
     active(i, bodies) {
-      const plate = this.plates[i];
+      const sources = [...this.plates, ...this.beholders],
+        plate = sources[i];
       if (!plate) return false;
-      return this.plates.some((candidate) => {
+      return sources.some((candidate) => {
         if (candidate !== plate && (!plate.color || candidate.color !== plate.color)) return false;
+        if (this.beholders.includes(candidate))
+          return this.beholderSight(candidate, bodies).detected;
         const height = candidate.y ?? this.heightAt(candidate.x, candidate.z) ?? 0;
         return bodies.some(
           (p) => alive(p) && Math.abs((p.y || 0) - height) < 0.15 && near(p, candidate, 0.42),
@@ -658,6 +661,7 @@ function install(World) {
         ),
       );
       this.restoreCombat(snapshot?.combat);
+      this.beholderBeams = [];
       this._collisionCache = null;
     },
     resetFeatures() {
@@ -667,7 +671,9 @@ function install(World) {
       for (const spike of this.spikes) {
         if (!spike.plate) continue;
         spike.target = this.active(
-          this.plates.findIndex((p) => p.id === spike.plate || p.color === spike.plate),
+          [...this.plates, ...this.beholders].findIndex(
+            (p) => p.id === spike.plate || p.color === spike.plate,
+          ),
           bodies,
         )
           ? 1
@@ -681,6 +687,7 @@ function install(World) {
     beforeFeatures(players, soft, dt) {
       this.featureTime = (this.featureTime || 0) + dt;
       this._collisionCache = null;
+      this.beholderBeams = this.traceBeholders(players);
       this.refresh(players);
       this.stepSpikes(players, dt);
       for (let i = 0; i < this.bridges.length; i++) {

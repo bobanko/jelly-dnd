@@ -1,5 +1,5 @@
 import { cross, normalize } from '../math.js';
-import { box, sphere, rod } from '../mesh.js';
+import { box, sphere, rod, lowSphere } from '../mesh.js';
 import { pressureSurface } from './mechanisms.js';
 import { skullGeometry, placeMesh } from './skull.js';
 export const beamColors = [
@@ -12,6 +12,55 @@ export const beamColors = [
 // Bubbles rise through a .51-unit column inside each jelly and wrap around.
 export const BUBBLES = 7,
   BUBBLE_SPACING = 0.51 / BUBBLES;
+// One classic guardian, facing local +Z. The body reuses the stone atlas;
+// the eye and stalks use the existing glossy and emissive materials.
+export function beholderGeometry() {
+  const mesh = [],
+    hide = [0.32, 0.19, 0.16],
+    dark = [0.055, 0.026, 0.032],
+    eye = [0.95, 0.12, 0.045];
+  sphere(mesh, [0, 0, 0], [0.35, 0.34, 0.31], hide, 14, null, lowSphere);
+  // Flat triangle normals make the silhouette read like the faceted concept art.
+  for (let i = 0; i < mesh.length; i += 36) {
+    const a = mesh.slice(i, i + 3),
+      b = mesh.slice(i + 12, i + 15),
+      c = mesh.slice(i + 24, i + 27),
+      n = normalize(
+        cross(
+          b.map((v, k) => v - a[k]),
+          c.map((v, k) => v - a[k]),
+        ),
+      );
+    for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) mesh[i + j * 12 + 3 + k] = n[k];
+  }
+  const eyeball = (p, r) => {
+    sphere(mesh, p, [r, r * 0.92, r * 0.68], dark, 1, null, lowSphere);
+    sphere(mesh, [p[0], p[1], p[2] + r * 0.37], [r * 0.8, r * 0.72, r * 0.42], eye, 4);
+    sphere(mesh, [p[0], p[1], p[2] + r * 0.76], [r * 0.13, r * 0.68, r * 0.09], dark);
+    sphere(
+      mesh,
+      [p[0] - r * 0.23, p[1] + r * 0.28, p[2] + r * 0.74],
+      [r * 0.12, r * 0.12, r * 0.05],
+      [1, 0.74, 0.44],
+      4,
+    );
+  };
+  for (const degrees of [0, 45, 90, 135, 180, 225, 315]) {
+    const a = (degrees * Math.PI) / 180,
+      start = [Math.cos(a) * 0.27, Math.sin(a) * 0.27, 0],
+      joint = [Math.cos(a + 0.12) * 0.41, Math.sin(a + 0.12) * 0.41, 0.015],
+      tip = [Math.cos(a) * 0.51, Math.sin(a) * 0.51, 0.08];
+    rod(mesh, start, joint, 0.052, hide, 14);
+    rod(mesh, joint, tip, 0.043, hide, 14);
+    sphere(mesh, tip, [0.086, 0.086, 0.08], hide, 14, null, lowSphere);
+    eyeball([tip[0], tip[1], tip[2] + 0.05], 0.058);
+  }
+  eyeball([0, 0, 0.255], 0.225);
+  // A heavy angular brow frames the large slit eye.
+  rod(mesh, [-0.23, 0.07, 0.29], [0, 0.21, 0.295], 0.055, hide, 14);
+  rod(mesh, [0, 0.21, 0.295], [0.23, 0.07, 0.29], 0.055, hide, 14);
+  return mesh;
+}
 export function droneGeometry(color) {
   const mesh = [],
     crystal = [],

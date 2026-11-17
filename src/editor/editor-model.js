@@ -54,7 +54,9 @@ export class Model {
     });
   }
   id(prefix) {
-    const used = new Set([...this.map.plates, ...this.map.pickups].map((p) => p.id));
+    const used = new Set(
+      [...this.map.plates, ...this.map.beholders, ...this.map.pickups].map((p) => p.id),
+    );
     let n = 1;
     while (used.has(`${prefix}-${n}`)) n++;
     return `${prefix}-${n}`;
@@ -148,6 +150,21 @@ export class Model {
       this.map.drones.push({ x, y, z, color: 3, target: -1, hover: 0 });
       return;
     }
+    if (tool === 'beholder') {
+      if (this.at('beholders', x, z, y)) return;
+      if (this.map.beholders.length >= levelFormat.limits.beholders)
+        throw new Error('Достигнут лимит объектов.');
+      this.map.beholders.push({
+        x,
+        y,
+        z,
+        id: this.id('beholder'),
+        color: options.color || 'red',
+        dx: 0,
+        dz: 1,
+      });
+      return;
+    }
     if (tool === 'torch') {
       const face = options.face || 'south';
       if (!Object.hasOwn(levelFormat.wallFaces, face))
@@ -231,7 +248,12 @@ export class Model {
       });
     if (key === 'bridges')
       Object.assign(p, {
-        plate: existing?.plate || options.plate || this.map.plates[0]?.id || '',
+        plate:
+          existing?.plate ||
+          options.plate ||
+          this.map.plates[0]?.id ||
+          this.map.beholders[0]?.id ||
+          '',
         ...(Number.isInteger(options.color)
           ? { color: options.color }
           : Number.isInteger(existing?.color)
@@ -274,7 +296,7 @@ export class Model {
   }
   paint(tool, x, z, options = {}) {
     if (!Number.isSafeInteger(x) || !Number.isSafeInteger(z) || tool === 'select') return;
-    if (tool === 'torch' || tool === 'drone' || tool === 'grate') {
+    if (tool === 'torch' || tool === 'drone' || tool === 'beholder' || tool === 'grate') {
       this.paintVoxel(tool, x, options.y ?? options.height ?? 0, z, options);
       return;
     }
@@ -357,7 +379,7 @@ export class Model {
     if (key === 'plates') Object.assign(p, { id: this.id('plate'), color: options.color || 'red' });
     if (key === 'bridges')
       Object.assign(p, {
-        plate: options.plate || this.map.plates[0]?.id || '',
+        plate: options.plate || this.map.plates[0]?.id || this.map.beholders[0]?.id || '',
         y: floor.height,
         ...(Number.isInteger(options.color) ? { color: options.color } : {}),
       });
@@ -407,7 +429,7 @@ export class Model {
   move(key, index, x, z, height = 0) {
     return this.change((map) => {
       const p = map[key][index],
-        voxel = key === 'blocks' || p.y !== undefined;
+        voxel = key === 'blocks' || key === 'beholders' || p.y !== undefined;
       if (
         this.map[key].some(
           (q, j) =>
@@ -432,7 +454,7 @@ export class Model {
           this.layer(height);
           if (!Number.isInteger(height)) throw new Error('Y должен быть целым.');
         } else if (key === 'bridges' || key === 'lifts') this.layer(height);
-        else if (key !== 'drones') this.cube(x, height, z);
+        else if (key !== 'drones' && key !== 'beholders') this.cube(x, height, z);
         const delta = height - (p.y || 0);
         Object.assign(p, { x, y: height, z });
         if (key === 'walls') p.base += delta;

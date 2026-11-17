@@ -29,6 +29,7 @@ const limits = {
   grates: 256,
   torches: 8,
   drones: 8,
+  beholders: 8,
   plates: 16,
   bridges: 16,
   lifts: 16,
@@ -71,6 +72,7 @@ function blank() {
     grates: [],
     torches: [],
     drones: [],
+    beholders: [],
     spawns: characters.map(() => null),
     goals: characters.map(() => null),
     plates: [],
@@ -113,6 +115,7 @@ function voxelize(input) {
     'archers',
     'pickups',
     'drones',
+    'beholders',
   ])
     for (const p of map[key]) if (p) p.y ??= surfaceY(map, p.x, p.z) ?? 0;
   for (const p of map.lifts) p.y = p.base;
@@ -343,6 +346,23 @@ function read(input) {
   }));
   if (new Set(map.plates.map((p) => p.id)).size !== map.plates.length)
     fail('Идентификаторы кнопок должны быть уникальными.');
+  list('beholders', (p, i) => {
+    const dx = number(p.dx, 0, -1, 1),
+      dz = number(p.dz, 1, -1, 1);
+    if (!Number.isInteger(dx) || !Number.isInteger(dz) || Math.abs(dx) + Math.abs(dz) !== 1)
+      fail('Бехольдер должен смотреть вдоль сетки.');
+    return {
+      id: id(p.id, `beholder-${i + 1}`),
+      color: ['green', 'blue', 'red', 'violet', 'amber', 'dark'].includes(p.color)
+        ? p.color
+        : 'red',
+      dx,
+      dz,
+    };
+  });
+  const triggers = [...map.plates, ...(map.beholders || [])];
+  if (new Set(triggers.map((p) => p.id)).size !== triggers.length)
+    fail('Идентификаторы триггеров должны быть уникальными.');
   list('bridges', (p) => {
     const color =
         Number.isInteger(p.color) && p.color >= 0 && p.color < characters.length ? p.color : null,
@@ -484,6 +504,7 @@ function issues(map) {
         ) ||
         at(map.portals, p) ||
         at(map.archers, p) ||
+        at(map.beholders || [], p) ||
         (key === 'spawns' && at(map.crates, p))
       )
         result.push(`${label} перекрыт другим объектом.`);
@@ -510,10 +531,19 @@ function issues(map) {
     if (count === 1) result.push(`${color.name} портал: нужно минимум два одного цвета.`);
   }
   for (const b of map.bridges)
-    if (!map.plates.some((p) => p.id === b.plate || p.color === b.plate))
+    if (
+      ![...map.plates, ...(map.beholders || [])].some(
+        (p) => p.id === b.plate || p.color === b.plate,
+      )
+    )
       result.push(`Мост ${b.x}, ${b.z} не привязан к кнопке.`);
   for (const s of map.spikes)
-    if (s.plate && !map.plates.some((p) => p.id === s.plate || p.color === s.plate))
+    if (
+      s.plate &&
+      ![...map.plates, ...(map.beholders || [])].some(
+        (p) => p.id === s.plate || p.color === s.plate,
+      )
+    )
       result.push(`Шипы ${s.x}, ${s.z}: связанная кнопка не найдена.`);
   for (const l of map.lifts)
     if (l.top <= l.base) result.push(`Верх лифта ${l.x}, ${l.z} должен быть выше основания.`);
@@ -528,7 +558,7 @@ function issues(map) {
     'pickups',
   ];
   for (const key of [...features, 'bridges'])
-    for (const p of map[key]) {
+    for (const p of map[key] || []) {
       if (key === 'spikes' && p.face) {
         if (!map.blocks.some((b) => b.x === p.x && b.z === p.z && b.y === p.y))
           result.push(`Настенным шипам ${p.x}, ${p.y}, ${p.z} нужен блок крепления.`);
@@ -544,14 +574,15 @@ function issues(map) {
     if (
       features.some(
         (key) =>
-          key !== 'lifts' && at(key === 'spikes' ? map[key].filter((s) => !s.face) : map[key], p),
+          key !== 'lifts' &&
+          at(key === 'spikes' ? map[key].filter((s) => !s.face) : map[key] || [], p),
       )
     )
       result.push(`Лифт ${p.x}, ${p.z} перекрыт другим объектом.`);
   for (const p of map.conveyors)
     if (
       ['plates', 'spikes', 'portals'].some((key) =>
-        at(key === 'spikes' ? map[key].filter((s) => !s.face) : map[key], p),
+        at(key === 'spikes' ? map[key].filter((s) => !s.face) : map[key] || [], p),
       )
     )
       result.push(`Конвейер ${p.x}, ${p.z} перекрыт другим механизмом.`);
@@ -563,6 +594,16 @@ function issues(map) {
       )
     )
       result.push(`Факелу ${p.x}, ${p.y}, ${p.z} нужен каменный блок крепления.`);
+  for (const p of map.beholders || []) {
+    const y = p.y ?? surfaceY(map, p.x, p.z) ?? 0;
+    if (
+      map.blocks.some((b) => b.x === p.x && b.z === p.z && b.y > y + 0.05 && b.y - 1 < y + 1.18) ||
+      map.walls.some(
+        (w) => w.x === p.x && w.z === p.z && w.base < y + 1.18 && w.base + w.height > y + 0.05,
+      )
+    )
+      result.push(`Бехольдер ${p.x}, ${p.z} находится внутри камня.`);
+  }
   for (const p of map.drones || []) {
     if (p.target >= 0 && !map.spawns[p.target])
       result.push(`Дрон ${p.x}, ${p.z}: выбранная цель не участвует в уровне.`);
@@ -580,9 +621,11 @@ function issues(map) {
 function instantiate(map, Physics, Soft) {
   const floor = new Set(map.tiles.map((p) => `${p.x},${p.z}`)),
     plates = copy(map.plates),
+    beholders = copy(map.beholders || []),
+    triggers = [...plates, ...beholders],
     bridges = map.bridges.map((p) => ({
       ...p,
-      plate: plates.findIndex((q) => q.id === p.plate || q.color === p.plate),
+      plate: triggers.findIndex((q) => q.id === p.plate || q.color === p.plate),
     }));
   const world = new Physics.World(
     floor,
@@ -596,6 +639,8 @@ function instantiate(map, Physics, Soft) {
       height: p.base + p.height,
     })),
   );
+  world.size = map.size;
+  world.beholders = beholders;
   world.grates = copy(map.grates || []);
   world.torches = copy(map.torches || []);
   world.drones = copy(map.drones || []);
