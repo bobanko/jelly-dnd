@@ -58,7 +58,7 @@ function geometry(definition) {
         p.base ?? floor,
         key === 'lifts'
           ? (p.top ?? floor) + 0.2
-          : floor + (p.hover ?? 0) + (key === 'archers' ? 1.7 : 1.15),
+          : floor + (p.hover ?? 0) + (key === 'archers' ? 1.7 : key === 'beholders' ? 1.4 : 1.15),
         0.75,
       );
     }

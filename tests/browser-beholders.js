@@ -74,6 +74,28 @@ try {
     changed();
   });
   await page.waitForFunction(() => !previewDirty && previewRenderer.beamCount === 2);
+  const idle = await page.evaluate(() => {
+    const i = previewRenderer.propPieces.findIndex((p) => p.kind === 'beholder' && p.index === 0);
+    return { y: previewRenderer.propInstances[i * 20 + 1], time: previewRuntime.world.featureTime };
+  });
+  await page.waitForFunction((idle) => {
+    const i = previewRenderer.propPieces.findIndex((p) => p.kind === 'beholder' && p.index === 0);
+    return (
+      previewRuntime.world.featureTime > idle.time + 0.5 &&
+      Math.abs(previewRenderer.propInstances[i * 20 + 1] - idle.y) > 0.005
+    );
+  }, idle);
+  assert.ok(
+    await page.evaluate(() => {
+      const i = previewRenderer.propPieces.findIndex((p) => p.kind === 'beholder' && p.index === 0),
+        y = previewRenderer.propInstances[i * 20 + 1];
+      return (
+        Math.abs(y - previewRuntime.world.beholderBeams[0].from[1]) < 1e-6 &&
+        previewRenderer.propInstances[i * 20 + 19] === 2
+      );
+    }),
+    'editor hover, model and sight line stay aligned',
+  );
   await page.screenshot({ path: 'artifacts/beholder-editor.png' });
   await page.evaluate(() => {
     const p = previewRuntime.players[0];
@@ -98,6 +120,17 @@ try {
   });
   await page.waitForFunction(() => world.beholderBeams[0]?.detected && world.held.size === 2);
   await page.waitForFunction(() => effects.particles.some((p) => p.kind === 'alert'));
+  await page.waitForFunction(() => sceneRenderer.beholderAnimation.states[0].awake > 0.8);
+  assert.ok(
+    await page.evaluate(() => {
+      const i = sceneRenderer.propPieces.findIndex((p) => p.kind === 'beholder' && p.index === 0);
+      return (
+        Math.abs(sceneRenderer.propInstances[i * 20 + 1] - world.beholderBeams[0].from[1]) < 1e-6 &&
+        sceneRenderer.propInstances[i * 20 + 17] > 0.8
+      );
+    }),
+    'wake animation ramps up while the visible eye stays attached to the ray',
+  );
   assert.equal(await page.evaluate(() => players[0].state), 'alive');
   await page.screenshot({ path: 'artifacts/beholder-alert.png' });
   await page.evaluate(() => {
@@ -105,8 +138,12 @@ try {
     soft.translate(p, 0, 0, -1.2);
   });
   await page.waitForFunction(() => !world.beholderBeams[0]?.detected && world.held.size === 0);
+  assert.ok(await page.evaluate(() => sceneRenderer.beholderAnimation.states[0].awake > 0));
+  await page.waitForFunction(() => sceneRenderer.beholderAnimation.states[0].awake < 0.05);
   assert.deepEqual(errors, []);
-  console.log('Beholder editor, WebGPU rendering, alerts and linked bridges: OK');
+  console.log(
+    'Beholder idle hover, wake/settle animation, eye/beam alignment, editor and linked bridges: OK',
+  );
 } finally {
   await browser.close();
 }

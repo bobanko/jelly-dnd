@@ -2,6 +2,7 @@ import { grateBounds } from '../world/grates.js';
 import * as GPU from '../renderer/index.js';
 import * as Features from '../world/level-features.js';
 import Levels from '../world/levels.js';
+import { beholderOrigin as restingBeholderOrigin } from '../world/beholders.js';
 // Picking uses the same view-projection matrix as the game renderer.
 function inverse(matrix) {
   const rows = Array.from({ length: 4 }, (_, r) =>
@@ -74,7 +75,10 @@ function boxHit(ray, box) {
     sign,
   };
 }
-function boxes(map, { droneOrigin = Levels.droneOrigin } = {}) {
+function boxes(
+  map,
+  { droneOrigin = Levels.droneOrigin, beholderOrigin = restingBeholderOrigin } = {},
+) {
   const result = [],
     heights = new Map(map.tiles.map((p) => [`${p.x},${p.z}`, p.height]));
   const add = (p, key, half, lo, hi) =>
@@ -103,6 +107,18 @@ function boxes(map, { droneOrigin = Levels.droneOrigin } = {}) {
     add({ ...p, pickIndex }, 'tiles', 0.5, -0.72, p.height);
   for (const [pickIndex, p] of map.walls.entries())
     add({ ...p, pickIndex }, 'walls', p.half, p.base, p.base + p.height);
+  for (const [index, p] of (map.beholders || []).entries()) {
+    const y = p.y ?? heights.get(`${p.x},${p.z}`) ?? Levels.surfaceY(map, p.x, p.z) ?? 0,
+      origin = beholderOrigin({ ...p, y });
+    result.push({
+      ...p,
+      y,
+      key: 'beholders',
+      index,
+      min: [p.x - 0.7, origin[1] - 0.7, p.z - 0.7],
+      max: [p.x + 0.7, origin[1] + 0.8, p.z + 0.7],
+    });
+  }
   for (const [pickIndex, p] of (map.drones || []).entries()) {
     const y = p.y ?? heights.get(`${p.x},${p.z}`) ?? Levels.surfaceY(map, p.x, p.z) ?? 0;
     const origin = droneOrigin({ ...p, y });
@@ -127,16 +143,16 @@ function boxes(map, { droneOrigin = Levels.droneOrigin } = {}) {
       max: center.map((v, k) => v + half[k]),
     });
   }
-  for (const key of ['spawns', 'crates', 'archers', 'beholders'])
+  for (const key of ['spawns', 'crates', 'archers'])
     for (const [pickIndex, p] of map[key].entries())
       if (p) {
         const y = p.y ?? heights.get(`${p.x},${p.z}`) ?? 0;
         add(
           { ...p, y, pickIndex },
           key,
-          key === 'beholders' ? 0.6 : key === 'archers' ? 0.26 : p.large ? 0.48 : 0.4,
+          key === 'archers' ? 0.26 : p.large ? 0.48 : 0.4,
           y,
-          y + (key === 'beholders' ? 1.2 : key === 'archers' ? 1.2 : p.large ? 0.98 : 0.84),
+          y + (key === 'archers' ? 1.2 : p.large ? 0.98 : 0.84),
         );
       }
   for (const key of ['goals', 'plates', 'bridges', 'lifts', 'portals', 'conveyors', 'pickups'])

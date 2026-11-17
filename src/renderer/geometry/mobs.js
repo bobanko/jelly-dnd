@@ -35,14 +35,15 @@ export function beholderGeometry() {
   }
   const eyeball = (p, r) => {
     sphere(mesh, p, [r, r * 0.92, r * 0.68], dark, 1, null, lowSphere);
-    sphere(mesh, [p[0], p[1], p[2] + r * 0.37], [r * 0.8, r * 0.72, r * 0.42], eye, 4);
+    // Eye light is steady; unlike flame material 4, it never jitters the vertices.
+    sphere(mesh, [p[0], p[1], p[2] + r * 0.37], [r * 0.8, r * 0.72, r * 0.42], eye, 33);
     sphere(mesh, [p[0], p[1], p[2] + r * 0.76], [r * 0.13, r * 0.68, r * 0.09], dark);
     sphere(
       mesh,
       [p[0] - r * 0.23, p[1] + r * 0.28, p[2] + r * 0.74],
       [r * 0.12, r * 0.12, r * 0.05],
       [1, 0.74, 0.44],
-      4,
+      33,
     );
   };
   for (const degrees of [0, 45, 90, 135, 180, 225, 315]) {

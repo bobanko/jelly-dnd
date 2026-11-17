@@ -143,7 +143,7 @@ class System {
       const i = beam.beholder;
       if (beam.detected && !this.beholderActive[i]) {
         const b = world.beholders[i],
-          y = (b.y ?? world.heightAt(b.x, b.z) ?? 0) + 1.25;
+          y = beam.from[1] + 0.67;
         for (let j = 0; j < (this.reducedMotion ? 1 : 3); j++) {
           const a = (j * Math.PI * 2) / 3;
           this.particles.push({

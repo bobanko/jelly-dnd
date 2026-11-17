@@ -270,6 +270,24 @@ export const propsMethods = {
       this.platePress[i] =
         (this.platePress[i] || 0) + (target - (this.platePress[i] || 0)) * pressFade;
     });
+    const motionTime = level.world.featureTime || 0,
+      beholderMotion = level.beholderMotion ?? !level.reducedMotion;
+    if (this.beholderAnimation?.world !== level.world || motionTime < this.beholderAnimation.time)
+      this.beholderAnimation = { world: level.world, time: motionTime, states: [] };
+    this.beholderAnimation.time = motionTime;
+    (level.world.beholders || []).forEach((b, i) => {
+      const state = (this.beholderAnimation.states[i] ??= {
+          awake: 0,
+          detected: false,
+          wakeAge: 1,
+        }),
+        detected = !!level.world.beholderBeams?.[i]?.detected,
+        elapsed = Math.min(Math.max(0, dt), 0.1),
+        target = detected ? 1 : 0;
+      state.wakeAge = detected && !state.detected ? 0 : state.wakeAge + elapsed;
+      state.detected = detected;
+      state.awake += (target - state.awake) * (1 - Math.exp(-elapsed * (detected ? 12 : 3)));
+    });
     const instances = this.propInstances,
       c = Math.cos(angle),
       s = Math.sin(angle),
@@ -323,7 +341,9 @@ export const propsMethods = {
                   assemblyRise(level.assembly, landingIndex, landingCount) === null
                   ? null
                   : 0
-                : piece.kind === 'drone' || piece.kind === 'droneCrystal'
+                : piece.kind === 'drone' ||
+                    piece.kind === 'droneCrystal' ||
+                    piece.kind === 'beholder'
                   ? assemblyFloatOffset(level.assembly, landingIndex, landingCount)
                   : assemblyDropOffset(level.assembly, landingIndex, landingCount),
         rock =
@@ -369,11 +389,19 @@ export const propsMethods = {
       } else if (piece.kind === 'beholder') {
         const b = level.world.beholders[i],
           dx = b.dx ?? 0,
-          dz = b.dz ?? 1;
-        x = b.x;
-        y = (b.y ?? level.world.heightAt(b.x, b.z) ?? 0) + 0.58;
-        z = b.z;
-        matrix = [dz, 0, dx, 0, 1, 0, -dx, 0, dz];
+          dz = b.dz ?? 1,
+          state = this.beholderAnimation.states[i],
+          phase = b.x * 0.71 + b.z * 1.13,
+          tilt = beholderMotion
+            ? Math.sin(motionTime * 0.85 + phase) * 0.035 * (1 - state.awake) +
+              Math.sin(motionTime * 13 + phase) * 0.075 * state.awake +
+              Math.sin(state.wakeAge * 28) * Math.exp(-state.wakeAge * 6) * 0.11
+            : 0,
+          c = Math.cos(tilt),
+          s = Math.sin(tilt);
+        [x, y, z] = level.world.beholderOrigin(b);
+        // Roll about local forward: the centre of the eye stays on its cardinal ray.
+        matrix = [dz * c, -dz * s, dx, s, c, 0, -dx * c, dx * s, dz];
       } else if (piece.kind === 'crate') {
         const p = level.crates[i];
         if (p.state === 'dead') continue;
@@ -484,6 +512,9 @@ export const propsMethods = {
       instances[o + 15] = stringPull;
       // Attribute 8: x is how much of a materialisation is left (0 once fully there).
       instances[o + 16] = appearing;
+      instances[o + 17] = piece.kind === 'beholder' ? this.beholderAnimation.states[i].awake : 0;
+      instances[o + 18] = piece.kind === 'beholder' ? motionTime + x * 0.71 + z * 1.13 : 0;
+      instances[o + 19] = piece.kind === 'beholder' ? (beholderMotion ? 2 : 1) : 0;
       const draw = { first: piece.first, count: piece.count, instance };
       if (piece.kind === 'droneCrystal')
         this.crystalPieces.push({ kind: 'crystal', center: [x, y, z], ...draw });

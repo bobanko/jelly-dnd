@@ -605,9 +605,9 @@ function issues(map) {
   for (const p of map.beholders || []) {
     const y = p.y ?? surfaceY(map, p.x, p.z) ?? 0;
     if (
-      map.blocks.some((b) => b.x === p.x && b.z === p.z && b.y > y + 0.05 && b.y - 1 < y + 1.18) ||
+      map.blocks.some((b) => b.x === p.x && b.z === p.z && b.y > y + 0.05 && b.y - 1 < y + 1.4) ||
       map.walls.some(
-        (w) => w.x === p.x && w.z === p.z && w.base < y + 1.18 && w.base + w.height > y + 0.05,
+        (w) => w.x === p.x && w.z === p.z && w.base < y + 1.4 && w.base + w.height > y + 0.05,
       )
     )
       result.push(`Бехольдер ${p.x}, ${p.z} находится внутри камня.`);

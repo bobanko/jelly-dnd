@@ -9,6 +9,7 @@ import { System as Effects } from '../src/game/game-effects.js';
 import { beholderGeometry } from '../src/renderer/geometry/mobs.js';
 import { hashState } from '../src/net/state-hash.js';
 import demo from '../levels/beholder-guardians.json' with { type: 'json' };
+import { beholderBob } from '../src/world/beholders.js';
 
 function scene(dx = 1, dz = 0) {
   const map = Levels.blank();
@@ -179,7 +180,7 @@ test('airborne guardians need no floor, keep their height and trigger in midair'
   assert.equal(r.world.heightAt(b.x, b.z), null);
   const sight = r.world.beholderSight(b, [{ x: 4, y: 3, z: 6, state: 'alive' }], null);
   assert.equal(sight.detected, true);
-  assert.equal(sight.from[1], 3.58);
+  assert.equal(sight.from[1], r.world.beholderOrigin(b)[1]);
   // Old definitions without Y also move without manufacturing a support tile.
   m.change((map) => {
     delete map.beholders[0].y;
@@ -189,6 +190,46 @@ test('airborne guardians need no floor, keep their height and trigger in midair'
   assert.equal(m.map.blocks.length, 2);
   m.change((map) => map.blocks.push({ x: 5, y: 3, z: 4 }));
   assert.ok(Levels.issues(m.map).some((s) => s.includes('внутри камня')));
+});
+
+test('hovering eases through both turning points and keeps sight, selection and snapshots aligned', () => {
+  const b = { x: 0, z: 0 },
+    period = 6.8,
+    epsilon = 0.001;
+  assert.equal(beholderBob(b, 0), 0);
+  assert.equal(beholderBob(b, period / 2), 0.12);
+  for (const turn of [0, period / 2, period]) {
+    assert.ok(Math.abs(beholderBob(b, turn - epsilon) - beholderBob(b, turn)) < 1e-9);
+    assert.ok(Math.abs(beholderBob(b, turn + epsilon) - beholderBob(b, turn)) < 1e-9);
+  }
+  const { world } = scene(),
+    authored = Levels.copy(world.beholders[0]);
+  for (let time = 0; time < period; time += 0.1) {
+    const bob = beholderBob(b, time);
+    assert.ok(bob >= -1e-12 && bob <= 0.12 + 1e-12);
+    assert.ok(Math.abs(bob - beholderBob(b, time + period)) < 1e-12);
+    world.featureTime = time;
+    const guardian = world.beholders[0],
+      sight = world.beholderSight(guardian, [{ x: 3, z: 0, y: 0, state: 'alive' }], null);
+    assert.equal(sight.detected, true, 'a grounded jelly stays detectable through the full hover');
+    assert.equal(sight.from[1], world.beholderOrigin(guardian)[1]);
+  }
+  const position = world.beholderOrigin(world.beholders[0]),
+    snapshot = world.featureSnapshot();
+  world.featureTime += 1;
+  world.restoreFeatures(snapshot);
+  assert.deepEqual(world.beholderOrigin(world.beholders[0]), position);
+  assert.deepEqual(world.beholders[0], authored);
+  const map = Levels.read(demo),
+    runtime = Levels.instantiate(map, Physics, Soft);
+  runtime.world.featureTime = 3.4;
+  const bounds = boxes(map, { beholderOrigin: (p) => runtime.world.beholderOrigin(p) }),
+    hit = bounds.find((box) => box.key === 'beholders'),
+    origin = runtime.world.beholderOrigin(runtime.world.beholders[0]);
+  assert.ok(hit.min[1] < origin[1] - 0.6 && hit.max[1] > origin[1] + 0.6);
+  const mesh = beholderGeometry();
+  for (let i = 9; i < mesh.length; i += 12)
+    assert.notEqual(mesh[i], 4, 'eyes never use the jittering flame material');
 });
 
 test('simulation is deterministic and snapshot/reset clears derived sight without changing authored guardians', () => {

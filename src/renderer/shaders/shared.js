@@ -39,11 +39,22 @@ export const shared = `
  // archer rocking and bowstring pull in local space, then scale, rotation rows and offset.
  @vertex fn propVS(@location(0) p:vec3f,@location(1) n:vec3f,@location(2) color:vec3f,@location(3) material:vec3f,@location(4) place:vec4f,@location(5) row0:vec4f,@location(6) row1:vec4f,@location(7) row2:vec4f,@location(8) extra:vec4f)->Out{
   var q=p;var m=n;
+  if(extra.w>1.5){
+   let t=extra.z;let awake=extra.y;let radius=length(q.xy);let stalk=smoothstep(.28,.5,radius);
+   let phase=atan2(q.y,q.x)*2.;
+   let sway=(sin(t*.9+phase)*.035*(1.-awake)+sin(t*15.+phase)*.12*awake)*stalk;
+   let c=cos(sway);let s=sin(sway);
+   q=vec3f(q.x*c-q.y*s,q.x*s+q.y*c,q.z);m=vec3f(m.x*c-m.y*s,m.x*s+m.y*c,m.z);
+   let breath=1.+sin(t*.8)*.012+awake*.07;
+   let spread=1.+(breath-1.)*stalk;q=vec3f(q.xy*spread,q.z);m=normalize(vec3f(m.xy/spread,m.z));
+  }
   if(row0.w!=0.){let c=cos(row0.w);let s=sin(row0.w);let b=q.y+.13;q=vec3f(q.x*c-b*s,q.x*s+b*c-.13,q.z);m=vec3f(m.x*c-m.y*s,m.x*s+m.y*c,m.z);}
   if(row1.w!=0.){let c=cos(row1.w);let s=sin(row1.w);q=vec3f(q.x*c-q.y*s,q.x*s+q.y*c,q.z);m=vec3f(m.x*c-m.y*s,m.x*s+m.y*c,m.z);}
   q.z-=row2.w*max(0.,1.-abs(q.y-.57)/.38);
   let position=place.xyz+vec3f(dot(row0.xyz,q),dot(row1.xyz,q),dot(row2.xyz,q))*place.w;
-  var o=solid(position,vec3f(dot(row0.xyz,m),dot(row1.xyz,m),dot(row2.xyz,m)),color,material);
+  var tint=color;
+  if(extra.w>.5&&material.x>32.5&&material.x<33.5){tint*=1.+extra.y*(.65+select(0.,.1*sin(extra.z*12.),extra.w>1.5));}
+  var o=solid(position,vec3f(dot(row0.xyz,m),dot(row1.xyz,m),dot(row2.xyz,m)),tint,material);
   // local.y is free for props: what is left of a materialisation (see solidFS).
   o.local.y=extra.x;return o;
  }
@@ -510,6 +521,7 @@ export const shared = `
   if(o.material>.5&&o.material<1.5){result+=vec3f(.28)*pow(max(0.,dot(n,h)),55.);}
   if(o.material>25.5&&o.material<26.5){let rim=pow(1.-max(0.,dot(n,v)),1.6);result=o.color*(.22+rim*1.25)+vec3f(1.5,1.5,1.4)*pow(max(0.,dot(n,h)),36.);}
   if(o.material>3.5&&o.material<4.5){result=color*(1.4+sin(scene.options.z*4.)*.08);}
+  if(o.material>32.5&&o.material<33.5){result=color*1.4;}
   if(torchEmber){result=color*(1.4+sin(scene.options.z*4.)*.08)*emberStrength;}
   if(o.material>11.5&&o.material<12.5){result+=vec3f(.56,.4,.21)*pow(max(0.,dot(n,h)),45.);}
   if(o.material>30.5&&o.material<31.5){result+=vec3f(.5,.36,.3)*pow(max(0.,dot(n,h)),40.);}

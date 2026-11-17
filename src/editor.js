@@ -1512,6 +1512,7 @@ function screenRay(event) {
 function editorBoxes() {
   return S.boxes(model.map, {
     droneOrigin: (p) => previewRuntime?.world.droneOrigin(p) ?? L.droneOrigin(p),
+    beholderOrigin: previewRuntime ? (p) => previewRuntime.world.beholderOrigin(p) : undefined,
   });
 }
 function point(event) {
@@ -2181,6 +2182,7 @@ function rebuildPreview() {
   previewRuntime.effects = new JellyEffects.System({ reducedMotion: true });
   previewRuntime.won = false;
   previewRuntime.reducedMotion = true;
+  previewRuntime.beholderMotion = !reducedMotion;
   previewRuntime.world.featureTime = featureTime;
   previewRuntime.bridges.forEach((b) => (b.progress = 1));
   previewRuntime.world.droneBeams = previewRuntime.world.traceDrones(
