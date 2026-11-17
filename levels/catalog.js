@@ -16,6 +16,10 @@ const catalog = {
   ],
   extra: [
     {
+      subcat: 'own unsorted',
+      levels: ['ds-28-reimagined.json'],
+    },
+    {
       subcat: 'gem',
       levels: ['gem-barrel-express.json', 'gem-mine-lift.json', 'gem-crystal-sanctum.json'],
     },
