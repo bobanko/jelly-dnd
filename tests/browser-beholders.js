@@ -74,6 +74,7 @@ try {
     changed();
   });
   await page.waitForFunction(() => !previewDirty && previewRenderer.beamCount === 2);
+  assert.equal(await page.evaluate(() => previewRenderer.beamData[7]), 0);
   const idle = await page.evaluate(() => {
     const i = previewRenderer.propPieces.findIndex((p) => p.kind === 'beholder' && p.index === 0);
     return { y: previewRenderer.propInstances[i * 20 + 1], time: previewRuntime.world.featureTime };
@@ -121,6 +122,14 @@ try {
   await page.waitForFunction(() => world.beholderBeams[0]?.detected && world.held.size === 2);
   await page.waitForFunction(() => effects.particles.some((p) => p.kind === 'alert'));
   await page.waitForFunction(() => sceneRenderer.beholderAnimation.states[0].awake > 0.8);
+  await page.waitForFunction(() => sceneRenderer.beamData[7] > 0.8);
+  const alertTime = await page.evaluate(() => world.featureTime);
+  await page.waitForFunction(
+    (time) =>
+      world.featureTime > time + 1 &&
+      effects.particles.some((p) => p.kind === 'alert' && p.beholder === 0 && p.age < 0.25),
+    alertTime,
+  );
   assert.ok(
     await page.evaluate(() => {
       const i = sceneRenderer.propPieces.findIndex((p) => p.kind === 'beholder' && p.index === 0);
@@ -138,11 +147,19 @@ try {
     soft.translate(p, 0, 0, -1.2);
   });
   await page.waitForFunction(() => !world.beholderBeams[0]?.detected && world.held.size === 0);
+  await page.waitForFunction(
+    () =>
+      !effects.particles.some((p) => p.kind === 'alert' && p.beholder === 0) &&
+      effects.particles.some((p) => p.kind === 'question' && p.beholder === 0),
+  );
+  await page.screenshot({ path: 'artifacts/beholder-lost-target.png' });
   assert.ok(await page.evaluate(() => sceneRenderer.beholderAnimation.states[0].awake > 0));
   await page.waitForFunction(() => sceneRenderer.beholderAnimation.states[0].awake < 0.05);
+  await page.waitForFunction(() => !effects.particles.some((p) => p.beholder === 0));
+  assert.ok(await page.evaluate(() => sceneRenderer.beamData[7] < 0.05));
   assert.deepEqual(errors, []);
   console.log(
-    'Beholder idle hover, wake/settle animation, eye/beam alignment, editor and linked bridges: OK',
+    'Beholder thin/dense beams, sustained alerts, fading questions, hover, editor and linked bridges: OK',
   );
 } finally {
   await browser.close();

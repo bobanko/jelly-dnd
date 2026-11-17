@@ -158,13 +158,15 @@ export const shared = `
   return mix(a,b,fract(x));
  }
  @fragment fn beamFS(o:BeamOut)->@location(0) vec4f{
-  let uv=o.uv;let time=scene.options.z;let beamAA=fwidth(uv.x);
+  let uv=o.uv;let time=scene.options.z;let beamAA=fwidth(uv.x);let dashAA=clamp(fwidth(uv.y)/.56,.002,.04);
   if(o.dashed>.5){
-   let along=uv.y;
-   let dash=1.-smoothstep(.11,.15,abs(fract((along-time*.32)/.38)-.5)*.38);
-   let core=exp(-pow(uv.x/.07,2.));let glow=exp(-pow(uv.x/.2,2.));
+   let along=uv.y;let awake=clamp(o.impact,0.,1.);
+   // Idle: .28-unit strokes and .28-unit gaps. Detection closes most of each gap.
+   let halfDuty=mix(.25,.46,awake);let distance=abs(fract((along-time*.32)/.56)-.5);
+   let dash=1.-smoothstep(halfDuty-dashAA,halfDuty+dashAA,distance);
+   let core=exp(-pow(uv.x/mix(.035,.065,awake),2.));let glow=exp(-pow(uv.x/mix(.1,.16,awake),2.));
    let ends=smoothstep(0.,.025,along)*(1.-smoothstep(o.beamLength-.025,o.beamLength,along));
-   return vec4f(o.tint.rgb*1.8,(core*.85+glow*.12)*dash*ends*o.tint.w*(1.-o.tip));
+   return vec4f(o.tint.rgb*mix(1.8,2.2,awake),(core*.85+glow*.1)*dash*ends*o.tint.w*(1.-o.tip));
   }
   let along=uv.y;let progress=clamp(along/o.beamLength,0.,1.);let envelope=sin(progress*3.14159265);
   // Piecewise linear noise forms travelling lightning kinks. Both endpoints

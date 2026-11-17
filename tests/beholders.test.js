@@ -10,6 +10,7 @@ import { beholderGeometry } from '../src/renderer/geometry/mobs.js';
 import { hashState } from '../src/net/state-hash.js';
 import demo from '../levels/beholder-guardians.json' with { type: 'json' };
 import { beholderBob } from '../src/world/beholders.js';
+import { effectsMethods } from '../src/renderer/effects.js';
 
 function scene(dx = 1, dz = 0) {
   const map = Levels.blank();
@@ -95,30 +96,94 @@ test('beholders and buttons share groups and drive bridges and spikes by group o
   assert.ok(r.bridges.every((b) => b.plate === 0));
 });
 
-test('alert particles burst once per detection, rearm after leaving, expire and clear', () => {
+test('alerts stream while visible, change once to fading questions on loss and rearm on return', () => {
   const { world } = scene(),
     fx = new Effects(),
     p = { x: 3, z: 0, y: 0, state: 'alive' };
-  const step = (bodies) => {
+  const step = (bodies, dt = 0.01) => {
     world.beholderBeams = world.traceBeholders(bodies);
-    fx.step(0.01, world);
+    fx.step(dt, world);
   };
   step([p]);
   assert.equal(fx.particles.filter((p) => p.kind === 'alert').length, 3);
   step([p]);
   assert.equal(fx.particles.length, 3);
+  for (let i = 0; i < 20; i++) step([p], 0.1);
+  assert.ok(
+    fx.particles.filter((p) => p.kind === 'alert').length >= 4,
+    'emission continues after the first burst expires',
+  );
+  assert.ok(fx.particles.length < 10, 'long observations keep a bounded stream');
+  assert.ok(fx.particles.some((p) => p.age < 0.2));
   step([]);
+  assert.equal(fx.particles.filter((p) => p.kind === 'alert').length, 0);
+  assert.equal(fx.particles.filter((p) => p.kind === 'question').length, 3);
+  const questions = fx.particles.slice();
+  step([], 0.1);
+  assert.deepEqual(fx.particles, questions, 'loss does not emit questions every frame');
+  assert.ok(fx.particles.every((p) => p.age > 0));
   step([p]);
-  assert.equal(fx.particles.length, 6);
+  assert.equal(fx.particles.filter((p) => p.kind === 'question').length, 0);
+  assert.equal(fx.particles.filter((p) => p.kind === 'alert').length, 3);
   step([]);
-  for (let i = 0; i < 100; i++) fx.step(0.01, world);
+  for (let i = 0; i < 20; i++) step([], 0.1);
   assert.equal(fx.particles.length, 0);
   fx.clear();
   assert.deepEqual(fx.beholderActive, []);
+  assert.deepEqual(fx.beholderTimers, []);
   const reduced = new Effects({ reducedMotion: true });
   world.beholderBeams = world.traceBeholders([p]);
   reduced.step(0.01, world);
   assert.equal(reduced.particles.length, 1);
+  for (let i = 0; i < 30; i++) reduced.step(0.1, world);
+  assert.ok(reduced.particles.length >= 1 && reduced.particles.length <= 2);
+  world.beholderBeams = world.traceBeholders([]);
+  reduced.step(0.01, world);
+  assert.equal(reduced.particles.length, 1);
+  assert.equal(reduced.particles[0].kind, 'question');
+});
+
+test('each guardian owns its punctuation; questions render from every camera angle and fade out', () => {
+  const { world } = scene(),
+    fx = new Effects();
+  world.beholders.push({ ...world.beholders[0], z: 4, id: 'second' });
+  const p = { x: 3, z: 0, y: 0, state: 'alive' },
+    q = { ...p, z: 4 };
+  world.beholderBeams = world.traceBeholders([p, q]);
+  fx.step(0.01, world);
+  world.beholderBeams = world.traceBeholders([q]);
+  fx.step(0.01, world);
+  assert.ok(fx.particles.filter((p) => p.beholder === 0).every((p) => p.kind === 'question'));
+  assert.ok(fx.particles.filter((p) => p.beholder === 1).every((p) => p.kind === 'alert'));
+  let data;
+  const renderer = {
+    device: {
+      queue: {
+        writeBuffer(buffer, offset, mesh) {
+          data = mesh;
+        },
+      },
+    },
+  };
+  for (const view of [
+    [0, 0, 1],
+    [1, 0, 0],
+    [0, 1, 0],
+  ]) {
+    assert.ok(effectsMethods.effects.call(renderer, fx, view) > 0);
+    assert.ok(data.every(Number.isFinite));
+  }
+  const question = fx.particles.find((p) => p.kind === 'question');
+  const onlyQuestion = { particles: [question], rings: [] };
+  effectsMethods.effects.call(renderer, onlyQuestion, [0, 0, 1]);
+  const bright = data[10];
+  question.age = question.life * 0.8;
+  effectsMethods.effects.call(renderer, onlyQuestion, [0, 0, 1]);
+  assert.ok(data[10] < bright * 0.2, 'question opacity fades toward zero');
+  const gpu = { beamData: new Float32Array(24 * 12), device: renderer.device };
+  effectsMethods.updateBeams.call(gpu, { world });
+  assert.equal(gpu.beamData[7], 0);
+  assert.equal(gpu.beamData[19], 1, 'density follows this guardian rather than another signal');
 });
 
 test('editor placement, direction, group, movement, picking, history and JSON round-trip preserve guardians', () => {

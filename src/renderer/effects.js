@@ -1,6 +1,6 @@
 import { bridgePose } from '../world/level-features.js';
 import { PORTAL_LIMIT, DUST_MOTES } from './layout.js';
-import { dot } from './math.js';
+import { dot, cross, normalize } from './math.js';
 import { box, sphere, rod } from './mesh.js';
 import { beamColors } from './geometry/mobs.js';
 import { phaseTints, portalRing } from './geometry/mechanisms.js';
@@ -16,7 +16,9 @@ export const effectsMethods = {
     )
       return 0;
     // Jelly pieces go to `gel`, drawn after the rest with the jellies' own skin (chunkGel).
-    const mesh = [],
+    const across = normalize(Math.abs(view[1]) > 0.99 ? [1, 0, 0] : cross([0, 1, 0], view)),
+      up = normalize(cross(view, across)),
+      mesh = [],
       gel = [],
       items = [
         ...(system?.particles || []),
@@ -71,25 +73,29 @@ export const effectsMethods = {
           const length = Math.hypot(mesh[k + 3], mesh[k + 4], mesh[k + 5]) || 1;
           for (let axis = 3; axis < 6; axis++) mesh[k + axis] /= length;
         }
-      } else if (item.kind === 'alert') {
-        // A solid 3D exclamation mark remains readable from every camera direction.
+      } else if (item.kind === 'alert' || item.kind === 'question') {
+        // Face the camera so both punctuation silhouettes stay readable while orbiting.
         const size = item.size * (0.7 + fade * 0.3),
-          [x, y, z] = item.position;
-        box(
-          mesh,
-          [x, y + size * 0.65, z],
-          [size * 0.4, size * 1.5, size * 0.4],
-          item.color,
-          size * 0.08,
-          7,
-        );
-        sphere(
-          mesh,
-          [x, y - size * 0.55, z],
-          [size * 0.25, size * 0.25, size * 0.25],
-          item.color,
-          7,
-        );
+          point = (x, y) => item.position.map((v, k) => v + (across[k] * x + up[k] * y) * size),
+          points =
+            item.kind === 'alert'
+              ? [
+                  [0, -0.05],
+                  [0, 1.15],
+                ]
+              : [
+                  [-0.46, 0.63],
+                  [-0.38, 0.97],
+                  [0, 1.1],
+                  [0.4, 0.93],
+                  [0.46, 0.58],
+                  [0.32, 0.3],
+                  [0.02, 0.05],
+                  [0, -0.18],
+                ];
+        for (let j = 1; j < points.length; j++)
+          rod(mesh, point(...points[j - 1]), point(...points[j]), size * 0.3, item.color, 7);
+        sphere(mesh, point(0, -0.65), [size * 0.22, size * 0.22, size * 0.22], item.color, 7);
       } else if (item.kind === 'spark') {
         rod(
           mesh,
@@ -312,7 +318,11 @@ export const effectsMethods = {
           ...b.from,
           b.dashed ? 1 : 0,
           ...b.to,
-          b.dashed ? 0 : b.impact ? 1 : 0,
+          b.dashed
+            ? (this.beholderAnimation?.states[b.beholder]?.awake ?? Number(!!b.detected))
+            : b.impact
+              ? 1
+              : 0,
           ...beamColors[b.color],
           b.life ? Math.max(0, 1 - b.age / b.life) : 1,
         ],

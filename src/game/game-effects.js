@@ -72,6 +72,7 @@ class System {
     this.lasers = [];
     this.laserTimers = new Map();
     this.beholderActive = [];
+    this.beholderTimers = [];
     this.runeTimers = [];
     this.runeActive = [];
     // Per-player materialisation: hidden for `delay`, then grows from a point (visual only).
@@ -106,6 +107,7 @@ class System {
     this.lasers.length = 0;
     this.laserTimers.clear();
     this.beholderActive = [];
+    this.beholderTimers = [];
     this.runeTimers = [];
     this.runeActive = [];
   }
@@ -137,32 +139,58 @@ class System {
     }
     this.particles = this.particles.slice(-MAX_PARTICLES);
   }
-  stepBeholderAlerts(world) {
-    const beams = world.beholderBeams || [];
-    for (const beam of beams) {
-      const i = beam.beholder;
-      if (beam.detected && !this.beholderActive[i]) {
-        const b = world.beholders[i],
-          y = beam.from[1] + 0.67;
-        for (let j = 0; j < (this.reducedMotion ? 1 : 3); j++) {
-          const a = (j * Math.PI * 2) / 3;
-          this.particles.push({
-            kind: 'alert',
-            position: [b.x + Math.cos(a) * 0.18, y + j * 0.06, b.z + Math.sin(a) * 0.18],
-            velocity: this.reducedMotion
-              ? [0, 0.15, 0]
-              : [Math.cos(a) * 0.22, 0.65 + j * 0.12, Math.sin(a) * 0.22],
-            size: 0.14,
-            color: [1, 0.52, 0.12],
-            age: 0,
-            life: 0.85,
-          });
-        }
-        this.particles = this.particles.slice(-MAX_PARTICLES);
-      }
-      this.beholderActive[i] = beam.detected;
+  beholderMarks(b, origin, index, kind, count) {
+    for (let j = 0; j < count; j++) {
+      const a = (j * Math.PI * 2) / count + this.random() * 0.5;
+      this.particles.push({
+        kind,
+        beholder: index,
+        position: [b.x + Math.cos(a) * 0.18, origin[1] + 0.67 + j * 0.06, b.z + Math.sin(a) * 0.18],
+        velocity: this.reducedMotion
+          ? [0, 0.15, 0]
+          : [Math.cos(a) * 0.18, 0.55 + j * 0.08, Math.sin(a) * 0.18],
+        size: 0.14,
+        color: kind === 'question' ? [1, 0.76, 0.28] : [1, 0.52, 0.12],
+        age: 0,
+        life: kind === 'question' ? 1.05 : 0.85,
+      });
     }
-    this.beholderActive.length = world.beholders?.length || 0;
+  }
+  stepBeholderAlerts(dt, world) {
+    const beholders = world.beholders || [],
+      beams = world.beholderBeams || [],
+      interval = this.reducedMotion ? 0.55 : 0.18;
+    this.particles = this.particles.filter(
+      (p) => p.beholder === undefined || p.beholder < beholders.length,
+    );
+    beholders.forEach((b, i) => {
+      const beam = beams.find((beam) => beam.beholder === i),
+        detected = !!beam?.detected,
+        wasActive = !!this.beholderActive[i],
+        origin = beam?.from ?? world.beholderOrigin(b);
+      if (detected !== wasActive) {
+        // Switching attention removes the previous punctuation immediately.
+        this.particles = this.particles.filter((p) => p.beholder !== i);
+        this.beholderMarks(
+          b,
+          origin,
+          i,
+          detected ? 'alert' : 'question',
+          this.reducedMotion ? 1 : 3,
+        );
+        this.beholderTimers[i] = interval;
+      } else if (detected) {
+        let remaining = (this.beholderTimers[i] ?? interval) - dt;
+        while (remaining <= 0) {
+          this.beholderMarks(b, origin, i, 'alert', 1);
+          remaining += interval;
+        }
+        this.beholderTimers[i] = remaining;
+      }
+      this.beholderActive[i] = detected;
+    });
+    this.beholderActive.length = this.beholderTimers.length = beholders.length;
+    this.particles = this.particles.slice(-MAX_PARTICLES);
   }
   stepLaserImpacts(dt, world, players) {
     const active = new Set(),
@@ -961,7 +989,7 @@ class System {
     this.particles = this.particles.filter((p) => p.age < p.life);
     this.stepChunks(dt, world, players);
     this.stepLaserImpacts(dt, world, players);
-    this.stepBeholderAlerts(world);
+    this.stepBeholderAlerts(dt, world);
     for (const ring of this.rings) ring.age += dt;
     this.rings = this.rings.filter((r) => r.age < r.life);
     // These fragments follow the gameplay resurrection clock, including after undo.
