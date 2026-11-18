@@ -820,6 +820,11 @@ function install(World) {
     // Bodies come back only on their own spawn. While it is blocked (another body on it, a
     // raised spike, a wall) they wait and retry every step; nothing is pushed aside.
     respawnPosition(p, bodies) {
+      return this.respawnState(p, bodies).position;
+    },
+    // `threat` marks a spawn that is free but crossed by a crystal beam that would kill the
+    // body at once; the game then swears over its outline instead of asking.
+    respawnState(p, bodies) {
       const c = { ...p.spawn },
         height = this.heightAt(
           c.x,
@@ -827,13 +832,13 @@ function install(World) {
           this.blocks?.length ? (p.spawn.y ?? 0) + 0.2 : Infinity,
           p,
         );
-      if (height === null) return;
+      if (height === null) return {};
       c.y = height;
       if (
         this.spikes.some((s) => this.spikeTouches({ ...p, ...c }, s)) ||
         this.portals.some((portal) => near(c, portal, 0.5))
       )
-        return;
+        return {};
       if (
         this.collisionBoxes().some(
           (o) =>
@@ -845,7 +850,7 @@ function install(World) {
             Math.abs(c.z - o.z) < 0.375 + (o.halfZ ?? o.half),
         )
       )
-        return;
+        return {};
       // Footprints: jellies and small crates are 0.76 wide, large crates 0.94.
       const half = (q) => (q.kind === 'crate' && q.large ? 0.47 : 0.38);
       if (
@@ -857,8 +862,9 @@ function install(World) {
             Math.abs((b.y || 0) - height) < 0.75,
         )
       )
-        return;
-      return c;
+        return {};
+      if (this.beamsCross(this.respawnThreats(p, bodies), c)) return { threat: true };
+      return { position: c };
     },
   });
 }

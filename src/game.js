@@ -48,7 +48,8 @@ let netLagMarks = [],
   netReplaying = false;
 let playerHints = [],
   spawnGlyphs = [],
-  spawnOutlines = null;
+  spawnOutlines = null,
+  swearClouds = new Map();
 let cameraIntro = null;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const canvas = document.querySelector('#scene');
@@ -1172,8 +1173,65 @@ function updateSpawnOutlines() {
 // and rise as they fade: white for crates and barrels, a jelly's own colour for jellies.
 const SPAWN_GLYPH_EVERY = 0.3,
   SPAWN_GLYPH_LIFE = 1.4;
+// A jelly kept off its spawn by a crystal beam swears instead: a comic cloud of grawlix
+// over its outline, reshuffled a few times a second (held still with reduced motion).
+const GRAWLIX = '!@#$%&*',
+  GRAWLIX_EVERY = 0.16;
+const swearing = (p) =>
+  p.state === 'dead' && p.respawnBlocked && p.respawnThreat && p.spawn && !level.assembly;
+function swearCloudPoint(p) {
+  const [x, y, z] = spawnCenter(p);
+  return project(x, y + 0.55, z);
+}
+function fillGrawlix(node) {
+  let previous = '';
+  const marks = Array.from({ length: 5 }, () => {
+    const pool = [...GRAWLIX].filter((c) => c !== previous),
+      mark = document.createElement('span');
+    previous = mark.textContent = pool[Math.floor(Math.random() * pool.length)];
+    mark.style.setProperty('--tilt', (Math.random() * 30 - 15).toFixed(0) + 'deg');
+    return mark;
+  });
+  node.replaceChildren(...marks);
+}
+function updateSwearClouds(dt) {
+  const layer = document.querySelector('#player-hints'),
+    live = new Set();
+  for (const p of bodies) {
+    if (!swearing(p)) continue;
+    live.add(p);
+    let cloud = swearClouds.get(p);
+    if (!cloud) {
+      const node = document.createElement('div');
+      node.className = 'swear-cloud';
+      node.setAttribute('aria-hidden', 'true');
+      node.style.setProperty('--glyph-color', colors[p.slot]);
+      cloud = { node, timer: 0 };
+      swearClouds.set(p, cloud);
+    }
+    if (!cloud.node.isConnected) layer.append(cloud.node);
+    cloud.timer -= dt;
+    if (cloud.timer <= 0) {
+      fillGrawlix(cloud.node);
+      cloud.timer = reducedMotion ? Infinity : GRAWLIX_EVERY;
+    }
+    const point = swearCloudPoint(p);
+    cloud.node.hidden = !point.visible;
+    if (point.visible) {
+      cloud.node.style.left = point.x + 'px';
+      cloud.node.style.top = point.y + 'px';
+      cloud.node.style.fontSize = Math.max(13, point.scale * 0.24) + 'px';
+    }
+  }
+  for (const [p, cloud] of swearClouds)
+    if (!live.has(p)) {
+      cloud.node.remove();
+      swearClouds.delete(p);
+    }
+}
 function updateSpawnMarks(dt) {
   updateSpawnOutlines();
+  updateSwearClouds(dt);
   for (const crate of crates) {
     const previous = crate.appearTime;
     if (crate.appearTime < 2) crate.appearTime += dt;
@@ -1196,13 +1254,20 @@ function updateSpawnMarks(dt) {
     p.glyphTimer = SPAWN_GLYPH_EVERY * (0.7 + Math.random() * 0.6);
     const node = document.createElement('span');
     node.className = 'spawn-glyph';
-    node.textContent = Math.random() < 0.5 ? '!' : '?';
+    // Swearing jellies shed their grawlix from the cloud's rim instead of asking.
+    const swear = swearing(p),
+      [cx, cy, cz] = spawnCenter(p);
+    node.textContent = swear
+      ? GRAWLIX[Math.floor(Math.random() * GRAWLIX.length)]
+      : Math.random() < 0.5
+        ? '!'
+        : '?';
     node.setAttribute('aria-hidden', 'true');
     node.style.setProperty('--glyph-color', p.kind === 'crate' ? '#fff' : colors[p.slot]);
     layer.append(node);
     spawnGlyphs.push({
       node,
-      origin: spawnCenter(p),
+      origin: swear ? [cx + (Math.random() - 0.5) * 0.7, cy + 0.75, cz] : spawnCenter(p),
       age: 0,
       rise: 0.55 + Math.random() * 0.3,
       sway: Math.random() * Math.PI * 2,

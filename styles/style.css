@@ -1679,6 +1679,67 @@ html[lang='ru'] .menu-panel h1 {
     0 0 14px color-mix(in srgb, var(--glyph-color) 60%, transparent);
   opacity: 0;
 }
+/* Over a jelly kept off its spawn by a crystal beam: a comic thought cloud of grawlix
+   (see updateSwearClouds). Its bottom centre sits just above the outline. */
+.swear-cloud {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 0.3em 0.55em 0.34em;
+  border: 0.12em solid #2b1d1a;
+  border-radius: 46% 54% 48% 52% / 62% 58% 42% 38%;
+  background: #fff6df;
+  box-shadow:
+    0 0 0 0.1em var(--glyph-color),
+    0 0.2em 0.6em rgb(0 0 0 / 45%);
+  font:
+    900 1em/1 'Trebuchet MS',
+    'Arial Black',
+    sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: swear-cloud-shake 0.2s steps(2) infinite;
+}
+/* Two puffs trail down from the cloud towards the outline. */
+.swear-cloud::before,
+.swear-cloud::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  border: 0.1em solid #2b1d1a;
+  border-radius: 50%;
+  background: #fff6df;
+}
+.swear-cloud::before {
+  left: 42%;
+  width: 0.42em;
+  height: 0.36em;
+  margin-top: 0.12em;
+}
+.swear-cloud::after {
+  left: 36%;
+  width: 0.24em;
+  height: 0.22em;
+  margin-top: 0.62em;
+}
+.swear-cloud span {
+  display: inline-block;
+  margin: 0 0.02em;
+  color: #2b1d1a;
+  transform: rotate(var(--tilt, 0deg));
+}
+.swear-cloud span:nth-child(even) {
+  color: #c0262d;
+}
+@keyframes swear-cloud-shake {
+  50% {
+    transform: translate(calc(-50% + 1px), calc(-100% - 1px)) rotate(-2deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .swear-cloud {
+    animation: none;
+  }
+}
 .menu-open #player-hints,
 .level-won #player-hints {
   visibility: hidden;

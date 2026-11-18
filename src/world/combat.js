@@ -194,6 +194,19 @@ function install(World) {
       const active = this.active(index, bodies, sight);
       return mode === 'trigger-off' ? !active : active;
     },
+    // Beams that would kill `p` if it reappeared in their way. Traced afresh rather than read
+    // from droneBeams, so the answer depends only on simulated state (lockstep, undo).
+    respawnThreats(p, bodies) {
+      if (p.kind === 'crate' || !this.drones?.length) return [];
+      return this.traceDrones(bodies, this.soft).filter((beam) => beam.color !== p.slot);
+    },
+    beamsCross(beams, cell) {
+      const x = cell.x,
+        z = cell.z,
+        y = cell.y ?? this.heightAt(x, z) ?? 0,
+        box = { min: [x - 0.36, y, z - 0.36], max: [x + 0.36, y + 0.84, z + 0.36] };
+      return beams.some((beam) => segmentBox(beam.from, beam.to, box) !== null);
+    },
     traceDrones(bodies, soft) {
       if (!this.drones?.length) return [];
       const targets = bodies.flatMap((p, i) =>

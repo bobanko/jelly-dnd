@@ -576,3 +576,50 @@ test('switching a laser off also hides its short death afterglow', () => {
   effectsMethods.updateBeams.call(renderer, { ...r, effects: fx });
   assert.equal(renderer.beamCount, 0);
 });
+test('a jelly waits outlined while a crystal beam crosses its spawn, then reappears there', () => {
+  const m = L.blank();
+  m.size = 8;
+  for (let x = 0; x < 8; x++) for (let z = 0; z < 8; z++) m.blocks.push({ x, y: 0, z });
+  // The drone tracks blue; violet's spawn lies on the line between them.
+  m.spawns[1] = { x: 6, y: 0, z: 2 };
+  m.goals[1] = { x: 7, y: 0, z: 7 };
+  m.spawns[3] = { x: 4, y: 0, z: 2 };
+  m.goals[3] = { x: 7, y: 0, z: 6 };
+  m.drones = [{ x: 1, y: 0, z: 2, hover: 0, color: 1, target: 1 }];
+  const r = L.instantiate(L.read(m), P, S),
+    w = r.world,
+    blue = r.players.find((p) => p.slot === 1),
+    violet = r.players.find((p) => p.slot === 3),
+    idle = r.players.map(() => ({ x: 0, z: 0 })),
+    reappear = () => {
+      for (let i = 0; i < 90 && violet.state === 'dead'; i++) w.step(r.bodies, idle);
+    };
+  Object.assign(violet, { state: 'dead', respawnTimer: 0, x: 4, z: 5, y: -5 });
+  reappear();
+  assert.equal(violet.state, 'dead', 'not respawned into the beam');
+  assert.equal(violet.respawnBlocked, true);
+  assert.equal(violet.respawnThreat, true, 'the game can tell a threat from a taken spawn');
+  assert.ok(w.respawnThreats(violet, r.bodies).length);
+  assert.equal(w.respawnPosition(violet, r.bodies), undefined);
+  const beams = w.respawnThreats(violet, r.bodies);
+  assert.ok(!w.beamsCross(beams, { x: 4, z: 3 }), 'the next row is clear');
+
+  // A beam of the jelly's own colour is harmless to it.
+  w.drones[0].color = 3;
+  assert.equal(w.respawnThreats(violet, r.bodies).length, 0);
+  w.drones[0].color = 1;
+
+  // Blue steps out of line: the beam swings away and violet appears exactly on its spawn.
+  Object.assign(blue, { x: 6, z: 5 });
+  r.soft.get(blue).reset(blue);
+  reappear();
+  assert.equal(violet.state, 'alive');
+  assert.equal(violet.respawnBlocked, false);
+  assert.equal(violet.respawnThreat, false);
+  assert.ok(Math.abs(violet.x - 4) < 0.01 && Math.abs(violet.z - 2) < 0.01, 'on its spawn');
+});
+test('crates ignore beams when they respawn', () => {
+  const r = scene(),
+    w = r.world;
+  assert.deepEqual(w.respawnThreats({ kind: 'crate', spawn: { x: 3, z: 2 } }, r.bodies), []);
+});

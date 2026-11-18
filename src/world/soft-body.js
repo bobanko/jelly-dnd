@@ -1046,9 +1046,12 @@ class System {
       b.driveDirection = magnitude > 0 ? input : onBelt ? belt : null;
       if (p.state === 'dead') {
         p.respawnTimer -= dt;
-        const spawn = p.respawnTimer <= 0 && world.respawnPosition(p, players);
-        // Ready but the spawn is taken: the game outlines the body there.
-        p.respawnBlocked = p.respawnTimer <= 0 && !spawn;
+        const ready = p.respawnTimer <= 0,
+          respawn = ready ? world.respawnState(p, players) : null,
+          spawn = respawn?.position;
+        // Ready but the spawn is taken or under a beam: the game outlines the body there.
+        p.respawnBlocked = ready && !spawn;
+        p.respawnThreat = !!respawn?.threat;
         if (spawn) {
           // A crate is teleported back above its spawn and drops into place.
           const crate = p.kind === 'crate';
@@ -1066,6 +1069,7 @@ class System {
             portalCooldown: 0,
             deathReason: null,
             respawnBlocked: false,
+            respawnThreat: false,
           });
           b.reset(p);
           events.push({ type: 'respawn', player: i });
