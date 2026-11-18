@@ -17,7 +17,7 @@ const catalog = {
   extra: [
     {
       subcat: 'own unsorted',
-      levels: ['ds-28-reimagined.json'],
+      levels: ['ds-28-reimagined.json', 'ds-38-wip.json'],
     },
     {
       subcat: 'gem',
