@@ -90,7 +90,8 @@ export function arrowGeometry() {
       );
     for (const p of [a, b, tip]) mesh.push(...p, ...normal, 0.63, 0.64, 0.58, 12, 0, 0);
   }
-  for (const a of [0, Math.PI / 2]) {
+  // Four vanes, one per quarter turn; each starts at the shaft and points outward.
+  for (const a of [0, Math.PI / 2, Math.PI, (Math.PI * 3) / 2]) {
     const from = mesh.length;
     box(mesh, [0, 0.035, -0.27], [0.012, 0.08, 0.12], [0.7, 0.65, 0.5], 0.002, 1, 1);
     for (let k = from; k < mesh.length; k += 12)
