@@ -1173,22 +1173,50 @@ function updateSpawnOutlines() {
 // and rise as they fade: white for crates and barrels, a jelly's own colour for jellies.
 const SPAWN_GLYPH_EVERY = 0.3,
   SPAWN_GLYPH_LIFE = 1.4;
-// A jelly kept off its spawn by a crystal beam swears instead: a comic cloud of grawlix
-// over its outline, reshuffled a few times a second (held still with reduced motion).
+// A jelly kept off its spawn, by a body on it or a crystal beam across it, swears: a comic
+// cloud of grawlix and cartoon curses over its outline, reshuffled a few times a second
+// (held still with reduced motion). Crates and barrels just wait with '!' and '?'.
 const GRAWLIX = '!@#$%&*',
-  GRAWLIX_EVERY = 0.16;
+  GRAWLIX_EVERY = 0.16,
+  // Drawn inline so they look the same without a colour emoji font.
+  INK = '#2b1d1a',
+  CURSES = [
+    // Skull
+    `<path d="M12 2.5c-5 0-8.5 3.4-8.5 8 0 2.7 1.3 4.6 3.3 5.6V20h2.4v-2h1.6v2h2.4v-2h1.6v2h2.4v-3.9c2-1 3.3-2.9 3.3-5.6 0-4.6-3.5-8-8.5-8Z" fill="#f3ead2"/><circle cx="8.6" cy="10.8" r="2.2" fill="${INK}"/><circle cx="15.4" cy="10.8" r="2.2" fill="${INK}"/><path d="m12 13.3-1.3 2.2h2.6Z" fill="${INK}"/>`,
+    // Lightning
+    `<path d="M14 1.5 4.5 13.5H11L9 22.5l10.5-13H13Z" fill="#ffcf33"/>`,
+    // Spiral
+    `<path d="M12.3 12.2c.4-1-.7-1.7-1.5-1.2-1.3.8-.9 2.9.5 3.4 2.1.8 4.1-1.1 3.7-3.2-.5-2.7-3.6-3.9-6-2.7-3 1.5-3.5 5.6-1.3 8 2.5 2.7 7.1 2.4 9.2-.6 2.4-3.3 1.3-8.3-2.1-10.2" fill="none" stroke="#c0262d" stroke-width="2.6" stroke-linecap="round"/>`,
+    // Bomb
+    `<circle cx="10.5" cy="14" r="7" fill="${INK}"/><path d="M14.5 8.2 16 6.5l2 2-1.5 1.6" fill="${INK}"/><path d="M17 7.5c1-2.3 2.6-3 4-2.5" fill="none" stroke="${INK}" stroke-width="1.6"/><path d="m21 2 .7 1.8L23.5 4l-1.5 1 .4 1.9-1.4-1.1-1.6 1 .5-1.9L18.5 4l1.9-.3Z" fill="#ff7a1a"/><circle cx="8" cy="11.5" r="1.6" fill="#fff6df" opacity=".6"/>`,
+    // Burst
+    `<path d="m12 1.5 2.3 6 6.2-1.8-3.5 5.4 5.5 3.5-6.4.8.5 6.4-4.6-4.5-4.6 4.5.5-6.4-6.4-.8 5.5-3.5L3.5 5.7l6.2 1.8Z" fill="#c0262d"/>`,
+  ].map(
+    (inner) =>
+      `<svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="${INK}" stroke-width="1.4" stroke-linejoin="round">${inner}</g></svg>`,
+  );
 const swearing = (p) =>
-  p.state === 'dead' && p.respawnBlocked && p.respawnThreat && p.spawn && !level.assembly;
+  p.state === 'dead' && p.respawnBlocked && p.spawn && p.kind !== 'crate' && !level.assembly;
 function swearCloudPoint(p) {
   const [x, y, z] = spawnCenter(p);
   return project(x, y + 0.55, z);
 }
+// Five marks: two different cartoon curses among symbols, never the same symbol twice in a row.
 function fillGrawlix(node) {
+  const curses = [...CURSES].sort(() => Math.random() - 0.5).slice(0, 2),
+    slots = [0, 1, 2, 3, 4].sort(() => Math.random() - 0.5).slice(0, 2);
   let previous = '';
-  const marks = Array.from({ length: 5 }, () => {
-    const pool = [...GRAWLIX].filter((c) => c !== previous),
-      mark = document.createElement('span');
-    previous = mark.textContent = pool[Math.floor(Math.random() * pool.length)];
+  const marks = Array.from({ length: 5 }, (_, k) => {
+    const mark = document.createElement('span'),
+      curse = slots.indexOf(k);
+    if (curse >= 0) {
+      mark.className = 'curse';
+      mark.innerHTML = curses[curse];
+      previous = '';
+    } else {
+      const pool = [...GRAWLIX].filter((c) => c !== previous);
+      previous = mark.textContent = pool[Math.floor(Math.random() * pool.length)];
+    }
     mark.style.setProperty('--tilt', (Math.random() * 30 - 15).toFixed(0) + 'deg');
     return mark;
   });

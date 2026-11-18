@@ -1682,7 +1682,7 @@ html[lang='ru'] .menu-panel h1 {
     0 0 10px color-mix(in srgb, var(--glyph-color) 55%, transparent);
   opacity: 0;
 }
-/* Over a jelly kept off its spawn by a crystal beam: a comic thought cloud of grawlix
+/* Over a jelly kept off its spawn: a comic thought cloud of grawlix and cartoon curses
    (see updateSwearClouds). Its bottom centre sits just above the outline. */
 .swear-cloud {
   position: absolute;
@@ -1732,6 +1732,12 @@ html[lang='ru'] .menu-panel h1 {
 }
 .swear-cloud span:nth-child(even) {
   color: #c0262d;
+}
+.swear-cloud .curse svg {
+  display: block;
+  width: 1.05em;
+  height: 1.05em;
+  margin: -0.05em 0.02em -0.1em;
 }
 @keyframes swear-cloud-shake {
   50% {
