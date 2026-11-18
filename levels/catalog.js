@@ -24,6 +24,10 @@ const catalog = {
       levels: ['gem-barrel-express.json', 'gem-mine-lift.json', 'gem-crystal-sanctum.json'],
     },
     {
+      subcat: 'жпт',
+      levels: ['gpt-gaze-relay.json', 'gpt-split-vigil.json', 'gpt-eye-of-storm.json'],
+    },
+    {
       subcat: 'claude',
       levels: [
         'claude-counterweight.json',
