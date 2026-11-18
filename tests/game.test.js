@@ -873,10 +873,15 @@ test('level titles format numbers with leading zero and dot', async () => {
   assert.equal(g.run('currentLevelTitle()'), '01. First Steps');
   assert.equal(g.run('levelTitle(1)'), '01. First Steps');
   assert.equal(g.run('levelTitle(2)'), '02. Helping Hands');
-  assert.equal(g.run('levelTitle("extra-1")'), 'E01. Barrel Express');
+  // Extra levels are curated freely, so the expected name comes from the catalog itself.
+  const firstExtra = g.run(
+    'JellyLevels.displayName(JellyLevels.extraLevel(1), JellyI18n?.language)',
+  );
+  assert.ok(firstExtra);
+  assert.equal(g.run('levelTitle("extra-1")'), `E01. ${firstExtra}`);
 
   const gExtra = await game({ search: '?level=extra-1&play=1' });
-  assert.equal(gExtra.run('currentLevelTitle()'), 'E01. Barrel Express');
+  assert.equal(gExtra.run('currentLevelTitle()'), `E01. ${firstExtra}`);
 
   const gEditor = await game();
   assert.equal(gEditor.run('currentLevelTitle()'), 'The Sunken Sanctum');
