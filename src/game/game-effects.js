@@ -73,6 +73,7 @@ class System {
     this.laserTimers = new Map();
     this.beholderActive = [];
     this.beholderTimers = [];
+    this.beholderFan = [];
     this.runeTimers = [];
     this.runeActive = [];
     // Per-player materialisation: hidden for `delay`, then grows from a point (visual only).
@@ -108,6 +109,7 @@ class System {
     this.laserTimers.clear();
     this.beholderActive = [];
     this.beholderTimers = [];
+    this.beholderFan = [];
     this.runeTimers = [];
     this.runeActive = [];
   }
@@ -141,15 +143,19 @@ class System {
   }
   beholderMarks(b, origin, index, kind, count) {
     for (let j = 0; j < count; j++) {
-      const a = (j * Math.PI * 2) / count + this.random() * 0.5;
+      // A golden-ratio fan: every mark leaves on another side of the eye than the last one,
+      // across the screen (see `spread` in the renderer), so they never pile up in depth.
+      const fan = ((this.beholderFan[index] ?? this.random()) + 0.618034) % 1,
+        side = fan * 2 - 1;
+      this.beholderFan[index] = fan;
       this.particles.push({
         kind,
         beholder: index,
-        position: [b.x + Math.cos(a) * 0.18, origin[1] + 0.67 + j * 0.06, b.z + Math.sin(a) * 0.18],
-        velocity: this.reducedMotion
-          ? [0, 0.15, 0]
-          : [Math.cos(a) * 0.18, 0.55 + j * 0.08, Math.sin(a) * 0.18],
-        size: 0.14,
+        position: [b.x, origin[1] + 0.62 + j * 0.05, b.z],
+        velocity: [0, this.reducedMotion ? 0.15 : 0.42 + this.random() * 0.12, 0],
+        offset: side * 0.24,
+        spread: this.reducedMotion ? 0 : side * 0.5,
+        size: 0.17,
         color: kind === 'question' ? [1, 0.76, 0.28] : [1, 0.52, 0.12],
         age: 0,
         life: kind === 'question' ? 1.05 : 0.85,
@@ -189,7 +195,10 @@ class System {
       }
       this.beholderActive[i] = detected;
     });
-    this.beholderActive.length = this.beholderTimers.length = beholders.length;
+    this.beholderActive.length =
+      this.beholderTimers.length =
+      this.beholderFan.length =
+        beholders.length;
     this.particles = this.particles.slice(-MAX_PARTICLES);
   }
   stepLaserImpacts(dt, world, players) {

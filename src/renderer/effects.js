@@ -74,9 +74,12 @@ export const effectsMethods = {
           for (let axis = 3; axis < 6; axis++) mesh[k + axis] /= length;
         }
       } else if (item.kind === 'alert' || item.kind === 'question') {
-        // Face the camera so both punctuation silhouettes stay readable while orbiting.
+        // Face the camera so both punctuation silhouettes stay readable while orbiting; marks
+        // drift apart across the screen and carry a dark outline against bright beams.
         const size = item.size * (0.7 + fade * 0.3),
-          point = (x, y) => item.position.map((v, k) => v + (across[k] * x + up[k] * y) * size),
+          side = (item.offset || 0) + (item.spread || 0) * item.age,
+          point = (x, y) =>
+            item.position.map((v, k) => v + across[k] * side + (across[k] * x + up[k] * y) * size),
           points =
             item.kind === 'alert'
               ? [
@@ -93,9 +96,15 @@ export const effectsMethods = {
                   [0.02, 0.05],
                   [0, -0.18],
                 ];
-        for (let j = 1; j < points.length; j++)
-          rod(mesh, point(...points[j - 1]), point(...points[j]), size * 0.3, item.color, 7);
-        sphere(mesh, point(0, -0.65), [size * 0.22, size * 0.22, size * 0.22], item.color, 7);
+        // Effects do not write depth, so the outline drawn first stays behind the glow.
+        for (const [width, bead, color, material] of [
+          [0.62, 0.42, [0.04, 0.02, 0.015], 15],
+          [0.3, 0.22, item.color, 7],
+        ]) {
+          for (let j = 1; j < points.length; j++)
+            rod(mesh, point(...points[j - 1]), point(...points[j]), size * width, color, material);
+          sphere(mesh, point(0, -0.65), [size * bead, size * bead, size * bead], color, material);
+        }
       } else if (item.kind === 'spark') {
         rod(
           mesh,
@@ -222,14 +231,17 @@ export const effectsMethods = {
       // Bones, splinters and dust are lit like the scene (material 15); dust stays see-through.
       for (let k = from; k < mesh.length; k += 12) {
         mesh[k + 9] =
-          item.kind === 'bone' || item.kind === 'wood' || item.kind === 'dust'
-            ? 15
-            : item.kind === 'jelly' || item.kind === 'sweat'
-              ? 6
-              : 7;
+          item.kind === 'alert' || item.kind === 'question'
+            ? mesh[k + 9]
+            : item.kind === 'bone' || item.kind === 'wood' || item.kind === 'dust'
+              ? 15
+              : item.kind === 'jelly' || item.kind === 'sweat'
+                ? 6
+                : 7;
         mesh[k + 10] =
           fade *
-          (item.kind === 'bone'
+          (item.kind === 'bone' ||
+          ((item.kind === 'alert' || item.kind === 'question') && mesh[k + 9] === 15)
             ? 1
             : item.kind === 'dust'
               ? 0.38

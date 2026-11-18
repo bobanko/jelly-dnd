@@ -1264,13 +1264,20 @@ function updateSpawnMarks(dt) {
         : '?';
     node.setAttribute('aria-hidden', 'true');
     node.style.setProperty('--glyph-color', p.kind === 'crate' ? '#fff' : colors[p.slot]);
+    node.style.setProperty('--tilt', (Math.random() * 24 - 12).toFixed(0) + 'deg');
     layer.append(node);
+    // A golden-ratio fan across the screen: each glyph leaves on another side than the last,
+    // so they fly apart instead of piling up on one rising column.
+    p.glyphFan = ((p.glyphFan ?? Math.random()) + 0.618034) % 1;
+    const side = p.glyphFan * 2 - 1;
     spawnGlyphs.push({
       node,
-      origin: swear ? [cx + (Math.random() - 0.5) * 0.7, cy + 0.75, cz] : spawnCenter(p),
+      // Grawlix leave the swear cloud's rim; '!' and '?' the top of the outline.
+      origin: swear ? [cx, cy + 0.8, cz] : [cx, cy + 0.2, cz],
+      offset: side * (swear ? 0.32 : 0.16),
+      spread: side * (swear ? 0.5 : 0.38),
       age: 0,
-      rise: 0.55 + Math.random() * 0.3,
-      sway: Math.random() * Math.PI * 2,
+      rise: 0.5 + Math.random() * 0.2,
     });
   }
   spawnGlyphs = spawnGlyphs.filter((glyph) => {
@@ -1281,14 +1288,11 @@ function updateSpawnMarks(dt) {
       return false;
     }
     const [x, y, z] = glyph.origin,
-      point = project(
-        x + Math.sin(glyph.sway + glyph.age * 3) * 0.05,
-        y + glyph.age * glyph.rise,
-        z,
-      );
+      point = project(x, y + glyph.age * glyph.rise, z);
     glyph.node.hidden = !point.visible;
     if (point.visible) {
-      glyph.node.style.left = point.x + 'px';
+      glyph.node.style.left =
+        point.x + (glyph.offset + glyph.spread * glyph.age) * point.scale + 'px';
       glyph.node.style.top = point.y + 'px';
       glyph.node.style.fontSize = Math.max(12, point.scale * 0.3) + 'px';
       glyph.node.style.opacity = String(

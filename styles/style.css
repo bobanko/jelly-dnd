@@ -1665,18 +1665,21 @@ html[lang='ru'] .menu-panel h1 {
     animation: none;
   }
 }
-/* Rising over a body whose spawn is taken: glowing '!' and '?' (see updateSpawnMarks). */
+/* Rising over a body whose spawn is taken: glowing '!' and '?' (see updateSpawnMarks). A dark
+   ink outline under the fill keeps them readable over beams, glow and pale floors. */
 .spawn-glyph {
   position: absolute;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) rotate(var(--tilt, 0deg));
   font:
-    700 1em/1 Georgia,
+    900 1em/1 Georgia,
     'Times New Roman',
     serif;
   color: var(--glyph-color);
+  -webkit-text-stroke: 0.14em #1b120f;
+  paint-order: stroke fill;
   text-shadow:
-    0 0 6px var(--glyph-color),
-    0 0 14px color-mix(in srgb, var(--glyph-color) 60%, transparent);
+    0 0.04em 0.06em #1b120f,
+    0 0 10px color-mix(in srgb, var(--glyph-color) 55%, transparent);
   opacity: 0;
 }
 /* Over a jelly kept off its spawn by a crystal beam: a comic thought cloud of grawlix
