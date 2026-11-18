@@ -428,14 +428,22 @@ function install(World) {
           )
         : this.obstacles;
     },
-    active(i, bodies) {
+    triggerIndex(ref) {
+      return [...this.plates, ...this.beholders].findIndex((p) => p.id === ref || p.color === ref);
+    },
+    // `sight` memoises beholder raycasts for callers that test many triggers against
+    // one unchanged world state (one pass over bridges, spikes or drones).
+    active(i, bodies, sight = new Map()) {
       const sources = [...this.plates, ...this.beholders],
         plate = sources[i];
       if (!plate) return false;
       return sources.some((candidate) => {
         if (candidate !== plate && (!plate.color || candidate.color !== plate.color)) return false;
-        if (this.beholders.includes(candidate))
-          return this.beholderSight(candidate, bodies).detected;
+        if (this.beholders.includes(candidate)) {
+          if (!sight.has(candidate))
+            sight.set(candidate, this.beholderSight(candidate, bodies).detected);
+          return sight.get(candidate);
+        }
         const height = candidate.y ?? this.heightAt(candidate.x, candidate.z) ?? 0;
         return bodies.some(
           (p) => alive(p) && Math.abs((p.y || 0) - height) < 0.15 && near(p, candidate, 0.42),
@@ -668,16 +676,10 @@ function install(World) {
       this.restoreFeatures(null);
     },
     stepSpikes(bodies, dt) {
+      const sight = new Map();
       for (const spike of this.spikes) {
         if (!spike.plate) continue;
-        spike.target = this.active(
-          [...this.plates, ...this.beholders].findIndex(
-            (p) => p.id === spike.plate || p.color === spike.plate,
-          ),
-          bodies,
-        )
-          ? 1
-          : 0;
+        spike.target = this.active(this.triggerIndex(spike.plate), bodies, sight) ? 1 : 0;
         // The same extension drives visible geometry, damage, sound and debug bounds.
         const progress = spike.progress || 0,
           distance = spike.target - progress;

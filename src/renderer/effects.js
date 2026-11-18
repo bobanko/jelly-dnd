@@ -300,16 +300,17 @@ export const effectsMethods = {
     this.runeCount = count;
   },
   updateBeams(level) {
-    const beams = [
-      ...(level.world.droneBeams || []),
-      ...(level.effects?.lasers || []).filter((b) => {
-        const drone = level.world.drones?.[b.drone];
-        return !drone || level.world.droneBeamEnabled(drone);
-      }),
-      ...(level.world.beholderBeams || []),
-    ]
-      .filter((b) => Math.hypot(...b.to.map((v, k) => v - b.from[k])) > 0.001)
-      .slice(0, 24);
+    const sight = new Map(),
+      beams = [
+        ...(level.world.droneBeams || []),
+        ...(level.effects?.lasers || []).filter((b) => {
+          const drone = level.world.drones?.[b.drone];
+          return !drone || level.world.droneBeamEnabled(drone, undefined, sight);
+        }),
+        ...(level.world.beholderBeams || []),
+      ]
+        .filter((b) => Math.hypot(...b.to.map((v, k) => v - b.from[k])) > 0.001)
+        .slice(0, 24);
     this.beamCount = beams.length;
     beams.forEach((b, i) => {
       const k = i * 12;

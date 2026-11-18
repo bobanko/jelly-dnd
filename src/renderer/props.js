@@ -259,9 +259,10 @@ export const propsMethods = {
     }
     this.platePress ??= [];
     const plateBodies = [...players, ...(level.crates || [])],
+      plateSight = new Map(),
       pressFade = level.reducedMotion ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 14);
     level.plates.forEach((plate, i) => {
-      const target = level.world.active(i, plateBodies) ? 1 : 0;
+      const target = level.world.active(i, plateBodies, plateSight) ? 1 : 0;
       // Buttons arrive with their cubes already as they will stand: no movement afterwards.
       if (level.assembly) {
         this.platePress[i] = target;

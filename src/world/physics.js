@@ -48,9 +48,10 @@ class World {
   }
   refresh(bodies) {
     this.bodies = bodies;
+    const sight = new Map();
     for (let i = 0; i < this.bridges.length; i++) {
       const b = this.bridges[i];
-      if (this.active(b.plate, bodies)) this.held.add(i);
+      if (this.active(b.plate, bodies, sight)) this.held.add(i);
       else this.held.delete(i);
     }
   }

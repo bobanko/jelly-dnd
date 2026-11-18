@@ -184,16 +184,14 @@ function install(World) {
       });
       this.droneFollowing.length = this.drones.length;
     },
-    droneBeamEnabled(d, bodies = this.bodies || []) {
+    droneBeamEnabled(d, bodies = this.bodies || [], sight = new Map()) {
       const mode = d.beamMode ?? 'always';
       if (mode === 'always') return true;
       if (mode === 'off' || !d.plate) return false;
-      const index = [...this.plates, ...this.beholders].findIndex(
-        (p) => p.id === d.plate || p.color === d.plate,
-      );
+      const index = this.triggerIndex(d.plate);
       // A deleted or unassigned trigger leaves the laser safely off in either mode.
       if (index < 0) return false;
-      const active = this.active(index, bodies);
+      const active = this.active(index, bodies, sight);
       return mode === 'trigger-off' ? !active : active;
     },
     traceDrones(bodies, soft) {
@@ -207,9 +205,10 @@ function install(World) {
             min: [o.x - (o.halfX ?? o.half), o.minY, o.z - (o.halfZ ?? o.half)],
             max: [o.x + (o.halfX ?? o.half), o.maxY, o.z + (o.halfZ ?? o.half)],
           })),
-        beams = [];
+        beams = [],
+        sight = new Map();
       for (const [index, d] of this.drones.entries()) {
-        if (!this.droneBeamEnabled(d, bodies)) continue;
+        if (!this.droneBeamEnabled(d, bodies, sight)) continue;
         const target = this.droneTarget(d, bodies);
         if (!target) continue;
         if (this.droneFollowing?.[index]?.flying) continue;
